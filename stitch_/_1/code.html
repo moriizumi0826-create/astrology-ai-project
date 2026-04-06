@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>The Celestial Atelier | Astrology Columns</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif:ital,wght@0,400;0,700;1,400&amp;family=Manrope:wght@300;400;500;600&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+        tailwind.config = {
+          darkMode: "class",
+          theme: {
+            extend: {
+              "colors": {
+                      "tertiary-container": "#f9f3e6",
+                      "on-tertiary-fixed": "#4c4a40",
+                      "primary-dim": "#53534d",
+                      "surface-variant": "#dee4da",
+                      "on-tertiary-fixed-variant": "#69665c",
+                      "on-error-container": "#742410",
+                      "surface-bright": "#fafaf5",
+                      "background": "#fafaf5",
+                      "tertiary-fixed-dim": "#eae5d8",
+                      "tertiary": "#625f55",
+                      "on-tertiary": "#fef9eb",
+                      "primary-fixed-dim": "#d6d4cd",
+                      "on-error": "#fff7f6",
+                      "secondary-container": "#f7e382",
+                      "on-primary": "#faf8f0",
+                      "inverse-surface": "#0d0f0c",
+                      "primary": "#5f5f59",
+                      "on-primary-container": "#52524d",
+                      "secondary-dim": "#605300",
+                      "inverse-on-surface": "#9c9d99",
+                      "surface-container-low": "#f3f4ee",
+                      "outline-variant": "#aeb4aa",
+                      "primary-container": "#e5e2db",
+                      "secondary-fixed-dim": "#e8d576",
+                      "on-secondary": "#fff8ea",
+                      "on-surface-variant": "#5b6159",
+                      "secondary-fixed": "#f7e382",
+                      "outline": "#767c74",
+                      "error-dim": "#5c1202",
+                      "on-secondary-fixed-variant": "#695b02",
+                      "secondary": "#6d5f07",
+                      "on-primary-fixed": "#40403b",
+                      "surface-container-lowest": "#ffffff",
+                      "tertiary-dim": "#565349",
+                      "on-background": "#2e342d",
+                      "inverse-primary": "#f3f1e9",
+                      "surface-container-high": "#e5eae0",
+                      "on-tertiary-container": "#5e5c52",
+                      "tertiary-fixed": "#f9f3e6",
+                      "on-surface": "#2e342d",
+                      "surface-container-highest": "#dee4da",
+                      "surface": "#fafaf5",
+                      "surface-tint": "#5f5f59",
+                      "on-secondary-container": "#5e5200",
+                      "primary-fixed": "#e5e2db",
+                      "on-primary-fixed-variant": "#5c5c56",
+                      "surface-dim": "#d5dcd0",
+                      "error-container": "#fe8b70",
+                      "on-secondary-fixed": "#493f00",
+                      "error": "#9e422c",
+                      "surface-container": "#ecefe7"
+              },
+              "borderRadius": {
+                      "DEFAULT": "0px",
+                      "lg": "0px",
+                      "xl": "0px",
+                      "full": "9999px"
+              },
+              "fontFamily": {
+                      "notoSerif": ["Noto Serif", "serif"],
+                      "manrope": ["Manrope", "sans-serif"]
+              }
+            },
+          },
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 200, 'GRAD' 0, 'opsz' 24;
+        }
+        body {
+            font-family: 'Manrope', 'Noto Sans JP', sans-serif;
+            background-color: #fafaf5;
+            color: #5f5f59;
+        }
+        .editorial-shadow {
+            box-shadow: 0px 20px 40px rgba(46, 52, 45, 0.06);
+        }
+    </style>
+</head>
+<body class="bg-surface text-on-surface">
+<!-- TopNavBar -->
+<nav class="fixed top-0 left-0 w-full z-50 bg-[#fafaf5]/80 dark:bg-[#43433e]/80 backdrop-blur-md flex justify-between items-center px-12 py-6 max-w-full">
+<div class="text-2xl font-normal font-notoSerif text-[#5f5f59] dark:text-[#fafaf5]">
+            The Celestial Atelier
+        </div>
+<div class="hidden md:flex gap-10 font-notoSerif tracking-wider text-sm">
+<a class="text-[#5f5f59] dark:text-[#fafaf5]/70 hover:text-[#6d5f07] transition-colors duration-500" href="#">Home</a>
+<a class="text-[#5f5f59] dark:text-[#fafaf5]/70 hover:text-[#6d5f07] transition-colors duration-500" href="#">Horoscope</a>
+<a class="text-[#6d5f07] border-b-2 border-[#6d5f07] pb-1" href="#">Readings</a>
+<a class="text-[#5f5f59] dark:text-[#fafaf5]/70 hover:text-[#6d5f07] transition-colors duration-500" href="#">About</a>
+</div>
+<div class="flex items-center gap-6">
+<span class="material-symbols-outlined text-[#5f5f59] cursor-pointer" data-icon="account_circle">account_circle</span>
+</div>
+</nav>
+<main class="pt-32 pb-24 px-6 md:px-12 max-w-[1600px] mx-auto">
+<!-- Editorial Header -->
+<header class="mb-20 grid grid-cols-1 md:grid-cols-12 gap-8 items-end">
+<div class="md:col-span-7">
+<p class="font-manrope text-[10px] uppercase tracking-[0.3em] text-secondary mb-1">The Columns</p>
+<p class="font-manrope text-[10px] text-secondary/60 mb-4 tracking-widest">— コラム —</p>
+<h1 class="font-notoSerif text-5xl md:text-7xl font-normal leading-[1.1] tracking-tight text-primary">
+                    Curated cosmic perspectives for the <span class="italic">modern soul</span>.
+                </h1>
+<p class="font-notoSerif text-sm text-primary/60 mt-4 tracking-wider">現代の魂のための、洗練された宇宙的視点</p>
+</div>
+<div class="md:col-span-4 md:col-start-9">
+<div class="relative group">
+<input class="w-full bg-transparent border-b border-outline-variant/30 py-3 font-manrope text-sm focus:outline-none focus:border-secondary transition-colors duration-500 placeholder:text-outline-variant/60" placeholder="アーカイブを検索..." type="text"/>
+<span class="material-symbols-outlined absolute right-0 top-3 text-outline-variant group-focus-within:text-secondary transition-colors duration-500" data-icon="search">search</span>
+</div>
+</div>
+</header>
+<!-- Category Filter -->
+<div class="flex flex-wrap gap-8 mb-16 border-b border-outline-variant/10 pb-8">
+<button class="flex flex-col items-start group">
+<span class="font-manrope text-xs uppercase tracking-widest text-secondary font-semibold">All Musings</span>
+<span class="text-[9px] text-secondary/70 tracking-tighter opacity-0 group-hover:opacity-100 transition-opacity">すべての思索</span>
+</button>
+<button class="flex flex-col items-start group">
+<span class="font-manrope text-xs uppercase tracking-widest text-primary/60 group-hover:text-secondary transition-colors duration-300">Living with the Stars</span>
+<span class="text-[9px] text-primary/40 tracking-tighter opacity-0 group-hover:opacity-100 transition-opacity">星との暮らし</span>
+</button>
+<button class="flex flex-col items-start group">
+<span class="font-manrope text-xs uppercase tracking-widest text-primary/60 group-hover:text-secondary transition-colors duration-300">Celestial Interiors</span>
+<span class="text-[9px] text-primary/40 tracking-tighter opacity-0 group-hover:opacity-100 transition-opacity">天空のインテリア</span>
+</button>
+<button class="flex flex-col items-start group">
+<span class="font-manrope text-xs uppercase tracking-widest text-primary/60 group-hover:text-secondary transition-colors duration-300">Monthly Forecasts</span>
+<span class="text-[9px] text-primary/40 tracking-tighter opacity-0 group-hover:opacity-100 transition-opacity">月間予測</span>
+</button>
+</div>
+<!-- Article Grid (Asymmetric) -->
+<div class="grid grid-cols-1 md:grid-cols-12 gap-y-24 gap-x-12">
+<!-- Featured Large Article -->
+<article class="md:col-span-8 group cursor-pointer">
+<div class="overflow-hidden mb-8 aspect-[16/10]">
+<img alt="Minimalist sunlit interior" class="w-full h-full object-cover grayscale-[20%] group-hover:scale-105 transition-transform duration-1000 ease-[cubic-bezier(0.2,0,0,1)]" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDf89FLHKefkBfTGiVFAk3RtVYqvXjAvY9ILSPyIqGtYSW2diAYkRRHd_tgpRO_k_ouPIoTxPZWpyEbQ3fLY51pUbq2p7mAMIhU6DymRvMpqRHAuL7HDcmyleLN29sM3mLP8U4GZ5EkHNYZvfc48Ejm7b85bpTlP5tDyBdGZjdSxZG-P5qzSChDeVb3Uve8LIGSsn93tEGfmM-Qgcgd0L_MOoZO4M7anLLZi-BC6xmroklhfC5iPjjY16KzEa52tirlvZ-VW-rN5h1B"/>
+</div>
+<div class="max-w-2xl">
+<p class="font-manrope text-[10px] uppercase tracking-[0.2em] text-outline mb-1">Celestial Interiors</p>
+<p class="font-manrope text-[9px] text-outline/60 mb-4 tracking-widest">天空のインテリア</p>
+<h2 class="font-notoSerif text-3xl md:text-4xl mb-4 leading-snug group-hover:text-secondary transition-colors duration-500">The Geometry of Light: How Lunar Phases Dictate Room Flow</h2>
+<p class="font-notoSerif text-sm text-primary/60 mb-6 italic">光の幾何学：月の満ち欠けが部屋の流れをどのように規定するか</p>
+<p class="font-manrope text-on-surface-variant leading-relaxed mb-8 text-lg">月明かりと住まいの安らぎとの建築的な関係を探ります。三日月の角度がいかにして、あなたの朝のサンクチュアリの配置を決定づけるかを考察します。</p>
+<a class="inline-block text-primary text-sm tracking-widest border-b border-outline-variant pb-1 font-manrope font-medium group-hover:border-secondary transition-colors duration-500" href="#">続きを読む</a>
+</div>
+</article>
+<!-- Side Secondary Article -->
+<article class="md:col-span-4 mt-0 md:mt-32 group cursor-pointer">
+<div class="overflow-hidden mb-8 aspect-[4/5]">
+<img alt="Mystical night sky" class="w-full h-full object-cover grayscale-[40%] group-hover:scale-105 transition-transform duration-1000 ease-[cubic-bezier(0.2,0,0,1)]" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCfeVHgfqtHagwk3FxJhuOoK9bY8P-OA3iUrHmrKkhivLiAi1O7rR88ac3yERagFalseZ9xu1cHwhzFW_8E-_vDuHu8aJDYXJtNAmpTTC1yGke0Ls0HA_aUuzh7B9u0Qm52K7lF1Wlbi1K5hfaEJ5qfGxBsP_AYhpNH6DbvdL1UAFi1dArjXunJuuJ_ezNGIM4d34A6v2vIa0zARXROH9NaD6rsxUTFJjWF8rqc09hSgg3_pOnORxbaXf7l2x431dd2-zml5C79Tf6G"/>
+</div>
+<p class="font-manrope text-[10px] uppercase tracking-[0.2em] text-outline mb-1">Monthly Forecasts</p>
+<p class="font-manrope text-[9px] text-outline/60 mb-4 tracking-widest">月間予測</p>
+<h2 class="font-notoSerif text-2xl mb-2 group-hover:text-secondary transition-colors duration-500">September Solstice: A Period of Grounding</h2>
+<p class="font-notoSerif text-xs text-primary/60 mb-4 italic">9月の至点：グラウンディングの時期</p>
+<p class="font-manrope text-on-surface-variant text-sm leading-relaxed mb-6">太陽が天秤座に入るとき、私たちは美的調和と内なる均衡の交差点に立っていることに気づきます。</p>
+<a class="inline-block text-primary text-xs tracking-widest border-b border-outline-variant pb-1 font-manrope font-medium group-hover:border-secondary transition-colors duration-500" href="#">続きを読む</a>
+</article>
+<!-- Middle Row Grid -->
+<article class="md:col-span-4 group cursor-pointer">
+<div class="overflow-hidden mb-8 aspect-square">
+<img alt="Botanical setup" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-1000 ease-[cubic-bezier(0.2,0,0,1)]" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBdbTChfjBUQDnED4gjWLQgeI1OzRfb-pyuY7U4Co0soQ9hrOkzOaswdzlMEEpkohMZ77FVHJXT8rDB7vB2hO_Pip2ai6-qQ07Se2-M_HDit6cgcdMSFd3CoG7mtO8K-W_AX-fs4KwtHTc4GXfiuu9SYclluEzl3bS3kUpYK1WB3n3vB1OTHu6X3JlnpJpBSsMMSTs8JKBD1wv7Ki4jd65PS8l7tmPaIk5oe5gfSA-t6NMs2r9_34PLJdi0ayIVPYZJcdiZCFNMUwE3"/>
+</div>
+<p class="font-manrope text-[10px] uppercase tracking-[0.2em] text-outline mb-1">Living with the Stars</p>
+<p class="font-manrope text-[9px] text-outline/60 mb-4 tracking-widest">星との暮らし</p>
+<h2 class="font-notoSerif text-2xl mb-2 group-hover:text-secondary transition-colors duration-500">Botanical Divination: The Leo Garden</h2>
+<p class="font-notoSerif text-xs text-primary/60 mb-4 italic">植物の占い：獅子座の庭</p>
+<p class="font-manrope text-on-surface-variant text-sm leading-relaxed mb-6">鮮やかで暑さを好む多年草の栽培を通じて、真夏の太陽エネルギーを取り入れる方法。</p>
+<a class="inline-block text-primary text-xs tracking-widest border-b border-outline-variant pb-1 font-manrope font-medium group-hover:border-secondary transition-colors duration-500" href="#">続きを読む</a>
+</article>
+<article class="md:col-span-4 group cursor-pointer">
+<div class="overflow-hidden mb-8 aspect-square">
+<img alt="Artisanal objects" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-1000 ease-[cubic-bezier(0.2,0,0,1)]" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCqgYOjGPiU5jN2z8XMiQzHKIBFpRRECF9g1YUM9WHRAOC-3FW5KVCNsC-HhfRjigq5e1Sp3UcB6Ii_OQemdUTRWv0LlypfxxYvVgS_yV2fpkc7ls1_ACApAue92RSsCR3VBGCuCwVFYwJyc6h6hUvvNyVh3xIfR0ToNlsxXs7TR2pptIyA9Sw-9CRIqotC86-wT_HXHrpGVI7iPdqNgkTV_H49HhLtqP980Eg7dJnM0qUNNhPh-XzvGTy30cBuqkI6AR7Fthzp1Cct"/>
+</div>
+<p class="font-manrope text-[10px] uppercase tracking-[0.2em] text-outline mb-1">Celestial Interiors</p>
+<p class="font-manrope text-[9px] text-outline/60 mb-4 tracking-widest">天空のインテリア</p>
+<h2 class="font-notoSerif text-2xl mb-2 group-hover:text-secondary transition-colors duration-500">Venusian Vases: Objects of Desire</h2>
+<p class="font-notoSerif text-xs text-primary/60 mb-4 italic">金星の花瓶：欲望のオブジェ</p>
+<p class="font-manrope text-on-surface-variant text-sm leading-relaxed mb-6">小さな器が、いかに主寝室内のロマンチックなエネルギーの宇宙的アンカーとして機能するか。</p>
+<a class="inline-block text-primary text-xs tracking-widest border-b border-outline-variant pb-1 font-manrope font-medium group-hover:border-secondary transition-colors duration-500" href="#">続きを読む</a>
+</article>
+<article class="md:col-span-4 group cursor-pointer">
+<div class="overflow-hidden mb-8 aspect-square">
+<img alt="Linen fabric" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-1000 ease-[cubic-bezier(0.2,0,0,1)]" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAuC5E6jnES5BwsOwMigsdW_IcuD3qmhmDuJ2ymfe2rw7_omN03yjqU9NaK-wSlcHoPMsnw6Eli2EkUpXCTatpxMABaSa5Gx7SGh9CL4dHPsOBgc5yzetOgLi8zzULVOclfD6HQrRi_9kWBNENqbnG0e4HTGvBlJxhzv5ilcTJlcgBzr0A1ezDbMTv7AYtgjyEPRnSPQOCCi0-KV0-TRRcx59XDmLFEa5xnZrdhxBtsKv2eKBdWXZkTIkAJv0qVEvV8BCSi7SNgl2Cg"/>
+</div>
+<p class="font-manrope text-[10px] uppercase tracking-[0.2em] text-outline mb-1">Living with the Stars</p>
+<p class="font-manrope text-[9px] text-outline/60 mb-4 tracking-widest">星との暮らし</p>
+<h2 class="font-notoSerif text-2xl mb-2 group-hover:text-secondary transition-colors duration-500">The Saturnian Wardrobe</h2>
+<p class="font-notoSerif text-xs text-primary/60 mb-4 italic">土星のワードローブ</p>
+<p class="font-manrope text-on-surface-variant text-sm leading-relaxed mb-6">山羊座の規律の反映として、リネンやウールの構造と長寿を受け入れることについて。</p>
+<a class="inline-block text-primary text-xs tracking-widest border-b border-outline-variant pb-1 font-manrope font-medium group-hover:border-secondary transition-colors duration-500" href="#">続きを読む</a>
+</article>
+</div>
+<!-- Pagination / Load More -->
+<div class="mt-32 text-center">
+<button class="font-manrope text-sm tracking-[0.4em] uppercase text-primary border border-outline-variant/40 px-12 py-5 hover:bg-primary hover:text-on-primary transition-all duration-700 ease-[cubic-bezier(0.2,0,0,1)]">
+                過去のアーカイブを読み込む
+            </button>
+</div>
+</main>
+<!-- Footer -->
+<footer class="bg-[#fafaf5] dark:bg-[#43433e] w-full py-20 px-12 border-t-[0.5px] border-[#5f5f59]/10">
+<div class="grid grid-cols-1 md:grid-cols-3 gap-12 max-w-7xl mx-auto font-notoSerif text-sm tracking-tight text-[#5f5f59] dark:text-[#fafaf5]">
+<div class="space-y-6">
+<div class="text-xl font-normal font-notoSerif text-[#5f5f59]">The Celestial Atelier</div>
+<p class="font-manrope text-on-surface-variant leading-relaxed max-w-xs">宇宙の智慧と意図的な暮らしが交差する、デジタルな聖域。</p>
+</div>
+<div class="flex flex-col gap-4">
+<p class="font-manrope font-semibold text-[10px] uppercase tracking-widest mb-2 opacity-50">Discovery</p>
+<a class="text-[#5f5f59]/60 dark:text-[#fafaf5]/60 hover:text-[#6d5f07] transition-colors duration-300" href="#">Instagram</a>
+<a class="text-[#5f5f59]/60 dark:text-[#fafaf5]/60 hover:text-[#6d5f07] transition-colors duration-300" href="#">Pinterest</a>
+<a class="text-[#5f5f59]/60 dark:text-[#fafaf5]/60 hover:text-[#6d5f07] transition-colors duration-300" href="#">Editorial</a>
+<a class="text-[#5f5f59]/60 dark:text-[#fafaf5]/60 hover:text-[#6d5f07] transition-colors duration-300" href="#">Archives</a>
+</div>
+<div class="flex flex-col justify-between">
+<div>
+<p class="font-manrope font-semibold text-[10px] uppercase tracking-widest mb-4 opacity-50">Inquiries</p>
+<a class="text-[#5f5f59]/60 dark:text-[#fafaf5]/60 hover:text-[#6d5f07] transition-colors duration-300" href="#">キュレーターに問い合わせる</a>
+</div>
+<div class="mt-12 md:mt-0 opacity-40 font-manrope text-[10px] tracking-widest uppercase">
+                    © 2024 The Celestial Atelier. All rights reserved.
+                </div>
+</div>
+</div>
+</footer>
+</body></html>

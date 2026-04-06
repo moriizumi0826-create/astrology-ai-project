@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+
+<html class="light" lang="ja"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif:ital,wght@0,300;0,400;0,700;1,400&amp;family=Manrope:wght@300;400;500;700&amp;family=Noto+Sans+JP:wght@300;400;500&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            "colors": {
+                    "tertiary-container": "#f9f3e6",
+                    "on-tertiary-fixed": "#4c4a40",
+                    "primary-dim": "#53534d",
+                    "surface-variant": "#dee4da",
+                    "on-tertiary-fixed-variant": "#69665c",
+                    "on-error-container": "#742410",
+                    "surface-bright": "#fafaf5",
+                    "background": "#fafaf5",
+                    "tertiary-fixed-dim": "#eae5d8",
+                    "tertiary": "#625f55",
+                    "on-tertiary": "#fef9eb",
+                    "primary-fixed-dim": "#d6d4cd",
+                    "on-error": "#fff7f6",
+                    "secondary-container": "#f7e382",
+                    "on-primary": "#faf8f0",
+                    "inverse-surface": "#0d0f0c",
+                    "primary": "#5f5f59",
+                    "on-primary-container": "#52524d",
+                    "secondary-dim": "#605300",
+                    "inverse-on-surface": "#9c9d99",
+                    "surface-container-low": "#f3f4ee",
+                    "outline-variant": "#aeb4aa",
+                    "primary-container": "#e5e2db",
+                    "secondary-fixed-dim": "#e8d576",
+                    "on-secondary": "#fff8ea",
+                    "on-surface-variant": "#5b6159",
+                    "secondary-fixed": "#f7e382",
+                    "outline": "#767c74",
+                    "error-dim": "#5c1202",
+                    "on-secondary-fixed-variant": "#695b02",
+                    "secondary": "#6d5f07",
+                    "on-primary-fixed": "#40403b",
+                    "surface-container-lowest": "#ffffff",
+                    "tertiary-dim": "#565349",
+                    "on-background": "#2e342d",
+                    "inverse-primary": "#f3f1e9",
+                    "surface-container-high": "#e5eae0",
+                    "on-tertiary-container": "#5e5c52",
+                    "tertiary-fixed": "#f9f3e6",
+                    "on-surface": "#2e342d",
+                    "surface-container-highest": "#dee4da",
+                    "surface": "#fafaf5",
+                    "surface-tint": "#5f5f59",
+                    "on-secondary-container": "#5e5200",
+                    "primary-fixed": "#e5e2db",
+                    "on-primary-fixed-variant": "#5c5c56",
+                    "surface-dim": "#d5dcd0",
+                    "error-container": "#fe8b70",
+                    "on-secondary-fixed": "#493f00",
+                    "error": "#9e422c",
+                    "surface-container": "#ecefe7"
+            },
+            fontFamily: {
+              notoSerif: ['Noto Serif', 'serif'],
+              manrope: ['Manrope', 'sans-serif'],
+              notoSansJP: ['Noto Sans JP', 'sans-serif'],
+            }
+          },
+        },
+      }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 300, 'GRAD' 0, 'opsz' 24;
+        }
+        body { font-family: 'Manrope', 'Noto Sans JP', sans-serif; }
+        .font-notoSerif { font-family: 'Noto Serif', serif; }
+    </style>
+</head>
+<body class="bg-surface text-on-surface selection:bg-secondary-container selection:text-on-secondary-container">
+<!-- TopNavBar -->
+<nav class="fixed top-0 left-0 w-full z-50 bg-[#fafaf5]/80 backdrop-blur-md flex justify-between items-center px-12 py-6 max-w-full">
+<div class="text-2xl font-normal font-notoSerif text-[#5f5f59]">The Celestial Atelier</div>
+<div class="hidden md:flex gap-12 items-center font-notoSerif tracking-wider text-sm">
+<a class="text-[#6d5f07] border-b-2 border-[#6d5f07] pb-1" href="#">Home</a>
+<a class="text-[#5f5f59] hover:text-[#6d5f07] transition-colors duration-500" href="#">Horoscope</a>
+<a class="text-[#5f5f59] hover:text-[#6d5f07] transition-colors duration-500" href="#">Readings</a>
+<a class="text-[#5f5f59] hover:text-[#6d5f07] transition-colors duration-500" href="#">About</a>
+</div>
+<div class="flex items-center gap-6">
+<button class="text-[#5f5f59] hover:text-[#6d5f07] transition-all duration-700 ease-out">
+<span class="material-symbols-outlined" data-icon="account_circle">account_circle</span>
+</button>
+<button class="md:hidden text-[#5f5f59]">
+<span class="material-symbols-outlined" data-icon="menu">menu</span>
+</button>
+</div>
+</nav>
+<!-- Main Content Canvas -->
+<main class="pt-32">
+<!-- Hero Section -->
+<section class="px-12 mb-32 md:mb-48">
+<div class="grid grid-cols-1 md:grid-cols-12 gap-12 items-end">
+<div class="md:col-span-7 lg:col-span-6 pb-12">
+<h1 class="text-6xl md:text-8xl font-notoSerif text-primary leading-tight tracking-tight mb-8">
+                        A Sanctuary of Celestial Wisdom.
+                    </h1>
+<p class="text-xs uppercase tracking-[0.2em] text-secondary font-bold mb-12">星の知恵が宿る聖域</p>
+<div class="flex flex-col gap-8 items-start">
+<p class="text-on-surface-variant font-notoSansJP text-lg leading-relaxed max-w-md">
+                            アトリエへようこそ。ここでは宇宙の動きを、現代の探求者のための洗練された洞察へと翻訳してお届けします。
+                        </p>
+<button class="bg-primary text-on-primary px-10 py-5 text-sm uppercase tracking-widest hover:bg-primary-dim transition-all duration-500 active:scale-95 font-notoSansJP">
+                            あなたの設計図を見つける
+                        </button>
+</div>
+</div>
+<div class="md:col-span-5 lg:col-span-6 relative aspect-[4/5] md:aspect-square overflow-hidden bg-surface-container">
+<img class="w-full h-full object-cover grayscale-[20%] opacity-90 transition-transform duration-1000 hover:scale-105" data-alt="Minimalist high-end interior with white walls, a single vintage telescope by a large window, and soft morning light casting subtle shadows." src="https://lh3.googleusercontent.com/aida-public/AB6AXuAdoJ0HnsOnBF-TlRyY2fW-CbaAB4CU6UlkuEklzmdnlMfaLrSiYS1KYTZIrHQzUFXAfo45uig35H3h3O9rucGbM_rciSVbEma-o0MBN2K5a3rFzwRZfBMxwPVDxrJBRmg7WlIMC-nBuhyXWc39OkAodrzrVT2Dz4POAdbJixR7VdioghlTGjij4C_7MLC6yGhdPsb6cPeFB7YZZRej2CujUPxhUx6jGYZCe-gWYT74FLMAH0OQZ0wSwimjrNjTTbGH8HZp7QBim6cC"/>
+</div>
+</div>
+</section>
+<!-- Philosophy Section -->
+<section class="py-32 bg-surface-container-low px-12">
+<div class="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-24 items-center">
+<div class="order-2 md:order-1">
+<img class="w-full aspect-[3/4] object-cover" data-alt="Close-up of an antique star chart on textured paper with delicate brass compass tools resting on a marble surface." src="https://lh3.googleusercontent.com/aida-public/AB6AXuDRQYqUynl738bKL66wb2UC3B3wnD7XTBgKtDY4lLB2Em4AjCVT9t7tR2wZ-UhFrUqKf8n1k38XIqrssNWV0vgvB3tIr7eCO_xFqiToVRnbsXkJHcbV1Gzw0MhhLv6stWIHQykclKWOB_rvYWAh3R2jOLu6B1NBhhuUJjTRlFguM-n7b40R4Dbg3fV8zv0cp0i8tGRQjbdnDY-WYpzDTEgnpdcAb-1K-vCUh52JUpKP-mbVOctdqLV62J57XGbjalx9ZjZIeano2kmt"/>
+</div>
+<div class="order-1 md:order-2 flex flex-col gap-10">
+<div class="flex flex-col gap-2">
+<label class="text-[10px] uppercase tracking-[0.3em] text-secondary font-bold">The Philosophy</label>
+<span class="text-[10px] font-notoSansJP text-secondary/70">哲学</span>
+</div>
+<h2 class="text-4xl md:text-5xl font-notoSerif text-primary leading-snug">Astrology as an Artisanal Practice.</h2>
+<p class="text-on-surface-variant font-notoSansJP leading-loose text-lg">
+                        私たちは、宇宙の知恵が厳選された家具のように、触知可能で意図的なものであるべきだと信じています。Celestial Atelierでは、ホロスコープを単なる予言としてではなく、自己研鑽のための「素材」として扱います。私たちのリーディングは、熟練した職人のような精度で仕上げられています。
+                    </p>
+<div class="pt-6">
+<a class="text-primary border-b border-outline-variant pb-1 font-notoSansJP text-sm tracking-widest uppercase hover:text-secondary hover:border-secondary transition-all" href="#">メソッドを探求する</a>
+</div>
+</div>
+</div>
+</section>
+<!-- Daily Horoscope Snippet -->
+<section class="py-48 px-12">
+<div class="max-w-4xl mx-auto text-center mb-24">
+<h2 class="text-5xl font-notoSerif text-primary mb-2">Today's Alignment</h2>
+<p class="text-xs font-notoSansJP text-secondary/80 mb-6">本日の星の配置</p>
+<p class="text-on-surface-variant tracking-widest text-sm uppercase">2024年6月14日</p>
+</div>
+<div class="grid grid-cols-1 md:grid-cols-3 gap-12 max-w-7xl mx-auto">
+<!-- Transit Card 1 -->
+<div class="bg-surface-container-lowest p-12 flex flex-col items-center text-center gap-8 group">
+<div class="text-secondary opacity-40 group-hover:opacity-100 transition-opacity duration-500">
+<span class="material-symbols-outlined text-4xl" data-icon="star">star</span>
+</div>
+<div class="flex flex-col gap-2">
+<h3 class="font-notoSerif text-2xl text-primary">Sun in Gemini</h3>
+<span class="text-[10px] font-notoSansJP text-secondary/60">双子座の太陽</span>
+</div>
+<p class="text-on-surface-variant text-sm leading-relaxed font-notoSansJP">
+                        知的好奇心に満ちた空気が漂っています。今日は、新しいアイデア、短い会話、そして突然のインスピレーションといった「種」を集めるのに適した日です。
+                    </p>
+<div class="h-[1px] w-12 bg-outline-variant/30 group-hover:w-24 group-hover:bg-secondary transition-all duration-700"></div>
+</div>
+<!-- Transit Card 2 (Highlight) -->
+<div class="bg-inverse-surface p-12 flex flex-col items-center text-center gap-8 text-on-primary shadow-2xl relative -top-6">
+<div class="text-secondary">
+<span class="material-symbols-outlined text-4xl" data-icon="auto_awesome">auto_awesome</span>
+</div>
+<div class="flex flex-col gap-2">
+<h3 class="font-notoSerif text-2xl">The Void Moon</h3>
+<span class="text-[10px] font-notoSansJP text-secondary">ボイドタイム</span>
+</div>
+<p class="text-on-primary/70 text-sm leading-relaxed font-notoSansJP">
+                        集団的な静寂の稀有な瞬間。今日は新しい事業の開始を控えましょう。代わりに、あなた自身の内なる世界の構築に集中してください。
+                    </p>
+<button class="mt-4 px-6 py-3 border border-on-primary/20 hover:border-secondary hover:text-secondary text-xs tracking-widest uppercase transition-all font-notoSansJP">詳細なガイダンス</button>
+</div>
+<!-- Transit Card 3 -->
+<div class="bg-surface-container-lowest p-12 flex flex-col items-center text-center gap-8 group">
+<div class="text-secondary opacity-40 group-hover:opacity-100 transition-opacity duration-500">
+<span class="material-symbols-outlined text-4xl" data-icon="nights_stay">nights_stay</span>
+</div>
+<div class="flex flex-col gap-2">
+<h3 class="font-notoSerif text-2xl text-primary">Venus Retrograde</h3>
+<span class="text-[10px] font-notoSansJP text-secondary/60">金星の逆行</span>
+</div>
+<p class="text-on-surface-variant text-sm leading-relaxed font-notoSansJP">
+                        欲望の洗練。古い美学や、放置していたクリエイティブなプロジェクトを再訪してください。かつて脇に追いやったものが、今、鍵を握るかもしれません。
+                    </p>
+<div class="h-[1px] w-12 bg-outline-variant/30 group-hover:w-24 group-hover:bg-secondary transition-all duration-700"></div>
+</div>
+</div>
+</section>
+<!-- Featured Readings (Furniture Collection Style) -->
+<section class="py-48 bg-white px-12">
+<div class="max-w-7xl mx-auto">
+<div class="flex justify-between items-end mb-24">
+<div class="flex flex-col gap-2">
+<label class="text-[10px] uppercase tracking-[0.3em] text-secondary font-bold">The Catalog</label>
+<h2 class="text-5xl font-notoSerif text-primary">Curated Readings</h2>
+<span class="text-[10px] font-notoSansJP text-secondary/70">キュレートされたリーディング</span>
+</div>
+<a class="hidden md:block text-sm uppercase tracking-widest text-primary border-b border-primary/20 pb-1 font-notoSansJP" href="#">アーカイブを見る</a>
+</div>
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-8 gap-y-24">
+<!-- Reading Item 1 -->
+<div class="flex flex-col gap-6">
+<div class="aspect-[3/4] bg-surface-container-low overflow-hidden">
+<img class="w-full h-full object-cover hover:scale-105 transition-transform duration-1000" data-alt="Minimalist design of a birth chart printed on heavy vellum paper, framed in a thin black architectural frame against a soft gray wall." src="https://lh3.googleusercontent.com/aida-public/AB6AXuBCnBi_QoFsP5T_zmYqKIBdZEqJoY45GpX16tUJYhM4-UCNLzhL9w67MrGs0BEL_vY-TyNRtamPK1DYpzM0Se1f07T3CW4UUkhex9f3hSNFkCKA9FAHf5MLqyoRJloB7FxapxuNiZ_lsDRdd33k8sLxAF5Lrw9irwmEV796HMllH6ClGDSVgHKyQMtDFAqpJvBYcpWO7ak70UYCl8NnKxgZhISrW9lsZA1B-xgaIWMn_qV9vzejEo70P_v3mtxCf-D7rSSe74tnU4Z2"/>
+</div>
+<div class="flex justify-between items-start">
+<div class="flex flex-col gap-1">
+<h4 class="font-notoSerif text-xl">The Natal Blueprint</h4>
+<span class="text-on-surface-variant text-xs uppercase tracking-tighter font-notoSansJP">総合出生チャート分析</span>
+</div>
+<span class="text-secondary font-manrope font-bold">¥36,000</span>
+</div>
+</div>
+<!-- Reading Item 2 -->
+<div class="flex flex-col gap-6 lg:mt-16">
+<div class="aspect-[3/4] bg-surface-container-low overflow-hidden">
+<img class="w-full h-full object-cover hover:scale-105 transition-transform duration-1000" data-alt="A telescope aimed at a clear night sky through a circular skylight in a modern, dark-wood paneled room." src="https://lh3.googleusercontent.com/aida-public/AB6AXuDbxMr9dG1LDOjt6yJ4FnQGcjhTlZnndKDr5qhtFnlJ1JwAt1pMpqOKNWfCgExMZpyWjldqphpTXtUCWx3F3NgUMVdIapM3qELpi_NhdWJm4tTydgLPhfzuYaM3sqwgJBOz2pM2j3T__WP2dXjPpN6TzGA--s-NxyVxwvN7hZMDUILmjG9ODpyX2ig7ONabByDaXTYo05__Sm-C2yLsczDWB6o44tv1pF1BujAbuSwySZsy_AI8I7Ij3CY0k60KXgr6Z5iI--3lPloD"/>
+</div>
+<div class="flex justify-between items-start">
+<div class="flex flex-col gap-1">
+<h4 class="font-notoSerif text-xl">Annual Progression</h4>
+<span class="text-on-surface-variant text-xs uppercase tracking-tighter font-notoSansJP">年間運勢予測</span>
+</div>
+<span class="text-secondary font-manrope font-bold">¥27,000</span>
+</div>
+</div>
+<!-- Reading Item 3 -->
+<div class="flex flex-col gap-6">
+<div class="aspect-[3/4] bg-surface-container-low overflow-hidden">
+<img class="w-full h-full object-cover hover:scale-105 transition-transform duration-1000" data-alt="Soft focused cosmic nebulae in muted gold and deep indigo tones, presented as an abstract art piece." src="https://lh3.googleusercontent.com/aida-public/AB6AXuBvOGt2t8iWor0Z-q5hUjJ1CI3JTB_B5XulDjCDVenarKDDzCFxxV01uBbsaaRsiF9Cmm4caNGVt7IzLami9ekTqDwGp6nPVbtHjx2vqWsar_4lqlT-E9dwOZHzlI2OzJ8qgG7hI69EgF47Q1nahmL2w1zP60gmX1fgFwZugYr1URYXNkBIyp0dMbRVVXEMweQxB3ddxzs9MG9AcvmTrbF-LA42K4Tc1abG7b5X8Yzg6DzvB5cN1DXJp_jZ79Q7qpsKnzFM2HbChZxK"/>
+</div>
+<div class="flex justify-between items-start">
+<div class="flex flex-col gap-1">
+<h4 class="font-notoSerif text-xl">Synastry &amp; Union</h4>
+<span class="text-on-surface-variant text-xs uppercase tracking-tighter font-notoSansJP">相性・関係性のマッピング</span>
+</div>
+<span class="text-secondary font-manrope font-bold">¥48,000</span>
+</div>
+</div>
+</div>
+</div>
+</section>
+</main>
+<!-- Footer -->
+<footer class="w-full py-20 px-12 border-t-[0.5px] border-[#5f5f59]/10 bg-[#fafaf5]">
+<div class="grid grid-cols-1 md:grid-cols-3 gap-12 max-w-7xl mx-auto font-notoSerif text-sm tracking-tight text-[#5f5f59]">
+<div class="flex flex-col gap-8">
+<div class="text-xl font-normal text-[#5f5f59]">The Celestial Atelier</div>
+<p class="font-notoSansJP text-on-surface-variant leading-relaxed max-w-xs">
+                    デザインを愛する人々のために、宇宙的な視点を創造します。ロンドンを拠点に、銀河全体へサービスを提供。
+                </p>
+</div>
+<div class="flex flex-col gap-4">
+<h5 class="uppercase tracking-widest font-manrope text-[10px] font-bold mb-4">Navigations</h5>
+<a class="text-[#5f5f59]/60 hover:text-[#6d5f07] transition-colors duration-300 font-notoSansJP" href="#">お問い合わせ</a>
+<a class="text-[#5f5f59]/60 hover:text-[#6d5f07] transition-colors duration-300" href="#">Instagram</a>
+<a class="text-[#5f5f59]/60 hover:text-[#6d5f07] transition-colors duration-300" href="#">Pinterest</a>
+<a class="text-[#5f5f59]/60 hover:text-[#6d5f07] transition-colors duration-300 font-notoSansJP" href="#">エディトリアル</a>
+<a class="text-[#5f5f59]/60 hover:text-[#6d5f07] transition-colors duration-300 font-notoSansJP" href="#">アーカイブ</a>
+</div>
+<div class="flex flex-col gap-8 items-start md:items-end text-left md:text-right">
+<div class="flex flex-col gap-2">
+<p>© 2024 The Celestial Atelier. All rights reserved.</p>
+<p class="font-notoSansJP opacity-50 text-[10px]">無限の宇宙のための、幽玄なるデザイン。</p>
+</div>
+<div class="flex gap-4">
+<div class="w-8 h-8 rounded-full border border-outline-variant flex items-center justify-center hover:border-secondary hover:text-secondary transition-all cursor-pointer">
+<span class="material-symbols-outlined text-sm" data-icon="mail">mail</span>
+</div>
+<div class="w-8 h-8 rounded-full border border-outline-variant flex items-center justify-center hover:border-secondary hover:text-secondary transition-all cursor-pointer">
+<span class="material-symbols-outlined text-sm" data-icon="public">public</span>
+</div>
+</div>
+</div>
+</div>
+</footer>
+</body></html>

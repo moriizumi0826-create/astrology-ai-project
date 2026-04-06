@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>The Celestial Atelier - Chart Entry</title>
+<!-- Google Fonts -->
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@200;400;600&amp;family=Noto+Serif:ital,wght@0,300;0,400;0,700;1,300&amp;display=swap" rel="stylesheet"/>
+<!-- Material Symbols -->
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<!-- Tailwind CSS -->
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            "colors": {
+                    "tertiary-container": "#f9f3e6",
+                    "on-tertiary-fixed": "#4c4a40",
+                    "primary-dim": "#53534d",
+                    "surface-variant": "#dee4da",
+                    "on-tertiary-fixed-variant": "#69665c",
+                    "on-error-container": "#742410",
+                    "surface-bright": "#fafaf5",
+                    "background": "#fafaf5",
+                    "tertiary-fixed-dim": "#eae5d8",
+                    "tertiary": "#625f55",
+                    "on-tertiary": "#fef9eb",
+                    "primary-fixed-dim": "#d6d4cd",
+                    "on-error": "#fff7f6",
+                    "secondary-container": "#f7e382",
+                    "on-primary": "#faf8f0",
+                    "inverse-surface": "#0d0f0c",
+                    "primary": "#5f5f59",
+                    "on-primary-container": "#52524d",
+                    "secondary-dim": "#605300",
+                    "inverse-on-surface": "#9c9d99",
+                    "surface-container-low": "#f3f4ee",
+                    "outline-variant": "#aeb4aa",
+                    "primary-container": "#e5e2db",
+                    "secondary-fixed-dim": "#e8d576",
+                    "on-secondary": "#fff8ea",
+                    "on-surface-variant": "#5b6159",
+                    "secondary-fixed": "#f7e382",
+                    "outline": "#767c74",
+                    "error-dim": "#5c1202",
+                    "on-secondary-fixed-variant": "#695b02",
+                    "secondary": "#6d5f07",
+                    "on-primary-fixed": "#40403b",
+                    "surface-container-lowest": "#ffffff",
+                    "tertiary-dim": "#565349",
+                    "on-background": "#2e342d",
+                    "inverse-primary": "#f3f1e9",
+                    "surface-container-high": "#e5eae0",
+                    "on-tertiary-container": "#5e5c52",
+                    "tertiary-fixed": "#f9f3e6",
+                    "on-surface": "#2e342d",
+                    "surface-container-highest": "#dee4da",
+                    "surface": "#fafaf5",
+                    "surface-tint": "#5f5f59",
+                    "on-secondary-container": "#5e5200",
+                    "primary-fixed": "#e5e2db",
+                    "on-primary-fixed-variant": "#5c5c56",
+                    "surface-dim": "#d5dcd0",
+                    "error-container": "#fe8b70",
+                    "on-secondary-fixed": "#493f00",
+                    "error": "#9e422c",
+                    "surface-container": "#ecefe7"
+            },
+            "borderRadius": {
+                    "DEFAULT": "0px",
+                    "lg": "0px",
+                    "xl": "0px",
+                    "full": "9999px"
+            },
+            "fontFamily": {
+                    "headline": ["Noto Serif"],
+                    "body": ["Manrope"],
+                    "label": ["Manrope"],
+                    "notoSerif": ["Noto Serif"],
+                    "manrope": ["Manrope"]
+            }
+          },
+        },
+      }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 300, 'GRAD' 0, 'opsz' 24;
+        }
+        body { font-family: 'Manrope', sans-serif; }
+        .font-notoSerif { font-family: 'Noto Serif', serif; }
+        .no-border-lines { border: none !important; }
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: #fafaf5; }
+        ::-webkit-scrollbar-thumb { background: #5f5f59; }
+    </style>
+</head>
+<body class="bg-background text-on-background min-h-screen flex flex-col">
+<!-- TopNavBar -->
+<header class="fixed top-0 left-0 w-full z-50 bg-[#fafaf5]/80 backdrop-blur-md flex justify-between items-center px-6 md:px-12 py-6">
+<div class="text-2xl font-normal font-notoSerif text-[#5f5f59] tracking-tight">
+        The Celestial Atelier
+    </div>
+<nav class="hidden md:flex space-x-10 font-notoSerif tracking-wider text-sm">
+<a class="text-[#5f5f59] dark:text-[#fafaf5]/70 hover:text-[#6d5f07] transition-colors duration-500" href="#">Home</a>
+<a class="text-[#6d5f07] border-b-2 border-[#6d5f07] pb-1" href="#">Horoscope</a>
+<a class="text-[#5f5f59] dark:text-[#fafaf5]/70 hover:text-[#6d5f07] transition-colors duration-500" href="#">Readings</a>
+<a class="text-[#5f5f59] dark:text-[#fafaf5]/70 hover:text-[#6d5f07] transition-colors duration-500" href="#">About</a>
+</nav>
+<div class="flex items-center space-x-4">
+<span class="material-symbols-outlined text-[#5f5f59] cursor-pointer" data-icon="account_circle">account_circle</span>
+</div>
+</header>
+<!-- Main Content -->
+<main class="flex-grow pt-32 pb-24 px-6 md:px-12 flex flex-col items-center relative">
+<!-- Abstract Background Visual -->
+<div class="absolute inset-0 -z-10 overflow-hidden">
+<img alt="Zen interior" class="w-full h-full object-cover opacity-20 blur-[10px]" data-alt="a minimalist airy interior with soft natural light shadows of leaves on a beige wall and high-end wooden furniture" src="https://lh3.googleusercontent.com/aida-public/AB6AXuB9ahHxpPdkj10bn08KFsl2hi2ysboskV47OLg0H7gW-yMxuLm33YwbCsfZwNO_XnL4TzUvGREPCshnC5GUk2M3vOAAR6xWqLW_UEUAz9z9Xv1DC_azUJQZinZ1Gw7X_cIUFoWr3Plzex-p7AksEdWgxZvPYG3vJOpOlJM7sMJTtFwcuIdhYKS7-ezS-z7w9v4dqKBb6L7I3Cq6oJ0gLtDLbR4JNJeFTexxsFSpRjgik07P8ItPlhnkKvsqkNrsdnd7aRjyCsYn5TJV"/>
+</div>
+<!-- Entry Shell -->
+<div class="w-full max-w-2xl bg-surface-container-lowest p-8 md:p-16 shadow-[0px_20px_40px_rgba(46,52,45,0.06)] relative overflow-hidden">
+<!-- Contextual Header -->
+<div class="mb-12">
+<button class="flex items-center gap-2 text-primary text-xs uppercase tracking-widest mb-8 hover:text-secondary transition-colors group">
+<span class="material-symbols-outlined text-sm">arrow_back</span>
+<span>Back</span>
+</button>
+<h1 class="font-notoSerif text-4xl md:text-5xl text-primary font-light mb-6">Chart Entry</h1>
+<p class="text-on-surface-variant font-light leading-relaxed max-w-lg">
+                あなたの誕生の瞬間の天体の正確な配置を読み解くために、詳細な出生データが必要です。これらの情報は、あなただけの独自の天体図を織りなすための座標となります。
+            </p>
+</div>
+<!-- Form -->
+<form class="space-y-12">
+<!-- Name Field -->
+<div class="group relative">
+<label class="flex items-baseline gap-2 mb-2">
+<span class="block text-[10px] uppercase tracking-widest text-on-surface-variant font-semibold">Full Name</span>
+<span class="text-[9px] text-on-surface-variant/60 font-light tracking-wider">氏名</span>
+</label>
+<input class="w-full bg-transparent border-t-0 border-x-0 border-b border-outline-variant/30 py-3 text-primary font-notoSerif text-xl focus:ring-0 focus:border-secondary transition-all duration-500 placeholder:text-primary/20" placeholder="アレクサンドリア・ソーン" type="text"/>
+</div>
+<!-- Birth Date & Time Row -->
+<div class="grid grid-cols-1 md:grid-cols-2 gap-12">
+<div class="group relative">
+<label class="flex items-baseline gap-2 mb-2">
+<span class="block text-[10px] uppercase tracking-widest text-on-surface-variant font-semibold">Date of Arrival</span>
+<span class="text-[9px] text-on-surface-variant/60 font-light tracking-wider">生年月日</span>
+</label>
+<input class="w-full bg-transparent border-t-0 border-x-0 border-b border-outline-variant/30 py-3 text-primary font-manrope text-lg focus:ring-0 focus:border-secondary transition-all duration-500" type="date"/>
+</div>
+<div class="group relative">
+<label class="flex items-baseline gap-2 mb-2">
+<span class="block text-[10px] uppercase tracking-widest text-on-surface-variant font-semibold">Exact Time</span>
+<span class="text-[9px] text-on-surface-variant/60 font-light tracking-wider">出生時刻</span>
+</label>
+<input class="w-full bg-transparent border-t-0 border-x-0 border-b border-outline-variant/30 py-3 text-primary font-manrope text-lg focus:ring-0 focus:border-secondary transition-all duration-500" type="time"/>
+</div>
+</div>
+<!-- Birth Place -->
+<div class="group relative">
+<label class="flex items-baseline gap-2 mb-2">
+<span class="block text-[10px] uppercase tracking-widest text-on-surface-variant font-semibold">Place of Birth</span>
+<span class="text-[9px] text-on-surface-variant/60 font-light tracking-wider">出生地</span>
+</label>
+<div class="relative">
+<input class="w-full bg-transparent border-t-0 border-x-0 border-b border-outline-variant/30 py-3 text-primary font-notoSerif text-xl focus:ring-0 focus:border-secondary transition-all duration-500 placeholder:text-primary/20" placeholder="フランス、パリ" type="text"/>
+<span class="absolute right-0 bottom-3 material-symbols-outlined text-outline-variant/50 text-xl" data-icon="location_on">location_on</span>
+</div>
+</div>
+<!-- Action -->
+<div class="pt-8">
+<button class="w-full bg-primary text-on-primary py-5 px-10 text-sm uppercase tracking-[0.2em] font-semibold hover:bg-primary-dim transition-all duration-700 ease-[cubic-bezier(0.2,0,0,1)] flex justify-between items-center group" type="submit">
+<span>ホロスコープを算出する</span>
+<span class="material-symbols-outlined group-hover:translate-x-2 transition-transform duration-700">arrow_forward</span>
+</button>
+<p class="mt-6 text-center text-[10px] text-on-surface-variant italic opacity-60">
+                    すべてのデータは宇宙への敬意とともに、厳重なプライバシー管理のもとで取り扱われます。
+                </p>
+</div>
+</form>
+</div>
+<!-- Decorative Detail -->
+<div class="mt-16 w-px h-24 bg-gradient-to-b from-outline-variant/30 to-transparent"></div>
+</main>
+<!-- Footer -->
+<footer class="w-full py-20 px-6 md:px-12 border-t-[0.5px] border-[#5f5f59]/10 bg-[#fafaf5]">
+<div class="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-3 gap-12">
+<!-- Brand Section -->
+<div class="flex flex-col gap-4">
+<div class="text-xl font-normal font-notoSerif text-[#5f5f59]">The Celestial Atelier</div>
+<p class="text-[#5f5f59]/60 font-notoSerif text-sm leading-relaxed max-w-xs">
+                Curated cosmic insights for the discerning seeker. Bridging ancient wisdom with modern architecture.
+            </p>
+</div>
+<!-- Navigation -->
+<div class="flex flex-col gap-3 font-notoSerif text-sm tracking-tight text-[#5f5f59]">
+<a class="hover:text-[#6d5f07] transition-colors duration-300" href="#">Archives</a>
+<a class="hover:text-[#6d5f07] transition-colors duration-300" href="#">Editorial</a>
+<a class="hover:text-[#6d5f07] transition-colors duration-300" href="#">Instagram</a>
+<a class="hover:text-[#6d5f07] transition-colors duration-300" href="#">Pinterest</a>
+</div>
+<!-- Contact/Legal -->
+<div class="flex flex-col justify-between text-right md:text-left">
+<a class="hover:text-[#6d5f07] transition-colors duration-300 font-notoSerif text-sm" href="#">Contact Us</a>
+<div class="mt-8 md:mt-0 text-[#5f5f59]/40 text-xs font-manrope">
+                © 2024 The Celestial Atelier. All rights reserved.
+            </div>
+</div>
+</div>
+</footer>
+<!-- Floating Background Details (Abstract Lines) -->
+<div class="fixed top-1/4 -left-20 w-80 h-80 opacity-[0.03] pointer-events-none">
+<svg viewbox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+<circle cx="100" cy="100" fill="none" r="90" stroke="#5f5f59" stroke-width="0.5"></circle>
+<line stroke="#5f5f59" stroke-width="0.5" x1="10" x2="190" y1="100" y2="100"></line>
+<line stroke="#5f5f59" stroke-width="0.5" x1="100" x2="100" y1="10" y2="190"></line>
+</svg>
+</div>
+</body></html>

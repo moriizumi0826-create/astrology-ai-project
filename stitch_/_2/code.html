@@ -1,0 +1,267 @@
+<!DOCTYPE html><html class="light" lang="ja"><head>
+<meta charset="utf-8">
+<meta content="width=device-width, initial-scale=1.0" name="viewport">
+<title>The Celestial Atelier | あなただけの星の設計図</title>
+<!-- Material Symbols -->
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght@100..700,0..1&amp;display=swap" rel="stylesheet">
+<!-- Google Fonts -->
+<link href="https://fonts.googleapis.com" rel="preconnect">
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif:ital,wght@0,300;0,400;0,700;1,400&amp;family=Manrope:wght@300;400;600;800&amp;family=Noto+Serif+JP:wght@200;400;700&amp;display=swap" rel="stylesheet">
+<!-- Tailwind CSS -->
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            "colors": {
+                    "tertiary-container": "#f9f3e6",
+                    "on-tertiary-fixed": "#4c4a40",
+                    "primary-dim": "#53534d",
+                    "surface-variant": "#dee4da",
+                    "on-tertiary-fixed-variant": "#69665c",
+                    "on-error-container": "#742410",
+                    "surface-bright": "#fafaf5",
+                    "background": "#fafaf5",
+                    "tertiary-fixed-dim": "#eae5d8",
+                    "tertiary": "#625f55",
+                    "on-tertiary": "#fef9eb",
+                    "primary-fixed-dim": "#d6d4cd",
+                    "on-error": "#fff7f6",
+                    "secondary-container": "#f7e382",
+                    "on-primary": "#faf8f0",
+                    "inverse-surface": "#0d0f0c",
+                    "primary": "#5f5f59",
+                    "on-primary-container": "#52524d",
+                    "secondary-dim": "#605300",
+                    "inverse-on-surface": "#9c9d99",
+                    "surface-container-low": "#f3f4ee",
+                    "outline-variant": "#aeb4aa",
+                    "primary-container": "#e5e2db",
+                    "secondary-fixed-dim": "#e8d576",
+                    "on-secondary": "#fff8ea",
+                    "on-surface-variant": "#5b6159",
+                    "secondary-fixed": "#f7e382",
+                    "outline": "#767c74",
+                    "error-dim": "#5c1202",
+                    "on-secondary-fixed-variant": "#695b02",
+                    "secondary": "#6d5f07",
+                    "on-primary-fixed": "#40403b",
+                    "surface-container-lowest": "#ffffff",
+                    "tertiary-dim": "#565349",
+                    "on-background": "#2e342d",
+                    "inverse-primary": "#f3f1e9",
+                    "surface-container-high": "#e5eae0",
+                    "on-tertiary-container": "#5e5c52",
+                    "tertiary-fixed": "#f9f3e6",
+                    "on-surface": "#2e342d",
+                    "surface-container-highest": "#dee4da",
+                    "surface": "#fafaf5",
+                    "surface-tint": "#5f5f59",
+                    "on-secondary-container": "#5e5200",
+                    "primary-fixed": "#e5e2db",
+                    "on-primary-fixed-variant": "#5c5c56",
+                    "surface-dim": "#d5dcd0",
+                    "error-container": "#fe8b70",
+                    "on-secondary-fixed": "#493f00",
+                    "error": "#9e422c",
+                    "surface-container": "#ecefe7"
+            },
+            "fontFamily": {
+                    "headline": ["Noto Serif", "Noto Serif JP", "serif"],
+                    "body": ["Manrope", "Noto Serif JP", "sans-serif"],
+                    "label": ["Manrope", "sans-serif"]
+            }
+          },
+        },
+      }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 300, 'GRAD' 0, 'opsz' 24;
+            display: inline-block;
+            vertical-align: middle;
+        }
+        .no-border-lines { border: none !important; }
+        .whitespace-heavy-80px { margin-top: 80px; margin-bottom: 80px; }
+        .font-notoSerif { font-family: 'Noto Serif', 'Noto Serif JP', serif; }
+        .font-manrope { font-family: 'Manrope', 'Noto Serif JP', sans-serif; }
+        .jp-sub { font-size: 0.75rem; letter-spacing: 0.1em; opacity: 0.8; font-weight: 400; }
+    </style>
+<style>*, ::before, ::after{--tw-border-spacing-x:0;--tw-border-spacing-y:0;--tw-translate-x:0;--tw-translate-y:0;--tw-rotate:0;--tw-skew-x:0;--tw-skew-y:0;--tw-scale-x:1;--tw-scale-y:1;--tw-pan-x: ;--tw-pan-y: ;--tw-pinch-zoom: ;--tw-scroll-snap-strictness:proximity;--tw-gradient-from-position: ;--tw-gradient-via-position: ;--tw-gradient-to-position: ;--tw-ordinal: ;--tw-slashed-zero: ;--tw-numeric-figure: ;--tw-numeric-spacing: ;--tw-numeric-fraction: ;--tw-ring-inset: ;--tw-ring-offset-width:0px;--tw-ring-offset-color:#fff;--tw-ring-color:rgb(59 130 246 / 0.5);--tw-ring-offset-shadow:0 0 #0000;--tw-ring-shadow:0 0 #0000;--tw-shadow:0 0 #0000;--tw-shadow-colored:0 0 #0000;--tw-blur: ;--tw-brightness: ;--tw-contrast: ;--tw-grayscale: ;--tw-hue-rotate: ;--tw-invert: ;--tw-saturate: ;--tw-sepia: ;--tw-drop-shadow: ;--tw-backdrop-blur: ;--tw-backdrop-brightness: ;--tw-backdrop-contrast: ;--tw-backdrop-grayscale: ;--tw-backdrop-hue-rotate: ;--tw-backdrop-invert: ;--tw-backdrop-opacity: ;--tw-backdrop-saturate: ;--tw-backdrop-sepia: ;--tw-contain-size: ;--tw-contain-layout: ;--tw-contain-paint: ;--tw-contain-style: }::backdrop{--tw-border-spacing-x:0;--tw-border-spacing-y:0;--tw-translate-x:0;--tw-translate-y:0;--tw-rotate:0;--tw-skew-x:0;--tw-skew-y:0;--tw-scale-x:1;--tw-scale-y:1;--tw-pan-x: ;--tw-pan-y: ;--tw-pinch-zoom: ;--tw-scroll-snap-strictness:proximity;--tw-gradient-from-position: ;--tw-gradient-via-position: ;--tw-gradient-to-position: ;--tw-ordinal: ;--tw-slashed-zero: ;--tw-numeric-figure: ;--tw-numeric-spacing: ;--tw-numeric-fraction: ;--tw-ring-inset: ;--tw-ring-offset-width:0px;--tw-ring-offset-color:#fff;--tw-ring-color:rgb(59 130 246 / 0.5);--tw-ring-offset-shadow:0 0 #0000;--tw-ring-shadow:0 0 #0000;--tw-shadow:0 0 #0000;--tw-shadow-colored:0 0 #0000;--tw-blur: ;--tw-brightness: ;--tw-contrast: ;--tw-grayscale: ;--tw-hue-rotate: ;--tw-invert: ;--tw-saturate: ;--tw-sepia: ;--tw-drop-shadow: ;--tw-backdrop-blur: ;--tw-backdrop-brightness: ;--tw-backdrop-contrast: ;--tw-backdrop-grayscale: ;--tw-backdrop-hue-rotate: ;--tw-backdrop-invert: ;--tw-backdrop-opacity: ;--tw-backdrop-saturate: ;--tw-backdrop-sepia: ;--tw-contain-size: ;--tw-contain-layout: ;--tw-contain-paint: ;--tw-contain-style: }/* ! tailwindcss v3.4.17 | MIT License | https://tailwindcss.com */*,::after,::before{box-sizing:border-box;border-width:0;border-style:solid;border-color:#e5e7eb}::after,::before{--tw-content:''}:host,html{line-height:1.5;-webkit-text-size-adjust:100%;-moz-tab-size:4;tab-size:4;font-family:ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";font-feature-settings:normal;font-variation-settings:normal;-webkit-tap-highlight-color:transparent}body{margin:0;line-height:inherit}hr{height:0;color:inherit;border-top-width:1px}abbr:where([title]){-webkit-text-decoration:underline dotted;text-decoration:underline dotted}h1,h2,h3,h4,h5,h6{font-size:inherit;font-weight:inherit}a{color:inherit;text-decoration:inherit}b,strong{font-weight:bolder}code,kbd,pre,samp{font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;font-feature-settings:normal;font-variation-settings:normal;font-size:1em}small{font-size:80%}sub,sup{font-size:75%;line-height:0;position:relative;vertical-align:baseline}sub{bottom:-.25em}sup{top:-.5em}table{text-indent:0;border-color:inherit;border-collapse:collapse}button,input,optgroup,select,textarea{font-family:inherit;font-feature-settings:inherit;font-variation-settings:inherit;font-size:100%;font-weight:inherit;line-height:inherit;letter-spacing:inherit;color:inherit;margin:0;padding:0}button,select{text-transform:none}button,input:where([type=button]),input:where([type=reset]),input:where([type=submit]){-webkit-appearance:button;background-color:transparent;background-image:none}:-moz-focusring{outline:auto}:-moz-ui-invalid{box-shadow:none}progress{vertical-align:baseline}::-webkit-inner-spin-button,::-webkit-outer-spin-button{height:auto}[type=search]{-webkit-appearance:textfield;outline-offset:-2px}::-webkit-search-decoration{-webkit-appearance:none}::-webkit-file-upload-button{-webkit-appearance:button;font:inherit}summary{display:list-item}blockquote,dd,dl,figure,h1,h2,h3,h4,h5,h6,hr,p,pre{margin:0}fieldset{margin:0;padding:0}legend{padding:0}menu,ol,ul{list-style:none;margin:0;padding:0}dialog{padding:0}textarea{resize:vertical}input::placeholder,textarea::placeholder{opacity:1;color:#9ca3af}[role=button],button{cursor:pointer}:disabled{cursor:default}audio,canvas,embed,iframe,img,object,svg,video{display:block;vertical-align:middle}img,video{max-width:100%;height:auto}[hidden]:where(:not([hidden=until-found])){display:none}[type='text'],input:where(:not([type])),[type='email'],[type='url'],[type='password'],[type='number'],[type='date'],[type='datetime-local'],[type='month'],[type='search'],[type='tel'],[type='time'],[type='week'],[multiple],textarea,select{-webkit-appearance:none;appearance:none;background-color:#fff;border-color:#6b7280;border-width:1px;border-radius:0px;padding-top:0.5rem;padding-right:0.75rem;padding-bottom:0.5rem;padding-left:0.75rem;font-size:1rem;line-height:1.5rem;--tw-shadow:0 0 #0000;}[type='text']:focus, input:where(:not([type])):focus, [type='email']:focus, [type='url']:focus, [type='password']:focus, [type='number']:focus, [type='date']:focus, [type='datetime-local']:focus, [type='month']:focus, [type='search']:focus, [type='tel']:focus, [type='time']:focus, [type='week']:focus, [multiple]:focus, textarea:focus, select:focus{outline:2px solid transparent;outline-offset:2px;--tw-ring-inset:var(--tw-empty,/*!*/ /*!*/);--tw-ring-offset-width:0px;--tw-ring-offset-color:#fff;--tw-ring-color:#2563eb;--tw-ring-offset-shadow:var(--tw-ring-inset) 0 0 0 var(--tw-ring-offset-width) var(--tw-ring-offset-color);--tw-ring-shadow:var(--tw-ring-inset) 0 0 0 calc(1px + var(--tw-ring-offset-width)) var(--tw-ring-color);box-shadow:var(--tw-ring-offset-shadow), var(--tw-ring-shadow), var(--tw-shadow);border-color:#2563eb}input::placeholder,textarea::placeholder{color:#6b7280;opacity:1}::-webkit-datetime-edit-fields-wrapper{padding:0}::-webkit-date-and-time-value{min-height:1.5em;text-align:inherit}::-webkit-datetime-edit{display:inline-flex}::-webkit-datetime-edit,::-webkit-datetime-edit-year-field,::-webkit-datetime-edit-month-field,::-webkit-datetime-edit-day-field,::-webkit-datetime-edit-hour-field,::-webkit-datetime-edit-minute-field,::-webkit-datetime-edit-second-field,::-webkit-datetime-edit-millisecond-field,::-webkit-datetime-edit-meridiem-field{padding-top:0;padding-bottom:0}select{background-image:url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e");background-position:right 0.5rem center;background-repeat:no-repeat;background-size:1.5em 1.5em;padding-right:2.5rem;print-color-adjust:exact}[multiple],[size]:where(select:not([size="1"])){background-image:initial;background-position:initial;background-repeat:unset;background-size:initial;padding-right:0.75rem;print-color-adjust:unset}[type='checkbox'],[type='radio']{-webkit-appearance:none;appearance:none;padding:0;print-color-adjust:exact;display:inline-block;vertical-align:middle;background-origin:border-box;-webkit-user-select:none;user-select:none;flex-shrink:0;height:1rem;width:1rem;color:#2563eb;background-color:#fff;border-color:#6b7280;border-width:1px;--tw-shadow:0 0 #0000}[type='checkbox']{border-radius:0px}[type='radio']{border-radius:100%}[type='checkbox']:focus,[type='radio']:focus{outline:2px solid transparent;outline-offset:2px;--tw-ring-inset:var(--tw-empty,/*!*/ /*!*/);--tw-ring-offset-width:2px;--tw-ring-offset-color:#fff;--tw-ring-color:#2563eb;--tw-ring-offset-shadow:var(--tw-ring-inset) 0 0 0 var(--tw-ring-offset-width) var(--tw-ring-offset-color);--tw-ring-shadow:var(--tw-ring-inset) 0 0 0 calc(2px + var(--tw-ring-offset-width)) var(--tw-ring-color);box-shadow:var(--tw-ring-offset-shadow), var(--tw-ring-shadow), var(--tw-shadow)}[type='checkbox']:checked,[type='radio']:checked{border-color:transparent;background-color:currentColor;background-size:100% 100%;background-position:center;background-repeat:no-repeat}[type='checkbox']:checked{background-image:url("data:image/svg+xml,%3csvg viewBox='0 0 16 16' fill='white' xmlns='http://www.w3.org/2000/svg'%3e%3cpath d='M12.207 4.793a1 1 0 010 1.414l-5 5a1 1 0 01-1.414 0l-2-2a1 1 0 011.414-1.414L6.5 9.086l4.293-4.293a1 1 0 011.414 0z'/%3e%3c/svg%3e");}@media (forced-colors: active) {[type='checkbox']:checked{-webkit-appearance:auto;appearance:auto}}[type='radio']:checked{background-image:url("data:image/svg+xml,%3csvg viewBox='0 0 16 16' fill='white' xmlns='http://www.w3.org/2000/svg'%3e%3ccircle cx='8' cy='8' r='3'/%3e%3c/svg%3e");}@media (forced-colors: active) {[type='radio']:checked{-webkit-appearance:auto;appearance:auto}}[type='checkbox']:checked:hover,[type='checkbox']:checked:focus,[type='radio']:checked:hover,[type='radio']:checked:focus{border-color:transparent;background-color:currentColor}[type='checkbox']:indeterminate{background-image:url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 16 16'%3e%3cpath stroke='white' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M4 8h8'/%3e%3c/svg%3e");border-color:transparent;background-color:currentColor;background-size:100% 100%;background-position:center;background-repeat:no-repeat;}@media (forced-colors: active) {[type='checkbox']:indeterminate{-webkit-appearance:auto;appearance:auto}}[type='checkbox']:indeterminate:hover,[type='checkbox']:indeterminate:focus{border-color:transparent;background-color:currentColor}[type='file']{background:unset;border-color:inherit;border-width:0;border-radius:0;padding:0;font-size:unset;line-height:inherit}[type='file']:focus{outline:1px solid ButtonText;outline:1px auto -webkit-focus-ring-color}.pointer-events-none{pointer-events:none}.fixed{position:fixed}.absolute{position:absolute}.relative{position:relative}.inset-0{inset:0px}.left-0{left:0px}.top-0{top:0px}.z-50{z-index:50}.mx-auto{margin-left:auto;margin-right:auto}.mb-10{margin-bottom:2.5rem}.mb-12{margin-bottom:3rem}.mb-2{margin-bottom:0.5rem}.mb-20{margin-bottom:5rem}.mb-3{margin-bottom:0.75rem}.mb-4{margin-bottom:1rem}.mb-6{margin-bottom:1.5rem}.mb-8{margin-bottom:2rem}.mt-4{margin-top:1rem}.mt-8{margin-top:2rem}.block{display:block}.flex{display:flex}.grid{display:grid}.hidden{display:none}.aspect-square{aspect-ratio:1 / 1}.h-\[0\.5px\]{height:0.5px}.h-\[120\%\]{height:120%}.h-\[40\%\]{height:40%}.h-\[80\%\]{height:80%}.h-full{height:100%}.w-8{width:2rem}.w-\[120\%\]{width:120%}.w-\[40\%\]{width:40%}.w-\[80\%\]{width:80%}.w-full{width:100%}.max-w-2xl{max-width:42rem}.max-w-4xl{max-width:56rem}.max-w-7xl{max-width:80rem}.max-w-\[1440px\]{max-width:1440px}.max-w-full{max-width:100%}.max-w-xs{max-width:20rem}.cursor-pointer{cursor:pointer}.grid-cols-1{grid-template-columns:repeat(1, minmax(0, 1fr))}.flex-col{flex-direction:column}.flex-wrap{flex-wrap:wrap}.items-start{align-items:flex-start}.items-end{align-items:flex-end}.items-center{align-items:center}.justify-center{justify-content:center}.justify-between{justify-content:space-between}.gap-12{gap:3rem}.gap-4{gap:1rem}.gap-6{gap:1.5rem}.gap-8{gap:2rem}.space-x-10 > :not([hidden]) ~ :not([hidden]){--tw-space-x-reverse:0;margin-right:calc(2.5rem * var(--tw-space-x-reverse));margin-left:calc(2.5rem * calc(1 - var(--tw-space-x-reverse)))}.space-x-6 > :not([hidden]) ~ :not([hidden]){--tw-space-x-reverse:0;margin-right:calc(1.5rem * var(--tw-space-x-reverse));margin-left:calc(1.5rem * calc(1 - var(--tw-space-x-reverse)))}.space-y-12 > :not([hidden]) ~ :not([hidden]){--tw-space-y-reverse:0;margin-top:calc(3rem * calc(1 - var(--tw-space-y-reverse)));margin-bottom:calc(3rem * var(--tw-space-y-reverse))}.space-y-20 > :not([hidden]) ~ :not([hidden]){--tw-space-y-reverse:0;margin-top:calc(5rem * calc(1 - var(--tw-space-y-reverse)));margin-bottom:calc(5rem * var(--tw-space-y-reverse))}.space-y-24 > :not([hidden]) ~ :not([hidden]){--tw-space-y-reverse:0;margin-top:calc(6rem * calc(1 - var(--tw-space-y-reverse)));margin-bottom:calc(6rem * var(--tw-space-y-reverse))}.space-y-4 > :not([hidden]) ~ :not([hidden]){--tw-space-y-reverse:0;margin-top:calc(1rem * calc(1 - var(--tw-space-y-reverse)));margin-bottom:calc(1rem * var(--tw-space-y-reverse))}.space-y-6 > :not([hidden]) ~ :not([hidden]){--tw-space-y-reverse:0;margin-top:calc(1.5rem * calc(1 - var(--tw-space-y-reverse)));margin-bottom:calc(1.5rem * var(--tw-space-y-reverse))}.overflow-hidden{overflow:hidden}.rounded-full{border-radius:9999px}.border{border-width:1px}.border-\[0\.5px\]{border-width:0.5px}.border-b{border-bottom-width:1px}.border-b-2{border-bottom-width:2px}.border-t-\[0\.5px\]{border-top-width:0.5px}.border-\[\#5f5f59\]\/10{border-color:rgb(95 95 89 / 0.1)}.border-\[\#6d5f07\]{--tw-border-opacity:1;border-color:rgb(109 95 7 / var(--tw-border-opacity, 1))}.border-outline-variant\/10{border-color:rgb(174 180 170 / 0.1)}.border-outline-variant\/20{border-color:rgb(174 180 170 / 0.2)}.border-outline-variant\/30{border-color:rgb(174 180 170 / 0.3)}.border-primary{--tw-border-opacity:1;border-color:rgb(95 95 89 / var(--tw-border-opacity, 1))}.bg-\[\#fafaf5\]{--tw-bg-opacity:1;background-color:rgb(250 250 245 / var(--tw-bg-opacity, 1))}.bg-\[\#fafaf5\]\/80{background-color:rgb(250 250 245 / 0.8)}.bg-background{--tw-bg-opacity:1;background-color:rgb(250 250 245 / var(--tw-bg-opacity, 1))}.bg-inverse-surface{--tw-bg-opacity:1;background-color:rgb(13 15 12 / var(--tw-bg-opacity, 1))}.bg-outline-variant{--tw-bg-opacity:1;background-color:rgb(174 180 170 / var(--tw-bg-opacity, 1))}.bg-primary{--tw-bg-opacity:1;background-color:rgb(95 95 89 / var(--tw-bg-opacity, 1))}.bg-surface-container-low{--tw-bg-opacity:1;background-color:rgb(243 244 238 / var(--tw-bg-opacity, 1))}.bg-surface-container-lowest{--tw-bg-opacity:1;background-color:rgb(255 255 255 / var(--tw-bg-opacity, 1))}.bg-white{--tw-bg-opacity:1;background-color:rgb(255 255 255 / var(--tw-bg-opacity, 1))}.object-cover{object-fit:cover}.p-1{padding:0.25rem}.p-12{padding:3rem}.p-8{padding:2rem}.px-6{padding-left:1.5rem;padding-right:1.5rem}.px-8{padding-left:2rem;padding-right:2rem}.py-20{padding-top:5rem;padding-bottom:5rem}.py-4{padding-top:1rem;padding-bottom:1rem}.py-6{padding-top:1.5rem;padding-bottom:1.5rem}.pb-1{padding-bottom:0.25rem}.pb-2{padding-bottom:0.5rem}.pb-24{padding-bottom:6rem}.pt-32{padding-top:8rem}.text-right{text-align:right}.text-2xl{font-size:1.5rem;line-height:2rem}.text-3xl{font-size:1.875rem;line-height:2.25rem}.text-4xl{font-size:2.25rem;line-height:2.5rem}.text-5xl{font-size:3rem;line-height:1}.text-\[10px\]{font-size:10px}.text-lg{font-size:1.125rem;line-height:1.75rem}.text-sm{font-size:0.875rem;line-height:1.25rem}.text-xl{font-size:1.25rem;line-height:1.75rem}.text-xs{font-size:0.75rem;line-height:1rem}.font-bold{font-weight:700}.font-light{font-weight:300}.font-normal{font-weight:400}.font-semibold{font-weight:600}.uppercase{text-transform:uppercase}.italic{font-style:italic}.leading-relaxed{line-height:1.625}.leading-snug{line-height:1.375}.leading-tight{line-height:1.25}.tracking-\[0\.2em\]{letter-spacing:0.2em}.tracking-\[0\.4em\]{letter-spacing:0.4em}.tracking-tight{letter-spacing:-0.025em}.tracking-wider{letter-spacing:0.05em}.tracking-widest{letter-spacing:0.1em}.text-\[\#5f5f59\]{--tw-text-opacity:1;color:rgb(95 95 89 / var(--tw-text-opacity, 1))}.text-\[\#5f5f59\]\/40{color:rgb(95 95 89 / 0.4)}.text-\[\#5f5f59\]\/60{color:rgb(95 95 89 / 0.6)}.text-\[\#6d5f07\]{--tw-text-opacity:1;color:rgb(109 95 7 / var(--tw-text-opacity, 1))}.text-on-background{--tw-text-opacity:1;color:rgb(46 52 45 / var(--tw-text-opacity, 1))}.text-on-primary{--tw-text-opacity:1;color:rgb(250 248 240 / var(--tw-text-opacity, 1))}.text-on-primary\/70{color:rgb(250 248 240 / 0.7)}.text-on-surface-variant{--tw-text-opacity:1;color:rgb(91 97 89 / var(--tw-text-opacity, 1))}.text-on-surface-variant\/60{color:rgb(91 97 89 / 0.6)}.text-on-surface-variant\/70{color:rgb(91 97 89 / 0.7)}.text-on-surface-variant\/80{color:rgb(91 97 89 / 0.8)}.text-primary{--tw-text-opacity:1;color:rgb(95 95 89 / var(--tw-text-opacity, 1))}.text-primary\/60{color:rgb(95 95 89 / 0.6)}.text-primary\/70{color:rgb(95 95 89 / 0.7)}.text-secondary{--tw-text-opacity:1;color:rgb(109 95 7 / var(--tw-text-opacity, 1))}.text-secondary\/80{color:rgb(109 95 7 / 0.8)}.opacity-5{opacity:0.05}.opacity-90{opacity:0.9}.shadow-\[0px_40px_100px_rgba\(0\2c 0\2c 0\2c 0\.03\)\]{--tw-shadow:0px 40px 100px rgba(0,0,0,0.03);--tw-shadow-colored:0px 40px 100px var(--tw-shadow-color);box-shadow:var(--tw-ring-offset-shadow, 0 0 #0000), var(--tw-ring-shadow, 0 0 #0000), var(--tw-shadow)}.contrast-125{--tw-contrast:contrast(1.25);filter:var(--tw-blur) var(--tw-brightness) var(--tw-contrast) var(--tw-grayscale) var(--tw-hue-rotate) var(--tw-invert) var(--tw-saturate) var(--tw-sepia) var(--tw-drop-shadow)}.grayscale{--tw-grayscale:grayscale(100%);filter:var(--tw-blur) var(--tw-brightness) var(--tw-contrast) var(--tw-grayscale) var(--tw-hue-rotate) var(--tw-invert) var(--tw-saturate) var(--tw-sepia) var(--tw-drop-shadow)}.backdrop-blur-md{--tw-backdrop-blur:blur(12px);-webkit-backdrop-filter:var(--tw-backdrop-blur) var(--tw-backdrop-brightness) var(--tw-backdrop-contrast) var(--tw-backdrop-grayscale) var(--tw-backdrop-hue-rotate) var(--tw-backdrop-invert) var(--tw-backdrop-opacity) var(--tw-backdrop-saturate) var(--tw-backdrop-sepia);backdrop-filter:var(--tw-backdrop-blur) var(--tw-backdrop-brightness) var(--tw-backdrop-contrast) var(--tw-backdrop-grayscale) var(--tw-backdrop-hue-rotate) var(--tw-backdrop-invert) var(--tw-backdrop-opacity) var(--tw-backdrop-saturate) var(--tw-backdrop-sepia)}.transition-all{transition-property:all;transition-timing-function:cubic-bezier(0.4, 0, 0.2, 1);transition-duration:150ms}.transition-colors{transition-property:color, background-color, border-color, fill, stroke, -webkit-text-decoration-color;transition-property:color, background-color, border-color, text-decoration-color, fill, stroke;transition-property:color, background-color, border-color, text-decoration-color, fill, stroke, -webkit-text-decoration-color;transition-timing-function:cubic-bezier(0.4, 0, 0.2, 1);transition-duration:150ms}.transition-transform{transition-property:transform;transition-timing-function:cubic-bezier(0.4, 0, 0.2, 1);transition-duration:150ms}.duration-300{transition-duration:300ms}.duration-500{transition-duration:500ms}.duration-700{transition-duration:700ms}.duration-\[2000ms\]{transition-duration:2000ms}.ease-\[cubic-bezier\(0\.2\2c 0\2c 0\2c 1\)\]{transition-timing-function:cubic-bezier(0.2,0,0,1)}.ease-out{transition-timing-function:cubic-bezier(0, 0, 0.2, 1)}.selection\:bg-secondary-container *::selection{--tw-bg-opacity:1;background-color:rgb(247 227 130 / var(--tw-bg-opacity, 1))}.selection\:text-on-secondary-container *::selection{--tw-text-opacity:1;color:rgb(94 82 0 / var(--tw-text-opacity, 1))}.selection\:bg-secondary-container::selection{--tw-bg-opacity:1;background-color:rgb(247 227 130 / var(--tw-bg-opacity, 1))}.selection\:text-on-secondary-container::selection{--tw-text-opacity:1;color:rgb(94 82 0 / var(--tw-text-opacity, 1))}.hover\:border-secondary:hover{--tw-border-opacity:1;border-color:rgb(109 95 7 / var(--tw-border-opacity, 1))}.hover\:bg-primary-dim:hover{--tw-bg-opacity:1;background-color:rgb(83 83 77 / var(--tw-bg-opacity, 1))}.hover\:text-\[\#6d5f07\]:hover{--tw-text-opacity:1;color:rgb(109 95 7 / var(--tw-text-opacity, 1))}.hover\:text-secondary:hover{--tw-text-opacity:1;color:rgb(109 95 7 / var(--tw-text-opacity, 1))}.group:hover .group-hover\:translate-x-2{--tw-translate-x:0.5rem;transform:translate(var(--tw-translate-x), var(--tw-translate-y)) rotate(var(--tw-rotate)) skewX(var(--tw-skew-x)) skewY(var(--tw-skew-y)) scaleX(var(--tw-scale-x)) scaleY(var(--tw-scale-y))}.group:hover .group-hover\:scale-105{--tw-scale-x:1.05;--tw-scale-y:1.05;transform:translate(var(--tw-translate-x), var(--tw-translate-y)) rotate(var(--tw-rotate)) skewX(var(--tw-skew-x)) skewY(var(--tw-skew-y)) scaleX(var(--tw-scale-x)) scaleY(var(--tw-scale-y))}.dark\:bg-\[\#43433e\]:is(.dark *){--tw-bg-opacity:1;background-color:rgb(67 67 62 / var(--tw-bg-opacity, 1))}.dark\:bg-\[\#43433e\]\/80:is(.dark *){background-color:rgb(67 67 62 / 0.8)}.dark\:text-\[\#fafaf5\]:is(.dark *){--tw-text-opacity:1;color:rgb(250 250 245 / var(--tw-text-opacity, 1))}.dark\:text-\[\#fafaf5\]\/60:is(.dark *){color:rgb(250 250 245 / 0.6)}.dark\:text-\[\#fafaf5\]\/70:is(.dark *){color:rgb(250 250 245 / 0.7)}@media (min-width: 768px){.md\:flex{display:flex}.md\:grid-cols-2{grid-template-columns:repeat(2, minmax(0, 1fr))}.md\:grid-cols-3{grid-template-columns:repeat(3, minmax(0, 1fr))}.md\:p-16{padding:4rem}.md\:px-12{padding-left:3rem;padding-right:3rem}.md\:text-4xl{font-size:2.25rem;line-height:2.5rem}.md\:text-7xl{font-size:4.5rem;line-height:1}}@media (min-width: 1024px){.lg\:col-span-5{grid-column:span 5 / span 5}.lg\:col-span-7{grid-column:span 7 / span 7}.lg\:grid-cols-12{grid-template-columns:repeat(12, minmax(0, 1fr))}.lg\:gap-20{gap:5rem}}</style></head>
+<body class="bg-background text-on-background font-manrope selection:bg-secondary-container selection:text-on-secondary-container" data-mode="connect">
+<!-- TopNavBar -->
+<nav class="fixed top-0 left-0 w-full z-50 bg-[#fafaf5]/80 dark:bg-[#43433e]/80 backdrop-blur-md flex justify-between items-center px-6 md:px-12 py-6 max-w-full">
+<div class="text-2xl font-normal font-notoSerif text-[#5f5f59] dark:text-[#fafaf5] tracking-wider">
+        The Celestial Atelier
+    </div>
+<div class="hidden md:flex items-center space-x-10">
+<a class="text-[#5f5f59] dark:text-[#fafaf5]/70 hover:text-[#6d5f07] transition-colors duration-500 font-notoSerif tracking-wider text-sm" href="#">Home / ホーム</a>
+<a class="text-[#5f5f59] dark:text-[#fafaf5]/70 hover:text-[#6d5f07] transition-colors duration-500 font-notoSerif tracking-wider text-sm" href="#">Horoscope / 占星術</a>
+<a class="text-[#6d5f07] border-b-2 border-[#6d5f07] pb-1 font-notoSerif tracking-wider text-sm" href="#">Readings / 鑑定書</a>
+<a class="text-[#5f5f59] dark:text-[#fafaf5]/70 hover:text-[#6d5f07] transition-colors duration-500 font-notoSerif tracking-wider text-sm" href="#">About / 概要</a>
+</div>
+<div class="flex items-center space-x-6 text-[#5f5f59] dark:text-[#fafaf5]">
+<span class="material-symbols-outlined cursor-pointer">account_circle</span>
+</div>
+</nav>
+<main class="pt-32 pb-24 px-6 md:px-12 max-w-[1440px] mx-auto">
+<!-- Hero Section: Title and Intro -->
+<header class="mb-20">
+<label class="text-[10px] uppercase tracking-[0.4em] text-on-surface-variant/60 block mb-4">Reading No. 8821 — Personal Alignment / 個人アライメント報告書</label>
+<h1 class="text-5xl md:text-7xl font-notoSerif text-primary leading-tight font-light mb-4 max-w-4xl">
+            The architecture of your cosmic return.
+        </h1>
+<p class="font-notoSerif text-sm text-primary/60 mb-8 italic">宇宙的回帰の構造</p>
+<p class="text-on-surface-variant text-lg max-w-2xl leading-relaxed font-light">
+            あなたがこの世に生を受けた瞬間の星々を包括的に翻訳したものです。このレポートは、あなたの直感のための地図であり、来たる季節に向けた青写真として機能します。
+        </p>
+</header>
+<!-- Main Content Grid -->
+<div class="grid grid-cols-1 lg:grid-cols-12 gap-12 lg:gap-20">
+<!-- Left Column: The Big Three & Analysis -->
+<div class="lg:col-span-5 space-y-24">
+<!-- The Big Three Section -->
+<section class="">
+<h2 class="font-notoSerif text-2xl text-primary mb-12 flex items-center gap-4">
+<span class="w-8 h-[0.5px] bg-outline-variant"></span> The Primary Luminaries <span class="jp-sub">主要な天体</span>
+</h2>
+<div class="space-y-12">
+<div class="group">
+<div class="flex justify-between items-end mb-4 border-b border-outline-variant/10 pb-2">
+<span class="text-xs tracking-[0.2em] text-secondary font-semibold uppercase">Sun / 太陽</span>
+<span class="font-notoSerif italic text-primary/60">獅子座 · 第12ハウス</span>
+</div>
+<h3 class="font-notoSerif text-3xl mb-4 group-hover:translate-x-2 transition-transform duration-700 ease-[cubic-bezier(0.2,0,0,1)]">The Radiant Hidden.</h3>
+<p class="text-on-surface-variant leading-relaxed font-light">あなたのアイデンティティは、孤独の中で最も輝きを放ちます。私的な省察の中に気品が宿っており、公の場から離れた場所でこそ、あなたの真の強みが発揮されることを示唆しています。</p>
+</div>
+<div class="group">
+<div class="flex justify-between items-end mb-4 border-b border-outline-variant/10 pb-2">
+<span class="text-xs tracking-[0.2em] text-secondary font-semibold uppercase">Moon / 月</span>
+<span class="font-notoSerif italic text-primary/60">魚座 · 第7ハウス</span>
+</div>
+<h3 class="font-notoSerif text-3xl mb-4 group-hover:translate-x-2 transition-transform duration-700 ease-[cubic-bezier(0.2,0,0,1)]">The Fluid Empath.</h3>
+<p class="text-on-surface-variant leading-relaxed font-light">情緒的な安心感は、深い繋がりを通じて得られます。あなたは最も親密なパートナーの感情を鏡のように映し出し、対人関係の中に理解の聖域を築き上げます。</p>
+</div>
+<div class="group">
+<div class="flex justify-between items-end mb-4 border-b border-outline-variant/10 pb-2">
+<span class="text-xs tracking-[0.2em] text-secondary font-semibold uppercase">Ascendant / アセンダント</span>
+<span class="font-notoSerif italic text-primary/60">乙女座 · 0°</span>
+</div>
+<h3 class="font-notoSerif text-3xl mb-4 group-hover:translate-x-2 transition-transform duration-700 ease-[cubic-bezier(0.2,0,0,1)]">The Precise Lens.</h3>
+<p class="text-on-surface-variant leading-relaxed font-light">あなたは洞察に満ちた眼差しで世界と向き合います。物事への第一歩は注意深い観察と洗練であり、あらゆる第一印象に秩序をもたらそうと努めます。</p>
+</div>
+</div>
+</section>
+<!-- Detailed Breakdown Section -->
+<section class="bg-surface-container-low p-12">
+<h2 class="font-notoSerif text-2xl text-primary mb-10">Planetary Geometry <span class="jp-sub">惑星の幾何学</span></h2>
+<div class="space-y-6">
+<div class="flex justify-between items-center py-4 border-b border-outline-variant/20">
+<span class="font-semibold text-xs tracking-widest text-primary/70 uppercase">Mercury / 水星</span>
+<span class="font-notoSerif italic text-on-surface-variant">乙女座 / 第1ハウス</span>
+</div>
+<div class="flex justify-between items-center py-4 border-b border-outline-variant/20">
+<span class="font-semibold text-xs tracking-widest text-primary/70 uppercase">Venus / 金星</span>
+<span class="font-notoSerif italic text-on-surface-variant">蟹座 / 第11ハウス</span>
+</div>
+<div class="flex justify-between items-center py-4 border-b border-outline-variant/20">
+<span class="font-semibold text-xs tracking-widest text-primary/70 uppercase">Mars / 火星</span>
+<span class="font-notoSerif italic text-on-surface-variant">蠍座 / 第3ハウス</span>
+</div>
+<div class="flex justify-between items-center py-4 border-b border-outline-variant/20">
+<span class="font-semibold text-xs tracking-widest text-primary/70 uppercase">Jupiter / 木星</span>
+<span class="font-notoSerif italic text-on-surface-variant">射手座 / 第4ハウス</span>
+</div>
+<div class="flex justify-between items-center py-4">
+<span class="font-semibold text-xs tracking-widest text-primary/70 uppercase">Saturn / 土星</span>
+<span class="font-notoSerif italic text-on-surface-variant">水瓶座 / 第6ハウス</span>
+</div>
+</div>
+</section>
+</div>
+<!-- Right Column: Chart & Reflection -->
+<div class="lg:col-span-7 flex flex-col space-y-20">
+<!-- Birth Chart Graphic (Artistic Blueprint) -->
+<div class="relative bg-surface-container-low p-8 md:p-16 aspect-square overflow-hidden group">
+<div class="absolute inset-0 flex items-center justify-center pointer-events-none opacity-5">
+<div class="w-[120%] h-[120%] border-[0.5px] border-primary rounded-full"></div>
+<div class="absolute w-[80%] h-[80%] border-[0.5px] border-primary rounded-full"></div>
+<div class="absolute w-[40%] h-[40%] border-[0.5px] border-primary rounded-full"></div>
+</div>
+<div class="relative w-full h-full bg-white shadow-[0px_40px_100px_rgba(0,0,0,0.03)] p-1 border-[0.5px] border-outline-variant/30">
+<div class="w-full h-full bg-surface-container-lowest flex items-center justify-center overflow-hidden">
+<img class="w-full h-full object-cover grayscale contrast-125 opacity-90 group-hover:scale-105 transition-transform duration-[2000ms] ease-out" data-alt="Minimalist artistic star chart rendering with thin golden lines, astronomical symbols, and deep navy background like a vintage blueprint" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDF2fJ_BLvIcFdMSPGDpoyLBirdQAk1vboJDWhQK0Rascoa1wsJ2v37mqBuHkJOHg-GTeD6W78l8wWm5Ngom9OZtbvex2RqVBAfvKaE8vK_JVgdC8veBVC3WvO6XfmLGpw13bEhj9WSF11TdF2ZHrFKERNOZqEIVRfOMsuOmV12vf-vmDhmIBTssCHnHAfBQnbayvoa0hKSsSiucuSpN15A9BKappTMmL5S9lNp5pdoX4ucsCa1_l6I8ZMf6xQcNyAG8eGO4IVw0WmL">
+</div>
+</div>
+<div class="mt-8 flex justify-between items-start">
+<div>
+<p class="text-[10px] uppercase tracking-widest text-on-surface-variant/70">Chart Reference / チャート参照</p>
+<h4 class="font-notoSerif text-lg text-primary">Natal Convergence Alpha</h4>
+</div>
+<div class="text-right">
+<p class="text-[10px] uppercase tracking-widest text-on-surface-variant/70">Origin / 出生地</p>
+<p class="font-manrope font-light text-sm">Paris, FR · 48.8566° N</p>
+</div>
+</div>
+</div>
+<!-- Reflection Section -->
+<section class="bg-inverse-surface text-on-primary p-12 md:p-16 flex flex-col justify-center">
+<span class="material-symbols-outlined text-secondary text-4xl mb-8">flare</span>
+<h2 class="font-notoSerif text-3xl md:text-4xl mb-2 leading-snug font-light">
+                    The "Anchor" Energy: Finding stillness amidst the cosmic tide.
+                </h2>
+<p class="font-notoSerif text-sm text-secondary/80 mb-8 italic">「アンカー」エネルギー：宇宙の潮汐の中で静寂を見つける</p>
+<p class="text-on-primary/70 text-lg leading-relaxed mb-10 font-light">
+                    あなたの出生チャートは、外的奉仕への欲求（乙女座のAC）と内的な夢想（魚座の月）の間の強力な緊張を示唆しています。その解決の鍵は、日々の儀式——緻密さと詩が交差する場所にあります。今シーズンは、第12ハウスの「空虚」を大切にしてください。それは空っぽなのではなく、あなたの次の進化を育むために用意された空間なのです。
+                </p>
+<div class="flex flex-wrap items-center gap-6">
+<button class="bg-primary text-on-primary py-4 px-8 text-xs uppercase tracking-widest hover:bg-primary-dim transition-colors duration-500">
+                        Download PDF Blueprint / PDF版をダウンロード
+                    </button>
+<button class="text-on-primary border-b border-outline-variant/30 pb-1 text-xs uppercase tracking-widest hover:text-secondary hover:border-secondary transition-all duration-300">
+                        Book a Guide Session / セッションを予約
+                    </button>
+</div>
+</section>
+<!-- Small Grid Insights -->
+<div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+<div class="p-8 border border-outline-variant/10">
+<span class="text-xs text-secondary font-bold uppercase tracking-widest block mb-4">Focus Element / 重視すべき元素</span>
+<h5 class="font-notoSerif text-xl mb-3">Earth &amp; Water / 地と水</h5>
+<p class="text-sm text-on-surface-variant/80 leading-relaxed font-light">肥沃な組み合わせです。あなたは深い感情的な洞察を物理的な現実に具現化する能力を持っています。心は深淵を探求させつつ、足元はしっかりと地に付けておきましょう。</p>
+</div>
+<div class="p-8 border border-outline-variant/10">
+<span class="text-xs text-secondary font-bold uppercase tracking-widest block mb-4">Vibrational Tone / 振動のトーン</span>
+<h5 class="font-notoSerif text-xl mb-3">Mutable Dominance / 柔軟宮の優位</h5>
+<p class="text-sm text-on-surface-variant/80 leading-relaxed font-light">適応力こそがあなたの隠れた武器です。あなたは他の誰よりも優雅に変化を乗りこなし、宇宙の風が描く軌道に身を任せることができます。</p>
+</div>
+</div>
+</div>
+</div>
+</main>
+<!-- Footer -->
+<footer class="w-full py-20 px-6 md:px-12 border-t-[0.5px] border-[#5f5f59]/10 bg-[#fafaf5] dark:bg-[#43433e]">
+<div class="grid grid-cols-1 md:grid-cols-3 gap-12 max-w-7xl mx-auto">
+<div>
+<div class="text-xl font-normal font-notoSerif text-[#5f5f59] mb-6">The Celestial Atelier</div>
+<p class="text-[#5f5f59]/60 dark:text-[#fafaf5]/60 font-notoSerif text-sm tracking-tight max-w-xs">
+                職人的なデザインと編集の明晰さを通じて、宇宙の知恵をキュレーションします。
+            </p>
+</div>
+<div class="flex flex-col space-y-4">
+<a class="text-[#5f5f59]/60 dark:text-[#fafaf5]/60 hover:text-[#6d5f07] transition-colors duration-300 font-notoSerif text-sm tracking-tight" href="#">Instagram / インスタグラム</a>
+<a class="text-[#5f5f59]/60 dark:text-[#fafaf5]/60 hover:text-[#6d5f07] transition-colors duration-300 font-notoSerif text-sm tracking-tight" href="#">Pinterest / ピンタレスト</a>
+<a class="text-[#5f5f59]/60 dark:text-[#fafaf5]/60 hover:text-[#6d5f07] transition-colors duration-300 font-notoSerif text-sm tracking-tight" href="#">Archives / アーカイブ</a>
+</div>
+<div class="flex flex-col space-y-4">
+<a class="text-[#5f5f59]/60 dark:text-[#fafaf5]/60 hover:text-[#6d5f07] transition-colors duration-300 font-notoSerif text-sm tracking-tight" href="#">Editorial / エディトリアル</a>
+<a class="text-[#5f5f59]/60 dark:text-[#fafaf5]/60 hover:text-[#6d5f07] transition-colors duration-300 font-notoSerif text-sm tracking-tight" href="#">Contact / お問い合わせ</a>
+<p class="text-[#5f5f59]/40 font-notoSerif text-[10px] mt-4 uppercase tracking-widest">
+                © 2024 The Celestial Atelier. All rights reserved.
+            </p>
+</div>
+</div>
+</footer>
+</body></html>
