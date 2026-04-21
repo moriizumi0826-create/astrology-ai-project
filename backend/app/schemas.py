@@ -1,12 +1,13 @@
 from datetime import date, time
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 
 class ReadingRequest(BaseModel):
     full_name: str = Field(min_length=1, max_length=100)
     birth_date: date
-    birth_time: time
+    birth_time: time | None = None
+    birth_time_unknown: bool = False
     birthplace: str = Field(min_length=1, max_length=100)
     latitude: float = Field(ge=-90, le=90)
     longitude: float = Field(ge=-180, le=180)
@@ -20,6 +21,12 @@ class ReadingRequest(BaseModel):
             raise ValueError("blank values are not allowed")
         return value
 
+    @model_validator(mode="after")
+    def validate_birth_time(self) -> "ReadingRequest":
+        if not self.birth_time_unknown and self.birth_time is None:
+            raise ValueError("birth_time is required unless birth_time_unknown is true")
+        return self
+
 
 class ReadingSection(BaseModel):
     type: str
@@ -32,6 +39,7 @@ class ReadingMeta(BaseModel):
     birthplace: str
     birth_date: str
     birth_time: str
+    birth_time_unknown: bool
     timezone_offset: float
 
 

@@ -7,6 +7,22 @@ from narrative import build_stellium_payload_from_data
 
 MAX_THEME_RENDER_COUNT = 2
 
+SECTION_TITLES = {
+    1: "チャート構造サマリー",
+    2: "人生の基本テーマ",
+    3: "コア人格",
+    4: "思考・愛情・行動パターン",
+    5: "成長と課題",
+    6: "社会的役割とキャリア",
+    7: "心理構造",
+    8: "総括・人生のテーマと課題の統合",
+}
+
+
+def _section_heading(number: int) -> str:
+    title = SECTION_TITLES[number]
+    return f"【第{number}章：{title}】"
+
 
 def _planet_position(planet: Any, has_birth_time: bool) -> str:
     house = f" {planet.house}ハウス" if has_birth_time and getattr(planet, "house", None) else ""
@@ -419,7 +435,7 @@ def render_full_reading_v3(ctx: ChartContext, integrated: IntegratedReading) -> 
 
     # (sec5/sec8 formatting is kept as-is; sec7 is handled in narrative)
 
-    sec1_lines = ["【1. チャート構造サマリー】", ""]
+    sec1_lines = [_section_heading(1), ""]
     if profile:
         sec1_lines.append("■ エレメント（価値観の軸）: " + "、".join(f"{k}({v})" for k, v in profile.dominant_elements))
         sec1_lines.append("■ モダリティ（行動の軸）: " + "、".join(f"{k}({v})" for k, v in profile.dominant_modalities))
@@ -443,7 +459,7 @@ def render_full_reading_v3(ctx: ChartContext, integrated: IntegratedReading) -> 
         sec1_lines.append(f"■ 複合アスペクト: {'、'.join(pattern_names)}")
     sec1 = "\n".join(sec1_lines).strip()
 
-    sec2_lines = ["【2. 人生の基本テーマ】", ""]
+    sec2_lines = [_section_heading(2), ""]
     asc = sec2_data.get("asc")
     mc = sec2_data.get("mc")
     asc_rulers = sec2_data.get("asc_rulers") or []
@@ -515,7 +531,7 @@ def render_full_reading_v3(ctx: ChartContext, integrated: IntegratedReading) -> 
         sec2_lines.append("")
     sec2 = "\n".join(sec2_lines).strip()
 
-    sec3_lines = ["【3. コア人格】", ""]
+    sec3_lines = [_section_heading(3), ""]
     sec3_lines.extend(
         _render_planet_section(
             "太陽",
@@ -599,7 +615,7 @@ def render_full_reading_v3(ctx: ChartContext, integrated: IntegratedReading) -> 
         protected_texts.add(integrated_text)
     sec3 = "\n".join(sec3_lines).strip()
 
-    sec4_lines = ["【4. 思考・愛情・行動パターン】", ""]
+    sec4_lines = [_section_heading(4), ""]
     relationship_text = ""
     if main_axis_is_stellium:
         relationship_text = clean_text(stellium_section_texts.get("sec4_relationship", ""))
@@ -649,7 +665,7 @@ def render_full_reading_v3(ctx: ChartContext, integrated: IntegratedReading) -> 
     )
     sec4 = "\n".join(sec4_lines).strip()
 
-    sec5_lines = ["【5. 成長と課題】", ""]
+    sec5_lines = [_section_heading(5), ""]
     conflict_theme_for_sec5 = _consume_theme(
         conflict_theme_source,
         used_theme_counts,
@@ -750,7 +766,7 @@ def render_full_reading_v3(ctx: ChartContext, integrated: IntegratedReading) -> 
         sec5_lines.append("")
     sec5 = "\n".join(sec5_lines).strip()
 
-    sec6_lines = ["【6. 社会的役割とキャリア】", ""]
+    sec6_lines = [_section_heading(6), ""]
     # Always include MC / MC ruler / Jupiter / 10th house supplement
     mc = sec6_data.get("mc")
     mc_rulers = sec6_data.get("mc_rulers") or []
@@ -849,7 +865,7 @@ def render_full_reading_v3(ctx: ChartContext, integrated: IntegratedReading) -> 
             used_texts.add(blocks["caution"])
     sec6 = "\n".join(sec6_lines).strip()
 
-    sec7_lines = ["【7. 心理構造】", ""]
+    sec7_lines = [_section_heading(7), ""]
     blocks = narrative_section_plan.section7_blocks if narrative_section_plan else {}
     core_text = clean_text(blocks.get("core", ""))
     reinforcing = blocks.get("reinforcing", []) or []
@@ -903,7 +919,7 @@ def render_full_reading_v3(ctx: ChartContext, integrated: IntegratedReading) -> 
             if node_direction and node_direction != plan_for_sec8.direction_theme:
                 plan_for_sec8.direction_theme = node_direction
 
-    sec8_lines = ["【第8章：総括・人生のテーマと課題の統合】", ""]
+    sec8_lines = [_section_heading(8), ""]
     if plan_for_sec8:
         main_theme = plan_for_sec8.main_theme if getattr(plan_for_sec8.main_theme, "role", "") == "main" else None
         conflict_theme = plan_for_sec8.conflict_theme if getattr(plan_for_sec8.conflict_theme, "role", "") == "conflict" else None

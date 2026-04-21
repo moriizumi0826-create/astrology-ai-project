@@ -166,7 +166,14 @@
                     <span class="block text-[10px] uppercase tracking-widest text-on-surface-variant font-semibold">Birth Time</span>
                     <span class="text-[9px] text-on-surface-variant/60 font-light tracking-wider">出生時刻</span>
                   </label>
-                  <input class="w-full bg-transparent border-t-0 border-x-0 border-b border-outline-variant/30 py-3 text-primary font-manrope text-lg focus:ring-0 focus:border-secondary transition-all duration-500" name="birth_time" required type="time" />
+                  <input class="w-full bg-transparent border-t-0 border-x-0 border-b border-outline-variant/30 py-3 text-primary font-manrope text-lg focus:ring-0 focus:border-secondary transition-all duration-500" id="birth-time-input" name="birth_time" required type="time" />
+                  <label class="mt-4 inline-flex items-center gap-3 text-sm text-on-surface-variant font-notoSansJP cursor-pointer">
+                    <input class="h-4 w-4 rounded border-outline-variant text-secondary focus:ring-secondary" id="birth-time-unknown" name="birth_time_unknown" type="checkbox" />
+                    <span>出生時間不明</span>
+                  </label>
+                  <p class="mt-2 text-[10px] text-on-surface-variant/70 font-notoSansJP">
+                    チェック時は 12:00 を仮の時刻として計算します。ASC / MC / ハウスは表示されません。
+                  </p>
                 </div>
               </div>
 
@@ -242,7 +249,7 @@
                 <p class="text-[10px] uppercase tracking-[0.3em] text-secondary font-bold mb-4">Waiting</p>
                 <h3 class="font-notoSerif text-2xl text-primary mb-4">Your reading will appear here.</h3>
                 <p class="text-on-surface-variant leading-relaxed">
-                  フォーム送信後に personality / love / career の各鑑定をここへ表示します。
+                  フォーム送信後に全文レポートを章ごとのプルダウン形式でここへ表示します。
                 </p>
               </div>
             </article>

@@ -1,3 +1,4 @@
+from pathlib import Path
 from typing import List, Dict, Any, Tuple, Optional
 from config import (
     PLANET_ORDER,
@@ -261,8 +262,8 @@ def build_node_theme_index(rows: List[Dict[str, Any]]) -> Dict[str, Dict[str, An
 # =========================================================
 # 入力チャート読込
 # =========================================================
-def load_planets(has_birth_time: bool = True) -> List[PlanetData]:
-    planet_input_file = resolve_existing_path(PLANET_INPUT_REL)
+def load_planets(has_birth_time: bool = True, planet_input_file: Optional[Path] = None) -> List[PlanetData]:
+    planet_input_file = planet_input_file or resolve_existing_path(PLANET_INPUT_REL)
     rows = read_csv_rows(planet_input_file)
     planets = []
     for row in rows:
@@ -291,9 +292,9 @@ def load_planets(has_birth_time: bool = True) -> List[PlanetData]:
     planets.sort(key=lambda x: order_map.get(x.name_en, 999))
     return planets
 
-def load_angles() -> List[AngleData]:
+def load_angles(angle_input_file: Optional[Path] = None) -> List[AngleData]:
     try:
-        angle_input_file = resolve_existing_path(ANGLE_INPUT_REL)
+        angle_input_file = angle_input_file or resolve_existing_path(ANGLE_INPUT_REL)
     except FileNotFoundError:
         return []
 
@@ -319,9 +320,9 @@ def load_angles() -> List[AngleData]:
     angles.sort(key=lambda x: order_map.get(x.name_en, 999))
     return angles
 
-def load_aspects() -> List[AspectData]:
+def load_aspects(aspect_input_file: Optional[Path] = None) -> List[AspectData]:
     try:
-        aspect_input_file = resolve_existing_path(ASPECT_INPUT_REL)
+        aspect_input_file = aspect_input_file or resolve_existing_path(ASPECT_INPUT_REL)
     except FileNotFoundError:
         return []
 
@@ -352,12 +353,12 @@ def load_aspects() -> List[AspectData]:
     aspects.sort(key=lambda x: x.priority, reverse=True)
     return aspects
 
-def load_nodes(has_birth_time: bool = True) -> List[NodeData]:
+def load_nodes(has_birth_time: bool = True, planet_input_file: Optional[Path] = None) -> List[NodeData]:
     """
     planets.csv からドラゴンヘッド / ドラゴンテールを抽出して NodeData 化する
     """
     try:
-        planet_input_file = resolve_existing_path(PLANET_INPUT_REL)
+        planet_input_file = planet_input_file or resolve_existing_path(PLANET_INPUT_REL)
     except FileNotFoundError:
         return []
 

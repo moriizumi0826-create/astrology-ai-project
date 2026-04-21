@@ -15,7 +15,7 @@ def load_transit_support_data(aspects_file, houses_file) -> dict:
         aspect_map[pair] = row
         aspect_map[reverse_pair] = row
 
-    house_map = {str(row["ハウス番号"]): row for row in house_rows}
+    house_map = {str(row["ハウス番号"]): row for row in house_rows if str(row["ハウス番号"]) != "-"}
 
     return {
         "aspects": aspect_rows,

@@ -31,6 +31,7 @@ class BirthInput:
     full_name: str
     birth_date: str
     birth_time: str
+    birth_time_unknown: bool
     birthplace: str
     latitude: float
     longitude: float
@@ -96,7 +97,10 @@ def get_house(ecliptic_longitude: float, house_cusps) -> int:
 
 def build_chart_rows(payload: BirthInput) -> dict[str, list[list]]:
     planets = require_swisseph()
-    local_dt = datetime.fromisoformat(f"{payload.birth_date}T{payload.birth_time}")
+    # When the birth time is unknown, use local noon as a stable fallback so
+    # Swiss Ephemeris can still calculate approximate chart positions.
+    effective_birth_time = payload.birth_time or "12:00"
+    local_dt = datetime.fromisoformat(f"{payload.birth_date}T{effective_birth_time}")
     utc_dt = local_dt - timedelta(hours=payload.timezone_offset)
     utc_hour_decimal = utc_dt.hour + (utc_dt.minute / 60) + (utc_dt.second / 3600)
     jd = swe.julday(utc_dt.year, utc_dt.month, utc_dt.day, utc_hour_decimal)
@@ -114,7 +118,7 @@ def build_chart_rows(payload: BirthInput) -> dict[str, list[list]]:
         speed_longitude = data[3]
         sign_name, degree_in_sign = get_sign_info(ecliptic_longitude)
         motion = "逆行" if speed_longitude < 0 else "順行"
-        house_number = get_house(ecliptic_longitude, houses)
+        house_number = "-" if payload.birth_time_unknown else get_house(ecliptic_longitude, houses)
 
         planet_rows.append([
             name,
@@ -132,7 +136,7 @@ def build_chart_rows(payload: BirthInput) -> dict[str, list[list]]:
     dragon_head_longitude = planet_positions["ドラゴンヘッド"]
     dragon_tail_longitude = (dragon_head_longitude + 180) % 360
     dragon_tail_sign, dragon_tail_degree = get_sign_info(dragon_tail_longitude)
-    dragon_tail_house = get_house(dragon_tail_longitude, houses)
+    dragon_tail_house = "-" if payload.birth_time_unknown else get_house(dragon_tail_longitude, houses)
 
     planet_rows.append([
         "ドラゴンテール",
@@ -148,18 +152,24 @@ def build_chart_rows(payload: BirthInput) -> dict[str, list[list]]:
     mc_longitude = ascmc[1]
     asc_sign, asc_degree = get_sign_info(asc_longitude)
     mc_sign, mc_degree = get_sign_info(mc_longitude)
-    angle_rows = [
-        ["ASC", round(asc_longitude, 2), asc_sign, round(asc_degree, 2)],
-        ["MC", round(mc_longitude, 2), mc_sign, round(mc_degree, 2)],
-    ]
+    if payload.birth_time_unknown:
+        angle_rows = [["-", "-", "-", "-"] for _ in range(2)]
+        house_rows = [["-", "-", "-", "-"] for _ in range(12)]
+    else:
+        angle_rows = [
+            ["ASC", round(asc_longitude, 2), asc_sign, round(asc_degree, 2)],
+            ["MC", round(mc_longitude, 2), mc_sign, round(mc_degree, 2)],
+        ]
 
-    house_rows = []
-    for i, cusp in enumerate(houses, start=1):
-        sign_name, degree_in_sign = get_sign_info(cusp)
-        house_rows.append([i, round(cusp, 2), sign_name, round(degree_in_sign, 2)])
+        house_rows = []
+        for i, cusp in enumerate(houses, start=1):
+            sign_name, degree_in_sign = get_sign_info(cusp)
+            house_rows.append([i, round(cusp, 2), sign_name, round(degree_in_sign, 2)])
 
     aspect_rows = []
     for planet1, planet2 in combinations(planet_positions.keys(), 2):
+        if payload.birth_time_unknown and ("月" in (planet1, planet2)):
+            continue
         long1 = planet_positions[planet1]
         long2 = planet_positions[planet2]
         angle_diff = get_angle_diff(long1, long2)

@@ -17,6 +17,11 @@ app.add_middleware(
 )
 
 
+@app.get("/")
+def root() -> dict:
+    return {"message": "Celestial Atelier API", "health": "/api/health", "docs": "/docs"}
+
+
 @app.get("/api/health")
 def health_check() -> dict:
     return {"status": "ok"}

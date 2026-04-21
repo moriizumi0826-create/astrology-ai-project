@@ -43,6 +43,8 @@ def load_csv_dicts(path) -> list[dict]:
 
 
 def jp_sign_to_en(sign_jp) -> str:
+    if sign_jp == "-":
+        return "-"
     try:
         return SIGN_MAP[sign_jp]
     except KeyError as exc:
@@ -54,6 +56,8 @@ def format_planet_with_house(row) -> str:
     house = row["ハウス"]
     if not house:
         raise ValueError(f"Missing house value: {row}")
+    if house == "-":
+        return sign_en
     return f"{sign_en} {house}H"
 
 
@@ -74,8 +78,8 @@ def build_natal_chart_data(planets_file, angles_file, houses_file) -> dict:
     house_rows = load_csv_dicts(houses_file)
 
     planet_map = {row["天体名"]: row for row in planet_rows}
-    angle_map = {row["感受点名"]: row for row in angle_rows}
-    house_map = {str(row["ハウス番号"]): row for row in house_rows}
+    angle_map = {row["感受点名"]: row for row in angle_rows if row["感受点名"] != "-"}
+    house_map = {str(row["ハウス番号"]): row for row in house_rows if str(row["ハウス番号"]) != "-"}
 
     chart_data = {
         key: format_planet_with_house(
@@ -84,17 +88,25 @@ def build_natal_chart_data(planets_file, angles_file, houses_file) -> dict:
         for key, planet_name in PLANET_KEY_MAP.items()
     }
 
-    chart_data["asc"] = format_sign_only(
-        _find_required_row(angle_map, "ASC", "ASC")["星座名"]
+    chart_data["asc"] = (
+        format_sign_only(_find_required_row(angle_map, "ASC", "ASC")["星座名"])
+        if "ASC" in angle_map
+        else "-"
     )
-    chart_data["mc"] = format_sign_only(
-        _find_required_row(angle_map, "MC", "MC")["星座名"]
+    chart_data["mc"] = (
+        format_sign_only(_find_required_row(angle_map, "MC", "MC")["星座名"])
+        if "MC" in angle_map
+        else "-"
     )
-    chart_data["house7"] = format_sign_only(
-        _find_required_row(house_map, "7", "7ハウス")["星座名"]
+    chart_data["house7"] = (
+        format_sign_only(_find_required_row(house_map, "7", "7ハウス")["星座名"])
+        if "7" in house_map
+        else "-"
     )
-    chart_data["house10"] = format_sign_only(
-        _find_required_row(house_map, "10", "10ハウス")["星座名"]
+    chart_data["house10"] = (
+        format_sign_only(_find_required_row(house_map, "10", "10ハウス")["星座名"])
+        if "10" in house_map
+        else "-"
     )
 
     return {
