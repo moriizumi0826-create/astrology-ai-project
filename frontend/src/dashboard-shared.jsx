@@ -131,29 +131,29 @@ function Header({ data: header, embedded = false }) {
         embedded ? "rounded-t-[28px]" : "sticky top-0 z-30"
       )}
     >
-      <div className="flex items-center justify-between gap-4 px-4 py-4 md:px-6">
-        <div className="flex items-center gap-4">
-          <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[#0A192F] text-[#D4AF37] shadow-[0_18px_36px_rgba(10,25,47,0.08)]">
+      <div className="flex flex-col items-start gap-3 px-4 py-4 sm:flex-row sm:items-center sm:justify-between md:px-6">
+        <div className="flex min-w-0 items-center gap-3 sm:gap-4">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-[#0A192F] text-[#D4AF37] shadow-[0_18px_36px_rgba(10,25,47,0.08)] sm:h-11 sm:w-11">
             <Sparkles size={20} />
           </div>
-          <div>
-            <p className="text-base font-extrabold tracking-tight text-[#0A192F]">
+          <div className="min-w-0">
+            <p className="truncate text-[15px] font-extrabold tracking-tight text-[#0A192F] sm:text-base">
               {header.brand.name}
             </p>
-            <p className="text-xs uppercase tracking-[0.18em] text-slate-500">
+            <p className="truncate text-[10px] uppercase tracking-[0.14em] text-slate-500 sm:text-xs sm:tracking-[0.18em]">
               {header.brand.sublabel}
             </p>
           </div>
         </div>
 
-        <nav className="flex flex-wrap items-center justify-end gap-2">
+        <nav className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:justify-end">
           {header.actions.map((action, index) => {
             const iconMap = [History, UserCircle2, Crown];
             const Icon = iconMap[index] || UserCircle2;
             return (
               <button
                 key={action}
-                className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-[#0A192F] transition hover:border-[#D4AF37] hover:text-[#D4AF37]"
+                className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-[#0A192F] transition hover:border-[#D4AF37] hover:text-[#D4AF37] sm:px-4 sm:text-sm"
                 type="button"
               >
                 <Icon size={16} />
@@ -246,44 +246,46 @@ function TypographicHero({ data }) {
 
   return (
     <Panel title="ユーザーステータス" eyebrow="Today Overview" className="overflow-hidden">
-      <div className="grid gap-6 lg:grid-cols-[1.2fr_0.8fr]">
+      <div className="grid gap-4 sm:gap-6 lg:grid-cols-[1.2fr_0.8fr]">
         <div className="space-y-5">
-          <div className="rounded-[2rem] border border-[#D4AF37]/20 bg-[#050A17]/70 p-6 shadow-[0_24px_80px_rgba(3,7,18,0.45)]">
+          <div className="rounded-[2rem] border border-[#D4AF37]/20 bg-[#050A17]/70 p-4 shadow-[0_24px_80px_rgba(3,7,18,0.45)] sm:p-6">
             <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
-              <div className="inline-flex items-center gap-2 rounded-full border border-[#D4AF37]/30 bg-[#D4AF37]/10 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.24em] text-[#D4AF37]">
+              <div className="inline-flex max-w-full items-center gap-2 rounded-full border border-[#D4AF37]/30 bg-[#D4AF37]/10 px-3 py-1 text-[10px] font-bold uppercase tracking-[0.18em] text-[#D4AF37] sm:text-[11px] sm:tracking-[0.24em]">
                 <Sparkles size={14} />
-                Personal Reading
+                <span className="truncate">Personal Reading</span>
               </div>
-              <span className={cx("text-5xl font-black tracking-[-0.08em]", rankClass)}>
+              <span className={cx("text-4xl font-black tracking-[-0.08em] sm:text-5xl", rankClass)}>
                 {rank}
               </span>
             </div>
 
             {data.description && (
-              <div className="mb-4 inline-flex max-w-full items-center gap-2 rounded-full border border-amber-300/20 bg-amber-300/10 px-4 py-2 text-xs font-semibold text-amber-100 shadow-[0_0_22px_rgba(217,174,74,0.12)]">
-                <Gauge size={14} />
-                <span className="truncate">{data.description}</span>
+              <div className="mb-4 flex w-full max-w-full items-start gap-2 rounded-2xl border border-amber-300/20 bg-amber-300/10 px-3 py-2 text-[11px] font-semibold text-amber-100 shadow-[0_0_22px_rgba(217,174,74,0.12)] sm:px-4 sm:text-xs">
+                <Gauge size={14} className="mt-0.5 shrink-0" />
+                <span className="min-w-0 break-words whitespace-normal leading-5">
+                  {data.description}
+                </span>
               </div>
             )}
 
-            <h2 className={cx("text-3xl font-black leading-tight tracking-[-0.04em] sm:text-5xl", rankClass)}>
+            <h2 className={cx("break-words text-2xl font-black leading-tight tracking-[-0.04em] sm:text-5xl", rankClass)}>
               {data.title}
             </h2>
 
             {data.guidance && (
-              <p className="mt-4 max-w-2xl text-lg font-semibold leading-8 text-white sm:text-xl">
+              <p className="mt-4 max-w-2xl text-base font-semibold leading-7 text-white sm:text-xl sm:leading-8">
                 {data.guidance}
               </p>
             )}
 
-            <div className="mt-6 space-y-3 border-l border-[#D4AF37]/25 pl-5">
+            <div className="mt-6 space-y-3 border-l border-[#D4AF37]/25 pl-4 sm:pl-5">
               {basicPart && (
-                <p className="text-slate-400 font-light leading-8">
+                <p className="break-words text-sm font-light leading-7 text-slate-400 sm:text-base sm:leading-8">
                   {basicPart}。
                 </p>
               )}
               {aspectPart && (
-                <p className="inline text-white font-semibold leading-8 border-b border-amber-500/30 pb-1">
+                <p className="inline break-words border-b border-amber-500/30 pb-1 text-sm font-semibold leading-7 text-white sm:text-base sm:leading-8">
                   {aspectPart}
                 </p>
               )}
@@ -291,11 +293,11 @@ function TypographicHero({ data }) {
 
             {data.guideline && (
               <div className="mt-6 rounded-2xl border border-white/10 bg-white/[0.06] p-4">
-                <div className="mb-2 flex items-center gap-2 text-xs font-bold uppercase tracking-[0.2em] text-amber-300">
+                <div className="mb-2 flex flex-wrap items-center gap-2 text-[11px] font-bold uppercase tracking-[0.16em] text-amber-300 sm:text-xs sm:tracking-[0.2em]">
                   <Sparkles size={15} />
                   Atelier Prescription
                 </div>
-                <p className="text-sm leading-7 text-slate-300">{data.guideline}</p>
+                <p className="break-words text-sm leading-7 text-slate-300">{data.guideline}</p>
               </div>
             )}
           </div>
