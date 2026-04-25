@@ -182,8 +182,8 @@ function restoreFormSnapshot() {
   }
 
   form.querySelector('input[name="full_name"]').value = saved.full_name || "";
-  birthDateInput.value = formatBirthDateForDisplay(saved.birth_date || "");
-  birthTimeInput.value = normalizeBirthTimeInput(saved.birth_time || "") || saved.birth_time || "";
+  birthDateInput.value = normalizeBirthDateInput(saved.birth_date || "");
+  birthTimeInput.value = normalizeBirthTimeInput(saved.birth_time || "") || "";
   birthTimeUnknownCheckbox.checked = Boolean(saved.birth_time_unknown);
   birthPrefectureSelect.value = saved.birth_prefecture || "";
   birthplaceInput.value = saved.birthplace || "";
@@ -454,12 +454,6 @@ birthTimeUnknownCheckbox.addEventListener("change", syncBirthTimeState);
 restoreFormSnapshot();
 ensureTimezoneFallback();
 syncBirthTimeState();
-birthDateInput.addEventListener("blur", () => {
-  birthDateInput.value = formatBirthDateForDisplay(birthDateInput.value);
-});
-birthTimeInput.addEventListener("blur", () => {
-  birthTimeInput.value = normalizeBirthTimeInput(birthTimeInput.value) || birthTimeInput.value.trim();
-});
 searchLocationButton.addEventListener("click", searchLocationCandidates);
 birthplaceInput.addEventListener("input", clearResolvedBirthplace);
 birthPrefectureSelect.addEventListener("change", clearResolvedBirthplace);
