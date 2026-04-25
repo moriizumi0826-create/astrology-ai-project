@@ -13,6 +13,9 @@ load_dotenv(PROJECT_ROOT / ".env")
 class Settings:
     openai_api_key: str = os.getenv("OPENAI_API_KEY", "")
     openai_model: str = os.getenv("OPENAI_MODEL", "gpt-4.1")
+    geocoding_base_url: str = os.getenv(
+        "GEOCODING_BASE_URL", "https://geocoding-api.open-meteo.com/v1/search"
+    )
     api_cors_origins: list[str] = None
 
     def __post_init__(self) -> None:

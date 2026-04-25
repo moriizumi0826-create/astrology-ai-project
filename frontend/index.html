@@ -50,6 +50,15 @@
       body {
         font-family: "Manrope", "Noto Sans JP", sans-serif;
       }
+      .numeric-input {
+        color: rgba(95, 95, 89, 0.38);
+      }
+      .numeric-input::placeholder {
+        color: rgba(95, 95, 89, 0.38);
+      }
+      .numeric-input.has-value {
+        color: #5f5f59;
+      }
       .font-notoSerif {
         font-family: "Noto Serif", serif;
       }
@@ -182,32 +191,96 @@
                   <span class="block text-[10px] uppercase tracking-widest text-on-surface-variant font-semibold">Place of Birth</span>
                   <span class="text-[9px] text-on-surface-variant/60 font-light tracking-wider">出生地</span>
                 </label>
-                <input class="w-full bg-transparent border-t-0 border-x-0 border-b border-outline-variant/30 py-3 text-primary font-notoSerif text-xl focus:ring-0 focus:border-secondary transition-all duration-500 placeholder:text-primary/20" name="birthplace" placeholder="Tokyo, Japan" required type="text" />
+                <div class="flex flex-col gap-4">
+                  <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label class="block text-[10px] uppercase tracking-widest text-on-surface-variant font-semibold mb-2">Prefecture</label>
+                      <select class="w-full bg-transparent border-t-0 border-x-0 border-b border-outline-variant/30 py-3 text-primary font-notoSansJP text-base focus:ring-0 focus:border-secondary transition-all duration-500" id="birth-prefecture" name="birth_prefecture" required>
+                        <option value="">都道府県を選択</option>
+                        <option value="Hokkaido">北海道</option>
+                        <option value="Aomori">青森県</option>
+                        <option value="Iwate">岩手県</option>
+                        <option value="Miyagi">宮城県</option>
+                        <option value="Akita">秋田県</option>
+                        <option value="Yamagata">山形県</option>
+                        <option value="Fukushima">福島県</option>
+                        <option value="Ibaraki">茨城県</option>
+                        <option value="Tochigi">栃木県</option>
+                        <option value="Gunma">群馬県</option>
+                        <option value="Saitama">埼玉県</option>
+                        <option value="Chiba">千葉県</option>
+                        <option value="Tokyo">東京都</option>
+                        <option value="Kanagawa">神奈川県</option>
+                        <option value="Niigata">新潟県</option>
+                        <option value="Toyama">富山県</option>
+                        <option value="Ishikawa">石川県</option>
+                        <option value="Fukui">福井県</option>
+                        <option value="Yamanashi">山梨県</option>
+                        <option value="Nagano">長野県</option>
+                        <option value="Gifu">岐阜県</option>
+                        <option value="Shizuoka">静岡県</option>
+                        <option value="Aichi">愛知県</option>
+                        <option value="Mie">三重県</option>
+                        <option value="Shiga">滋賀県</option>
+                        <option value="Kyoto">京都府</option>
+                        <option value="Osaka">大阪府</option>
+                        <option value="Hyogo">兵庫県</option>
+                        <option value="Nara">奈良県</option>
+                        <option value="Wakayama">和歌山県</option>
+                        <option value="Tottori">鳥取県</option>
+                        <option value="Shimane">島根県</option>
+                        <option value="Okayama">岡山県</option>
+                        <option value="Hiroshima">広島県</option>
+                        <option value="Yamaguchi">山口県</option>
+                        <option value="Tokushima">徳島県</option>
+                        <option value="Kagawa">香川県</option>
+                        <option value="Ehime">愛媛県</option>
+                        <option value="Kochi">高知県</option>
+                        <option value="Fukuoka">福岡県</option>
+                        <option value="Saga">佐賀県</option>
+                        <option value="Nagasaki">長崎県</option>
+                        <option value="Kumamoto">熊本県</option>
+                        <option value="Oita">大分県</option>
+                        <option value="Miyazaki">宮崎県</option>
+                        <option value="Kagoshima">鹿児島県</option>
+                        <option value="Okinawa">沖縄県</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label class="block text-[9px] uppercase tracking-[0.14em] text-on-surface-variant font-semibold mb-2">City / Area</label>
+                      <input class="w-full bg-transparent border-t-0 border-x-0 border-b border-outline-variant/30 py-3 text-primary font-notoSerif text-lg focus:ring-0 focus:border-secondary transition-all duration-500 placeholder:text-primary/20" id="birthplace-input" name="birthplace" placeholder="世田谷区 / 札幌市 / Yokohama" required type="text" />
+                    </div>
+                  </div>
+                  <div class="flex flex-col md:flex-row md:items-end gap-4">
+                    <button class="shrink-0 border border-outline-variant/40 px-5 py-3 text-xs tracking-[0.18em] uppercase text-primary hover:border-secondary hover:text-secondary transition-colors duration-500" id="search-location-button" type="button">
+                      Place Search
+                    </button>
+                  </div>
+                  <p class="text-[11px] text-on-surface-variant/80 font-notoSansJP leading-relaxed">
+                    先に都道府県を選び、市区町村やエリア名を入れて検索すると、緯度・経度とその日時の UTC オフセットを自動入力します。
+                  </p>
+                  <div class="hidden bg-surface-container-low px-4 py-3 text-sm text-on-surface-variant font-notoSansJP" id="location-search-status"></div>
+                  <div class="hidden flex-col gap-3" id="location-search-results"></div>
+                </div>
               </div>
 
-              <div class="grid grid-cols-1 md:grid-cols-3 gap-10">
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-10">
                 <div>
                   <label class="flex items-baseline gap-2 mb-2">
                     <span class="block text-[10px] uppercase tracking-widest text-on-surface-variant font-semibold">Latitude</span>
                     <span class="text-[9px] text-on-surface-variant/60 font-light tracking-wider">緯度</span>
                   </label>
-                  <input class="w-full bg-transparent border-t-0 border-x-0 border-b border-outline-variant/30 py-3 text-primary font-manrope text-lg focus:ring-0 focus:border-secondary transition-all duration-500" name="latitude" placeholder="35.6812" required step="0.0001" type="number" />
+                  <input class="numeric-input w-full bg-transparent border-t-0 border-x-0 border-b border-outline-variant/30 py-3 font-manrope text-lg focus:ring-0 focus:border-secondary transition-all duration-500" name="latitude" placeholder="35.6812" step="0.0001" type="number" />
                 </div>
                 <div>
                   <label class="flex items-baseline gap-2 mb-2">
                     <span class="block text-[10px] uppercase tracking-widest text-on-surface-variant font-semibold">Longitude</span>
                     <span class="text-[9px] text-on-surface-variant/60 font-light tracking-wider">経度</span>
                   </label>
-                  <input class="w-full bg-transparent border-t-0 border-x-0 border-b border-outline-variant/30 py-3 text-primary font-manrope text-lg focus:ring-0 focus:border-secondary transition-all duration-500" name="longitude" placeholder="139.7671" required step="0.0001" type="number" />
-                </div>
-                <div>
-                  <label class="flex items-baseline gap-2 mb-2">
-                    <span class="block text-[10px] uppercase tracking-widest text-on-surface-variant font-semibold">UTC Offset</span>
-                    <span class="text-[9px] text-on-surface-variant/60 font-light tracking-wider">時差</span>
-                  </label>
-                  <input class="w-full bg-transparent border-t-0 border-x-0 border-b border-outline-variant/30 py-3 text-primary font-manrope text-lg focus:ring-0 focus:border-secondary transition-all duration-500" name="timezone_offset" placeholder="9" required step="0.5" type="number" />
+                  <input class="numeric-input w-full bg-transparent border-t-0 border-x-0 border-b border-outline-variant/30 py-3 font-manrope text-lg focus:ring-0 focus:border-secondary transition-all duration-500" name="longitude" placeholder="139.7671" step="0.0001" type="number" />
                 </div>
               </div>
+              <input name="timezone_offset" type="hidden" />
 
               <div class="pt-6">
                 <button class="w-full bg-primary text-on-primary py-5 px-10 text-sm uppercase tracking-[0.2em] font-semibold hover:bg-primary-dim transition-all duration-700 ease-[cubic-bezier(0.2,0,0,1)] flex justify-between items-center group" type="submit">
