@@ -66,6 +66,19 @@ class ApiTestCase(unittest.TestCase):
         self.assertIn("timeline", dashboard_data)
         self.assertTrue(dashboard_data["topics"][0]["description"])
 
+    def test_quincunx_uses_master_text_instead_of_generic_fallback(self):
+        row = get_aspect_interpretation(
+            t_planet="MARS",
+            n_planet="SUN",
+            angle=150,
+            house=1,
+            is_retrograde=False,
+            orb_status="Separating",
+        )
+
+        self.assertTrue(row["Text_Description"])
+        self.assertEqual(row["Aspect_Angle"], 150)
+
     def test_basic_interpretation_loads_sun_sign_house_from_master_csv(self):
         row = get_basic_interpretation(planet="太陽", sign="牡羊座", house=1)
 
@@ -143,14 +156,15 @@ class ApiTestCase(unittest.TestCase):
         self.assertEqual(len(dashboard_data["aspect_interpretations"]), 3)
         self.assertEqual(dashboard_data["daily_vibe"]["modifier"], -20)
         self.assertEqual(dashboard_data["hero"]["score"], 40)
-        self.assertEqual(dashboard_data["countdown"]["title"], dashboard_data["countdown"]["note"])
+        self.assertNotEqual(dashboard_data["countdown"]["title"], dashboard_data["countdown"]["note"])
+        self.assertTrue(dashboard_data["countdown"]["trigger_id"])
         self.assertTrue(any(topic["title"] == "Work" for topic in dashboard_data["topics"]))
 
     def test_dashboard_timeline_uses_four_time_slots_and_unique_actions(self):
         dashboard_data = build_dashboard_data_from_aspects(
             aspects=[
                 {
-                    "t_planet": "MOON",
+                    "t_planet": "SUN",
                     "n_planet": "SUN",
                     "angle": 0,
                     "house": 1,
@@ -158,28 +172,28 @@ class ApiTestCase(unittest.TestCase):
                     "orb_status": "Applying",
                 },
                 {
-                    "t_planet": "MOON",
-                    "n_planet": "MOON",
-                    "angle": 60,
-                    "house": 2,
-                    "is_retrograde": False,
-                    "orb_status": "Applying",
-                },
-                {
-                    "t_planet": "MOON",
-                    "n_planet": "MERCURY",
-                    "angle": 120,
-                    "house": 3,
-                    "is_retrograde": False,
-                    "orb_status": "Applying",
-                },
-                {
-                    "t_planet": "MOON",
-                    "n_planet": "VENUS",
+                    "t_planet": "MERCURY",
+                    "n_planet": "SATURN",
                     "angle": 0,
+                    "house": 6,
+                    "is_retrograde": True,
+                    "orb_status": "Applying",
+                },
+                {
+                    "t_planet": "VENUS",
+                    "n_planet": "MOON",
+                    "angle": 120,
                     "house": 4,
                     "is_retrograde": False,
                     "orb_status": "Applying",
+                },
+                {
+                    "t_planet": "MARS",
+                    "n_planet": "SUN",
+                    "angle": 150,
+                    "house": 1,
+                    "is_retrograde": False,
+                    "orb_status": "Separating",
                 },
             ]
         )
@@ -187,15 +201,17 @@ class ApiTestCase(unittest.TestCase):
         timeline = dashboard_data["timeline"]
         self.assertEqual(
             [slot["label"] for slot in timeline],
-            ["06:00 - 12:00", "12:00 - 18:00", "18:00 - 24:00", "00:00 - 06:00"],
-        )
-        self.assertEqual(
-            [slot["title"] for slot in timeline],
-            ["Morning Focus", "Afternoon Flow", "Evening Reset", "Night Recovery"],
+            [
+                "06:00 - 12:00 (Morning)",
+                "12:00 - 18:00 (Afternoon)",
+                "18:00 - 24:00 (Evening)",
+                "00:00 - 06:00 (Night)",
+            ],
         )
         self.assertTrue(all(0 <= slot["score"] <= 100 for slot in timeline))
         self.assertTrue(all(slot["recommendedAction"] for slot in timeline))
         self.assertTrue(all(slot["description"] for slot in timeline))
+        self.assertTrue(all(slot["targetScore"] in {100, 55, 30, 10} for slot in timeline))
         self.assertGreater(len({slot["recommendedAction"] for slot in timeline}), 1)
         self.assertEqual(
             len(
@@ -210,7 +226,27 @@ class ApiTestCase(unittest.TestCase):
             ),
             4,
         )
-        self.assertTrue(all(slot["sourceAspect"]["t_planet"] == "TRANSIT_MOON" for slot in timeline))
+        self.assertTrue(any(slot["sourceAspect"]["angle"] == 150 for slot in timeline))
+
+    def test_timeline_logs_target_score_and_final_score(self):
+        with self.assertLogs("backend.app.services.reading_service", level="INFO") as logs:
+            build_dashboard_data_from_aspects(
+                aspects=[
+                    {
+                        "t_planet": "MOON",
+                        "n_planet": "SUN",
+                        "angle": 0,
+                        "house": 1,
+                        "is_retrograde": False,
+                        "orb_status": "Applying",
+                    }
+                ]
+            )
+
+        joined = "\n".join(logs.output)
+        self.assertIn("Timeline score: slot=MORNING", joined)
+        self.assertIn("target=100", joined)
+        self.assertIn("final=", joined)
 
     def test_countdown_data_loads_master_and_calculates_progress(self):
         countdown = build_countdown_data(

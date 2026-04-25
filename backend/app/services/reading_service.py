@@ -1,6 +1,8 @@
+import io
 import logging
+import re
 import sys
-from datetime import date, datetime
+from datetime import date, datetime, time as dt_time, timedelta
 from math import ceil
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -9,7 +11,18 @@ from typing import Any
 import pandas as pd
 
 from backend.app.schemas import ReadingMeta, ReadingRequest, ReadingResponse, ReadingSection
-from backend.app.services.chart_calculator import BirthInput, build_chart_rows, write_chart_csvs
+from backend.app.services.chart_calculator import (
+    BirthInput,
+    build_chart_rows,
+    get_angle_diff,
+    get_aspect,
+    write_chart_csvs,
+)
+
+try:
+    import swisseph as swe
+except ModuleNotFoundError:
+    swe = None
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
@@ -36,6 +49,7 @@ MASTER_CSV_FILES = {
     "aspect": "M_Aspect_Interpretation.csv",
     "daily_vibe": "M_Daily_Vibe_Logic.csv",
     "countdown": "M_Countdown_Master.csv",
+    "timeline_advice": "M_Timeline_Advice.csv",
 }
 
 AVERAGE_PLANET_SPEED_DEGREES_PER_DAY = {
@@ -139,7 +153,47 @@ def _read_master_csv(path: Path) -> pd.DataFrame:
             return pd.read_csv(path, encoding=encoding)
         except UnicodeDecodeError:
             continue
+        except pd.errors.ParserError:
+            repaired = _read_repaired_master_csv(path, encoding)
+            if repaired is not None:
+                return repaired
     return pd.read_csv(path)
+
+
+def _read_repaired_master_csv(path: Path, encoding: str) -> pd.DataFrame | None:
+    if path.name != "M_Aspect_Interpretation.csv":
+        return None
+
+    raw_text = path.read_text(encoding=encoding)
+    lines = raw_text.splitlines()
+    if not lines:
+        return None
+
+    header = lines[0].strip()
+    expected_columns = len(header.split(","))
+    repaired_rows: list[str] = []
+    record_pattern = re.compile(r"(?=TRANSIT_[A-Z_]+,NATAL_[A-Z_]+,)")
+    for line in lines[1:]:
+        if not line.strip():
+            continue
+        fragments = [fragment.strip() for fragment in record_pattern.split(line) if fragment.strip()]
+        for fragment in fragments:
+            parts = fragment.split(",")
+            if len(parts) == expected_columns - 1:
+                parts.insert(10, "")
+            repaired_rows.append(",".join(parts))
+
+    if not repaired_rows:
+        return None
+
+    repaired_text = "\n".join([header, *repaired_rows])
+    dataframe = pd.read_csv(io.StringIO(repaired_text), engine="python")
+    for column in ("Aspect_Angle", "N_House", "T_Retrograde_Flag", "Score_Impact", "Priority"):
+        if column in dataframe.columns:
+            converted = pd.to_numeric(dataframe[column], errors="coerce")
+            if not converted.isna().all():
+                dataframe[column] = converted.where(~converted.isna(), dataframe[column])
+    return dataframe
 
 
 def load_master_dataframes() -> dict[str, pd.DataFrame]:
@@ -159,7 +213,10 @@ MASTER_DATAFRAMES = load_master_dataframes()
 
 
 def _normalize_planet(value: Any) -> str:
-    normalized = str(value or "").strip().upper()
+    raw = str(value or "").strip()
+    if raw in PLANET_ALIASES:
+        return PLANET_ALIASES[raw]
+    normalized = raw.upper()
     for prefix in ("TRANSIT_", "NATAL_"):
         if normalized.startswith(prefix):
             normalized = normalized.removeprefix(prefix)
@@ -839,10 +896,247 @@ def build_countdown_data(countdown_target: dict[str, Any] | None) -> dict[str, A
     }
 
 
+TIMELINE_SLOT_DEFS = [
+    {"id": "MORNING", "label": "06:00 - 12:00 (Morning)", "time_range": "06:00-12:00", "sample_hour": 9},
+    {"id": "AFTERNOON", "label": "12:00 - 18:00 (Afternoon)", "time_range": "12:00-18:00", "sample_hour": 15},
+    {"id": "EVENING", "label": "18:00 - 24:00 (Evening)", "time_range": "18:00-24:00", "sample_hour": 21},
+    {"id": "NIGHT", "label": "00:00 - 06:00 (Night)", "time_range": "00:00-06:00", "sample_hour": 3},
+]
+
+
+def _timeline_advice_rows() -> pd.DataFrame:
+    return MASTER_DATAFRAMES.get("timeline_advice", pd.DataFrame())
+
+
+def _timeline_target_score(slot_id: str) -> int:
+    advice_df = _timeline_advice_rows()
+    if advice_df.empty:
+        return 50
+    slot_rows = advice_df[
+        advice_df["Time_Slot_ID"].map(lambda value: str(value).strip().upper()) == slot_id.upper()
+    ]
+    if slot_rows.empty:
+        return 50
+    return _normalize_int(slot_rows.iloc[0].get("Target_Score")) or 50
+
+
+def _get_timeline_advice(slot_id: str, final_score: int) -> dict[str, Any]:
+    fallback = {
+        "Target_Score": 50,
+        "Condition": "MATCH",
+        "Status_Label": "安定推移",
+        "Action_Type": "Focus",
+        "Recommended_Action": "勢いを上げすぎず、目の前の流れを整えてください。",
+    }
+    advice_df = _timeline_advice_rows()
+    if advice_df.empty:
+        return fallback
+
+    slot_rows = advice_df[
+        advice_df["Time_Slot_ID"].map(lambda value: str(value).strip().upper()) == slot_id.upper()
+    ]
+    if slot_rows.empty:
+        return fallback
+
+    target_score = _normalize_int(slot_rows.iloc[0].get("Target_Score")) or 50
+    delta = final_score - target_score
+    over_row = slot_rows[slot_rows["Condition"].map(lambda value: str(value).strip().upper()) == "OVER"]
+    under_row = slot_rows[slot_rows["Condition"].map(lambda value: str(value).strip().upper()) == "UNDER"]
+    match_row = slot_rows[slot_rows["Condition"].map(lambda value: str(value).strip().upper()) == "MATCH"]
+
+    if not over_row.empty and delta >= (_normalize_int(over_row.iloc[0].get("Condition_Threshold")) or 999):
+        return dict(over_row.iloc[0])
+    if not under_row.empty and delta <= (_normalize_int(under_row.iloc[0].get("Condition_Threshold")) or -999):
+        return dict(under_row.iloc[0])
+    if not match_row.empty:
+        return dict(match_row.iloc[0])
+    return dict(slot_rows.iloc[0])
+
+
+def _build_natal_planet_rows(birth_input: BirthInput) -> list[dict[str, Any]]:
+    chart_rows = build_chart_rows(birth_input)
+    natal_rows: list[dict[str, Any]] = []
+    for row in chart_rows["planets"]:
+        if len(row) < 6:
+            continue
+        longitude = _normalize_float(row[1])
+        if longitude is None:
+            continue
+        natal_rows.append(
+            {
+                "planet": _normalize_planet(row[0]),
+                "longitude": longitude,
+                "house": _normalize_int(row[5]) or 1,
+            }
+        )
+    return natal_rows
+
+
+def _local_sample_datetime(target_date: date, sample_hour: int) -> datetime:
+    return datetime.combine(target_date, dt_time(hour=sample_hour))
+
+
+def _calc_transit_moon_state(sample_local_dt: datetime, timezone_offset: float) -> tuple[float, bool]:
+    if swe is None:
+        raise RuntimeError("swisseph is not installed")
+    utc_dt = sample_local_dt - timedelta(hours=timezone_offset)
+    hour_decimal = utc_dt.hour + (utc_dt.minute / 60) + (utc_dt.second / 3600)
+    jd = swe.julday(utc_dt.year, utc_dt.month, utc_dt.day, hour_decimal)
+    result = swe.calc_ut(jd, swe.MOON, swe.FLG_SPEED)
+    return float(result[0][0]), float(result[0][3]) < 0
+
+
+def _classify_orb_status(
+    sample_local_dt: datetime,
+    timezone_offset: float,
+    natal_longitude: float,
+    exact_angle: int,
+) -> str:
+    current_longitude, _ = _calc_transit_moon_state(sample_local_dt, timezone_offset)
+    future_longitude, _ = _calc_transit_moon_state(sample_local_dt + timedelta(hours=1), timezone_offset)
+    current_deviation = abs(get_angle_diff(current_longitude, natal_longitude) - exact_angle)
+    future_deviation = abs(get_angle_diff(future_longitude, natal_longitude) - exact_angle)
+    return "Applying" if future_deviation < current_deviation else "Separating"
+
+
+def _build_slot_interpretations(
+    birth_input: BirthInput,
+    slot_def: dict[str, Any],
+    target_date: date,
+) -> list[dict[str, Any]]:
+    natal_rows = _build_natal_planet_rows(birth_input)
+    sample_local_dt = _local_sample_datetime(target_date, slot_def["sample_hour"])
+    transit_longitude, is_retrograde = _calc_transit_moon_state(sample_local_dt, birth_input.timezone_offset)
+    slot_rows: list[dict[str, Any]] = []
+    for natal_row in natal_rows:
+        angle_diff = get_angle_diff(transit_longitude, natal_row["longitude"])
+        _, exact_angle, orb_diff = get_aspect(angle_diff)
+        if exact_angle is None:
+            continue
+        orb_status = _classify_orb_status(
+            sample_local_dt,
+            birth_input.timezone_offset,
+            natal_row["longitude"],
+            exact_angle,
+        )
+        interpretation = get_aspect_interpretation(
+            t_planet="MOON",
+            n_planet=natal_row["planet"],
+            angle=exact_angle,
+            house=natal_row["house"],
+            is_retrograde=is_retrograde,
+            orb_status=orb_status,
+        )
+        if not interpretation:
+            continue
+        interpretation = dict(interpretation)
+        interpretation["_input"] = {
+            "t_planet": "MOON",
+            "n_planet": natal_row["planet"],
+            "angle": exact_angle,
+            "house": natal_row["house"],
+            "orb": orb_diff,
+            "sample_time": sample_local_dt.strftime("%H:%M"),
+            "time_slot_id": slot_def["id"],
+        }
+        interpretation["_orb_status"] = orb_status
+        slot_rows.append(interpretation)
+    return slot_rows
+
+
+def _build_timeline_slot_from_rows(
+    slot_def: dict[str, Any],
+    slot_rows: list[dict[str, Any]],
+    fallback_row: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    target_score = _timeline_target_score(slot_def["id"])
+    total_impact = sum(_safe_number(row, "Score_Impact") for row in slot_rows)
+    final_score = _clamp(target_score + total_impact, 0, 100)
+    dominant_candidates = slot_rows or ([fallback_row] if fallback_row else [])
+    dominant_row = (
+        max(
+            dominant_candidates,
+            key=lambda row: (_safe_number(row, "Score_Impact"), _safe_number(row, "Priority")),
+        )
+        if dominant_candidates
+        else None
+    )
+    advice_row = _get_timeline_advice(slot_def["id"], final_score)
+    aspect_action = _safe_text(dominant_row, "Advised_Task")
+    advice_action = _safe_text(advice_row, "Recommended_Action")
+    combined_description = " ".join(part for part in [aspect_action, advice_action] if part).strip()
+    detail = _safe_text(dominant_row, "Text_Description", combined_description or advice_action)
+
+    LOGGER.info(
+        "Timeline score: slot=%s target=%s impact=%s final=%s condition=%s",
+        slot_def["id"],
+        target_score,
+        total_impact,
+        final_score,
+        _safe_text(advice_row, "Condition", "MATCH"),
+    )
+
+    return {
+        "label": slot_def["label"],
+        "title": _safe_text(advice_row, "Status_Label", slot_def["id"]),
+        "score": final_score,
+        "recommendedAction": aspect_action or advice_action,
+        "description": combined_description or advice_action,
+        "recommendation": aspect_action or advice_action,
+        "detail": detail,
+        "statusLabel": _safe_text(advice_row, "Status_Label"),
+        "actionType": _safe_text(advice_row, "Action_Type"),
+        "condition": _safe_text(advice_row, "Condition", "MATCH"),
+        "targetScore": target_score,
+        "scoreImpactTotal": total_impact,
+        "sourceAspect": {
+            "t_planet": _safe_text(dominant_row, "T_Planet"),
+            "n_planet": _safe_text(dominant_row, "N_Planet"),
+            "angle": _safe_number(dominant_row or {}, "Aspect_Angle"),
+            "category": _safe_text(dominant_row, "Category", "General"),
+        },
+    }
+
+
+def _build_timeline_from_interpretations(
+    rows: list[dict[str, Any]],
+    baseline_score: int = 50,
+    birth_input: BirthInput | None = None,
+    current_dt: datetime | date | None = None,
+) -> list[dict[str, Any]]:
+    ranked = sorted(
+        rows,
+        key=lambda row: (_safe_number(row, "Priority"), abs(_safe_number(row, "Score_Impact"))),
+        reverse=True,
+    )
+
+    if birth_input is not None and swe is not None:
+        target_date = current_dt.date() if isinstance(current_dt, datetime) else current_dt or date.today()
+        used_keys: set[tuple[str, str, int, str]] = set()
+        timeline: list[dict[str, Any]] = []
+        for index, slot_def in enumerate(TIMELINE_SLOT_DEFS):
+            slot_rows = _build_slot_interpretations(birth_input, slot_def, target_date)
+            fallback_row = _pick_timeline_row(slot_rows, ranked, index, used_keys)
+            timeline.append(_build_timeline_slot_from_rows(slot_def, slot_rows, fallback_row))
+        return timeline
+
+    moon_rows = [row for row in ranked if _normalize_planet(row.get("T_Planet")) == "MOON"]
+    used_keys: set[tuple[str, str, int, str]] = set()
+    timeline: list[dict[str, Any]] = []
+    for index, slot_def in enumerate(TIMELINE_SLOT_DEFS):
+        row = _pick_timeline_row(moon_rows, ranked, index, used_keys)
+        fallback_row = row or _pick_timeline_row([], ranked, index, used_keys)
+        slot_rows = [row] if row else []
+        timeline.append(_build_timeline_slot_from_rows(slot_def, slot_rows, fallback_row))
+    return timeline
+
+
 def build_dashboard_data_from_interpretations(
     interpretations: list[dict[str, Any]],
     daily_vibe: dict[str, Any],
     basic_interpretations: list[dict[str, Any]] | None = None,
+    birth_input: BirthInput | None = None,
+    current_dt: datetime | date | None = None,
 ) -> dict[str, Any]:
     daily_modifier = _safe_number(daily_vibe, "modifier")
     if not interpretations:
@@ -859,7 +1153,7 @@ def build_dashboard_data_from_interpretations(
             "header": _dashboard_header(),
             "hero": hero,
             "countdown": None,
-            "timeline": _build_timeline_from_interpretations([], final_score),
+            "timeline": _build_timeline_from_interpretations([], final_score, birth_input=birth_input, current_dt=current_dt),
             "topics": _build_topics_from_interpretations([], final_score),
             "premium": {"title": "Premium AI Preview", "description": "", "placeholder": "", "preview": ""},
             "aspect_interpretations": [],
@@ -884,7 +1178,12 @@ def build_dashboard_data_from_interpretations(
         "header": _dashboard_header(),
         "hero": hero,
         "countdown": countdown_data,
-        "timeline": _build_timeline_from_interpretations(interpretations, final_score),
+        "timeline": _build_timeline_from_interpretations(
+            interpretations,
+            final_score,
+            birth_input=birth_input,
+            current_dt=current_dt,
+        ),
         "topics": _build_topics_from_interpretations(interpretations, final_score),
         "premium": {
             "title": "Premium AI Preview",
@@ -905,6 +1204,7 @@ def build_dashboard_data_from_aspects(
     event_types: list[str | dict[str, Any]] | None = None,
     moon_sign: str | None = None,
     basic_interpretations: list[dict[str, Any]] | None = None,
+    birth_input: BirthInput | None = None,
 ) -> dict[str, Any]:
     interpretations = get_all_aspect_interpretations(aspects)
     daily_vibe = get_daily_vibe_modifiers(
@@ -913,7 +1213,13 @@ def build_dashboard_data_from_aspects(
         event_types=event_types,
         moon_sign=moon_sign,
     )
-    return build_dashboard_data_from_interpretations(interpretations, daily_vibe, basic_interpretations)
+    return build_dashboard_data_from_interpretations(
+        interpretations,
+        daily_vibe,
+        basic_interpretations,
+        birth_input=birth_input,
+        current_dt=current_dt,
+    )
 
 
 def build_aspect_inputs_from_chart_rows(aspect_rows: list[list[Any]]) -> list[dict[str, Any]]:
@@ -1002,6 +1308,7 @@ def generate_readings(payload: ReadingRequest) -> ReadingResponse:
             chart_rows["planets"],
             chart_rows["angles"],
         ),
+        birth_input=birth_input,
     )
 
     with TemporaryDirectory(prefix="chart_run_") as tmp:
