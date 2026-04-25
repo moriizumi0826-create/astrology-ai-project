@@ -1,0 +1,13 @@
+Time_Slot_ID,Time_Range,Target_Score,Condition,Condition_Threshold,Status_Label,Action_Type,Recommended_Action
+MORNING,06:00-12:00,100,MATCH,15,絶好調,Focus,追い風を活かして重要な判断を前倒しで進めてください。
+MORNING,06:00-12:00,100,OVER,16,過熱気味,Warning,勢いだけで突っ走らず確認工程を一段挟んでください。
+MORNING,06:00-12:00,100,UNDER,-16,スロースタート,Preparation,本調子になるまで準備と段取りの整理から始めてください。
+AFTERNOON,12:00-18:00,55,MATCH,10,安定稼働,Focus,優先順位を絞って着実に処理を積み上げてください。
+AFTERNOON,12:00-18:00,55,OVER,11,多忙注意,Warning,抱え込みすぎを防ぐために休憩と分担を意識してください。
+AFTERNOON,12:00-18:00,55,UNDER,-11,停滞気味,Relax,詰まった作業はいったん緩めて切り替えを入れてください。
+EVENING,18:00-24:00,30,MATCH,8,穏やかな夜,Relax,人との調整や内省に時間を回して呼吸を整えてください。
+EVENING,18:00-24:00,30,OVER,9,神経昂ぶり,Warning,刺激を減らして情報量を絞り心身を静めてください。
+EVENING,18:00-24:00,30,UNDER,-9,消耗注意,Recovery,予定を足さず回復優先の穏やかな過ごし方へ寄せてください。
+NIGHT,00:00-06:00,10,MATCH,5,深い休息,Recovery,睡眠の質を守るため光と通知を控えてください。
+NIGHT,00:00-06:00,10,OVER,6,不眠警戒,Warning,考えごとを紙へ逃がして頭を休息モードへ戻してください。
+NIGHT,00:00-06:00,10,UNDER,-6,生命力低下,Recovery,無理に立て直さず体を温めて静かに休んでください。
