@@ -13,7 +13,7 @@ export default defineConfig(({ mode }) => {
     plugins: [react()],
     define: {
       __APP_API_BASE_URL__: JSON.stringify(
-        rootEnv.VITE_API_BASE_URL || "http://127.0.0.1:8000"
+        rootEnv.VITE_API_BASE_URL || ""
       ),
     },
     build: {

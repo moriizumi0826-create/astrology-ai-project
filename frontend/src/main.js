@@ -1,6 +1,20 @@
-const API_BASE_URL = __APP_API_BASE_URL__;
+function resolveApiBaseUrl() {
+  const configured = String(__APP_API_BASE_URL__ || "").trim();
+  if (configured) {
+    return configured.replace(/\/$/, "");
+  }
+
+  if (typeof window !== "undefined" && window.location?.origin) {
+    return window.location.origin.replace(/\/$/, "");
+  }
+
+  return "";
+}
+
+const API_BASE_URL = resolveApiBaseUrl();
 
 const form = document.querySelector("#reading-form");
+const birthDateInput = form.querySelector('input[name="birth_date"]');
 const birthTimeInput = document.querySelector("#birth-time-input");
 const birthTimeUnknownCheckbox = document.querySelector("#birth-time-unknown");
 const birthPrefectureSelect = document.querySelector("#birth-prefecture");
@@ -37,6 +51,34 @@ function deriveOffsetFromTimezone(timezoneName, fallbackOffset) {
     return "9";
   }
   return "";
+}
+
+function getBrowserTimezoneName() {
+  try {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone || "";
+  } catch {
+    return "";
+  }
+}
+
+function getBrowserTimezoneOffsetHours() {
+  return String(new Date().getTimezoneOffset() / -60);
+}
+
+function ensureTimezoneFallback() {
+  if (form.dataset.timezoneName || timezoneOffsetInput.value) {
+    return;
+  }
+
+  const browserTimezoneName = getBrowserTimezoneName();
+  if (browserTimezoneName) {
+    setResolvedTimezoneName(browserTimezoneName);
+  }
+
+  if (!timezoneOffsetInput.value) {
+    timezoneOffsetInput.value =
+      deriveOffsetFromTimezone(browserTimezoneName, "") || getBrowserTimezoneOffsetHours();
+  }
 }
 
 function setResolvedTimezoneName(value) {
@@ -84,6 +126,55 @@ function collectFormSnapshot() {
   };
 }
 
+function normalizeBirthDateInput(value) {
+  const match = String(value || "")
+    .trim()
+    .match(/^(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})$/);
+  if (!match) {
+    return "";
+  }
+
+  const [, year, month, day] = match;
+  const normalized = `${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}`;
+  const date = new Date(`${normalized}T00:00:00`);
+  if (Number.isNaN(date.getTime())) {
+    return "";
+  }
+
+  const [resolvedYear, resolvedMonth, resolvedDay] = normalized.split("-").map(Number);
+  if (
+    date.getFullYear() !== resolvedYear ||
+    date.getMonth() + 1 !== resolvedMonth ||
+    date.getDate() !== resolvedDay
+  ) {
+    return "";
+  }
+
+  return normalized;
+}
+
+function formatBirthDateForDisplay(value) {
+  const normalized = normalizeBirthDateInput(value);
+  return normalized ? normalized.replaceAll("-", "/") : String(value || "").trim();
+}
+
+function normalizeBirthTimeInput(value) {
+  const match = String(value || "")
+    .trim()
+    .match(/^(\d{1,2}):(\d{2})$/);
+  if (!match) {
+    return "";
+  }
+
+  const hours = Number(match[1]);
+  const minutes = Number(match[2]);
+  if (hours < 0 || hours > 23 || minutes < 0 || minutes > 59) {
+    return "";
+  }
+
+  return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`;
+}
+
 function restoreFormSnapshot() {
   const saved = getPersistedFormData();
   if (!saved) {
@@ -91,8 +182,8 @@ function restoreFormSnapshot() {
   }
 
   form.querySelector('input[name="full_name"]').value = saved.full_name || "";
-  form.querySelector('input[name="birth_date"]').value = saved.birth_date || "";
-  birthTimeInput.value = saved.birth_time || "";
+  birthDateInput.value = formatBirthDateForDisplay(saved.birth_date || "");
+  birthTimeInput.value = normalizeBirthTimeInput(saved.birth_time || "") || saved.birth_time || "";
   birthTimeUnknownCheckbox.checked = Boolean(saved.birth_time_unknown);
   birthPrefectureSelect.value = saved.birth_prefecture || "";
   birthplaceInput.value = saved.birthplace || "";
@@ -174,7 +265,10 @@ function applyLocationResult(result) {
 
 function clearResolvedBirthplace() {
   delete birthplaceInput.dataset.resolvedBirthplace;
-  setResolvedTimezoneName("");
+  const browserTimezoneName = getBrowserTimezoneName();
+  setResolvedTimezoneName(browserTimezoneName);
+  timezoneOffsetInput.value =
+    deriveOffsetFromTimezone(browserTimezoneName, "") || getBrowserTimezoneOffsetHours();
 }
 
 function renderLocationSearchResults(results) {
@@ -358,7 +452,14 @@ function syncBirthTimeState() {
 
 birthTimeUnknownCheckbox.addEventListener("change", syncBirthTimeState);
 restoreFormSnapshot();
+ensureTimezoneFallback();
 syncBirthTimeState();
+birthDateInput.addEventListener("blur", () => {
+  birthDateInput.value = formatBirthDateForDisplay(birthDateInput.value);
+});
+birthTimeInput.addEventListener("blur", () => {
+  birthTimeInput.value = normalizeBirthTimeInput(birthTimeInput.value) || birthTimeInput.value.trim();
+});
 searchLocationButton.addEventListener("click", searchLocationCandidates);
 birthplaceInput.addEventListener("input", clearResolvedBirthplace);
 birthPrefectureSelect.addEventListener("change", clearResolvedBirthplace);
@@ -374,6 +475,12 @@ form.addEventListener("submit", async (event) => {
 
   const formData = new FormData(form);
   const payload = Object.fromEntries(formData.entries());
+  const normalizedBirthDate = normalizeBirthDateInput(payload.birth_date);
+  if (!normalizedBirthDate) {
+    setError("生年月日は YYYY/MM/DD 形式で入力してください。");
+    return;
+  }
+  payload.birth_date = normalizedBirthDate;
   payload.birth_time_unknown = birthTimeUnknownCheckbox.checked;
   try {
     payload.birthplace =
@@ -385,12 +492,24 @@ form.addEventListener("submit", async (event) => {
   }
   if (payload.birth_time_unknown && !payload.birth_time) {
     payload.birth_time = null;
+  } else if (!payload.birth_time_unknown) {
+    const normalizedBirthTime = normalizeBirthTimeInput(payload.birth_time);
+    if (!normalizedBirthTime) {
+      setError("出生時刻は 24時間表記の HH:MM 形式で入力してください。");
+      return;
+    }
+    payload.birth_time = normalizedBirthTime;
   }
   payload.latitude = Number(payload.latitude);
   payload.longitude = Number(payload.longitude);
   payload.timezone_offset =
     payload.timezone_offset === "" ? null : Number(payload.timezone_offset);
-  payload.timezone_name = form.dataset.timezoneName || null;
+  payload.timezone_name = form.dataset.timezoneName || getBrowserTimezoneName() || null;
+
+  if (payload.timezone_offset === null && payload.timezone_name) {
+    payload.timezone_offset =
+      Number(deriveOffsetFromTimezone(payload.timezone_name, "")) || null;
+  }
 
   if (
     Number.isNaN(payload.latitude) ||
@@ -402,7 +521,7 @@ form.addEventListener("submit", async (event) => {
   }
 
   if (payload.timezone_offset === null && !payload.timezone_name) {
-    setError("出生地検索を使うか、UTC オフセットを入力してください。");
+    setError("タイムゾーンの取得に失敗しました。ページを再読み込みして再度お試しください。");
     return;
   }
 
