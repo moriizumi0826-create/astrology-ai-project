@@ -301,14 +301,14 @@ function TypographicHero({ data }) {
           </div>
         </div>
 
-        <div className="rounded-[2rem] border border-white/10 bg-gradient-to-br from-white/[0.08] to-white/[0.02] p-6">
-          <div className="mb-5 flex items-center gap-3">
-            <div className="rounded-2xl bg-[#D4AF37]/15 p-3 text-[#D4AF37]">
+        <div className="min-w-0 rounded-[2rem] border border-white/10 bg-gradient-to-br from-white/[0.08] to-white/[0.02] p-4 sm:p-6">
+          <div className="mb-5 flex items-start gap-3 sm:items-center">
+            <div className="shrink-0 rounded-2xl bg-[#D4AF37]/15 p-3 text-[#D4AF37]">
               <Gauge size={24} />
             </div>
-            <div>
+            <div className="min-w-0">
               <p className="text-sm font-bold text-slate-100">Diagnostic</p>
-              <p className="text-xs text-slate-500">ロジック安定指標</p>
+              <p className="break-words text-xs leading-5 text-slate-500">ロジック安定指標</p>
             </div>
           </div>
           {[
@@ -316,10 +316,10 @@ function TypographicHero({ data }) {
             ["感情と行動の同期", 68],
             ["外部ノイズ耐性", 74],
           ].map(([label, value]) => (
-            <div key={label} className="mb-4">
-              <div className="mb-2 flex justify-between text-xs text-slate-400">
-                <span>{label}</span>
-                <span>{value}%</span>
+            <div key={label} className="mb-4 min-w-0">
+              <div className="mb-2 flex flex-col gap-1 text-xs text-slate-400 sm:flex-row sm:items-center sm:justify-between">
+                <span className="break-words pr-2 leading-5">{label}</span>
+                <span className="shrink-0 font-semibold text-slate-300">{value}%</span>
               </div>
               <div className="h-2 overflow-hidden rounded-full bg-slate-800">
                 <div
