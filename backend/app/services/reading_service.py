@@ -91,6 +91,19 @@ AVERAGE_PLANET_SPEED_DEGREES_PER_DAY = {
     "PLUTO": 0.004,
 }
 
+TRANSIT_PLANET_ORDER = (
+    "SUN",
+    "MOON",
+    "MERCURY",
+    "VENUS",
+    "MARS",
+    "JUPITER",
+    "SATURN",
+    "URANUS",
+    "NEPTUNE",
+    "PLUTO",
+)
+
 SIGN_ALIASES = {
     "ARIES": "ARIES",
     "迚｡鄒雁ｺｧ": "ARIES",
@@ -1313,23 +1326,82 @@ def _build_natal_planet_rows(birth_input: BirthInput) -> list[dict[str, Any]]:
     return natal_rows
 
 
+def _build_natal_aspect_points(birth_input: BirthInput) -> list[dict[str, Any]]:
+    chart_rows = build_chart_rows(birth_input)
+    natal_rows: list[dict[str, Any]] = []
+    for row in chart_rows["planets"]:
+        if len(row) < 6:
+            continue
+        longitude = _normalize_float(row[1])
+        if longitude is None:
+            continue
+        natal_rows.append({
+            "planet": _normalize_planet(row[0]),
+            "longitude": longitude,
+            "house": _normalize_int(row[5]) or 1,
+        })
+
+    if not birth_input.birth_time_unknown:
+        angle_house = {"ASC": 1, "MC": 10}
+        for row in chart_rows["angles"]:
+            if len(row) < 2:
+                continue
+            point = _normalize_planet(row[0])
+            longitude = _normalize_float(row[1])
+            if point not in angle_house or longitude is None:
+                continue
+            natal_rows.append({
+                "planet": point,
+                "longitude": longitude,
+                "house": angle_house[point],
+            })
+    return natal_rows
+
+
 def _local_sample_datetime(target_date: date, sample_hour: int) -> datetime:
     return datetime.combine(target_date, dt_time(hour=sample_hour))
 
 
 def _calc_transit_moon_state(sample_local_dt: datetime, timezone_offset: float) -> tuple[float, bool]:
+    return _calc_transit_planet_state("MOON", sample_local_dt, timezone_offset)
+
+
+def _transit_planet_ids() -> dict[str, int]:
     if swe is None:
         raise RuntimeError("swisseph is not installed")
+    return {
+        "SUN": swe.SUN,
+        "MOON": swe.MOON,
+        "MERCURY": swe.MERCURY,
+        "VENUS": swe.VENUS,
+        "MARS": swe.MARS,
+        "JUPITER": swe.JUPITER,
+        "SATURN": swe.SATURN,
+        "URANUS": swe.URANUS,
+        "NEPTUNE": swe.NEPTUNE,
+        "PLUTO": swe.PLUTO,
+    }
+
+
+def _calc_transit_planet_state(planet: str, sample_local_dt: datetime, timezone_offset: float) -> tuple[float, bool]:
+    planet_ids = _transit_planet_ids()
+    planet_id = planet_ids[_normalize_planet(planet)]
     utc_dt = sample_local_dt - timedelta(hours=timezone_offset)
     hour_decimal = utc_dt.hour + (utc_dt.minute / 60) + (utc_dt.second / 3600)
     jd = swe.julday(utc_dt.year, utc_dt.month, utc_dt.day, hour_decimal)
-    result = swe.calc_ut(jd, swe.MOON, swe.FLG_SPEED)
+    result = swe.calc_ut(jd, planet_id, swe.FLG_SPEED)
     return float(result[0][0]), float(result[0][3]) < 0
 
 
-def _classify_orb_status(sample_local_dt: datetime, timezone_offset: float, natal_longitude: float, exact_angle: int) -> str:
-    current_longitude, _ = _calc_transit_moon_state(sample_local_dt, timezone_offset)
-    future_longitude, _ = _calc_transit_moon_state(sample_local_dt + timedelta(hours=1), timezone_offset)
+def _classify_orb_status(
+    sample_local_dt: datetime,
+    timezone_offset: float,
+    natal_longitude: float,
+    exact_angle: int,
+    transit_planet: str = "MOON",
+) -> str:
+    current_longitude, _ = _calc_transit_planet_state(transit_planet, sample_local_dt, timezone_offset)
+    future_longitude, _ = _calc_transit_planet_state(transit_planet, sample_local_dt + timedelta(hours=1), timezone_offset)
     current_deviation = abs(get_angle_diff(current_longitude, natal_longitude) - exact_angle)
     future_deviation = abs(get_angle_diff(future_longitude, natal_longitude) - exact_angle)
     return "Applying" if future_deviation < current_deviation else "Separating"
@@ -1864,6 +1936,55 @@ def build_aspect_inputs_from_chart_rows(aspect_rows: list[list[Any]]) -> list[di
     return inputs
 
 
+def build_transit_aspect_inputs(
+    birth_input: BirthInput,
+    current_dt: datetime | date | None = None,
+) -> list[dict[str, Any]]:
+    if swe is None:
+        raise RuntimeError("swisseph is not installed")
+
+    if isinstance(current_dt, datetime):
+        sample_local_dt = current_dt
+    elif isinstance(current_dt, date):
+        sample_local_dt = datetime.combine(current_dt, dt_time(hour=12))
+    else:
+        sample_local_dt = datetime.now()
+
+    natal_points = _build_natal_aspect_points(birth_input)
+    inputs: list[dict[str, Any]] = []
+    for transit_planet in TRANSIT_PLANET_ORDER:
+        transit_longitude, is_retrograde = _calc_transit_planet_state(
+            transit_planet,
+            sample_local_dt,
+            birth_input.timezone_offset,
+        )
+        for natal_point in natal_points:
+            angle_diff = get_angle_diff(transit_longitude, natal_point["longitude"])
+            _, exact_angle, orb_diff = get_aspect(angle_diff)
+            if exact_angle is None:
+                continue
+            orb_status = _classify_orb_status(
+                sample_local_dt,
+                birth_input.timezone_offset,
+                natal_point["longitude"],
+                exact_angle,
+                transit_planet=transit_planet,
+            )
+            inputs.append({
+                "t_planet": transit_planet,
+                "n_planet": natal_point["planet"],
+                "angle": exact_angle,
+                "orb_status": orb_status,
+                "house": natal_point["house"],
+                "is_retrograde": is_retrograde,
+                "orb": orb_diff,
+                "transit_longitude": round(transit_longitude, 2),
+                "natal_longitude": round(natal_point["longitude"], 2),
+                "angle_diff": round(angle_diff, 2),
+            })
+    return inputs
+
+
 def _to_json_compatible(value: Any) -> Any:
     if isinstance(value, dict):
         return {key: _to_json_compatible(item) for key, item in value.items()}
@@ -1938,9 +2059,10 @@ def generate_readings(payload: ReadingRequest) -> ReadingResponse:
     )
 
     chart_rows = build_chart_rows(birth_input)
+    current_dt = datetime.now()
     dashboard_data = build_dashboard_data_from_aspects(
-        aspects=build_aspect_inputs_from_chart_rows(chart_rows["aspects"]),
-        current_dt=datetime.now(),
+        aspects=build_transit_aspect_inputs(birth_input, current_dt),
+        current_dt=current_dt,
         retrograde_planets=extract_retrograde_planets_from_chart_rows(chart_rows["planets"]),
         basic_interpretations=build_basic_interpretations_from_chart_rows(
             chart_rows["planets"],

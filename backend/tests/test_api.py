@@ -15,6 +15,7 @@ from backend.app.services.reading_service import (
     build_basic_interpretations_from_chart_rows,
     build_countdown_data,
     build_dashboard_data_from_aspects,
+    build_transit_aspect_inputs,
     get_aspect_dashboard_data,
     get_aspect_interpretation,
     get_basic_interpretation,
@@ -158,12 +159,12 @@ class ApiTestCase(unittest.TestCase):
 
         self.assertEqual(len(dashboard_data["aspect_interpretations"]), 3)
         self.assertEqual(dashboard_data["daily_vibe"]["modifier"], -20)
-        self.assertEqual(dashboard_data["hero"]["score"], 40)
+        self.assertEqual(dashboard_data["hero"]["score"], 42)
         self.assertIn("diagnostic", dashboard_data)
-        self.assertEqual(dashboard_data["diagnostic"]["score"], 72)
+        self.assertEqual(dashboard_data["diagnostic"]["score"], 73)
         self.assertEqual(
             [item["value"] for item in dashboard_data["diagnostic"]["items"]],
-            [44, 64, 55],
+            [44, 65, 55],
         )
         self.assertEqual(len(dashboard_data["diagnostic"]["items"]), 3)
         self.assertNotEqual(dashboard_data["countdown"]["title"], dashboard_data["countdown"]["note"])
@@ -599,6 +600,92 @@ class ApiTestCase(unittest.TestCase):
         self.assertTrue(all(row == ["-", "-", "-", "-"] for row in chart_rows["angles"]))
         self.assertTrue(all(row == ["-", "-", "-", "-"] for row in chart_rows["houses"]))
         self.assertTrue(all("MOON" not in (row[0], row[1]) for row in chart_rows["aspects"]))
+
+    def test_transit_aspect_inputs_use_current_transits_not_natal_aspects(self):
+        class FakeSwe:
+            SUN = 0
+            MOON = 1
+            MERCURY = 2
+            VENUS = 3
+            MARS = 4
+            JUPITER = 5
+            SATURN = 6
+            URANUS = 7
+            NEPTUNE = 8
+            PLUTO = 9
+            TRUE_NODE = 10
+            FLG_SPEED = 256
+
+            def julday(self, year, month, day, hour):
+                return 456.0 if year == 2026 else 123.0
+
+            def houses(self, jd, latitude, longitude, house_system):
+                return ([0, 30, 60, 90, 120, 150, 180, 210, 240, 270, 300, 330], [15, 105])
+
+            def calc_ut(self, jd, planet_id, flag):
+                natal_positions = {
+                    self.SUN: 0.0,
+                    self.MOON: 60.0,
+                    self.MERCURY: 20.0,
+                    self.VENUS: 40.0,
+                    self.MARS: 80.0,
+                    self.JUPITER: 100.0,
+                    self.SATURN: 140.0,
+                    self.URANUS: 160.0,
+                    self.NEPTUNE: 200.0,
+                    self.PLUTO: 220.0,
+                    self.TRUE_NODE: 240.0,
+                }
+                transit_positions = {
+                    self.SUN: 180.0,
+                    self.MOON: 10.0,
+                    self.MERCURY: 25.0,
+                    self.VENUS: 45.0,
+                    self.MARS: 85.0,
+                    self.JUPITER: 105.0,
+                    self.SATURN: 145.0,
+                    self.URANUS: 165.0,
+                    self.NEPTUNE: 205.0,
+                    self.PLUTO: 225.0,
+                }
+                positions = transit_positions if jd == 456.0 else natal_positions
+                return ([positions[planet_id], 0, 0, 1.0], None)
+
+        payload = BirthInput(
+            full_name="Test User",
+            birth_date="1984-08-26",
+            birth_time="19:20",
+            birth_time_unknown=False,
+            birthplace="Tokyo",
+            latitude=35.6812,
+            longitude=139.7671,
+            timezone_offset=9,
+        )
+
+        with patch("backend.app.services.chart_calculator.swe", new=FakeSwe()), patch(
+            "backend.app.services.reading_service.swe", new=FakeSwe()
+        ):
+            inputs = build_transit_aspect_inputs(payload, datetime(2026, 5, 1, 12, 0))
+
+        self.assertIn(
+            {
+                "t_planet": "SUN",
+                "n_planet": "SUN",
+                "angle": 180,
+                "orb_status": "Separating",
+                "house": 1,
+                "is_retrograde": False,
+                "orb": 0.0,
+                "transit_longitude": 180.0,
+                "natal_longitude": 0.0,
+                "angle_diff": 180.0,
+            },
+            inputs,
+        )
+        self.assertNotIn(
+            ("SUN", "MOON", 60),
+            {(row["t_planet"], row["n_planet"], row["angle"]) for row in inputs},
+        )
 
     def test_unknown_birth_time_chart_data_uses_dash_for_angle_and_house_fields(self):
         chart_rows = {
