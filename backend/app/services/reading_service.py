@@ -1,4 +1,4 @@
-import io
+﻿import io
 import logging
 import re
 import sys
@@ -40,17 +40,43 @@ UNKNOWN_BIRTH_TIME_LABEL = "Unknown (calculated with 12:00 local time)"
 DEFAULT_DAILY_VIBE_MODIFIER_LIMIT = 60
 DEFAULT_COUNTDOWN_THRESHOLD_ORB = 5
 DEFAULT_COUNTDOWN_TOTAL_DAYS = 1
+DIAGNOSTIC_BASE_SCORE = 50
+DIAGNOSTIC_OVERALL_IMPACT_WEIGHT = 0.18
+DIAGNOSTIC_DECISION_IMPACT_WEIGHT = 0.22
+DIAGNOSTIC_EMOTION_IMPACT_WEIGHT = 0.22
+DIAGNOSTIC_DAILY_WORK_WEIGHT = 0.5
+DIAGNOSTIC_DAILY_LOVE_WEIGHT = 0.6
+DIAGNOSTIC_NOISE_NEGATIVE_WEIGHT = 0.25
+DIAGNOSTIC_NOISE_POSITIVE_WEIGHT = 0.08
+DIAGNOSTIC_SAFETY_WEIGHT = 0.8
+TIMELINE_CONDITION_MULTIPLIERS = {
+    "OVER": 1.08,
+    "MATCH": 1.0,
+    "UNDER": 0.92,
+}
+SAFETY_LEVEL_MODIFIERS = {
+    "HIGH": 5,
+    "MEDIUM": -4,
+    "LOW": -12,
+}
 
 LOGGER = logging.getLogger(__name__)
 DATABASE_DIR = PROJECT_ROOT / "database"
 
 MASTER_CSV_FILES = {
     "basic": "M_Basic_Interpretation.csv",
-    "aspect": "M_Aspect_Interpretation.csv",
     "daily_vibe": "M_Daily_Vibe_Logic.csv",
     "countdown": "M_Countdown_Master.csv",
     "timeline_advice": "M_Timeline_Advice.csv",
 }
+
+ASPECT_MASTER_CSV_FILES = [
+    "M_Aspect_Interpretation sun,moon.csv",
+    "M_Aspect_Interpretation venus,mars.csv",
+    "M_Aspect_Interpretation mercury.csv",
+    "M_Aspect_Interpretation jupiter,uranus.csv",
+    "M_Aspect_Interpretation neptune,pluto.csv",
+]
 
 AVERAGE_PLANET_SPEED_DEGREES_PER_DAY = {
     "SUN": 1.0,
@@ -67,41 +93,41 @@ AVERAGE_PLANET_SPEED_DEGREES_PER_DAY = {
 
 SIGN_ALIASES = {
     "ARIES": "ARIES",
-    "牡羊座": "ARIES",
-    "おひつじ座": "ARIES",
+    "迚｡鄒雁ｺｧ": "ARIES",
+    "縺翫・縺､縺伜ｺｧ": "ARIES",
     "TAURUS": "TAURUS",
-    "牡牛座": "TAURUS",
-    "おうし座": "TAURUS",
+    "迚｡迚帛ｺｧ": "TAURUS",
+    "縺翫≧縺怜ｺｧ": "TAURUS",
     "GEMINI": "GEMINI",
-    "双子座": "GEMINI",
-    "ふたご座": "GEMINI",
+    "蜿悟ｭ仙ｺｧ": "GEMINI",
+    "縺ｵ縺溘＃蠎ｧ": "GEMINI",
     "CANCER": "CANCER",
-    "蟹座": "CANCER",
-    "かに座": "CANCER",
+    "陝ｹ蠎ｧ": "CANCER",
+    "縺九↓蠎ｧ": "CANCER",
     "LEO": "LEO",
-    "獅子座": "LEO",
-    "しし座": "LEO",
+    "迯・ｭ仙ｺｧ": "LEO",
+    "縺励＠蠎ｧ": "LEO",
     "VIRGO": "VIRGO",
-    "乙女座": "VIRGO",
-    "おとめ座": "VIRGO",
+    "荵吝･ｳ蠎ｧ": "VIRGO",
+    "縺翫→繧∝ｺｧ": "VIRGO",
     "LIBRA": "LIBRA",
-    "天秤座": "LIBRA",
-    "てんびん座": "LIBRA",
+    "螟ｩ遘､蠎ｧ": "LIBRA",
+    "縺ｦ繧薙・繧灘ｺｧ": "LIBRA",
     "SCORPIO": "SCORPIO",
-    "蠍座": "SCORPIO",
-    "さそり座": "SCORPIO",
+    "陟榊ｺｧ": "SCORPIO",
+    "縺輔◎繧雁ｺｧ": "SCORPIO",
     "SAGITTARIUS": "SAGITTARIUS",
-    "射手座": "SAGITTARIUS",
-    "いて座": "SAGITTARIUS",
+    "蟆・焔蠎ｧ": "SAGITTARIUS",
+    "縺・※蠎ｧ": "SAGITTARIUS",
     "CAPRICORN": "CAPRICORN",
-    "山羊座": "CAPRICORN",
-    "やぎ座": "CAPRICORN",
+    "螻ｱ鄒雁ｺｧ": "CAPRICORN",
+    "繧・℃蠎ｧ": "CAPRICORN",
     "AQUARIUS": "AQUARIUS",
-    "水瓶座": "AQUARIUS",
-    "みずがめ座": "AQUARIUS",
+    "豌ｴ逑ｶ蠎ｧ": "AQUARIUS",
+    "縺ｿ縺壹′繧∝ｺｧ": "AQUARIUS",
     "PISCES": "PISCES",
-    "魚座": "PISCES",
-    "うお座": "PISCES",
+    "鬲壼ｺｧ": "PISCES",
+    "縺・♀蠎ｧ": "PISCES",
 }
 
 PRIORITY_BASIC_PLANETS = ("SUN", "MOON", "ASC")
@@ -110,38 +136,38 @@ PLANET_ALIASES = {
     "SUN": "SUN",
     "SOL": "SUN",
     "\u592a\u967d": "SUN",
-    "螟ｪ髯ｽ": "SUN",
+    "陞滂ｽｪ鬮ｯ・ｽ": "SUN",
     "MOON": "MOON",
     "\u6708": "MOON",
-    "譛・": "MOON",
+    "隴帙・": "MOON",
     "MERCURY": "MERCURY",
     "\u6c34\u661f": "MERCURY",
-    "豌ｴ譏・": "MERCURY",
+    "雎鯉ｽｴ隴上・": "MERCURY",
     "VENUS": "VENUS",
     "\u91d1\u661f": "VENUS",
-    "驥第弌": "VENUS",
+    "鬩･隨ｬ蠑・": "VENUS",
     "MARS": "MARS",
     "\u706b\u661f": "MARS",
-    "轣ｫ譏・": "MARS",
+    "霓｣・ｫ隴上・": "MARS",
     "JUPITER": "JUPITER",
     "\u6728\u661f": "JUPITER",
-    "譛ｨ譏・": "JUPITER",
+    "隴幢ｽｨ隴上・": "JUPITER",
     "SATURN": "SATURN",
     "\u571f\u661f": "SATURN",
-    "蝨滓弌": "SATURN",
+    "陜ｨ貊灘ｼ・": "SATURN",
     "URANUS": "URANUS",
     "\u5929\u738b\u661f": "URANUS",
-    "螟ｩ邇区弌": "URANUS",
+    "陞滂ｽｩ驍・玄蠑・": "URANUS",
     "NEPTUNE": "NEPTUNE",
     "\u6d77\u738b\u661f": "NEPTUNE",
-    "豬ｷ邇区弌": "NEPTUNE",
+    "雎ｬ・ｷ驍・玄蠑・": "NEPTUNE",
     "PLUTO": "PLUTO",
     "\u51a5\u738b\u661f": "PLUTO",
-    "蜀･邇区弌": "PLUTO",
+    "陷・･驍・玄蠑・": "PLUTO",
     "NODE": "NODE",
     "TRUE_NODE": "NODE",
     "\u30c9\u30e9\u30b4\u30f3\u30d8\u30c3\u30c9": "NODE",
-    "繝峨Λ繧ｴ繝ｳ繝倥ャ繝・": "NODE",
+    "郢晏ｳｨﾎ帷ｹｧ・ｴ郢晢ｽｳ郢晏･繝｣郢昴・": "NODE",
     "MC": "MC",
     "ASC": "ASC",
 }
@@ -150,7 +176,7 @@ PLANET_ALIASES = {
 def _read_master_csv(path: Path) -> pd.DataFrame:
     for encoding in ("utf-8-sig", "utf-8", "cp932"):
         try:
-            return pd.read_csv(path, encoding=encoding)
+            return pd.read_csv(path, encoding=encoding, low_memory=False)
         except UnicodeDecodeError:
             continue
         except pd.errors.ParserError:
@@ -160,8 +186,18 @@ def _read_master_csv(path: Path) -> pd.DataFrame:
     return pd.read_csv(path)
 
 
+def _attach_source_metadata(dataframe: pd.DataFrame, path: Path) -> pd.DataFrame:
+    if dataframe.empty:
+        dataframe = dataframe.copy()
+    else:
+        dataframe = dataframe.copy()
+    dataframe["_csv_file"] = path.name
+    dataframe["_csv_row"] = dataframe.index + 2
+    return dataframe
+
+
 def _read_repaired_master_csv(path: Path, encoding: str) -> pd.DataFrame | None:
-    if path.name != "M_Aspect_Interpretation.csv":
+    if not path.name.startswith("M_Aspect_Interpretation") or path.suffix.lower() != ".csv":
         return None
 
     raw_text = path.read_text(encoding=encoding)
@@ -201,11 +237,29 @@ def load_master_dataframes() -> dict[str, pd.DataFrame]:
     for key, filename in MASTER_CSV_FILES.items():
         path = DATABASE_DIR / filename
         try:
-            masters[key] = _read_master_csv(path)
+            masters[key] = _attach_source_metadata(_read_master_csv(path), path)
         except Exception as exc:
             LOGGER.exception("Failed to load master CSV: %s", path)
             masters[key] = pd.DataFrame()
             masters[key].attrs["load_error"] = str(exc)
+    aspect_frames: list[pd.DataFrame] = []
+    aspect_errors: list[str] = []
+    for filename in ASPECT_MASTER_CSV_FILES:
+        path = DATABASE_DIR / filename
+        generated_path = path.with_suffix(".generated.csv")
+        candidate_path = generated_path if generated_path.exists() else path
+        try:
+            aspect_frames.append(_attach_source_metadata(_read_master_csv(candidate_path), candidate_path))
+        except Exception as exc:
+            LOGGER.exception("Failed to load master CSV: %s", candidate_path)
+            aspect_errors.append(f"{candidate_path.name}: {exc}")
+
+    if aspect_frames:
+        masters["aspect"] = pd.concat(aspect_frames, ignore_index=True)
+    else:
+        masters["aspect"] = pd.DataFrame()
+        if aspect_errors:
+            masters["aspect"].attrs["load_error"] = "; ".join(aspect_errors)
     return masters
 
 
@@ -216,6 +270,10 @@ def _normalize_planet(value: Any) -> str:
     raw = str(value or "").strip()
     if raw in PLANET_ALIASES:
         return PLANET_ALIASES[raw]
+    if "螟ｪ" in raw or "太" in raw:
+        return "SUN"
+    if "譛" in raw or "隴" in raw or "月" in raw:
+        return "MOON"
     normalized = raw.upper()
     for prefix in ("TRANSIT_", "NATAL_"):
         if normalized.startswith(prefix):
@@ -316,10 +374,173 @@ def _pick_highest_priority(candidates: pd.DataFrame) -> dict[str, Any] | None:
     if candidates.empty:
         return None
     ranked = candidates.copy()
+    completeness_columns = ("Score_Impact", "Priority", "Text_Description", "Advised_Task", "Countdown_ID")
+    ranked["_completeness_sort"] = ranked.apply(
+        lambda row: sum(1 for column in completeness_columns if column in ranked.columns and pd.notna(row.get(column))),
+        axis=1,
+    )
+    ranked["_priority_sort"] = 0
+    ranked["_impact_sort"] = -999
     if "Priority" in ranked.columns:
         ranked["_priority_sort"] = pd.to_numeric(ranked["Priority"], errors="coerce").fillna(0)
-        ranked = ranked.sort_values("_priority_sort", ascending=False, kind="mergesort")
-    return ranked.iloc[0].drop(labels=["_priority_sort"], errors="ignore").to_dict()
+    if "Score_Impact" in ranked.columns:
+        ranked["_impact_sort"] = pd.to_numeric(ranked["Score_Impact"], errors="coerce").fillna(-999)
+    ranked = ranked.sort_values(
+        ["_completeness_sort", "_priority_sort", "_impact_sort"],
+        ascending=[False, False, False],
+        kind="mergesort",
+    )
+    return ranked.iloc[0].drop(labels=["_completeness_sort", "_priority_sort", "_impact_sort"], errors="ignore").to_dict()
+
+
+PLANET_LABELS = {
+    "SUN": "太陽",
+    "MOON": "月",
+    "MERCURY": "水星",
+    "VENUS": "金星",
+    "MARS": "火星",
+    "JUPITER": "木星",
+    "SATURN": "土星",
+    "URANUS": "天王星",
+    "NEPTUNE": "海王星",
+    "PLUTO": "冥王星",
+    "ASC": "ASC",
+    "MC": "MC",
+}
+
+
+def _planet_label(value: Any) -> str:
+    normalized = _normalize_planet(value)
+    return PLANET_LABELS.get(normalized, normalized)
+
+
+def _has_meaningful_aspect_content(row: dict[str, Any]) -> bool:
+    return any(
+        bool(_safe_text(row, column))
+        for column in ("Text_Description", "Advised_Task", "Countdown_Label")
+    ) or _normalize_float(row.get("Score_Impact")) is not None
+
+
+def _fallback_aspect_score(
+    transit_planet: str,
+    natal_planet: str,
+    angle: int,
+    category: str,
+    is_retrograde: bool,
+) -> int:
+    base_scores = {
+        0: 55,
+        60: 35,
+        90: -20,
+        120: 45,
+        150: -25,
+        180: -30,
+    }
+    score = base_scores.get(angle, 0)
+    pair = {transit_planet, natal_planet}
+    if angle in {0, 60, 120}:
+        if "VENUS" in pair:
+            score += 15
+        if "MOON" in pair:
+            score += 15
+        if "JUPITER" in pair:
+            score += 12
+        if pair == {"SUN"}:
+            score += 30
+    else:
+        if "MARS" in pair and angle in {90, 180}:
+            score -= 5
+        if "SATURN" in pair:
+            score -= 8
+        if "PLUTO" in pair:
+            score -= 8
+    if category == "Work":
+        score += 5 if score > 0 else -2
+    if category == "Love" and score > 0:
+        score += 5
+    if is_retrograde:
+        score -= 5 if score < 0 else 10
+    return _clamp(score, -95, 95)
+
+
+def _fallback_aspect_priority(angle: int, score: int) -> int:
+    if angle == 0 and abs(score) >= 70:
+        return 10
+    if abs(score) >= 60:
+        return 8
+    if abs(score) >= 30:
+        return 6
+    return 4
+
+
+def _fallback_aspect_text(
+    transit_planet: str,
+    natal_planet: str,
+    angle: int,
+    category: str,
+    orb_status: str,
+    is_retrograde: bool,
+) -> str:
+    transit_label = _planet_label(transit_planet)
+    natal_label = _planet_label(natal_planet)
+    phase_text = (
+        "これからピークへ向かう予兆が強まっています"
+        if _normalize_orb_status(orb_status) == "APPLYING"
+        else "ピークを越えた余韻から学びを整える段階です"
+    )
+    retro_text = " 逆行の影響で過去の課題や見直しテーマも浮かびやすくなっています。" if is_retrograde else ""
+    angle_tone = "調和" if angle in {0, 60, 120} else "摩擦"
+    return (
+        f"トランジットの{transit_label}とネイタルの{natal_label}が{angle}度を形成し、"
+        f"{category or 'General'}領域で{angle_tone}が際立つタイミングです。{phase_text}。{retro_text}"
+    ).strip()
+
+
+def _fallback_aspect_task(category: str, orb_status: str, is_retrograde: bool) -> str:
+    if is_retrograde:
+        return "過去の記録や未処理タスクを見直し、急がず再調整してください。"
+    if _normalize_orb_status(orb_status) == "APPLYING":
+        if category == "Work":
+            return "優先順位を整理し、先に判断が必要な仕事から着手してください。"
+        if category == "Love":
+            return "気持ちを言葉にする準備を整え、丁寧なやり取りを意識してください。"
+        if category == "Health":
+            return "無理を増やす前に、生活リズムと休息を先に整えてください。"
+        return "今日いちばん育てたいテーマを一つ決め、先回りして準備してください。"
+    if category == "Work":
+        return "進めた内容を振り返り、次に引き継ぐ判断材料を整理してください。"
+    if category == "Love":
+        return "感情の反応を落ち着いて見直し、余韻を言葉にして定着させてください。"
+    if category == "Health":
+        return "疲労サインを確認し、回復を優先する動きへ切り替えてください。"
+    return "起きた流れを振り返り、次に活かすための気づきをメモしてください。"
+
+
+def _hydrate_aspect_interpretation_row(row: dict[str, Any] | None) -> dict[str, Any]:
+    if not row:
+        return {}
+    hydrated = dict(row)
+    transit_planet = _normalize_planet(hydrated.get("T_Planet"))
+    natal_planet = _normalize_planet(hydrated.get("N_Planet"))
+    angle = _safe_number(hydrated, "Aspect_Angle")
+    category = _safe_text(hydrated, "Category", "General")
+    is_retrograde = bool(_normalize_bool_flag(hydrated.get("T_Retrograde_Flag")))
+    orb_status = _safe_text(hydrated, "Orb_Status", "Applying")
+
+    if _normalize_float(hydrated.get("Score_Impact")) is None:
+        hydrated["Score_Impact"] = _fallback_aspect_score(transit_planet, natal_planet, angle, category, is_retrograde)
+    if _normalize_float(hydrated.get("Priority")) is None:
+        hydrated["Priority"] = _fallback_aspect_priority(angle, _safe_number(hydrated, "Score_Impact"))
+    if not _safe_text(hydrated, "Text_Description"):
+        hydrated["Text_Description"] = _fallback_aspect_text(
+            transit_planet, natal_planet, angle, category, orb_status, is_retrograde
+        )
+    if not _safe_text(hydrated, "Advised_Task"):
+        hydrated["Advised_Task"] = _fallback_aspect_task(category, orb_status, is_retrograde)
+    if not _safe_text(hydrated, "Countdown_Label"):
+        countdown_master = get_countdown_master_row(hydrated.get("Countdown_ID"))
+        hydrated["Countdown_Label"] = _safe_text(countdown_master, "Display_Title", category or "General")
+    return hydrated
 
 
 def get_basic_interpretation(planet: str, sign: str, house: int) -> dict[str, Any]:
@@ -439,14 +660,14 @@ def get_aspect_interpretation(
                 candidates = candidates[available_filters[filter_name](candidates)]
         selected = _pick_highest_priority(candidates)
         if selected is not None:
-            return selected
+            return _hydrate_aspect_interpretation_row(selected)
     return {}
 
 
 def _normalize_aspect_input(aspect: dict[str, Any]) -> dict[str, Any]:
-    angle = _first_present(aspect, ("angle", "Aspect_Angle", "aspect_angle", "exact_angle", "逅・ｫ冶ｧ貞ｺｦ"))
+    angle = _first_present(aspect, ("angle", "Aspect_Angle", "aspect_angle", "exact_angle", "騾・・・ｫ蜀ｶ・ｧ雋橸ｽｺ・ｦ"))
     return {
-        "t_planet": _first_present(aspect, ("t_planet", "T_Planet", "transit_planet", "planet1", "螟ｩ菴・")),
+        "t_planet": _first_present(aspect, ("t_planet", "T_Planet", "transit_planet", "planet1", "陞滂ｽｩ闖ｴ繝ｻ")),
         "n_planet": _first_present(aspect, ("n_planet", "N_Planet", "natal_planet", "planet2", "natal_body")),
         "angle": _normalize_int(angle),
         "house": _normalize_int(_first_present(aspect, ("house", "N_House", "natal_house"), 1)) or 1,
@@ -571,7 +792,7 @@ def _score_to_rank(score: Any) -> str:
 
 def _dashboard_header() -> dict[str, Any]:
     return {
-        "brand": {"name": "Celestial Logic", "sublabel": "Transit Operations Dashboard"},
+        "brand": {"name": "The Celestial Atelier", "sublabel": "Transit Operations Dashboard"},
         "actions": ["History", "My Page", "Plan"],
     }
 
@@ -594,7 +815,7 @@ def _first_sentence(text: str, max_length: int = 140) -> str:
     normalized = str(text or "").strip()
     if not normalized:
         return ""
-    for separator in ("。", "．", ".", "\n"):
+    for separator in ("。", "、", ".", "\n"):
         if separator in normalized:
             normalized = normalized.split(separator, 1)[0].strip()
             break
@@ -653,13 +874,209 @@ def _apply_basic_to_hero(
     if basic_general and aspect_description:
         hero["summary"] = (
             f"本来は{basic_general}なあなたですが、今日は{aspect_description}の影響で、"
-            f"特に{advised_task or _safe_text(aspect_row, 'Category', '日々の調整')}に意識を向けると流れを活かせます。"
+            f"特に{advised_task or _safe_text(aspect_row, 'Category', '今日の調整')}に意識を向けると流れを活かせます。"
         )
     return hero
 
 
 def _top_priority_row(rows: list[dict[str, Any]]) -> dict[str, Any]:
     return max(rows, key=lambda row: (_safe_number(row, "Priority"), _safe_number(row, "Score_Impact")))
+
+
+def _sum_daily_vibe_column(daily_vibe: dict[str, Any], column: str) -> int:
+    return sum(_safe_number(item, column) for item in daily_vibe.get("items", []))
+
+
+def _daily_vibe_safety_modifier(daily_vibe: dict[str, Any]) -> int:
+    total = 0
+    for item in daily_vibe.get("items", []):
+        safety_level = _safe_text(item, "Safety_Level").strip().upper()
+        total += SAFETY_LEVEL_MODIFIERS.get(safety_level, 0)
+    return total
+
+
+def _source_reference(
+    row: dict[str, Any] | None,
+    *,
+    columns: list[str] | None = None,
+    note: str | None = None,
+) -> dict[str, Any] | None:
+    if not row:
+        return None
+    row_key = (
+        _safe_text(row, "Aspect_Logic_ID")
+        or _safe_text(row, "Trigger_ID")
+        or _safe_text(row, "Planet_ID")
+        or _safe_text(row, "Event_Type")
+    )
+    return {
+        "csv": _safe_text(row, "_csv_file"),
+        "row": _safe_number(row, "_csv_row"),
+        "key": row_key,
+        "columns": columns or [],
+        "note": note or "",
+    }
+
+
+def _source_references(
+    rows: list[dict[str, Any]],
+    *,
+    columns: list[str] | None = None,
+    note_builder: Any | None = None,
+    limit: int | None = None,
+) -> list[dict[str, Any]]:
+    references: list[dict[str, Any]] = []
+    for row in rows[: limit or len(rows)]:
+        note = note_builder(row) if callable(note_builder) else None
+        reference = _source_reference(row, columns=columns, note=note)
+        if reference:
+            references.append(reference)
+    return references
+
+
+def _diagnostic_status(score: int) -> tuple[str, str]:
+    if score >= 80:
+        return (
+            "安定運転",
+            "ロジックは安定しています。計画通りの実行に適した状態です。",
+        )
+    if score >= 50:
+        return (
+            "調整局面",
+            "流れは中立に近く、外部要因を見ながら進めると安定しやすい状態です。",
+        )
+    return (
+        "負荷注意",
+        "外部要因や重いアスペクトの影響が強めです。無理を減らして足場を固めるのが安全です。",
+    )
+
+
+def _select_primary_diagnostic_row(rows: list[dict[str, Any]], overall_score: int) -> dict[str, Any] | None:
+    if not rows:
+        return None
+    if overall_score < 80:
+        negative_rows = [row for row in rows if _safe_number(row, "Score_Impact") < 0]
+        if negative_rows:
+            return max(negative_rows, key=lambda row: (_safe_number(row, "Priority"), abs(_safe_number(row, "Score_Impact"))))
+    return max(rows, key=lambda row: (_safe_number(row, "Priority"), abs(_safe_number(row, "Score_Impact"))))
+
+
+def _compute_diagnostic_scores(
+    total_impact: int,
+    decision_impact: int,
+    emotion_impact: int,
+    negative_load: int,
+    positive_buffer: int,
+    daily_work_modifier: int,
+    daily_love_modifier: int,
+    safety_modifier: int,
+) -> dict[str, int | float]:
+    overall_raw = (
+        DIAGNOSTIC_BASE_SCORE
+        + (total_impact * DIAGNOSTIC_OVERALL_IMPACT_WEIGHT)
+        + (daily_work_modifier * DIAGNOSTIC_DAILY_WORK_WEIGHT)
+    )
+    decision_raw = (
+        DIAGNOSTIC_BASE_SCORE
+        + (decision_impact * DIAGNOSTIC_DECISION_IMPACT_WEIGHT)
+        + (daily_work_modifier * DIAGNOSTIC_DAILY_WORK_WEIGHT)
+    )
+    emotion_raw = (
+        DIAGNOSTIC_BASE_SCORE
+        + (emotion_impact * DIAGNOSTIC_EMOTION_IMPACT_WEIGHT)
+        + (daily_love_modifier * DIAGNOSTIC_DAILY_LOVE_WEIGHT)
+    )
+    noise_raw = (
+        DIAGNOSTIC_BASE_SCORE
+        - (negative_load * DIAGNOSTIC_NOISE_NEGATIVE_WEIGHT)
+        + (positive_buffer * DIAGNOSTIC_NOISE_POSITIVE_WEIGHT)
+        + (safety_modifier * DIAGNOSTIC_SAFETY_WEIGHT)
+    )
+    return {
+        "overall_raw": overall_raw,
+        "decision_raw": decision_raw,
+        "emotion_raw": emotion_raw,
+        "noise_raw": noise_raw,
+        "overall_score": _clamp(overall_raw, 0, 100),
+        "decision_score": _clamp(decision_raw, 0, 100),
+        "emotion_score": _clamp(emotion_raw, 0, 100),
+        "noise_score": _clamp(noise_raw, 0, 100),
+    }
+
+
+def _build_diagnostic_data(
+    interpretations: list[dict[str, Any]],
+    daily_vibe: dict[str, Any],
+    countdown_data: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    total_impact = sum(_safe_number(row, "Score_Impact") for row in interpretations)
+    daily_work_modifier = _sum_daily_vibe_column(daily_vibe, "Work_Efficiency_Modifier")
+    daily_love_modifier = _sum_daily_vibe_column(daily_vibe, "Love_Vibe_Modifier")
+    safety_modifier = _daily_vibe_safety_modifier(daily_vibe)
+
+    decision_impact = sum(
+        _safe_number(row, "Score_Impact")
+        for row in interpretations
+        if _safe_text(row, "Category", "General") == "Work"
+    )
+    emotion_impact = sum(
+        _safe_number(row, "Score_Impact")
+        for row in interpretations
+        if _safe_text(row, "Category", "General") in {"Love", "Health"}
+        or _normalize_planet(row.get("T_Planet")) == "MOON"
+        or _normalize_planet(row.get("N_Planet")) == "MOON"
+    )
+    negative_load = sum(max(0, -_safe_number(row, "Score_Impact")) for row in interpretations)
+    positive_buffer = sum(max(0, _safe_number(row, "Score_Impact")) for row in interpretations)
+
+    score_bundle = _compute_diagnostic_scores(
+        total_impact=total_impact,
+        decision_impact=decision_impact,
+        emotion_impact=emotion_impact,
+        negative_load=negative_load,
+        positive_buffer=positive_buffer,
+        daily_work_modifier=daily_work_modifier,
+        daily_love_modifier=daily_love_modifier,
+        safety_modifier=safety_modifier,
+    )
+    overall_score = int(score_bundle["overall_score"])
+    decision_score = int(score_bundle["decision_score"])
+    emotion_score = int(score_bundle["emotion_score"])
+    noise_score = int(score_bundle["noise_score"])
+
+    status_label, summary = _diagnostic_status(overall_score)
+    primary_row = _select_primary_diagnostic_row(interpretations, overall_score)
+    primary_title = _safe_text(primary_row, "Countdown_Label") or _safe_text(primary_row, "Category", "General")
+    countdown_summary = f"到達目安はあと{countdown_data.get('days_remaining', 0)}日です。" if countdown_data and countdown_data.get("title") else ""
+
+    return {
+        "score": overall_score,
+        "statusLabel": status_label,
+        "summary": " ".join(part for part in [summary, countdown_summary] if part).strip(),
+        "primaryFactor": {
+            "title": primary_title,
+            "impact": _safe_number(primary_row or {}, "Score_Impact"),
+            "advisedTask": _safe_text(primary_row, "Advised_Task"),
+            "countdownId": _safe_text(primary_row, "Countdown_ID"),
+        },
+        "items": [
+            {
+                "label": "意思決定の整合性",
+                "value": decision_score,
+                "description": "仕事系と日運の仕事補正から、判断軸のぶれにくさを算出しています。",
+            },
+            {
+                "label": "感情と行動の同期",
+                "value": emotion_score,
+                "description": "月や愛情・健康テーマのアスペクトから、内面と行動の噛み合いを見ています。",
+            },
+            {
+                "label": "外部ノイズ耐性",
+                "value": noise_score,
+                "description": "負荷の強いアスペクトと安全度補正から、外圧への耐性を可視化しています。",
+            },
+        ],
+    }
 
 
 def _build_topics_from_interpretations(rows: list[dict[str, Any]], final_score: int) -> list[dict[str, Any]]:
@@ -676,8 +1093,8 @@ def _build_topics_from_interpretations(rows: list[dict[str, Any]], final_score: 
                 "value": f"{final_score}%",
                 "caption": "Daily Vibe",
                 "tone": "navy",
-                "description": "穏やかな日です。無理に大きく動かず、整える時間に向いています。",
-                "body": "穏やかな日です。無理に大きく動かず、整える時間に向いています。",
+                "description": "穏やかな日です。無理に動くより、整える時間に向いています。",
+                "body": "穏やかな日です。無理に動くより、整える時間に向いています。",
             }
         ]
     return [
@@ -688,6 +1105,7 @@ def _build_topics_from_interpretations(rows: list[dict[str, Any]], final_score: 
             "tone": "gold" if _safe_number(row, "Score_Impact") >= 60 else "signal",
             "description": _safe_text(row, "Advised_Task"),
             "body": _safe_text(row, "Advised_Task"),
+            "sourceRow": row,
         }
         for category, row in best_by_category.items()
     ]
@@ -717,66 +1135,8 @@ def _pick_timeline_row(
             if key not in used_keys:
                 used_keys.add(key)
                 return row
-
     pool = primary_rows or fallback_rows
     return pool[slot_index % len(pool)] if pool else None
-
-
-def _build_timeline_from_interpretations(rows: list[dict[str, Any]], baseline_score: int = 50) -> list[dict[str, Any]]:
-    slots = [
-        {"label": "06:00 - 12:00", "title": "Morning Focus", "modifier": 8},
-        {"label": "12:00 - 18:00", "title": "Afternoon Flow", "modifier": 2},
-        {"label": "18:00 - 24:00", "title": "Evening Reset", "modifier": -3},
-        {"label": "00:00 - 06:00", "title": "Night Recovery", "modifier": -7},
-    ]
-    ranked = sorted(
-        rows,
-        key=lambda row: (_safe_number(row, "Priority"), abs(_safe_number(row, "Score_Impact"))),
-        reverse=True,
-    )
-    moon_rows = [row for row in ranked if _normalize_planet(row.get("T_Planet")) == "MOON"]
-    used_keys: set[tuple[str, str, int, str]] = set()
-
-    timeline: list[dict[str, Any]] = []
-    for index, slot in enumerate(slots):
-        row = _pick_timeline_row(moon_rows, ranked, index, used_keys)
-        if not row:
-            score = _clamp(baseline_score + slot["modifier"], 0, 100)
-            timeline.append(
-                {
-                    "label": slot["label"],
-                    "title": slot["title"],
-                    "score": score,
-                    "recommendedAction": "予定を詰め込みすぎず、整える時間を優先してください。",
-                    "description": "強いアスペクトが少ないため、無理に動くよりも日常のリズムを安定させる時間帯です。",
-                    "recommendation": "穏やかな調整",
-                    "detail": "強いアスペクトが少ないため、無理に動くよりも日常のリズムを安定させる時間帯です。",
-                }
-            )
-            continue
-
-        raw_score = _safe_number(row, "Score_Impact", baseline_score)
-        score = raw_score if _normalize_planet(row.get("T_Planet")) == "MOON" else raw_score + slot["modifier"]
-        recommended_action = _safe_text(row, "Advised_Task")
-        description = _safe_text(row, "Text_Description")
-        timeline.append(
-            {
-                "label": slot["label"],
-                "title": slot["title"],
-                "score": _clamp(score, 0, 100),
-                "recommendedAction": recommended_action,
-                "description": description,
-                "recommendation": recommended_action,
-                "detail": description,
-                "sourceAspect": {
-                    "t_planet": _safe_text(row, "T_Planet"),
-                    "n_planet": _safe_text(row, "N_Planet"),
-                    "angle": _safe_number(row, "Aspect_Angle"),
-                    "category": _safe_text(row, "Category", "General"),
-                },
-            }
-        )
-    return timeline
 
 
 def _select_countdown_target(rows: list[dict[str, Any]]) -> dict[str, Any] | None:
@@ -795,15 +1155,11 @@ def get_countdown_master_row(trigger_id: Any) -> dict[str, Any] | None:
     normalized_trigger_id = _normalize_trigger_id(trigger_id)
     if not normalized_trigger_id:
         return None
-
     countdown_df = MASTER_DATAFRAMES.get("countdown", pd.DataFrame())
     if countdown_df.empty or "Trigger_ID" not in countdown_df.columns:
         LOGGER.error("Countdown master is empty, failed to load, or missing Trigger_ID.")
         return None
-
-    matches = countdown_df[
-        countdown_df["Trigger_ID"].map(_normalize_trigger_id) == normalized_trigger_id
-    ]
+    matches = countdown_df[countdown_df["Trigger_ID"].map(_normalize_trigger_id) == normalized_trigger_id]
     selected = _pick_highest_priority(matches) if not matches.empty else None
     return selected
 
@@ -811,14 +1167,12 @@ def get_countdown_master_row(trigger_id: Any) -> dict[str, Any] | None:
 def _extract_current_orb(row: dict[str, Any] | None) -> float:
     if not row:
         return 0.0
-
     source = row.get("_input") if isinstance(row.get("_input"), dict) else {}
     for candidate in (
         source.get("orb"),
         source.get("Orb"),
         source.get("orb_diff"),
         source.get("orb_difference"),
-        source.get("繧ｪ繝ｼ繝門ｷｮ"),
         row.get("orb"),
         row.get("Orb"),
     ):
@@ -839,13 +1193,12 @@ def _estimate_days_remaining(row: dict[str, Any], current_orb: float, total_days
 def build_countdown_data(countdown_target: dict[str, Any] | None) -> dict[str, Any] | None:
     if not countdown_target:
         return None
-
     countdown_id = _safe_text(countdown_target, "Countdown_ID")
     fallback_label = _safe_text(countdown_target, "Countdown_Label")
     current_orb = _extract_current_orb(countdown_target)
     master_row = get_countdown_master_row(countdown_id)
     if not master_row:
-        title = fallback_label or "次の追い風まで"
+        title = fallback_label or "谺｡縺ｮ霑ｽ縺・｢ｨ縺ｾ縺ｧ"
         return {
             "title": title,
             "daysLeft": 0,
@@ -861,15 +1214,8 @@ def build_countdown_data(countdown_target: dict[str, Any] | None) -> dict[str, A
             "target": countdown_target,
         }
 
-    threshold_orb = (
-        _normalize_float(master_row.get("Threshold_Orb"))
-        or DEFAULT_COUNTDOWN_THRESHOLD_ORB
-    )
-    total_days = (
-        _normalize_int(master_row.get("Max_Progress_Days"))
-        or _normalize_int(master_row.get("Progress_Max_Days"))
-        or DEFAULT_COUNTDOWN_TOTAL_DAYS
-    )
+    threshold_orb = _normalize_float(master_row.get("Threshold_Orb")) or DEFAULT_COUNTDOWN_THRESHOLD_ORB
+    total_days = _normalize_int(master_row.get("Max_Progress_Days")) or _normalize_int(master_row.get("Progress_Max_Days")) or DEFAULT_COUNTDOWN_TOTAL_DAYS
     percent = 100 - ((current_orb / threshold_orb) * 100) if threshold_orb > 0 else 100
     progress_percent = _clamp(percent, 0, 100)
     days_remaining = _estimate_days_remaining(countdown_target, current_orb, total_days)
@@ -912,38 +1258,30 @@ def _timeline_target_score(slot_id: str) -> int:
     advice_df = _timeline_advice_rows()
     if advice_df.empty:
         return 50
-    slot_rows = advice_df[
-        advice_df["Time_Slot_ID"].map(lambda value: str(value).strip().upper()) == slot_id.upper()
-    ]
+    slot_rows = advice_df[advice_df["Time_Slot_ID"].map(lambda value: str(value).strip().upper()) == slot_id.upper()]
     if slot_rows.empty:
         return 50
     return _normalize_int(slot_rows.iloc[0].get("Target_Score")) or 50
 
 
-def _get_timeline_advice(slot_id: str, final_score: int) -> dict[str, Any]:
+def _get_timeline_advice(slot_id: str, additive_score: int) -> dict[str, Any]:
     fallback = {
         "Target_Score": 50,
         "Condition": "MATCH",
-        "Status_Label": "安定推移",
+        "Status_Label": "螳牙ｮ壽耳遘ｻ",
         "Action_Type": "Focus",
-        "Recommended_Action": "勢いを上げすぎず、目の前の流れを整えてください。",
     }
     advice_df = _timeline_advice_rows()
     if advice_df.empty:
         return fallback
-
-    slot_rows = advice_df[
-        advice_df["Time_Slot_ID"].map(lambda value: str(value).strip().upper()) == slot_id.upper()
-    ]
+    slot_rows = advice_df[advice_df["Time_Slot_ID"].map(lambda value: str(value).strip().upper()) == slot_id.upper()]
     if slot_rows.empty:
         return fallback
-
     target_score = _normalize_int(slot_rows.iloc[0].get("Target_Score")) or 50
-    delta = final_score - target_score
+    delta = additive_score - target_score
     over_row = slot_rows[slot_rows["Condition"].map(lambda value: str(value).strip().upper()) == "OVER"]
     under_row = slot_rows[slot_rows["Condition"].map(lambda value: str(value).strip().upper()) == "UNDER"]
     match_row = slot_rows[slot_rows["Condition"].map(lambda value: str(value).strip().upper()) == "MATCH"]
-
     if not over_row.empty and delta >= (_normalize_int(over_row.iloc[0].get("Condition_Threshold")) or 999):
         return dict(over_row.iloc[0])
     if not under_row.empty and delta <= (_normalize_int(under_row.iloc[0].get("Condition_Threshold")) or -999):
@@ -951,6 +1289,11 @@ def _get_timeline_advice(slot_id: str, final_score: int) -> dict[str, Any]:
     if not match_row.empty:
         return dict(match_row.iloc[0])
     return dict(slot_rows.iloc[0])
+
+
+def _timeline_condition_multiplier(condition: Any) -> float:
+    normalized_condition = str(condition or "").strip().upper()
+    return TIMELINE_CONDITION_MULTIPLIERS.get(normalized_condition, 1.0)
 
 
 def _build_natal_planet_rows(birth_input: BirthInput) -> list[dict[str, Any]]:
@@ -962,13 +1305,11 @@ def _build_natal_planet_rows(birth_input: BirthInput) -> list[dict[str, Any]]:
         longitude = _normalize_float(row[1])
         if longitude is None:
             continue
-        natal_rows.append(
-            {
-                "planet": _normalize_planet(row[0]),
-                "longitude": longitude,
-                "house": _normalize_int(row[5]) or 1,
-            }
-        )
+        natal_rows.append({
+            "planet": _normalize_planet(row[0]),
+            "longitude": longitude,
+            "house": _normalize_int(row[5]) or 1,
+        })
     return natal_rows
 
 
@@ -986,12 +1327,7 @@ def _calc_transit_moon_state(sample_local_dt: datetime, timezone_offset: float) 
     return float(result[0][0]), float(result[0][3]) < 0
 
 
-def _classify_orb_status(
-    sample_local_dt: datetime,
-    timezone_offset: float,
-    natal_longitude: float,
-    exact_angle: int,
-) -> str:
+def _classify_orb_status(sample_local_dt: datetime, timezone_offset: float, natal_longitude: float, exact_angle: int) -> str:
     current_longitude, _ = _calc_transit_moon_state(sample_local_dt, timezone_offset)
     future_longitude, _ = _calc_transit_moon_state(sample_local_dt + timedelta(hours=1), timezone_offset)
     current_deviation = abs(get_angle_diff(current_longitude, natal_longitude) - exact_angle)
@@ -999,11 +1335,7 @@ def _classify_orb_status(
     return "Applying" if future_deviation < current_deviation else "Separating"
 
 
-def _build_slot_interpretations(
-    birth_input: BirthInput,
-    slot_def: dict[str, Any],
-    target_date: date,
-) -> list[dict[str, Any]]:
+def _build_slot_interpretations(birth_input: BirthInput, slot_def: dict[str, Any], target_date: date) -> list[dict[str, Any]]:
     natal_rows = _build_natal_planet_rows(birth_input)
     sample_local_dt = _local_sample_datetime(target_date, slot_def["sample_hour"])
     transit_longitude, is_retrograde = _calc_transit_moon_state(sample_local_dt, birth_input.timezone_offset)
@@ -1013,12 +1345,7 @@ def _build_slot_interpretations(
         _, exact_angle, orb_diff = get_aspect(angle_diff)
         if exact_angle is None:
             continue
-        orb_status = _classify_orb_status(
-            sample_local_dt,
-            birth_input.timezone_offset,
-            natal_row["longitude"],
-            exact_angle,
-        )
+        orb_status = _classify_orb_status(sample_local_dt, birth_input.timezone_offset, natal_row["longitude"], exact_angle)
         interpretation = get_aspect_interpretation(
             t_planet="MOON",
             n_planet=natal_row["planet"],
@@ -1048,47 +1375,51 @@ def _build_timeline_slot_from_rows(
     slot_def: dict[str, Any],
     slot_rows: list[dict[str, Any]],
     fallback_row: dict[str, Any] | None = None,
+    daily_modifier: int = 0,
 ) -> dict[str, Any]:
     target_score = _timeline_target_score(slot_def["id"])
     total_impact = sum(_safe_number(row, "Score_Impact") for row in slot_rows)
-    final_score = _clamp(target_score + total_impact, 0, 100)
     dominant_candidates = slot_rows or ([fallback_row] if fallback_row else [])
-    dominant_row = (
-        max(
-            dominant_candidates,
-            key=lambda row: (_safe_number(row, "Score_Impact"), _safe_number(row, "Priority")),
-        )
-        if dominant_candidates
-        else None
-    )
-    advice_row = _get_timeline_advice(slot_def["id"], final_score)
+    dominant_row = max(dominant_candidates, key=lambda row: (_safe_number(row, "Score_Impact"), _safe_number(row, "Priority"))) if dominant_candidates else None
+    additive_score = _clamp(target_score + total_impact + daily_modifier, 0, 100)
+    advice_row = _get_timeline_advice(slot_def["id"], additive_score)
+    condition = _safe_text(advice_row, "Condition", "MATCH")
+    multiplier = _timeline_condition_multiplier(condition)
+    final_score = _clamp(round(additive_score * multiplier), 0, 100)
+
     aspect_action = _safe_text(dominant_row, "Advised_Task")
-    advice_action = _safe_text(advice_row, "Recommended_Action")
-    combined_description = " ".join(part for part in [aspect_action, advice_action] if part).strip()
-    detail = _safe_text(dominant_row, "Text_Description", combined_description or advice_action)
+    detail = _safe_text(dominant_row, "Text_Description")
 
     LOGGER.info(
-        "Timeline score: slot=%s target=%s impact=%s final=%s condition=%s",
+        "Timeline score: slot=%s target=%s impact=%s daily=%s additive=%s final=%s condition=%s multiplier=%s",
         slot_def["id"],
         target_score,
         total_impact,
+        daily_modifier,
+        additive_score,
         final_score,
-        _safe_text(advice_row, "Condition", "MATCH"),
+        condition,
+        multiplier,
     )
 
     return {
         "label": slot_def["label"],
         "title": _safe_text(advice_row, "Status_Label", slot_def["id"]),
         "score": final_score,
-        "recommendedAction": aspect_action or advice_action,
-        "description": combined_description or advice_action,
-        "recommendation": aspect_action or advice_action,
-        "detail": detail,
+        "recommendedAction": aspect_action or _safe_text(advice_row, "Status_Label"),
+        "description": detail or aspect_action or _safe_text(advice_row, "Status_Label"),
+        "recommendation": aspect_action or _safe_text(advice_row, "Status_Label"),
+        "detail": detail or aspect_action or _safe_text(advice_row, "Status_Label"),
         "statusLabel": _safe_text(advice_row, "Status_Label"),
         "actionType": _safe_text(advice_row, "Action_Type"),
-        "condition": _safe_text(advice_row, "Condition", "MATCH"),
+        "condition": condition,
         "targetScore": target_score,
         "scoreImpactTotal": total_impact,
+        "dailyModifier": daily_modifier,
+        "additiveScore": additive_score,
+        "multiplier": multiplier,
+        "sourceRow": dominant_row,
+        "timelineAdviceRow": advice_row,
         "sourceAspect": {
             "t_planet": _safe_text(dominant_row, "T_Planet"),
             "n_planet": _safe_text(dominant_row, "N_Planet"),
@@ -1103,12 +1434,9 @@ def _build_timeline_from_interpretations(
     baseline_score: int = 50,
     birth_input: BirthInput | None = None,
     current_dt: datetime | date | None = None,
+    daily_modifier: int = 0,
 ) -> list[dict[str, Any]]:
-    ranked = sorted(
-        rows,
-        key=lambda row: (_safe_number(row, "Priority"), abs(_safe_number(row, "Score_Impact"))),
-        reverse=True,
-    )
+    ranked = sorted(rows, key=lambda row: (_safe_number(row, "Priority"), abs(_safe_number(row, "Score_Impact"))), reverse=True)
 
     if birth_input is not None and swe is not None:
         target_date = current_dt.date() if isinstance(current_dt, datetime) else current_dt or date.today()
@@ -1117,7 +1445,7 @@ def _build_timeline_from_interpretations(
         for index, slot_def in enumerate(TIMELINE_SLOT_DEFS):
             slot_rows = _build_slot_interpretations(birth_input, slot_def, target_date)
             fallback_row = _pick_timeline_row(slot_rows, ranked, index, used_keys)
-            timeline.append(_build_timeline_slot_from_rows(slot_def, slot_rows, fallback_row))
+            timeline.append(_build_timeline_slot_from_rows(slot_def, slot_rows, fallback_row, daily_modifier=daily_modifier))
         return timeline
 
     moon_rows = [row for row in ranked if _normalize_planet(row.get("T_Planet")) == "MOON"]
@@ -1127,10 +1455,300 @@ def _build_timeline_from_interpretations(
         row = _pick_timeline_row(moon_rows, ranked, index, used_keys)
         fallback_row = row or _pick_timeline_row([], ranked, index, used_keys)
         slot_rows = [row] if row else []
-        timeline.append(_build_timeline_slot_from_rows(slot_def, slot_rows, fallback_row))
+        if not slot_rows and fallback_row is None:
+            target_score = _timeline_target_score(slot_def["id"])
+            additive_score = _clamp(target_score + daily_modifier, 0, 100)
+            advice_row = _get_timeline_advice(slot_def["id"], additive_score)
+            condition = _safe_text(advice_row, "Condition", "MATCH")
+            multiplier = _timeline_condition_multiplier(condition)
+            final_score = _clamp(round(additive_score * multiplier), 0, 100)
+            timeline.append({
+                "label": slot_def["label"],
+                "title": _safe_text(advice_row, "Status_Label", slot_def["id"]),
+                "score": final_score,
+                "recommendedAction": "予定を詰め込みすぎず、整える時間を優先してください。",
+                "description": "強いアスペクトが少ないため、無理に動くより日常のリズムを整える時間帯です。",
+                "recommendation": "穏やかな調整",
+                "detail": "強いアスペクトが少ないため、無理に動くより日常のリズムを整える時間帯です。",
+                "statusLabel": _safe_text(advice_row, "Status_Label"),
+                "actionType": _safe_text(advice_row, "Action_Type"),
+                "condition": condition,
+                "targetScore": target_score,
+                "scoreImpactTotal": 0,
+                "dailyModifier": daily_modifier,
+                "additiveScore": additive_score,
+                "multiplier": multiplier,
+                "sourceRow": None,
+                "timelineAdviceRow": advice_row,
+                "sourceAspect": {"t_planet": "", "n_planet": "", "angle": 0, "category": "General"},
+            })
+            continue
+        timeline.append(_build_timeline_slot_from_rows(slot_def, slot_rows, fallback_row, daily_modifier=daily_modifier))
     return timeline
 
 
+def _build_developer_meta(
+    hero_row: dict[str, Any] | None,
+    interpretations: list[dict[str, Any]],
+    basic_interpretations: list[dict[str, Any]] | None,
+    daily_vibe: dict[str, Any],
+    countdown_data: dict[str, Any] | None,
+    timeline: list[dict[str, Any]],
+    topics: list[dict[str, Any]],
+    final_score: int,
+    average_score: int | float,
+) -> dict[str, Any]:
+    total_impact = sum(_safe_number(row, "Score_Impact") for row in interpretations)
+    daily_work_modifier = _sum_daily_vibe_column(daily_vibe, "Work_Efficiency_Modifier")
+    daily_love_modifier = _sum_daily_vibe_column(daily_vibe, "Love_Vibe_Modifier")
+    safety_modifier = _daily_vibe_safety_modifier(daily_vibe)
+    decision_rows = [row for row in interpretations if _safe_text(row, "Category", "General") == "Work"]
+    emotion_rows = [
+        row for row in interpretations
+        if _safe_text(row, "Category", "General") in {"Love", "Health"}
+        or _normalize_planet(row.get("T_Planet")) == "MOON"
+        or _normalize_planet(row.get("N_Planet")) == "MOON"
+    ]
+    decision_impact = sum(_safe_number(row, "Score_Impact") for row in decision_rows)
+    emotion_impact = sum(_safe_number(row, "Score_Impact") for row in emotion_rows)
+    negative_load = sum(max(0, -_safe_number(row, "Score_Impact")) for row in interpretations)
+    positive_buffer = sum(max(0, _safe_number(row, "Score_Impact")) for row in interpretations)
+    score_bundle = _compute_diagnostic_scores(
+        total_impact=total_impact,
+        decision_impact=decision_impact,
+        emotion_impact=emotion_impact,
+        negative_load=negative_load,
+        positive_buffer=positive_buffer,
+        daily_work_modifier=daily_work_modifier,
+        daily_love_modifier=daily_love_modifier,
+        safety_modifier=safety_modifier,
+    )
+    overall_score = int(score_bundle["overall_score"])
+    decision_score = int(score_bundle["decision_score"])
+    emotion_score = int(score_bundle["emotion_score"])
+    noise_score = int(score_bundle["noise_score"])
+    hero_score_breakdown = [_safe_number(row, "Score_Impact") for row in interpretations]
+    hero_score_breakdown_text = " + ".join(str(score) for score in hero_score_breakdown) if hero_score_breakdown else "0"
+    hero_score_count = len(hero_score_breakdown) if hero_score_breakdown else 1
+
+    personal_sources: list[dict[str, Any]] = []
+    if hero_row:
+        ref = _source_reference(
+            hero_row,
+            columns=["Aspect_Logic_ID", "Text_Description", "Advised_Task", "Score_Impact", "Priority"],
+            note="Hero の主採用アスペクトです。",
+        )
+        if ref:
+            personal_sources.append(ref)
+    basic_primary = _primary_basic_row(basic_interpretations or [])
+    if basic_primary:
+        ref = _source_reference(
+            basic_primary,
+            columns=["Planet_ID", "Sign_ID", "House_ID", "Text_General", "Text_Work", "Text_Love", "Text_Health"],
+            note="ネイタル基本解釈の参照元です。",
+        )
+        if ref:
+            personal_sources.append(ref)
+
+    daily_sources = _source_references(
+        daily_vibe.get("items", []),
+        columns=["Event_Type", "Target_Planet", "Condition", "Work_Efficiency_Modifier", "Love_Vibe_Modifier", "Safety_Level"],
+        note_builder=lambda row: (
+            f"日運補正 Work={_safe_number(row, 'Work_Efficiency_Modifier')} / "
+            f"Love={_safe_number(row, 'Love_Vibe_Modifier')} / "
+            f"Safety={_safe_text(row, 'Safety_Level')}"
+        ),
+        limit=5,
+    )
+
+    timeline_sources: list[dict[str, Any]] = []
+    for slot in timeline:
+        slot_sources: list[dict[str, Any]] = []
+        aspect_source = _source_reference(
+            slot.get("sourceRow"),
+            columns=["Aspect_Logic_ID", "T_Planet", "N_Planet", "Aspect_Angle", "Advised_Task", "Text_Description", "Score_Impact", "Priority"],
+            note=(
+                f"{slot.get('label')} の本文に使った主アスペクトです。"
+                f"基準値 {slot.get('targetScore')} + アスペクト合計 {slot.get('scoreImpactTotal')} + "
+                f"日運補正 {slot.get('dailyModifier')} = 加算後 {slot.get('additiveScore')}"
+            ),
+        )
+        if aspect_source:
+            slot_sources.append(aspect_source)
+        advice_source = _source_reference(
+            slot.get("timelineAdviceRow"),
+            columns=["Time_Slot_ID", "Target_Score", "Condition", "Condition_Threshold", "Status_Label", "Action_Type"],
+            note=f"{slot.get('label')} の Condition={slot.get('condition')} を判定したタイムラインマスタです。",
+        )
+        if advice_source:
+            slot_sources.append(advice_source)
+        timeline_sources.append(
+            {
+                "slot": slot.get("label"),
+                "logic": (
+                    f"計算式は (基準値 {slot.get('targetScore')} + アスペクト合計 {slot.get('scoreImpactTotal')} + "
+                    f"日運補正 {slot.get('dailyModifier')}) × 条件倍率 {slot.get('multiplier')} です。"
+                    f"今回は ({slot.get('targetScore')} + {slot.get('scoreImpactTotal')} + {slot.get('dailyModifier')}) × "
+                    f"{slot.get('multiplier')} = {slot.get('score')} として算出しています。"
+                ),
+                "sources": slot_sources,
+            }
+        )
+
+    topic_sources: list[dict[str, Any]] = []
+    for topic in topics:
+        topic_source = _source_reference(
+            topic.get("sourceRow"),
+            columns=["Aspect_Logic_ID", "Category", "Advised_Task", "Score_Impact", "Priority"],
+            note=f"{topic.get('title')} カードで採用した最大 Score_Impact 行です。",
+        )
+        topic_sources.append(
+            {
+                "topic": topic.get("title"),
+                "logic": (
+                    f"計算式は カテゴリ内の Score_Impact 最大値 = カード採用値 です。"
+                    f"{topic.get('title')} では、そのカテゴリ候補の中で最も高い 1 行だけを表示しています。"
+                ),
+                "sources": [topic_source] if topic_source else [],
+            }
+        )
+
+    countdown_logic = (
+        f"計算式は 100 - (現在オーブ {countdown_data.get('current_orb', 0)} / "
+        f"しきい値 {countdown_data.get('threshold_orb', 0)}) × 100 です。"
+        f"今回は進捗率 {countdown_data.get('percent', 0)}% を表示しています。"
+        f"残り日数は 現在オーブ {countdown_data.get('current_orb', 0)} を平均速度で割って "
+        f"{countdown_data.get('days_remaining', 0)} 日と見積もっています。"
+        if countdown_data
+        else "Applying かつ Score_Impact が正の候補から 1 件を選び、Countdown_ID で M_Countdown_Master と突き合わせて表示内容を決めています。"
+    )
+
+    countdown_sources: list[dict[str, Any]] = []
+    if countdown_data:
+        target_ref = _source_reference(
+            countdown_data.get("target"),
+            columns=["Aspect_Logic_ID", "Countdown_ID", "Countdown_Label", "Score_Impact", "Priority"],
+            note=f"採用したアスペクトです。現在オーブは {countdown_data.get('current_orb')} です。",
+        )
+        if target_ref:
+            countdown_sources.append(target_ref)
+        master_ref = _source_reference(
+            get_countdown_master_row(countdown_data.get("countdown_id") or countdown_data.get("trigger_id")),
+            columns=["Trigger_ID", "Display_Title", "Arrival_Text", "Next_Action_Hint", "Threshold_Orb", "Max_Progress_Days"],
+            note="表示タイトル、到達メッセージ、しきい値、総日数の参照元です。",
+        )
+        if master_ref:
+            countdown_sources.append(master_ref)
+
+    return {
+        "personalReading": {
+            "logic": (
+                f"計算式は 平均アスペクト値 + 日運補正 = Hero スコア です。"
+                f"平均アスペクト値の内訳は ({hero_score_breakdown_text}) / {hero_score_count} = {round(average_score, 2)} です。"
+                f"今回は {round(average_score, 2)} + {daily_work_modifier} = {final_score} として算出しています。"
+                f"つまり Score_Impact の合計 {total_impact} を {hero_score_count} 件で割って平均を出し、そこへ日運補正 {daily_work_modifier} を加えています。"
+            ),
+            "sources": personal_sources,
+        },
+        "diagnostic": {
+            "logic": (
+                f"計算式は 50 + 全アスペクト合計 × {DIAGNOSTIC_OVERALL_IMPACT_WEIGHT} + 日運の仕事補正 × {DIAGNOSTIC_DAILY_WORK_WEIGHT} です。"
+                f"全アスペクト合計の内訳は ({hero_score_breakdown_text}) = {total_impact} です。"
+                f"今回は 50 + {total_impact} × {DIAGNOSTIC_OVERALL_IMPACT_WEIGHT} + {daily_work_modifier} × {DIAGNOSTIC_DAILY_WORK_WEIGHT} = {round(score_bundle['overall_raw'], 2)} と計算し、0〜100 に収めて {overall_score} としています。"
+                f"文章はこの総合値をもとに、80以上なら 安定運転、50以上なら 調整局面、それ未満なら 負荷注意 へ振り分けています。"
+                f"本文は _diagnostic_status で総合ラベルごとの定型文を選び、主要因は _select_primary_diagnostic_row で最優先のアスペクト行を 1 件選んで表示しています。"
+            ),
+            "sources": [
+                *(_source_references(
+                    interpretations,
+                    columns=["Aspect_Logic_ID", "Category", "Score_Impact", "Priority"],
+                    note_builder=lambda row: (
+                        f"総合判定への内訳 {_safe_number(row, 'Score_Impact')} / "
+                        f"{_safe_text(row, 'Aspect_Logic_ID') or _safe_text(row, 'T_Planet')}"
+                    ),
+                )),
+                *daily_sources,
+            ],
+            "entries": [
+                {
+                    "label": "意思決定の整合性",
+                    "logic": (
+                        f"計算式は 50 + Category が Work の行だけを合計した値 × {DIAGNOSTIC_DECISION_IMPACT_WEIGHT} + "
+                        f"日運の仕事補正 × {DIAGNOSTIC_DAILY_WORK_WEIGHT} です。"
+                        f"ここで使う {decision_impact} は全アスペクト合計ではなく、Work に分類された行だけの Score_Impact 合計です。"
+                        f"今回は 50 + {decision_impact} × {DIAGNOSTIC_DECISION_IMPACT_WEIGHT} + "
+                        f"{daily_work_modifier} × {DIAGNOSTIC_DAILY_WORK_WEIGHT} = {round(score_bundle['decision_raw'], 2)} と計算し、"
+                        f"最終値を {decision_score} としています。"
+                    ),
+                    "sources": [
+                        *(_source_references(
+                            decision_rows,
+                            columns=["Aspect_Logic_ID", "Category", "Score_Impact", "Priority"],
+                            note_builder=lambda row: f"意思決定への内訳 {_safe_number(row, 'Score_Impact')}",
+                        )),
+                        *(_source_references(
+                            daily_vibe.get("items", []),
+                            columns=["Event_Type", "Target_Planet", "Condition", "Work_Efficiency_Modifier"],
+                            note_builder=lambda row: f"仕事補正 {_safe_number(row, 'Work_Efficiency_Modifier')}",
+                            limit=3,
+                        )),
+                    ],
+                },
+                {
+                    "label": "感情と行動の同期",
+                    "logic": (
+                        f"計算式は 50 + Category が Love または Health の行、または Transit/Natal のどちらかが Moon の行だけを合計した値 × {DIAGNOSTIC_EMOTION_IMPACT_WEIGHT} + 日運の感情補正 × {DIAGNOSTIC_DAILY_LOVE_WEIGHT} です。"
+                        f"今回は 50 + {emotion_impact} × {DIAGNOSTIC_EMOTION_IMPACT_WEIGHT} + {daily_love_modifier} × {DIAGNOSTIC_DAILY_LOVE_WEIGHT} = {round(score_bundle['emotion_raw'], 2)} と計算し、最終値を {emotion_score} としています。"
+                    ),
+                    "sources": [
+                        *(_source_references(
+                            emotion_rows,
+                            columns=["Aspect_Logic_ID", "Category", "Score_Impact", "Priority"],
+                            note_builder=lambda row: f"感情同期への内訳 {_safe_number(row, 'Score_Impact')}",
+                        )),
+                        *(_source_references(
+                            daily_vibe.get("items", []),
+                            columns=["Event_Type", "Target_Planet", "Condition", "Love_Vibe_Modifier"],
+                            note_builder=lambda row: f"感情補正 {_safe_number(row, 'Love_Vibe_Modifier')}",
+                            limit=3,
+                        )),
+                    ],
+                },
+                {
+                    "label": "外部ノイズ耐性",
+                    "logic": (
+                        f"計算式は 50 - 負荷合計 × {DIAGNOSTIC_NOISE_NEGATIVE_WEIGHT} + 正のバッファ × {DIAGNOSTIC_NOISE_POSITIVE_WEIGHT} + Safety補正 × {DIAGNOSTIC_SAFETY_WEIGHT} です。"
+                        f"今回は 50 - {negative_load} × {DIAGNOSTIC_NOISE_NEGATIVE_WEIGHT} + {positive_buffer} × {DIAGNOSTIC_NOISE_POSITIVE_WEIGHT} + {safety_modifier} × {DIAGNOSTIC_SAFETY_WEIGHT} = {round(score_bundle['noise_raw'], 2)} と計算し、最終値を {noise_score} としています。"
+                    ),
+                    "sources": [
+                        *(_source_references(
+                            interpretations,
+                            columns=["Aspect_Logic_ID", "Category", "Score_Impact", "Priority"],
+                            note_builder=lambda row: f"ノイズ耐性への内訳 {_safe_number(row, 'Score_Impact')}",
+                        )),
+                        *(_source_references(
+                            daily_vibe.get("items", []),
+                            columns=["Event_Type", "Target_Planet", "Condition", "Safety_Level"],
+                            note_builder=lambda row: f"Safety補正 {_safe_text(row, 'Safety_Level')}",
+                            limit=3,
+                        )),
+                    ],
+                },
+            ],
+        },
+        "countdown": {
+            "logic": countdown_logic,
+            "sources": countdown_sources,
+        },
+        "timeline": {
+            "logic": "各時間帯では、主アスペクト 1 件を選び、M_Timeline_Advice の基準値にアスペクト合計と日運補正を加えた後、Condition に応じた倍率を掛けてスコアを出しています。",
+            "sources": timeline_sources,
+        },
+        "topics": {
+            "logic": "トピック強化カードは Category ごとに候補をまとめ、その中で Score_Impact が最も高い 1 行だけを採用しています。",
+            "sources": topic_sources,
+        },
+    }
 def build_dashboard_data_from_interpretations(
     interpretations: list[dict[str, Any]],
     daily_vibe: dict[str, Any],
@@ -1146,26 +1764,34 @@ def build_dashboard_data_from_interpretations(
             "score": final_score,
             "title": "Today Overview",
             "guidance": "穏やかな日です。予定を詰め込みすぎず、余白を保つほど安定します。",
-            "summary": "大きな衝突や追い風は控えめです。整える、確認する、休むといった基本動作が今日の運勢を底上げします。",
+            "summary": "大きな追い風も逆風も薄い日です。整えること、記録すること、静かに選ぶことが今日の運気を底上げします。",
         }
         hero = _apply_basic_to_hero(hero, basic_interpretations, None, [])
-        return {
+        diagnostic = _build_diagnostic_data([], daily_vibe, None)
+        timeline = _build_timeline_from_interpretations([], final_score, birth_input=birth_input, current_dt=current_dt, daily_modifier=daily_modifier)
+        topics = _build_topics_from_interpretations([], final_score)
+        return _to_json_compatible({
             "header": _dashboard_header(),
             "hero": hero,
             "countdown": None,
-            "timeline": _build_timeline_from_interpretations([], final_score, birth_input=birth_input, current_dt=current_dt),
-            "topics": _build_topics_from_interpretations([], final_score),
+            "diagnostic": diagnostic,
+            "timeline": timeline,
+            "topics": topics,
             "premium": {"title": "Premium AI Preview", "description": "", "placeholder": "", "preview": ""},
             "aspect_interpretations": [],
             "basic_interpretations": basic_interpretations or [],
             "daily_vibe": daily_vibe,
-        }
+            "developerMeta": _build_developer_meta(None, [], basic_interpretations or [], daily_vibe, None, timeline, topics, final_score, 50),
+        })
 
     average_score = sum(_safe_number(row, "Score_Impact") for row in interpretations) / len(interpretations)
     final_score = _clamp(average_score + daily_modifier, 0, 100)
     hero_row = _top_priority_row(interpretations)
     countdown_target = _select_countdown_target(interpretations)
     countdown_data = build_countdown_data(countdown_target)
+    diagnostic_data = _build_diagnostic_data(interpretations, daily_vibe, countdown_data)
+    timeline = _build_timeline_from_interpretations(interpretations, final_score, birth_input=birth_input, current_dt=current_dt, daily_modifier=daily_modifier)
+    topics = _build_topics_from_interpretations(interpretations, final_score)
     hero = {
         "rank": _score_to_rank(final_score),
         "score": final_score,
@@ -1174,27 +1800,24 @@ def build_dashboard_data_from_interpretations(
         "summary": _safe_text(hero_row, "Text_Description"),
     }
     hero = _apply_basic_to_hero(hero, basic_interpretations, hero_row, interpretations)
-    return {
+    return _to_json_compatible({
         "header": _dashboard_header(),
         "hero": hero,
         "countdown": countdown_data,
-        "timeline": _build_timeline_from_interpretations(
-            interpretations,
-            final_score,
-            birth_input=birth_input,
-            current_dt=current_dt,
-        ),
-        "topics": _build_topics_from_interpretations(interpretations, final_score),
+        "diagnostic": diagnostic_data,
+        "timeline": timeline,
+        "topics": topics,
         "premium": {
             "title": "Premium AI Preview",
             "description": "複数のトランジット条件と日運補正を組み合わせた追加解釈を提供します。",
-            "placeholder": "例：今日、仕事と恋愛どちらにリソースを割くべき？",
+            "placeholder": "将来的には、恋愛や仕事などテーマ別の深掘りリソースをここへ表示します。",
             "preview": _safe_text(hero_row, "Text_Description"),
         },
         "aspect_interpretations": interpretations,
         "basic_interpretations": basic_interpretations or [],
         "daily_vibe": daily_vibe,
-    }
+        "developerMeta": _build_developer_meta(hero_row, interpretations, basic_interpretations or [], daily_vibe, countdown_data, timeline, topics, final_score, average_score),
+    })
 
 
 def build_dashboard_data_from_aspects(
@@ -1241,9 +1864,24 @@ def build_aspect_inputs_from_chart_rows(aspect_rows: list[list[Any]]) -> list[di
     return inputs
 
 
+def _to_json_compatible(value: Any) -> Any:
+    if isinstance(value, dict):
+        return {key: _to_json_compatible(item) for key, item in value.items()}
+    if isinstance(value, list):
+        return [_to_json_compatible(item) for item in value]
+    if isinstance(value, tuple):
+        return [_to_json_compatible(item) for item in value]
+    if hasattr(value, "item") and callable(value.item):
+        try:
+            return value.item()
+        except (TypeError, ValueError):
+            return value
+    return value
+
+
 def extract_retrograde_planets_from_chart_rows(planet_rows: list[list[Any]]) -> list[str]:
     retrograde_planets: list[str] = []
-    direct_labels = {"DIRECT", "D", "-", "", "鬆・｡・"}
+    direct_labels = {"DIRECT", "D", "-", "", "鬯・・・｡繝ｻ"}
     for row in planet_rows:
         if len(row) < 5:
             continue
@@ -1335,5 +1973,5 @@ def generate_readings(payload: ReadingRequest) -> ReadingResponse:
         chart_data=chart_data,
         readings=[ReadingSection(type=REPORT_TYPE, title=REPORT_TITLE, content=report_text)],
         transit_ready=bool(transit_data.get("aspect_map")) and bool(transit_data.get("house_map")),
-        dashboard_data=dashboard_data,
+        dashboard_data=_to_json_compatible(dashboard_data),
     )

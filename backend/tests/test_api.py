@@ -1,9 +1,10 @@
-import shutil
+﻿import shutil
 import unittest
 from datetime import date, datetime, time
 from pathlib import Path
 from unittest.mock import patch
 
+from fastapi.encoders import jsonable_encoder
 from fastapi import HTTPException
 from pydantic import ValidationError
 
@@ -36,8 +37,8 @@ class ApiTestCase(unittest.TestCase):
 
     def test_aspect_interpretation_loads_sun_conjunction_from_master_csv(self):
         row = get_aspect_interpretation(
-            t_planet="太陽",
-            n_planet="太陽",
+            t_planet="螟ｪ髯ｽ",
+            n_planet="螟ｪ髯ｽ",
             angle=0,
             house=1,
             is_retrograde=False,
@@ -65,6 +66,8 @@ class ApiTestCase(unittest.TestCase):
         self.assertIn("countdown", dashboard_data)
         self.assertIn("timeline", dashboard_data)
         self.assertTrue(dashboard_data["topics"][0]["description"])
+        self.assertIn("developerMeta", dashboard_data)
+        self.assertIn("personalReading", dashboard_data["developerMeta"])
 
     def test_quincunx_uses_master_text_instead_of_generic_fallback(self):
         row = get_aspect_interpretation(
@@ -80,7 +83,7 @@ class ApiTestCase(unittest.TestCase):
         self.assertEqual(row["Aspect_Angle"], 150)
 
     def test_basic_interpretation_loads_sun_sign_house_from_master_csv(self):
-        row = get_basic_interpretation(planet="太陽", sign="牡羊座", house=1)
+        row = get_basic_interpretation(planet="SUN", sign="ARIES", house=1)
 
         self.assertEqual(row["Planet_ID"], "SUN")
         self.assertEqual(row["Sign_ID"], "ARIES")
@@ -90,10 +93,10 @@ class ApiTestCase(unittest.TestCase):
     def test_basic_interpretations_are_extracted_from_chart_rows(self):
         basic_rows = build_basic_interpretations_from_chart_rows(
             planet_rows=[
-                ["太陽", 0.0, "牡羊座", 0.0, "Direct", 1],
-                ["月", 31.0, "牡牛座", 1.0, "Direct", 2],
+                ["SUN", 0.0, "ARIES", 0.0, "Direct", 1],
+                ["MOON", 31.0, "TAURUS", 1.0, "Direct", 2],
             ],
-            angle_rows=[["ASC", 0.0, "牡羊座", 0.0]],
+            angle_rows=[["ASC", 0.0, "ARIES", 0.0]],
         )
 
         self.assertEqual([row["Planet_ID"] for row in basic_rows[:2]], ["SUN", "MOON"])
@@ -156,9 +159,38 @@ class ApiTestCase(unittest.TestCase):
         self.assertEqual(len(dashboard_data["aspect_interpretations"]), 3)
         self.assertEqual(dashboard_data["daily_vibe"]["modifier"], -20)
         self.assertEqual(dashboard_data["hero"]["score"], 40)
+        self.assertIn("diagnostic", dashboard_data)
+        self.assertEqual(dashboard_data["diagnostic"]["score"], 72)
+        self.assertEqual(
+            [item["value"] for item in dashboard_data["diagnostic"]["items"]],
+            [44, 64, 55],
+        )
+        self.assertEqual(len(dashboard_data["diagnostic"]["items"]), 3)
         self.assertNotEqual(dashboard_data["countdown"]["title"], dashboard_data["countdown"]["note"])
         self.assertTrue(dashboard_data["countdown"]["trigger_id"])
         self.assertTrue(any(topic["title"] == "Work" for topic in dashboard_data["topics"]))
+        self.assertTrue(dashboard_data["developerMeta"]["diagnostic"]["sources"])
+        self.assertTrue(dashboard_data["developerMeta"]["countdown"]["sources"])
+
+    def test_dashboard_data_is_json_serializable(self):
+        dashboard_data = build_dashboard_data_from_aspects(
+            aspects=[
+                {
+                    "t_planet": "SUN",
+                    "n_planet": "SUN",
+                    "angle": 0,
+                    "house": 1,
+                    "is_retrograde": False,
+                    "orb_status": "Applying",
+                }
+            ],
+            basic_interpretations=[get_basic_interpretation(planet="SUN", sign="ARIES", house=1)],
+        )
+
+        encoded = jsonable_encoder(dashboard_data)
+
+        self.assertIsInstance(encoded, dict)
+        self.assertIn("hero", encoded)
 
     def test_dashboard_timeline_uses_four_time_slots_and_unique_actions(self):
         dashboard_data = build_dashboard_data_from_aspects(
@@ -212,6 +244,8 @@ class ApiTestCase(unittest.TestCase):
         self.assertTrue(all(slot["recommendedAction"] for slot in timeline))
         self.assertTrue(all(slot["description"] for slot in timeline))
         self.assertTrue(all(slot["targetScore"] in {100, 55, 30, 10} for slot in timeline))
+        self.assertTrue(all(slot.get("sourceRow") for slot in timeline))
+        self.assertTrue(all(slot.get("timelineAdviceRow") for slot in timeline))
         self.assertGreater(len({slot["recommendedAction"] for slot in timeline}), 1)
         self.assertEqual(
             len(
@@ -246,14 +280,39 @@ class ApiTestCase(unittest.TestCase):
         joined = "\n".join(logs.output)
         self.assertIn("Timeline score: slot=MORNING", joined)
         self.assertIn("target=100", joined)
+        self.assertIn("additive=", joined)
         self.assertIn("final=", joined)
+
+    def test_timeline_score_combines_aspect_daily_vibe_and_condition_multiplier(self):
+        dashboard_data = build_dashboard_data_from_aspects(
+            aspects=[
+                {
+                    "t_planet": "MARS",
+                    "n_planet": "SUN",
+                    "angle": 150,
+                    "house": 1,
+                    "is_retrograde": False,
+                    "orb_status": "Separating",
+                }
+            ],
+            retrograde_planets=["MERCURY"],
+        )
+
+        morning = dashboard_data["timeline"][0]
+        self.assertEqual(morning["targetScore"], 100)
+        self.assertEqual(morning["scoreImpactTotal"], -25)
+        self.assertEqual(morning["dailyModifier"], -20)
+        self.assertEqual(morning["additiveScore"], 55)
+        self.assertEqual(morning["condition"], "UNDER")
+        self.assertAlmostEqual(morning["multiplier"], 0.92)
+        self.assertEqual(morning["score"], 51)
 
     def test_countdown_data_loads_master_and_calculates_progress(self):
         countdown = build_countdown_data(
             {
                 "T_Planet": "TRANSIT_VENUS",
                 "Countdown_ID": " lucky_love_venus ",
-                "Countdown_Label": "最高の恋愛運まで",
+                "Countdown_Label": "譛鬮倥・諱区・驕九∪縺ｧ",
                 "Score_Impact": 75,
                 "Priority": 8,
                 "_orb_status": "Applying",
@@ -264,7 +323,7 @@ class ApiTestCase(unittest.TestCase):
         self.assertIsNotNone(countdown)
         self.assertEqual(countdown["trigger_id"], "LUCKY_LOVE_VENUS")
         self.assertEqual(countdown["countdown_id"].strip(), "lucky_love_venus")
-        self.assertEqual(countdown["fallback_label"], "最高の恋愛運まで")
+        self.assertEqual(countdown["fallback_label"], "譛鬮倥・諱区・驕九∪縺ｧ")
         self.assertEqual(countdown["percent"], 50)
         self.assertEqual(countdown["days_remaining"], 3)
         self.assertEqual(countdown["total_days"], 14)
@@ -276,7 +335,7 @@ class ApiTestCase(unittest.TestCase):
             {
                 "T_Planet": "TRANSIT_VENUS",
                 "Countdown_ID": "LUCKY_LOVE_VENUS",
-                "Countdown_Label": "最高の恋愛運まで",
+                "Countdown_Label": "譛鬮倥・諱区・驕九∪縺ｧ",
                 "_input": {"orb": 4.0},
             }
         )
@@ -284,7 +343,7 @@ class ApiTestCase(unittest.TestCase):
             {
                 "T_Planet": "TRANSIT_VENUS",
                 "Countdown_ID": "LUCKY_LOVE_VENUS",
-                "Countdown_Label": "最高の恋愛運まで",
+                "Countdown_Label": "譛鬮倥・諱区・驕九∪縺ｧ",
                 "_input": {"orb": 1.0},
             }
         )
@@ -297,7 +356,7 @@ class ApiTestCase(unittest.TestCase):
             {
                 "T_Planet": "TRANSIT_VENUS",
                 "Countdown_ID": "LUCKY_LOVE_VENUS",
-                "Countdown_Label": "最高の恋愛運まで",
+                "Countdown_Label": "譛鬮倥・諱区・驕九∪縺ｧ",
                 "_input": {"orb": 0.4},
             }
         )
@@ -309,13 +368,13 @@ class ApiTestCase(unittest.TestCase):
             {
                 "T_Planet": "TRANSIT_VENUS",
                 "Countdown_ID": "UNKNOWN_TRIGGER",
-                "Countdown_Label": "日本語フォールバック",
+                "Countdown_Label": "譌･譛ｬ隱槭ヵ繧ｩ繝ｼ繝ｫ繝舌ャ繧ｯ",
                 "_input": {"orb": 2.0},
             }
         )
 
-        self.assertEqual(countdown["title"], "日本語フォールバック")
-        self.assertEqual(countdown["note"], "日本語フォールバック")
+        self.assertEqual(countdown["title"], "譌･譛ｬ隱槭ヵ繧ｩ繝ｼ繝ｫ繝舌ャ繧ｯ")
+        self.assertEqual(countdown["note"], "譌･譛ｬ隱槭ヵ繧ｩ繝ｼ繝ｫ繝舌ャ繧ｯ")
         self.assertEqual(countdown["trigger_id"], "UNKNOWN_TRIGGER")
 
     def test_countdown_label_does_not_match_master_without_countdown_id(self):
@@ -344,6 +403,7 @@ class ApiTestCase(unittest.TestCase):
         self.assertEqual(dashboard_data["hero"]["score"], 50)
         self.assertEqual(dashboard_data["aspect_interpretations"], [])
         self.assertEqual(len(dashboard_data["timeline"]), 4)
+        self.assertEqual(dashboard_data["diagnostic"]["score"], 50)
         self.assertTrue(dashboard_data["topics"])
 
     def test_location_search_success(self):
@@ -538,30 +598,32 @@ class ApiTestCase(unittest.TestCase):
         self.assertTrue(all(row[-1] == "-" for row in chart_rows["planets"]))
         self.assertTrue(all(row == ["-", "-", "-", "-"] for row in chart_rows["angles"]))
         self.assertTrue(all(row == ["-", "-", "-", "-"] for row in chart_rows["houses"]))
-        self.assertTrue(all("月" not in (row[0], row[1]) for row in chart_rows["aspects"]))
+        self.assertTrue(all("MOON" not in (row[0], row[1]) for row in chart_rows["aspects"]))
 
     def test_unknown_birth_time_chart_data_uses_dash_for_angle_and_house_fields(self):
         chart_rows = {
             "planets": [
-                ["太陽", 156.0, "乙女座", 6.0, "順行", "-"],
-                ["月", 110.0, "蟹座", 20.0, "順行", "-"],
-                ["水星", 170.0, "乙女座", 20.0, "順行", "-"],
-                ["金星", 210.0, "天秤座", 0.0, "順行", "-"],
-                ["火星", 45.0, "牡牛座", 15.0, "順行", "-"],
-                ["木星", 280.0, "山羊座", 10.0, "順行", "-"],
-                ["土星", 240.0, "射手座", 0.0, "順行", "-"],
-                ["天王星", 250.0, "射手座", 10.0, "順行", "-"],
-                ["海王星", 260.0, "射手座", 20.0, "順行", "-"],
-                ["冥王星", 200.0, "天秤座", 20.0, "順行", "-"],
-                ["ドラゴンヘッド", 70.0, "双子座", 10.0, "順行", "-"],
-                ["ドラゴンテール", 250.0, "射手座", 10.0, "順行", "-"],
+                ["太陽", 156.0, "乙女座", 6.0, "Direct", "-"],
+                ["月", 110.0, "蟹座", 20.0, "Direct", "-"],
+                ["水星", 170.0, "乙女座", 20.0, "Direct", "-"],
+                ["金星", 210.0, "天秤座", 0.0, "Direct", "-"],
+                ["火星", 45.0, "牡牛座", 15.0, "Direct", "-"],
+                ["木星", 280.0, "山羊座", 10.0, "Direct", "-"],
+                ["土星", 240.0, "射手座", 0.0, "Direct", "-"],
+                ["天王星", 250.0, "射手座", 10.0, "Direct", "-"],
+                ["海王星", 260.0, "射手座", 20.0, "Direct", "-"],
+                ["冥王星", 200.0, "天秤座", 20.0, "Direct", "-"],
+                ["ドラゴンヘッド", 70.0, "双子座", 10.0, "Direct", "-"],
+                ["ドラゴンテイル", 250.0, "射手座", 10.0, "Direct", "-"],
             ],
             "angles": [["-", "-", "-", "-"], ["-", "-", "-", "-"]],
             "houses": [["-", "-", "-", "-"] for _ in range(12)],
             "aspects": [
-                ["太陽", "月", 156.0, 110.0, 46.0, "セクスタイル", 60, 14.0],
+                ["SUN", "MOON", 156.0, 110.0, 46.0, "SEXTILE", 60, 14.0],
             ],
         }
+
+        tmp = Path("backend/tests/_tmp_chart_data")
 
         tmp = Path("backend/tests/_tmp_chart_data")
         shutil.rmtree(tmp, ignore_errors=True)
@@ -583,3 +645,4 @@ class ApiTestCase(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
