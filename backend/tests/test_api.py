@@ -1,4 +1,4 @@
-﻿import shutil
+import shutil
 import unittest
 from datetime import date, datetime, time
 from pathlib import Path
@@ -167,10 +167,10 @@ class ApiTestCase(unittest.TestCase):
         self.assertEqual(dashboard_data["daily_vibe"]["modifier"], -20)
         self.assertEqual(dashboard_data["hero"]["score"], 42)
         self.assertIn("diagnostic", dashboard_data)
-        self.assertEqual(dashboard_data["diagnostic"]["score"], 73)
+        self.assertEqual(dashboard_data["diagnostic"]["score"], 100)
         self.assertEqual(
             [item["value"] for item in dashboard_data["diagnostic"]["items"]],
-            [44, 65, 55],
+            [50, 100, 100],
         )
         self.assertEqual(len(dashboard_data["diagnostic"]["items"]), 3)
         self.assertNotEqual(dashboard_data["countdown"]["title"], dashboard_data["countdown"]["note"])

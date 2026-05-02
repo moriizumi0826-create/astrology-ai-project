@@ -440,6 +440,25 @@ function renderReadings(payload) {
     .join("");
 }
 
+async function postJson(path, payload) {
+  const response = await fetch(`${API_BASE_URL}${path}`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(payload),
+  });
+
+  const contentType = response.headers.get("content-type") || "";
+  const data = contentType.includes("application/json")
+    ? await response.json()
+    : { detail: await response.text() };
+  if (!response.ok) {
+    throw new Error(data.detail || `Request failed: ${path}`);
+  }
+  return data;
+}
+
 function syncBirthTimeState() {
   const isUnknown = birthTimeUnknownCheckbox.checked;
   birthTimeInput.disabled = isUnknown;
@@ -524,21 +543,11 @@ form.addEventListener("submit", async (event) => {
   submitButton.classList.add("opacity-70", "cursor-not-allowed");
 
   try {
-    const response = await fetch(`${API_BASE_URL}/api/readings`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(payload),
-    });
-
-    const contentType = response.headers.get("content-type") || "";
-    const data = contentType.includes("application/json")
-      ? await response.json()
-      : { detail: await response.text() };
-    if (!response.ok) {
-      throw new Error(data.detail || "Failed to generate reading.");
-    }
+    const [data, yearlyForecast] = await Promise.all([
+      postJson("/api/readings", payload),
+      postJson("/api/yearly-forecast", payload),
+    ]);
+    data.yearly_forecast = yearlyForecast;
 
     window.sessionStorage.setItem(RESULT_STORAGE_KEY, JSON.stringify(data));
     persistFormData(collectFormSnapshot());

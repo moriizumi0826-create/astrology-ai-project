@@ -41,14 +41,14 @@ DEFAULT_DAILY_VIBE_MODIFIER_LIMIT = 60
 DEFAULT_COUNTDOWN_THRESHOLD_ORB = 5
 DEFAULT_COUNTDOWN_TOTAL_DAYS = 1
 DIAGNOSTIC_BASE_SCORE = 50
-DIAGNOSTIC_OVERALL_IMPACT_WEIGHT = 0.18
-DIAGNOSTIC_DECISION_IMPACT_WEIGHT = 0.22
-DIAGNOSTIC_EMOTION_IMPACT_WEIGHT = 0.22
-DIAGNOSTIC_DAILY_WORK_WEIGHT = 0.5
-DIAGNOSTIC_DAILY_LOVE_WEIGHT = 0.6
-DIAGNOSTIC_NOISE_NEGATIVE_WEIGHT = 0.25
-DIAGNOSTIC_NOISE_POSITIVE_WEIGHT = 0.08
-DIAGNOSTIC_SAFETY_WEIGHT = 0.8
+DIAGNOSTIC_OVERALL_IMPACT_WEIGHT = 1.0
+DIAGNOSTIC_DECISION_IMPACT_WEIGHT = 1.0
+DIAGNOSTIC_EMOTION_IMPACT_WEIGHT = 1.0
+DIAGNOSTIC_DAILY_WORK_WEIGHT = 1.0
+DIAGNOSTIC_DAILY_LOVE_WEIGHT = 1.0
+DIAGNOSTIC_NOISE_NEGATIVE_WEIGHT = 1.0
+DIAGNOSTIC_NOISE_POSITIVE_WEIGHT = 1.0
+DIAGNOSTIC_SAFETY_WEIGHT = 1.0
 TIMELINE_CONDITION_MULTIPLIERS = {
     "OVER": 1.08,
     "MATCH": 1.0,
@@ -1027,11 +1027,13 @@ def _build_diagnostic_data(
     daily_love_modifier = _sum_daily_vibe_column(daily_vibe, "Love_Vibe_Modifier")
     safety_modifier = _daily_vibe_safety_modifier(daily_vibe)
 
-    decision_impact = sum(
-        _safe_number(row, "Score_Impact")
-        for row in interpretations
-        if _safe_text(row, "Category", "General") == "Work"
-    )
+    decision_impact = 0
+    for row in interpretations:
+        if _safe_text(row, "Category", "General") == "Work":
+            impact = _safe_number(row, "Score_Impact")
+            if _safe_number(row, "N_House") == 10:
+                impact *= 2
+            decision_impact += impact
     emotion_impact = sum(
         _safe_number(row, "Score_Impact")
         for row in interpretations
@@ -1448,6 +1450,7 @@ def _build_timeline_slot_from_rows(
     slot_rows: list[dict[str, Any]],
     fallback_row: dict[str, Any] | None = None,
     daily_modifier: int = 0,
+    is_noise_heavy: bool = False,
 ) -> dict[str, Any]:
     target_score = _timeline_target_score(slot_def["id"])
     total_impact = sum(_safe_number(row, "Score_Impact") for row in slot_rows)
@@ -1461,6 +1464,17 @@ def _build_timeline_slot_from_rows(
 
     aspect_action = _safe_text(dominant_row, "Advised_Task")
     detail = _safe_text(dominant_row, "Text_Description")
+
+    advice_status = _safe_text(advice_row, "Status_Label", slot_def["id"])
+    advice_action = _safe_text(advice_row, "Status_Label")
+
+    if is_noise_heavy:
+        advice_status = "多忙注意"
+        advice_action = "境界を意識して、今は重要な決断を先延ばしにする。"
+
+    combined_recommendation = advice_action
+    if aspect_action and aspect_action != advice_action:
+        combined_recommendation = f"{advice_action} さらに、{aspect_action}"
 
     LOGGER.info(
         "Timeline score: slot=%s target=%s impact=%s daily=%s additive=%s final=%s condition=%s multiplier=%s",
@@ -1476,13 +1490,13 @@ def _build_timeline_slot_from_rows(
 
     return {
         "label": slot_def["label"],
-        "title": _safe_text(advice_row, "Status_Label", slot_def["id"]),
+        "title": advice_status,
         "score": final_score,
-        "recommendedAction": aspect_action or _safe_text(advice_row, "Status_Label"),
-        "description": detail or aspect_action or _safe_text(advice_row, "Status_Label"),
-        "recommendation": aspect_action or _safe_text(advice_row, "Status_Label"),
-        "detail": detail or aspect_action or _safe_text(advice_row, "Status_Label"),
-        "statusLabel": _safe_text(advice_row, "Status_Label"),
+        "recommendedAction": combined_recommendation,
+        "description": detail or aspect_action or advice_action,
+        "recommendation": combined_recommendation,
+        "detail": detail or aspect_action or advice_action,
+        "statusLabel": advice_status,
         "actionType": _safe_text(advice_row, "Action_Type"),
         "condition": condition,
         "targetScore": target_score,
@@ -1507,6 +1521,7 @@ def _build_timeline_from_interpretations(
     birth_input: BirthInput | None = None,
     current_dt: datetime | date | None = None,
     daily_modifier: int = 0,
+    is_noise_heavy: bool = False,
 ) -> list[dict[str, Any]]:
     ranked = sorted(rows, key=lambda row: (_safe_number(row, "Priority"), abs(_safe_number(row, "Score_Impact"))), reverse=True)
 
@@ -1517,7 +1532,7 @@ def _build_timeline_from_interpretations(
         for index, slot_def in enumerate(TIMELINE_SLOT_DEFS):
             slot_rows = _build_slot_interpretations(birth_input, slot_def, target_date)
             fallback_row = _pick_timeline_row(slot_rows, ranked, index, used_keys)
-            timeline.append(_build_timeline_slot_from_rows(slot_def, slot_rows, fallback_row, daily_modifier=daily_modifier))
+            timeline.append(_build_timeline_slot_from_rows(slot_def, slot_rows, fallback_row, daily_modifier=daily_modifier, is_noise_heavy=is_noise_heavy))
         return timeline
 
     moon_rows = [row for row in ranked if _normalize_planet(row.get("T_Planet")) == "MOON"]
@@ -1555,7 +1570,7 @@ def _build_timeline_from_interpretations(
                 "sourceAspect": {"t_planet": "", "n_planet": "", "angle": 0, "category": "General"},
             })
             continue
-        timeline.append(_build_timeline_slot_from_rows(slot_def, slot_rows, fallback_row, daily_modifier=daily_modifier))
+        timeline.append(_build_timeline_slot_from_rows(slot_def, slot_rows, fallback_row, daily_modifier=daily_modifier, is_noise_heavy=is_noise_heavy))
     return timeline
 
 
@@ -1840,7 +1855,8 @@ def build_dashboard_data_from_interpretations(
         }
         hero = _apply_basic_to_hero(hero, basic_interpretations, None, [])
         diagnostic = _build_diagnostic_data([], daily_vibe, None)
-        timeline = _build_timeline_from_interpretations([], final_score, birth_input=birth_input, current_dt=current_dt, daily_modifier=daily_modifier)
+        is_noise_heavy = any(str(item.get("Safety_Level", "")).strip().upper() == "LOW" for item in daily_vibe.get("items", []))
+        timeline = _build_timeline_from_interpretations([], final_score, birth_input=birth_input, current_dt=current_dt, daily_modifier=daily_modifier, is_noise_heavy=is_noise_heavy)
         topics = _build_topics_from_interpretations([], final_score)
         return _to_json_compatible({
             "header": _dashboard_header(),
@@ -1862,7 +1878,8 @@ def build_dashboard_data_from_interpretations(
     countdown_target = _select_countdown_target(interpretations)
     countdown_data = build_countdown_data(countdown_target)
     diagnostic_data = _build_diagnostic_data(interpretations, daily_vibe, countdown_data)
-    timeline = _build_timeline_from_interpretations(interpretations, final_score, birth_input=birth_input, current_dt=current_dt, daily_modifier=daily_modifier)
+    is_noise_heavy = any(str(item.get("Safety_Level", "")).strip().upper() == "LOW" for item in daily_vibe.get("items", []))
+    timeline = _build_timeline_from_interpretations(interpretations, final_score, birth_input=birth_input, current_dt=current_dt, daily_modifier=daily_modifier, is_noise_heavy=is_noise_heavy)
     topics = _build_topics_from_interpretations(interpretations, final_score)
     hero = {
         "rank": _score_to_rank(final_score),
