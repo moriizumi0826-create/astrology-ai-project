@@ -1,0 +1,721 @@
+﻿Target_Solar_Sign,T_Planet,Transit_House,Text_Theme,Base_Score,Category,Priority,Milestone_Label,Duration_Type,Advised_Task
+ARIES,JUPITER,1,JUPITER house 1: Identity reset,22,General,8,Identity reset,LONG,Put your own direction first.
+ARIES,JUPITER,2,JUPITER house 2: Resource building,20,Money,6,Resource building,LONG,"Review income, assets, and spending habits."
+ARIES,JUPITER,3,JUPITER house 3: Learning and communication,16,General,6,Learning and communication,LONG,Share ideas and refine your daily routes.
+ARIES,JUPITER,4,JUPITER house 4: Home foundation,18,General,6,Home foundation,LONG,"Stabilize family, home, and emotional ground."
+ARIES,JUPITER,5,JUPITER house 5: Creative opening,22,Love,6,Creative opening,LONG,"Make space for joy, romance, and self-expression."
+ARIES,JUPITER,6,JUPITER house 6: Routine refinement,18,Work,6,Routine refinement,LONG,Improve work rhythms and health maintenance.
+ARIES,JUPITER,7,JUPITER house 7: Partnership focus,24,Love,8,Partnership focus,LONG,Choose conversations and alliances carefully.
+ARIES,JUPITER,8,JUPITER house 8: Deep restructuring,16,Money,6,Deep restructuring,LONG,Handle shared resources and emotional commitments.
+ARIES,JUPITER,9,JUPITER house 9: Expansion and study,20,General,6,Expansion and study,LONG,"Plan travel, study, publishing, or long-range growth."
+ARIES,JUPITER,10,JUPITER house 10: Career visibility,28,Work,10,Career visibility,LONG,Move public goals and responsibilities forward.
+ARIES,JUPITER,11,JUPITER house 11: Community gains,20,General,6,Community gains,LONG,"Use networks, teams, and future plans wisely."
+ARIES,JUPITER,12,JUPITER house 12: Closure and preparation,4,General,6,Closure and preparation,LONG,"Rest, clear old patterns, and prepare the next cycle."
+ARIES,SATURN,1,SATURN house 1: Identity reset,8,General,8,Identity reset,LONG,Put your own direction first.
+ARIES,SATURN,2,SATURN house 2: Resource building,6,Money,6,Resource building,LONG,"Review income, assets, and spending habits."
+ARIES,SATURN,3,SATURN house 3: Learning and communication,2,General,6,Learning and communication,LONG,Share ideas and refine your daily routes.
+ARIES,SATURN,4,SATURN house 4: Home foundation,4,General,6,Home foundation,LONG,"Stabilize family, home, and emotional ground."
+ARIES,SATURN,5,SATURN house 5: Creative opening,8,Love,6,Creative opening,LONG,"Make space for joy, romance, and self-expression."
+ARIES,SATURN,6,SATURN house 6: Routine refinement,4,Work,6,Routine refinement,LONG,Improve work rhythms and health maintenance.
+ARIES,SATURN,7,SATURN house 7: Partnership focus,10,Love,8,Partnership focus,LONG,Choose conversations and alliances carefully.
+ARIES,SATURN,8,SATURN house 8: Deep restructuring,2,Money,6,Deep restructuring,LONG,Handle shared resources and emotional commitments.
+ARIES,SATURN,9,SATURN house 9: Expansion and study,6,General,6,Expansion and study,LONG,"Plan travel, study, publishing, or long-range growth."
+ARIES,SATURN,10,SATURN house 10: Career visibility,14,Work,8,Career visibility,LONG,Move public goals and responsibilities forward.
+ARIES,SATURN,11,SATURN house 11: Community gains,6,General,6,Community gains,LONG,"Use networks, teams, and future plans wisely."
+ARIES,SATURN,12,SATURN house 12: Closure and preparation,-10,General,6,Closure and preparation,LONG,"Rest, clear old patterns, and prepare the next cycle."
+ARIES,URANUS,1,URANUS house 1: Identity reset,16,General,8,Identity reset,LONG,Put your own direction first.
+ARIES,URANUS,2,URANUS house 2: Resource building,14,Money,6,Resource building,LONG,"Review income, assets, and spending habits."
+ARIES,URANUS,3,URANUS house 3: Learning and communication,10,General,6,Learning and communication,LONG,Share ideas and refine your daily routes.
+ARIES,URANUS,4,URANUS house 4: Home foundation,12,General,6,Home foundation,LONG,"Stabilize family, home, and emotional ground."
+ARIES,URANUS,5,URANUS house 5: Creative opening,16,Love,6,Creative opening,LONG,"Make space for joy, romance, and self-expression."
+ARIES,URANUS,6,URANUS house 6: Routine refinement,12,Work,6,Routine refinement,LONG,Improve work rhythms and health maintenance.
+ARIES,URANUS,7,URANUS house 7: Partnership focus,18,Love,8,Partnership focus,LONG,Choose conversations and alliances carefully.
+ARIES,URANUS,8,URANUS house 8: Deep restructuring,10,Money,6,Deep restructuring,LONG,Handle shared resources and emotional commitments.
+ARIES,URANUS,9,URANUS house 9: Expansion and study,14,General,6,Expansion and study,LONG,"Plan travel, study, publishing, or long-range growth."
+ARIES,URANUS,10,URANUS house 10: Career visibility,22,Work,8,Career visibility,LONG,Move public goals and responsibilities forward.
+ARIES,URANUS,11,URANUS house 11: Community gains,14,General,6,Community gains,LONG,"Use networks, teams, and future plans wisely."
+ARIES,URANUS,12,URANUS house 12: Closure and preparation,-2,General,6,Closure and preparation,LONG,"Rest, clear old patterns, and prepare the next cycle."
+ARIES,NEPTUNE,1,NEPTUNE house 1: Identity reset,12,General,8,Identity reset,LONG,Put your own direction first.
+ARIES,NEPTUNE,2,NEPTUNE house 2: Resource building,10,Money,6,Resource building,LONG,"Review income, assets, and spending habits."
+ARIES,NEPTUNE,3,NEPTUNE house 3: Learning and communication,6,General,6,Learning and communication,LONG,Share ideas and refine your daily routes.
+ARIES,NEPTUNE,4,NEPTUNE house 4: Home foundation,8,General,6,Home foundation,LONG,"Stabilize family, home, and emotional ground."
+ARIES,NEPTUNE,5,NEPTUNE house 5: Creative opening,12,Love,6,Creative opening,LONG,"Make space for joy, romance, and self-expression."
+ARIES,NEPTUNE,6,NEPTUNE house 6: Routine refinement,8,Work,6,Routine refinement,LONG,Improve work rhythms and health maintenance.
+ARIES,NEPTUNE,7,NEPTUNE house 7: Partnership focus,14,Love,8,Partnership focus,LONG,Choose conversations and alliances carefully.
+ARIES,NEPTUNE,8,NEPTUNE house 8: Deep restructuring,6,Money,6,Deep restructuring,LONG,Handle shared resources and emotional commitments.
+ARIES,NEPTUNE,9,NEPTUNE house 9: Expansion and study,10,General,6,Expansion and study,LONG,"Plan travel, study, publishing, or long-range growth."
+ARIES,NEPTUNE,10,NEPTUNE house 10: Career visibility,18,Work,8,Career visibility,LONG,Move public goals and responsibilities forward.
+ARIES,NEPTUNE,11,NEPTUNE house 11: Community gains,10,General,6,Community gains,LONG,"Use networks, teams, and future plans wisely."
+ARIES,NEPTUNE,12,NEPTUNE house 12: Closure and preparation,-6,General,6,Closure and preparation,LONG,"Rest, clear old patterns, and prepare the next cycle."
+ARIES,PLUTO,1,PLUTO house 1: Identity reset,14,General,8,Identity reset,LONG,Put your own direction first.
+ARIES,PLUTO,2,PLUTO house 2: Resource building,12,Money,6,Resource building,LONG,"Review income, assets, and spending habits."
+ARIES,PLUTO,3,PLUTO house 3: Learning and communication,8,General,6,Learning and communication,LONG,Share ideas and refine your daily routes.
+ARIES,PLUTO,4,PLUTO house 4: Home foundation,10,General,6,Home foundation,LONG,"Stabilize family, home, and emotional ground."
+ARIES,PLUTO,5,PLUTO house 5: Creative opening,14,Love,6,Creative opening,LONG,"Make space for joy, romance, and self-expression."
+ARIES,PLUTO,6,PLUTO house 6: Routine refinement,10,Work,6,Routine refinement,LONG,Improve work rhythms and health maintenance.
+ARIES,PLUTO,7,PLUTO house 7: Partnership focus,16,Love,8,Partnership focus,LONG,Choose conversations and alliances carefully.
+ARIES,PLUTO,8,PLUTO house 8: Deep restructuring,8,Money,6,Deep restructuring,LONG,Handle shared resources and emotional commitments.
+ARIES,PLUTO,9,PLUTO house 9: Expansion and study,12,General,6,Expansion and study,LONG,"Plan travel, study, publishing, or long-range growth."
+ARIES,PLUTO,10,PLUTO house 10: Career visibility,20,Work,8,Career visibility,LONG,Move public goals and responsibilities forward.
+ARIES,PLUTO,11,PLUTO house 11: Community gains,12,General,6,Community gains,LONG,"Use networks, teams, and future plans wisely."
+ARIES,PLUTO,12,PLUTO house 12: Closure and preparation,-4,General,6,Closure and preparation,LONG,"Rest, clear old patterns, and prepare the next cycle."
+TAURUS,JUPITER,1,JUPITER house 1: Identity reset,22,General,8,Identity reset,LONG,Put your own direction first.
+TAURUS,JUPITER,2,JUPITER house 2: Resource building,20,Money,6,Resource building,LONG,"Review income, assets, and spending habits."
+TAURUS,JUPITER,3,JUPITER house 3: Learning and communication,16,General,6,Learning and communication,LONG,Share ideas and refine your daily routes.
+TAURUS,JUPITER,4,JUPITER house 4: Home foundation,18,General,6,Home foundation,LONG,"Stabilize family, home, and emotional ground."
+TAURUS,JUPITER,5,JUPITER house 5: Creative opening,22,Love,6,Creative opening,LONG,"Make space for joy, romance, and self-expression."
+TAURUS,JUPITER,6,JUPITER house 6: Routine refinement,18,Work,6,Routine refinement,LONG,Improve work rhythms and health maintenance.
+TAURUS,JUPITER,7,JUPITER house 7: Partnership focus,24,Love,8,Partnership focus,LONG,Choose conversations and alliances carefully.
+TAURUS,JUPITER,8,JUPITER house 8: Deep restructuring,16,Money,6,Deep restructuring,LONG,Handle shared resources and emotional commitments.
+TAURUS,JUPITER,9,JUPITER house 9: Expansion and study,20,General,6,Expansion and study,LONG,"Plan travel, study, publishing, or long-range growth."
+TAURUS,JUPITER,10,JUPITER house 10: Career visibility,28,Work,10,Career visibility,LONG,Move public goals and responsibilities forward.
+TAURUS,JUPITER,11,JUPITER house 11: Community gains,20,General,6,Community gains,LONG,"Use networks, teams, and future plans wisely."
+TAURUS,JUPITER,12,JUPITER house 12: Closure and preparation,4,General,6,Closure and preparation,LONG,"Rest, clear old patterns, and prepare the next cycle."
+TAURUS,SATURN,1,SATURN house 1: Identity reset,8,General,8,Identity reset,LONG,Put your own direction first.
+TAURUS,SATURN,2,SATURN house 2: Resource building,6,Money,6,Resource building,LONG,"Review income, assets, and spending habits."
+TAURUS,SATURN,3,SATURN house 3: Learning and communication,2,General,6,Learning and communication,LONG,Share ideas and refine your daily routes.
+TAURUS,SATURN,4,SATURN house 4: Home foundation,4,General,6,Home foundation,LONG,"Stabilize family, home, and emotional ground."
+TAURUS,SATURN,5,SATURN house 5: Creative opening,8,Love,6,Creative opening,LONG,"Make space for joy, romance, and self-expression."
+TAURUS,SATURN,6,SATURN house 6: Routine refinement,4,Work,6,Routine refinement,LONG,Improve work rhythms and health maintenance.
+TAURUS,SATURN,7,SATURN house 7: Partnership focus,10,Love,8,Partnership focus,LONG,Choose conversations and alliances carefully.
+TAURUS,SATURN,8,SATURN house 8: Deep restructuring,2,Money,6,Deep restructuring,LONG,Handle shared resources and emotional commitments.
+TAURUS,SATURN,9,SATURN house 9: Expansion and study,6,General,6,Expansion and study,LONG,"Plan travel, study, publishing, or long-range growth."
+TAURUS,SATURN,10,SATURN house 10: Career visibility,14,Work,8,Career visibility,LONG,Move public goals and responsibilities forward.
+TAURUS,SATURN,11,SATURN house 11: Community gains,6,General,6,Community gains,LONG,"Use networks, teams, and future plans wisely."
+TAURUS,SATURN,12,SATURN house 12: Closure and preparation,-10,General,6,Closure and preparation,LONG,"Rest, clear old patterns, and prepare the next cycle."
+TAURUS,URANUS,1,URANUS house 1: Identity reset,16,General,8,Identity reset,LONG,Put your own direction first.
+TAURUS,URANUS,2,URANUS house 2: Resource building,14,Money,6,Resource building,LONG,"Review income, assets, and spending habits."
+TAURUS,URANUS,3,URANUS house 3: Learning and communication,10,General,6,Learning and communication,LONG,Share ideas and refine your daily routes.
+TAURUS,URANUS,4,URANUS house 4: Home foundation,12,General,6,Home foundation,LONG,"Stabilize family, home, and emotional ground."
+TAURUS,URANUS,5,URANUS house 5: Creative opening,16,Love,6,Creative opening,LONG,"Make space for joy, romance, and self-expression."
+TAURUS,URANUS,6,URANUS house 6: Routine refinement,12,Work,6,Routine refinement,LONG,Improve work rhythms and health maintenance.
+TAURUS,URANUS,7,URANUS house 7: Partnership focus,18,Love,8,Partnership focus,LONG,Choose conversations and alliances carefully.
+TAURUS,URANUS,8,URANUS house 8: Deep restructuring,10,Money,6,Deep restructuring,LONG,Handle shared resources and emotional commitments.
+TAURUS,URANUS,9,URANUS house 9: Expansion and study,14,General,6,Expansion and study,LONG,"Plan travel, study, publishing, or long-range growth."
+TAURUS,URANUS,10,URANUS house 10: Career visibility,22,Work,8,Career visibility,LONG,Move public goals and responsibilities forward.
+TAURUS,URANUS,11,URANUS house 11: Community gains,14,General,6,Community gains,LONG,"Use networks, teams, and future plans wisely."
+TAURUS,URANUS,12,URANUS house 12: Closure and preparation,-2,General,6,Closure and preparation,LONG,"Rest, clear old patterns, and prepare the next cycle."
+TAURUS,NEPTUNE,1,NEPTUNE house 1: Identity reset,12,General,8,Identity reset,LONG,Put your own direction first.
+TAURUS,NEPTUNE,2,NEPTUNE house 2: Resource building,10,Money,6,Resource building,LONG,"Review income, assets, and spending habits."
+TAURUS,NEPTUNE,3,NEPTUNE house 3: Learning and communication,6,General,6,Learning and communication,LONG,Share ideas and refine your daily routes.
+TAURUS,NEPTUNE,4,NEPTUNE house 4: Home foundation,8,General,6,Home foundation,LONG,"Stabilize family, home, and emotional ground."
+TAURUS,NEPTUNE,5,NEPTUNE house 5: Creative opening,12,Love,6,Creative opening,LONG,"Make space for joy, romance, and self-expression."
+TAURUS,NEPTUNE,6,NEPTUNE house 6: Routine refinement,8,Work,6,Routine refinement,LONG,Improve work rhythms and health maintenance.
+TAURUS,NEPTUNE,7,NEPTUNE house 7: Partnership focus,14,Love,8,Partnership focus,LONG,Choose conversations and alliances carefully.
+TAURUS,NEPTUNE,8,NEPTUNE house 8: Deep restructuring,6,Money,6,Deep restructuring,LONG,Handle shared resources and emotional commitments.
+TAURUS,NEPTUNE,9,NEPTUNE house 9: Expansion and study,10,General,6,Expansion and study,LONG,"Plan travel, study, publishing, or long-range growth."
+TAURUS,NEPTUNE,10,NEPTUNE house 10: Career visibility,18,Work,8,Career visibility,LONG,Move public goals and responsibilities forward.
+TAURUS,NEPTUNE,11,NEPTUNE house 11: Community gains,10,General,6,Community gains,LONG,"Use networks, teams, and future plans wisely."
+TAURUS,NEPTUNE,12,NEPTUNE house 12: Closure and preparation,-6,General,6,Closure and preparation,LONG,"Rest, clear old patterns, and prepare the next cycle."
+TAURUS,PLUTO,1,PLUTO house 1: Identity reset,14,General,8,Identity reset,LONG,Put your own direction first.
+TAURUS,PLUTO,2,PLUTO house 2: Resource building,12,Money,6,Resource building,LONG,"Review income, assets, and spending habits."
+TAURUS,PLUTO,3,PLUTO house 3: Learning and communication,8,General,6,Learning and communication,LONG,Share ideas and refine your daily routes.
+TAURUS,PLUTO,4,PLUTO house 4: Home foundation,10,General,6,Home foundation,LONG,"Stabilize family, home, and emotional ground."
+TAURUS,PLUTO,5,PLUTO house 5: Creative opening,14,Love,6,Creative opening,LONG,"Make space for joy, romance, and self-expression."
+TAURUS,PLUTO,6,PLUTO house 6: Routine refinement,10,Work,6,Routine refinement,LONG,Improve work rhythms and health maintenance.
+TAURUS,PLUTO,7,PLUTO house 7: Partnership focus,16,Love,8,Partnership focus,LONG,Choose conversations and alliances carefully.
+TAURUS,PLUTO,8,PLUTO house 8: Deep restructuring,8,Money,6,Deep restructuring,LONG,Handle shared resources and emotional commitments.
+TAURUS,PLUTO,9,PLUTO house 9: Expansion and study,12,General,6,Expansion and study,LONG,"Plan travel, study, publishing, or long-range growth."
+TAURUS,PLUTO,10,PLUTO house 10: Career visibility,20,Work,8,Career visibility,LONG,Move public goals and responsibilities forward.
+TAURUS,PLUTO,11,PLUTO house 11: Community gains,12,General,6,Community gains,LONG,"Use networks, teams, and future plans wisely."
+TAURUS,PLUTO,12,PLUTO house 12: Closure and preparation,-4,General,6,Closure and preparation,LONG,"Rest, clear old patterns, and prepare the next cycle."
+GEMINI,JUPITER,1,JUPITER house 1: Identity reset,22,General,8,Identity reset,LONG,Put your own direction first.
+GEMINI,JUPITER,2,JUPITER house 2: Resource building,20,Money,6,Resource building,LONG,"Review income, assets, and spending habits."
+GEMINI,JUPITER,3,JUPITER house 3: Learning and communication,16,General,6,Learning and communication,LONG,Share ideas and refine your daily routes.
+GEMINI,JUPITER,4,JUPITER house 4: Home foundation,18,General,6,Home foundation,LONG,"Stabilize family, home, and emotional ground."
+GEMINI,JUPITER,5,JUPITER house 5: Creative opening,22,Love,6,Creative opening,LONG,"Make space for joy, romance, and self-expression."
+GEMINI,JUPITER,6,JUPITER house 6: Routine refinement,18,Work,6,Routine refinement,LONG,Improve work rhythms and health maintenance.
+GEMINI,JUPITER,7,JUPITER house 7: Partnership focus,24,Love,8,Partnership focus,LONG,Choose conversations and alliances carefully.
+GEMINI,JUPITER,8,JUPITER house 8: Deep restructuring,16,Money,6,Deep restructuring,LONG,Handle shared resources and emotional commitments.
+GEMINI,JUPITER,9,JUPITER house 9: Expansion and study,20,General,6,Expansion and study,LONG,"Plan travel, study, publishing, or long-range growth."
+GEMINI,JUPITER,10,JUPITER house 10: Career visibility,28,Work,10,Career visibility,LONG,Move public goals and responsibilities forward.
+GEMINI,JUPITER,11,JUPITER house 11: Community gains,20,General,6,Community gains,LONG,"Use networks, teams, and future plans wisely."
+GEMINI,JUPITER,12,JUPITER house 12: Closure and preparation,4,General,6,Closure and preparation,LONG,"Rest, clear old patterns, and prepare the next cycle."
+GEMINI,SATURN,1,SATURN house 1: Identity reset,8,General,8,Identity reset,LONG,Put your own direction first.
+GEMINI,SATURN,2,SATURN house 2: Resource building,6,Money,6,Resource building,LONG,"Review income, assets, and spending habits."
+GEMINI,SATURN,3,SATURN house 3: Learning and communication,2,General,6,Learning and communication,LONG,Share ideas and refine your daily routes.
+GEMINI,SATURN,4,SATURN house 4: Home foundation,4,General,6,Home foundation,LONG,"Stabilize family, home, and emotional ground."
+GEMINI,SATURN,5,SATURN house 5: Creative opening,8,Love,6,Creative opening,LONG,"Make space for joy, romance, and self-expression."
+GEMINI,SATURN,6,SATURN house 6: Routine refinement,4,Work,6,Routine refinement,LONG,Improve work rhythms and health maintenance.
+GEMINI,SATURN,7,SATURN house 7: Partnership focus,10,Love,8,Partnership focus,LONG,Choose conversations and alliances carefully.
+GEMINI,SATURN,8,SATURN house 8: Deep restructuring,2,Money,6,Deep restructuring,LONG,Handle shared resources and emotional commitments.
+GEMINI,SATURN,9,SATURN house 9: Expansion and study,6,General,6,Expansion and study,LONG,"Plan travel, study, publishing, or long-range growth."
+GEMINI,SATURN,10,SATURN house 10: Career visibility,14,Work,8,Career visibility,LONG,Move public goals and responsibilities forward.
+GEMINI,SATURN,11,SATURN house 11: Community gains,6,General,6,Community gains,LONG,"Use networks, teams, and future plans wisely."
+GEMINI,SATURN,12,SATURN house 12: Closure and preparation,-10,General,6,Closure and preparation,LONG,"Rest, clear old patterns, and prepare the next cycle."
+GEMINI,URANUS,1,URANUS house 1: Identity reset,16,General,8,Identity reset,LONG,Put your own direction first.
+GEMINI,URANUS,2,URANUS house 2: Resource building,14,Money,6,Resource building,LONG,"Review income, assets, and spending habits."
+GEMINI,URANUS,3,URANUS house 3: Learning and communication,10,General,6,Learning and communication,LONG,Share ideas and refine your daily routes.
+GEMINI,URANUS,4,URANUS house 4: Home foundation,12,General,6,Home foundation,LONG,"Stabilize family, home, and emotional ground."
+GEMINI,URANUS,5,URANUS house 5: Creative opening,16,Love,6,Creative opening,LONG,"Make space for joy, romance, and self-expression."
+GEMINI,URANUS,6,URANUS house 6: Routine refinement,12,Work,6,Routine refinement,LONG,Improve work rhythms and health maintenance.
+GEMINI,URANUS,7,URANUS house 7: Partnership focus,18,Love,8,Partnership focus,LONG,Choose conversations and alliances carefully.
+GEMINI,URANUS,8,URANUS house 8: Deep restructuring,10,Money,6,Deep restructuring,LONG,Handle shared resources and emotional commitments.
+GEMINI,URANUS,9,URANUS house 9: Expansion and study,14,General,6,Expansion and study,LONG,"Plan travel, study, publishing, or long-range growth."
+GEMINI,URANUS,10,URANUS house 10: Career visibility,22,Work,8,Career visibility,LONG,Move public goals and responsibilities forward.
+GEMINI,URANUS,11,URANUS house 11: Community gains,14,General,6,Community gains,LONG,"Use networks, teams, and future plans wisely."
+GEMINI,URANUS,12,URANUS house 12: Closure and preparation,-2,General,6,Closure and preparation,LONG,"Rest, clear old patterns, and prepare the next cycle."
+GEMINI,NEPTUNE,1,NEPTUNE house 1: Identity reset,12,General,8,Identity reset,LONG,Put your own direction first.
+GEMINI,NEPTUNE,2,NEPTUNE house 2: Resource building,10,Money,6,Resource building,LONG,"Review income, assets, and spending habits."
+GEMINI,NEPTUNE,3,NEPTUNE house 3: Learning and communication,6,General,6,Learning and communication,LONG,Share ideas and refine your daily routes.
+GEMINI,NEPTUNE,4,NEPTUNE house 4: Home foundation,8,General,6,Home foundation,LONG,"Stabilize family, home, and emotional ground."
+GEMINI,NEPTUNE,5,NEPTUNE house 5: Creative opening,12,Love,6,Creative opening,LONG,"Make space for joy, romance, and self-expression."
+GEMINI,NEPTUNE,6,NEPTUNE house 6: Routine refinement,8,Work,6,Routine refinement,LONG,Improve work rhythms and health maintenance.
+GEMINI,NEPTUNE,7,NEPTUNE house 7: Partnership focus,14,Love,8,Partnership focus,LONG,Choose conversations and alliances carefully.
+GEMINI,NEPTUNE,8,NEPTUNE house 8: Deep restructuring,6,Money,6,Deep restructuring,LONG,Handle shared resources and emotional commitments.
+GEMINI,NEPTUNE,9,NEPTUNE house 9: Expansion and study,10,General,6,Expansion and study,LONG,"Plan travel, study, publishing, or long-range growth."
+GEMINI,NEPTUNE,10,NEPTUNE house 10: Career visibility,18,Work,8,Career visibility,LONG,Move public goals and responsibilities forward.
+GEMINI,NEPTUNE,11,NEPTUNE house 11: Community gains,10,General,6,Community gains,LONG,"Use networks, teams, and future plans wisely."
+GEMINI,NEPTUNE,12,NEPTUNE house 12: Closure and preparation,-6,General,6,Closure and preparation,LONG,"Rest, clear old patterns, and prepare the next cycle."
+GEMINI,PLUTO,1,PLUTO house 1: Identity reset,14,General,8,Identity reset,LONG,Put your own direction first.
+GEMINI,PLUTO,2,PLUTO house 2: Resource building,12,Money,6,Resource building,LONG,"Review income, assets, and spending habits."
+GEMINI,PLUTO,3,PLUTO house 3: Learning and communication,8,General,6,Learning and communication,LONG,Share ideas and refine your daily routes.
+GEMINI,PLUTO,4,PLUTO house 4: Home foundation,10,General,6,Home foundation,LONG,"Stabilize family, home, and emotional ground."
+GEMINI,PLUTO,5,PLUTO house 5: Creative opening,14,Love,6,Creative opening,LONG,"Make space for joy, romance, and self-expression."
+GEMINI,PLUTO,6,PLUTO house 6: Routine refinement,10,Work,6,Routine refinement,LONG,Improve work rhythms and health maintenance.
+GEMINI,PLUTO,7,PLUTO house 7: Partnership focus,16,Love,8,Partnership focus,LONG,Choose conversations and alliances carefully.
+GEMINI,PLUTO,8,PLUTO house 8: Deep restructuring,8,Money,6,Deep restructuring,LONG,Handle shared resources and emotional commitments.
+GEMINI,PLUTO,9,PLUTO house 9: Expansion and study,12,General,6,Expansion and study,LONG,"Plan travel, study, publishing, or long-range growth."
+GEMINI,PLUTO,10,PLUTO house 10: Career visibility,20,Work,8,Career visibility,LONG,Move public goals and responsibilities forward.
+GEMINI,PLUTO,11,PLUTO house 11: Community gains,12,General,6,Community gains,LONG,"Use networks, teams, and future plans wisely."
+GEMINI,PLUTO,12,PLUTO house 12: Closure and preparation,-4,General,6,Closure and preparation,LONG,"Rest, clear old patterns, and prepare the next cycle."
+CANCER,JUPITER,1,JUPITER house 1: Identity reset,22,General,8,Identity reset,LONG,Put your own direction first.
+CANCER,JUPITER,2,JUPITER house 2: Resource building,20,Money,6,Resource building,LONG,"Review income, assets, and spending habits."
+CANCER,JUPITER,3,JUPITER house 3: Learning and communication,16,General,6,Learning and communication,LONG,Share ideas and refine your daily routes.
+CANCER,JUPITER,4,JUPITER house 4: Home foundation,18,General,6,Home foundation,LONG,"Stabilize family, home, and emotional ground."
+CANCER,JUPITER,5,JUPITER house 5: Creative opening,22,Love,6,Creative opening,LONG,"Make space for joy, romance, and self-expression."
+CANCER,JUPITER,6,JUPITER house 6: Routine refinement,18,Work,6,Routine refinement,LONG,Improve work rhythms and health maintenance.
+CANCER,JUPITER,7,JUPITER house 7: Partnership focus,24,Love,8,Partnership focus,LONG,Choose conversations and alliances carefully.
+CANCER,JUPITER,8,JUPITER house 8: Deep restructuring,16,Money,6,Deep restructuring,LONG,Handle shared resources and emotional commitments.
+CANCER,JUPITER,9,JUPITER house 9: Expansion and study,20,General,6,Expansion and study,LONG,"Plan travel, study, publishing, or long-range growth."
+CANCER,JUPITER,10,JUPITER house 10: Career visibility,28,Work,10,Career visibility,LONG,Move public goals and responsibilities forward.
+CANCER,JUPITER,11,JUPITER house 11: Community gains,20,General,6,Community gains,LONG,"Use networks, teams, and future plans wisely."
+CANCER,JUPITER,12,JUPITER house 12: Closure and preparation,4,General,6,Closure and preparation,LONG,"Rest, clear old patterns, and prepare the next cycle."
+CANCER,SATURN,1,SATURN house 1: Identity reset,8,General,8,Identity reset,LONG,Put your own direction first.
+CANCER,SATURN,2,SATURN house 2: Resource building,6,Money,6,Resource building,LONG,"Review income, assets, and spending habits."
+CANCER,SATURN,3,SATURN house 3: Learning and communication,2,General,6,Learning and communication,LONG,Share ideas and refine your daily routes.
+CANCER,SATURN,4,SATURN house 4: Home foundation,4,General,6,Home foundation,LONG,"Stabilize family, home, and emotional ground."
+CANCER,SATURN,5,SATURN house 5: Creative opening,8,Love,6,Creative opening,LONG,"Make space for joy, romance, and self-expression."
+CANCER,SATURN,6,SATURN house 6: Routine refinement,4,Work,6,Routine refinement,LONG,Improve work rhythms and health maintenance.
+CANCER,SATURN,7,SATURN house 7: Partnership focus,10,Love,8,Partnership focus,LONG,Choose conversations and alliances carefully.
+CANCER,SATURN,8,SATURN house 8: Deep restructuring,2,Money,6,Deep restructuring,LONG,Handle shared resources and emotional commitments.
+CANCER,SATURN,9,SATURN house 9: Expansion and study,6,General,6,Expansion and study,LONG,"Plan travel, study, publishing, or long-range growth."
+CANCER,SATURN,10,SATURN house 10: Career visibility,14,Work,8,Career visibility,LONG,Move public goals and responsibilities forward.
+CANCER,SATURN,11,SATURN house 11: Community gains,6,General,6,Community gains,LONG,"Use networks, teams, and future plans wisely."
+CANCER,SATURN,12,SATURN house 12: Closure and preparation,-10,General,6,Closure and preparation,LONG,"Rest, clear old patterns, and prepare the next cycle."
+CANCER,URANUS,1,URANUS house 1: Identity reset,16,General,8,Identity reset,LONG,Put your own direction first.
+CANCER,URANUS,2,URANUS house 2: Resource building,14,Money,6,Resource building,LONG,"Review income, assets, and spending habits."
+CANCER,URANUS,3,URANUS house 3: Learning and communication,10,General,6,Learning and communication,LONG,Share ideas and refine your daily routes.
+CANCER,URANUS,4,URANUS house 4: Home foundation,12,General,6,Home foundation,LONG,"Stabilize family, home, and emotional ground."
+CANCER,URANUS,5,URANUS house 5: Creative opening,16,Love,6,Creative opening,LONG,"Make space for joy, romance, and self-expression."
+CANCER,URANUS,6,URANUS house 6: Routine refinement,12,Work,6,Routine refinement,LONG,Improve work rhythms and health maintenance.
+CANCER,URANUS,7,URANUS house 7: Partnership focus,18,Love,8,Partnership focus,LONG,Choose conversations and alliances carefully.
+CANCER,URANUS,8,URANUS house 8: Deep restructuring,10,Money,6,Deep restructuring,LONG,Handle shared resources and emotional commitments.
+CANCER,URANUS,9,URANUS house 9: Expansion and study,14,General,6,Expansion and study,LONG,"Plan travel, study, publishing, or long-range growth."
+CANCER,URANUS,10,URANUS house 10: Career visibility,22,Work,8,Career visibility,LONG,Move public goals and responsibilities forward.
+CANCER,URANUS,11,URANUS house 11: Community gains,14,General,6,Community gains,LONG,"Use networks, teams, and future plans wisely."
+CANCER,URANUS,12,URANUS house 12: Closure and preparation,-2,General,6,Closure and preparation,LONG,"Rest, clear old patterns, and prepare the next cycle."
+CANCER,NEPTUNE,1,NEPTUNE house 1: Identity reset,12,General,8,Identity reset,LONG,Put your own direction first.
+CANCER,NEPTUNE,2,NEPTUNE house 2: Resource building,10,Money,6,Resource building,LONG,"Review income, assets, and spending habits."
+CANCER,NEPTUNE,3,NEPTUNE house 3: Learning and communication,6,General,6,Learning and communication,LONG,Share ideas and refine your daily routes.
+CANCER,NEPTUNE,4,NEPTUNE house 4: Home foundation,8,General,6,Home foundation,LONG,"Stabilize family, home, and emotional ground."
+CANCER,NEPTUNE,5,NEPTUNE house 5: Creative opening,12,Love,6,Creative opening,LONG,"Make space for joy, romance, and self-expression."
+CANCER,NEPTUNE,6,NEPTUNE house 6: Routine refinement,8,Work,6,Routine refinement,LONG,Improve work rhythms and health maintenance.
+CANCER,NEPTUNE,7,NEPTUNE house 7: Partnership focus,14,Love,8,Partnership focus,LONG,Choose conversations and alliances carefully.
+CANCER,NEPTUNE,8,NEPTUNE house 8: Deep restructuring,6,Money,6,Deep restructuring,LONG,Handle shared resources and emotional commitments.
+CANCER,NEPTUNE,9,NEPTUNE house 9: Expansion and study,10,General,6,Expansion and study,LONG,"Plan travel, study, publishing, or long-range growth."
+CANCER,NEPTUNE,10,NEPTUNE house 10: Career visibility,18,Work,8,Career visibility,LONG,Move public goals and responsibilities forward.
+CANCER,NEPTUNE,11,NEPTUNE house 11: Community gains,10,General,6,Community gains,LONG,"Use networks, teams, and future plans wisely."
+CANCER,NEPTUNE,12,NEPTUNE house 12: Closure and preparation,-6,General,6,Closure and preparation,LONG,"Rest, clear old patterns, and prepare the next cycle."
+CANCER,PLUTO,1,PLUTO house 1: Identity reset,14,General,8,Identity reset,LONG,Put your own direction first.
+CANCER,PLUTO,2,PLUTO house 2: Resource building,12,Money,6,Resource building,LONG,"Review income, assets, and spending habits."
+CANCER,PLUTO,3,PLUTO house 3: Learning and communication,8,General,6,Learning and communication,LONG,Share ideas and refine your daily routes.
+CANCER,PLUTO,4,PLUTO house 4: Home foundation,10,General,6,Home foundation,LONG,"Stabilize family, home, and emotional ground."
+CANCER,PLUTO,5,PLUTO house 5: Creative opening,14,Love,6,Creative opening,LONG,"Make space for joy, romance, and self-expression."
+CANCER,PLUTO,6,PLUTO house 6: Routine refinement,10,Work,6,Routine refinement,LONG,Improve work rhythms and health maintenance.
+CANCER,PLUTO,7,PLUTO house 7: Partnership focus,16,Love,8,Partnership focus,LONG,Choose conversations and alliances carefully.
+CANCER,PLUTO,8,PLUTO house 8: Deep restructuring,8,Money,6,Deep restructuring,LONG,Handle shared resources and emotional commitments.
+CANCER,PLUTO,9,PLUTO house 9: Expansion and study,12,General,6,Expansion and study,LONG,"Plan travel, study, publishing, or long-range growth."
+CANCER,PLUTO,10,PLUTO house 10: Career visibility,20,Work,8,Career visibility,LONG,Move public goals and responsibilities forward.
+CANCER,PLUTO,11,PLUTO house 11: Community gains,12,General,6,Community gains,LONG,"Use networks, teams, and future plans wisely."
+CANCER,PLUTO,12,PLUTO house 12: Closure and preparation,-4,General,6,Closure and preparation,LONG,"Rest, clear old patterns, and prepare the next cycle."
+LEO,JUPITER,1,JUPITER house 1: Identity reset,22,General,8,Identity reset,LONG,Put your own direction first.
+LEO,JUPITER,2,JUPITER house 2: Resource building,20,Money,6,Resource building,LONG,"Review income, assets, and spending habits."
+LEO,JUPITER,3,JUPITER house 3: Learning and communication,16,General,6,Learning and communication,LONG,Share ideas and refine your daily routes.
+LEO,JUPITER,4,JUPITER house 4: Home foundation,18,General,6,Home foundation,LONG,"Stabilize family, home, and emotional ground."
+LEO,JUPITER,5,JUPITER house 5: Creative opening,22,Love,6,Creative opening,LONG,"Make space for joy, romance, and self-expression."
+LEO,JUPITER,6,JUPITER house 6: Routine refinement,18,Work,6,Routine refinement,LONG,Improve work rhythms and health maintenance.
+LEO,JUPITER,7,JUPITER house 7: Partnership focus,24,Love,8,Partnership focus,LONG,Choose conversations and alliances carefully.
+LEO,JUPITER,8,JUPITER house 8: Deep restructuring,16,Money,6,Deep restructuring,LONG,Handle shared resources and emotional commitments.
+LEO,JUPITER,9,JUPITER house 9: Expansion and study,20,General,6,Expansion and study,LONG,"Plan travel, study, publishing, or long-range growth."
+LEO,JUPITER,10,JUPITER house 10: Career visibility,28,Work,10,Career visibility,LONG,Move public goals and responsibilities forward.
+LEO,JUPITER,11,JUPITER house 11: Community gains,20,General,6,Community gains,LONG,"Use networks, teams, and future plans wisely."
+LEO,JUPITER,12,JUPITER house 12: Closure and preparation,4,General,6,Closure and preparation,LONG,"Rest, clear old patterns, and prepare the next cycle."
+LEO,SATURN,1,SATURN house 1: Identity reset,8,General,8,Identity reset,LONG,Put your own direction first.
+LEO,SATURN,2,SATURN house 2: Resource building,6,Money,6,Resource building,LONG,"Review income, assets, and spending habits."
+LEO,SATURN,3,SATURN house 3: Learning and communication,2,General,6,Learning and communication,LONG,Share ideas and refine your daily routes.
+LEO,SATURN,4,SATURN house 4: Home foundation,4,General,6,Home foundation,LONG,"Stabilize family, home, and emotional ground."
+LEO,SATURN,5,SATURN house 5: Creative opening,8,Love,6,Creative opening,LONG,"Make space for joy, romance, and self-expression."
+LEO,SATURN,6,SATURN house 6: Routine refinement,4,Work,6,Routine refinement,LONG,Improve work rhythms and health maintenance.
+LEO,SATURN,7,SATURN house 7: Partnership focus,10,Love,8,Partnership focus,LONG,Choose conversations and alliances carefully.
+LEO,SATURN,8,SATURN house 8: Deep restructuring,2,Money,6,Deep restructuring,LONG,Handle shared resources and emotional commitments.
+LEO,SATURN,9,SATURN house 9: Expansion and study,6,General,6,Expansion and study,LONG,"Plan travel, study, publishing, or long-range growth."
+LEO,SATURN,10,SATURN house 10: Career visibility,14,Work,8,Career visibility,LONG,Move public goals and responsibilities forward.
+LEO,SATURN,11,SATURN house 11: Community gains,6,General,6,Community gains,LONG,"Use networks, teams, and future plans wisely."
+LEO,SATURN,12,SATURN house 12: Closure and preparation,-10,General,6,Closure and preparation,LONG,"Rest, clear old patterns, and prepare the next cycle."
+LEO,URANUS,1,URANUS house 1: Identity reset,16,General,8,Identity reset,LONG,Put your own direction first.
+LEO,URANUS,2,URANUS house 2: Resource building,14,Money,6,Resource building,LONG,"Review income, assets, and spending habits."
+LEO,URANUS,3,URANUS house 3: Learning and communication,10,General,6,Learning and communication,LONG,Share ideas and refine your daily routes.
+LEO,URANUS,4,URANUS house 4: Home foundation,12,General,6,Home foundation,LONG,"Stabilize family, home, and emotional ground."
+LEO,URANUS,5,URANUS house 5: Creative opening,16,Love,6,Creative opening,LONG,"Make space for joy, romance, and self-expression."
+LEO,URANUS,6,URANUS house 6: Routine refinement,12,Work,6,Routine refinement,LONG,Improve work rhythms and health maintenance.
+LEO,URANUS,7,URANUS house 7: Partnership focus,18,Love,8,Partnership focus,LONG,Choose conversations and alliances carefully.
+LEO,URANUS,8,URANUS house 8: Deep restructuring,10,Money,6,Deep restructuring,LONG,Handle shared resources and emotional commitments.
+LEO,URANUS,9,URANUS house 9: Expansion and study,14,General,6,Expansion and study,LONG,"Plan travel, study, publishing, or long-range growth."
+LEO,URANUS,10,URANUS house 10: Career visibility,22,Work,8,Career visibility,LONG,Move public goals and responsibilities forward.
+LEO,URANUS,11,URANUS house 11: Community gains,14,General,6,Community gains,LONG,"Use networks, teams, and future plans wisely."
+LEO,URANUS,12,URANUS house 12: Closure and preparation,-2,General,6,Closure and preparation,LONG,"Rest, clear old patterns, and prepare the next cycle."
+LEO,NEPTUNE,1,NEPTUNE house 1: Identity reset,12,General,8,Identity reset,LONG,Put your own direction first.
+LEO,NEPTUNE,2,NEPTUNE house 2: Resource building,10,Money,6,Resource building,LONG,"Review income, assets, and spending habits."
+LEO,NEPTUNE,3,NEPTUNE house 3: Learning and communication,6,General,6,Learning and communication,LONG,Share ideas and refine your daily routes.
+LEO,NEPTUNE,4,NEPTUNE house 4: Home foundation,8,General,6,Home foundation,LONG,"Stabilize family, home, and emotional ground."
+LEO,NEPTUNE,5,NEPTUNE house 5: Creative opening,12,Love,6,Creative opening,LONG,"Make space for joy, romance, and self-expression."
+LEO,NEPTUNE,6,NEPTUNE house 6: Routine refinement,8,Work,6,Routine refinement,LONG,Improve work rhythms and health maintenance.
+LEO,NEPTUNE,7,NEPTUNE house 7: Partnership focus,14,Love,8,Partnership focus,LONG,Choose conversations and alliances carefully.
+LEO,NEPTUNE,8,NEPTUNE house 8: Deep restructuring,6,Money,6,Deep restructuring,LONG,Handle shared resources and emotional commitments.
+LEO,NEPTUNE,9,NEPTUNE house 9: Expansion and study,10,General,6,Expansion and study,LONG,"Plan travel, study, publishing, or long-range growth."
+LEO,NEPTUNE,10,NEPTUNE house 10: Career visibility,18,Work,8,Career visibility,LONG,Move public goals and responsibilities forward.
+LEO,NEPTUNE,11,NEPTUNE house 11: Community gains,10,General,6,Community gains,LONG,"Use networks, teams, and future plans wisely."
+LEO,NEPTUNE,12,NEPTUNE house 12: Closure and preparation,-6,General,6,Closure and preparation,LONG,"Rest, clear old patterns, and prepare the next cycle."
+LEO,PLUTO,1,PLUTO house 1: Identity reset,14,General,8,Identity reset,LONG,Put your own direction first.
+LEO,PLUTO,2,PLUTO house 2: Resource building,12,Money,6,Resource building,LONG,"Review income, assets, and spending habits."
+LEO,PLUTO,3,PLUTO house 3: Learning and communication,8,General,6,Learning and communication,LONG,Share ideas and refine your daily routes.
+LEO,PLUTO,4,PLUTO house 4: Home foundation,10,General,6,Home foundation,LONG,"Stabilize family, home, and emotional ground."
+LEO,PLUTO,5,PLUTO house 5: Creative opening,14,Love,6,Creative opening,LONG,"Make space for joy, romance, and self-expression."
+LEO,PLUTO,6,PLUTO house 6: Routine refinement,10,Work,6,Routine refinement,LONG,Improve work rhythms and health maintenance.
+LEO,PLUTO,7,PLUTO house 7: Partnership focus,16,Love,8,Partnership focus,LONG,Choose conversations and alliances carefully.
+LEO,PLUTO,8,PLUTO house 8: Deep restructuring,8,Money,6,Deep restructuring,LONG,Handle shared resources and emotional commitments.
+LEO,PLUTO,9,PLUTO house 9: Expansion and study,12,General,6,Expansion and study,LONG,"Plan travel, study, publishing, or long-range growth."
+LEO,PLUTO,10,PLUTO house 10: Career visibility,20,Work,8,Career visibility,LONG,Move public goals and responsibilities forward.
+LEO,PLUTO,11,PLUTO house 11: Community gains,12,General,6,Community gains,LONG,"Use networks, teams, and future plans wisely."
+LEO,PLUTO,12,PLUTO house 12: Closure and preparation,-4,General,6,Closure and preparation,LONG,"Rest, clear old patterns, and prepare the next cycle."
+VIRGO,JUPITER,1,JUPITER house 1: Identity reset,22,General,8,Identity reset,LONG,Put your own direction first.
+VIRGO,JUPITER,2,JUPITER house 2: Resource building,20,Money,6,Resource building,LONG,"Review income, assets, and spending habits."
+VIRGO,JUPITER,3,JUPITER house 3: Learning and communication,16,General,6,Learning and communication,LONG,Share ideas and refine your daily routes.
+VIRGO,JUPITER,4,JUPITER house 4: Home foundation,18,General,6,Home foundation,LONG,"Stabilize family, home, and emotional ground."
+VIRGO,JUPITER,5,JUPITER house 5: Creative opening,22,Love,6,Creative opening,LONG,"Make space for joy, romance, and self-expression."
+VIRGO,JUPITER,6,JUPITER house 6: Routine refinement,18,Work,6,Routine refinement,LONG,Improve work rhythms and health maintenance.
+VIRGO,JUPITER,7,JUPITER house 7: Partnership focus,24,Love,8,Partnership focus,LONG,Choose conversations and alliances carefully.
+VIRGO,JUPITER,8,JUPITER house 8: Deep restructuring,16,Money,6,Deep restructuring,LONG,Handle shared resources and emotional commitments.
+VIRGO,JUPITER,9,JUPITER house 9: Expansion and study,20,General,6,Expansion and study,LONG,"Plan travel, study, publishing, or long-range growth."
+VIRGO,JUPITER,10,JUPITER house 10: Career visibility,28,Work,10,Career visibility,LONG,Move public goals and responsibilities forward.
+VIRGO,JUPITER,11,JUPITER house 11: Community gains,20,General,6,Community gains,LONG,"Use networks, teams, and future plans wisely."
+VIRGO,JUPITER,12,JUPITER house 12: Closure and preparation,4,General,6,Closure and preparation,LONG,"Rest, clear old patterns, and prepare the next cycle."
+VIRGO,SATURN,1,SATURN house 1: Identity reset,8,General,8,Identity reset,LONG,Put your own direction first.
+VIRGO,SATURN,2,SATURN house 2: Resource building,6,Money,6,Resource building,LONG,"Review income, assets, and spending habits."
+VIRGO,SATURN,3,SATURN house 3: Learning and communication,2,General,6,Learning and communication,LONG,Share ideas and refine your daily routes.
+VIRGO,SATURN,4,SATURN house 4: Home foundation,4,General,6,Home foundation,LONG,"Stabilize family, home, and emotional ground."
+VIRGO,SATURN,5,SATURN house 5: Creative opening,8,Love,6,Creative opening,LONG,"Make space for joy, romance, and self-expression."
+VIRGO,SATURN,6,SATURN house 6: Routine refinement,4,Work,6,Routine refinement,LONG,Improve work rhythms and health maintenance.
+VIRGO,SATURN,7,SATURN house 7: Partnership focus,10,Love,8,Partnership focus,LONG,Choose conversations and alliances carefully.
+VIRGO,SATURN,8,SATURN house 8: Deep restructuring,2,Money,6,Deep restructuring,LONG,Handle shared resources and emotional commitments.
+VIRGO,SATURN,9,SATURN house 9: Expansion and study,6,General,6,Expansion and study,LONG,"Plan travel, study, publishing, or long-range growth."
+VIRGO,SATURN,10,SATURN house 10: Career visibility,14,Work,8,Career visibility,LONG,Move public goals and responsibilities forward.
+VIRGO,SATURN,11,SATURN house 11: Community gains,6,General,6,Community gains,LONG,"Use networks, teams, and future plans wisely."
+VIRGO,SATURN,12,SATURN house 12: Closure and preparation,-10,General,6,Closure and preparation,LONG,"Rest, clear old patterns, and prepare the next cycle."
+VIRGO,URANUS,1,URANUS house 1: Identity reset,16,General,8,Identity reset,LONG,Put your own direction first.
+VIRGO,URANUS,2,URANUS house 2: Resource building,14,Money,6,Resource building,LONG,"Review income, assets, and spending habits."
+VIRGO,URANUS,3,URANUS house 3: Learning and communication,10,General,6,Learning and communication,LONG,Share ideas and refine your daily routes.
+VIRGO,URANUS,4,URANUS house 4: Home foundation,12,General,6,Home foundation,LONG,"Stabilize family, home, and emotional ground."
+VIRGO,URANUS,5,URANUS house 5: Creative opening,16,Love,6,Creative opening,LONG,"Make space for joy, romance, and self-expression."
+VIRGO,URANUS,6,URANUS house 6: Routine refinement,12,Work,6,Routine refinement,LONG,Improve work rhythms and health maintenance.
+VIRGO,URANUS,7,URANUS house 7: Partnership focus,18,Love,8,Partnership focus,LONG,Choose conversations and alliances carefully.
+VIRGO,URANUS,8,URANUS house 8: Deep restructuring,10,Money,6,Deep restructuring,LONG,Handle shared resources and emotional commitments.
+VIRGO,URANUS,9,URANUS house 9: Expansion and study,14,General,6,Expansion and study,LONG,"Plan travel, study, publishing, or long-range growth."
+VIRGO,URANUS,10,URANUS house 10: Career visibility,22,Work,8,Career visibility,LONG,Move public goals and responsibilities forward.
+VIRGO,URANUS,11,URANUS house 11: Community gains,14,General,6,Community gains,LONG,"Use networks, teams, and future plans wisely."
+VIRGO,URANUS,12,URANUS house 12: Closure and preparation,-2,General,6,Closure and preparation,LONG,"Rest, clear old patterns, and prepare the next cycle."
+VIRGO,NEPTUNE,1,NEPTUNE house 1: Identity reset,12,General,8,Identity reset,LONG,Put your own direction first.
+VIRGO,NEPTUNE,2,NEPTUNE house 2: Resource building,10,Money,6,Resource building,LONG,"Review income, assets, and spending habits."
+VIRGO,NEPTUNE,3,NEPTUNE house 3: Learning and communication,6,General,6,Learning and communication,LONG,Share ideas and refine your daily routes.
+VIRGO,NEPTUNE,4,NEPTUNE house 4: Home foundation,8,General,6,Home foundation,LONG,"Stabilize family, home, and emotional ground."
+VIRGO,NEPTUNE,5,NEPTUNE house 5: Creative opening,12,Love,6,Creative opening,LONG,"Make space for joy, romance, and self-expression."
+VIRGO,NEPTUNE,6,NEPTUNE house 6: Routine refinement,8,Work,6,Routine refinement,LONG,Improve work rhythms and health maintenance.
+VIRGO,NEPTUNE,7,NEPTUNE house 7: Partnership focus,14,Love,8,Partnership focus,LONG,Choose conversations and alliances carefully.
+VIRGO,NEPTUNE,8,NEPTUNE house 8: Deep restructuring,6,Money,6,Deep restructuring,LONG,Handle shared resources and emotional commitments.
+VIRGO,NEPTUNE,9,NEPTUNE house 9: Expansion and study,10,General,6,Expansion and study,LONG,"Plan travel, study, publishing, or long-range growth."
+VIRGO,NEPTUNE,10,NEPTUNE house 10: Career visibility,18,Work,8,Career visibility,LONG,Move public goals and responsibilities forward.
+VIRGO,NEPTUNE,11,NEPTUNE house 11: Community gains,10,General,6,Community gains,LONG,"Use networks, teams, and future plans wisely."
+VIRGO,NEPTUNE,12,NEPTUNE house 12: Closure and preparation,-6,General,6,Closure and preparation,LONG,"Rest, clear old patterns, and prepare the next cycle."
+VIRGO,PLUTO,1,PLUTO house 1: Identity reset,14,General,8,Identity reset,LONG,Put your own direction first.
+VIRGO,PLUTO,2,PLUTO house 2: Resource building,12,Money,6,Resource building,LONG,"Review income, assets, and spending habits."
+VIRGO,PLUTO,3,PLUTO house 3: Learning and communication,8,General,6,Learning and communication,LONG,Share ideas and refine your daily routes.
+VIRGO,PLUTO,4,PLUTO house 4: Home foundation,10,General,6,Home foundation,LONG,"Stabilize family, home, and emotional ground."
+VIRGO,PLUTO,5,PLUTO house 5: Creative opening,14,Love,6,Creative opening,LONG,"Make space for joy, romance, and self-expression."
+VIRGO,PLUTO,6,PLUTO house 6: Routine refinement,10,Work,6,Routine refinement,LONG,Improve work rhythms and health maintenance.
+VIRGO,PLUTO,7,PLUTO house 7: Partnership focus,16,Love,8,Partnership focus,LONG,Choose conversations and alliances carefully.
+VIRGO,PLUTO,8,PLUTO house 8: Deep restructuring,8,Money,6,Deep restructuring,LONG,Handle shared resources and emotional commitments.
+VIRGO,PLUTO,9,PLUTO house 9: Expansion and study,12,General,6,Expansion and study,LONG,"Plan travel, study, publishing, or long-range growth."
+VIRGO,PLUTO,10,PLUTO house 10: Career visibility,20,Work,8,Career visibility,LONG,Move public goals and responsibilities forward.
+VIRGO,PLUTO,11,PLUTO house 11: Community gains,12,General,6,Community gains,LONG,"Use networks, teams, and future plans wisely."
+VIRGO,PLUTO,12,PLUTO house 12: Closure and preparation,-4,General,6,Closure and preparation,LONG,"Rest, clear old patterns, and prepare the next cycle."
+LIBRA,JUPITER,1,JUPITER house 1: Identity reset,22,General,8,Identity reset,LONG,Put your own direction first.
+LIBRA,JUPITER,2,JUPITER house 2: Resource building,20,Money,6,Resource building,LONG,"Review income, assets, and spending habits."
+LIBRA,JUPITER,3,JUPITER house 3: Learning and communication,16,General,6,Learning and communication,LONG,Share ideas and refine your daily routes.
+LIBRA,JUPITER,4,JUPITER house 4: Home foundation,18,General,6,Home foundation,LONG,"Stabilize family, home, and emotional ground."
+LIBRA,JUPITER,5,JUPITER house 5: Creative opening,22,Love,6,Creative opening,LONG,"Make space for joy, romance, and self-expression."
+LIBRA,JUPITER,6,JUPITER house 6: Routine refinement,18,Work,6,Routine refinement,LONG,Improve work rhythms and health maintenance.
+LIBRA,JUPITER,7,JUPITER house 7: Partnership focus,24,Love,8,Partnership focus,LONG,Choose conversations and alliances carefully.
+LIBRA,JUPITER,8,JUPITER house 8: Deep restructuring,16,Money,6,Deep restructuring,LONG,Handle shared resources and emotional commitments.
+LIBRA,JUPITER,9,JUPITER house 9: Expansion and study,20,General,6,Expansion and study,LONG,"Plan travel, study, publishing, or long-range growth."
+LIBRA,JUPITER,10,JUPITER house 10: Career visibility,28,Work,10,Career visibility,LONG,Move public goals and responsibilities forward.
+LIBRA,JUPITER,11,JUPITER house 11: Community gains,20,General,6,Community gains,LONG,"Use networks, teams, and future plans wisely."
+LIBRA,JUPITER,12,JUPITER house 12: Closure and preparation,4,General,6,Closure and preparation,LONG,"Rest, clear old patterns, and prepare the next cycle."
+LIBRA,SATURN,1,SATURN house 1: Identity reset,8,General,8,Identity reset,LONG,Put your own direction first.
+LIBRA,SATURN,2,SATURN house 2: Resource building,6,Money,6,Resource building,LONG,"Review income, assets, and spending habits."
+LIBRA,SATURN,3,SATURN house 3: Learning and communication,2,General,6,Learning and communication,LONG,Share ideas and refine your daily routes.
+LIBRA,SATURN,4,SATURN house 4: Home foundation,4,General,6,Home foundation,LONG,"Stabilize family, home, and emotional ground."
+LIBRA,SATURN,5,SATURN house 5: Creative opening,8,Love,6,Creative opening,LONG,"Make space for joy, romance, and self-expression."
+LIBRA,SATURN,6,SATURN house 6: Routine refinement,4,Work,6,Routine refinement,LONG,Improve work rhythms and health maintenance.
+LIBRA,SATURN,7,SATURN house 7: Partnership focus,10,Love,8,Partnership focus,LONG,Choose conversations and alliances carefully.
+LIBRA,SATURN,8,SATURN house 8: Deep restructuring,2,Money,6,Deep restructuring,LONG,Handle shared resources and emotional commitments.
+LIBRA,SATURN,9,SATURN house 9: Expansion and study,6,General,6,Expansion and study,LONG,"Plan travel, study, publishing, or long-range growth."
+LIBRA,SATURN,10,SATURN house 10: Career visibility,14,Work,8,Career visibility,LONG,Move public goals and responsibilities forward.
+LIBRA,SATURN,11,SATURN house 11: Community gains,6,General,6,Community gains,LONG,"Use networks, teams, and future plans wisely."
+LIBRA,SATURN,12,SATURN house 12: Closure and preparation,-10,General,6,Closure and preparation,LONG,"Rest, clear old patterns, and prepare the next cycle."
+LIBRA,URANUS,1,URANUS house 1: Identity reset,16,General,8,Identity reset,LONG,Put your own direction first.
+LIBRA,URANUS,2,URANUS house 2: Resource building,14,Money,6,Resource building,LONG,"Review income, assets, and spending habits."
+LIBRA,URANUS,3,URANUS house 3: Learning and communication,10,General,6,Learning and communication,LONG,Share ideas and refine your daily routes.
+LIBRA,URANUS,4,URANUS house 4: Home foundation,12,General,6,Home foundation,LONG,"Stabilize family, home, and emotional ground."
+LIBRA,URANUS,5,URANUS house 5: Creative opening,16,Love,6,Creative opening,LONG,"Make space for joy, romance, and self-expression."
+LIBRA,URANUS,6,URANUS house 6: Routine refinement,12,Work,6,Routine refinement,LONG,Improve work rhythms and health maintenance.
+LIBRA,URANUS,7,URANUS house 7: Partnership focus,18,Love,8,Partnership focus,LONG,Choose conversations and alliances carefully.
+LIBRA,URANUS,8,URANUS house 8: Deep restructuring,10,Money,6,Deep restructuring,LONG,Handle shared resources and emotional commitments.
+LIBRA,URANUS,9,URANUS house 9: Expansion and study,14,General,6,Expansion and study,LONG,"Plan travel, study, publishing, or long-range growth."
+LIBRA,URANUS,10,URANUS house 10: Career visibility,22,Work,8,Career visibility,LONG,Move public goals and responsibilities forward.
+LIBRA,URANUS,11,URANUS house 11: Community gains,14,General,6,Community gains,LONG,"Use networks, teams, and future plans wisely."
+LIBRA,URANUS,12,URANUS house 12: Closure and preparation,-2,General,6,Closure and preparation,LONG,"Rest, clear old patterns, and prepare the next cycle."
+LIBRA,NEPTUNE,1,NEPTUNE house 1: Identity reset,12,General,8,Identity reset,LONG,Put your own direction first.
+LIBRA,NEPTUNE,2,NEPTUNE house 2: Resource building,10,Money,6,Resource building,LONG,"Review income, assets, and spending habits."
+LIBRA,NEPTUNE,3,NEPTUNE house 3: Learning and communication,6,General,6,Learning and communication,LONG,Share ideas and refine your daily routes.
+LIBRA,NEPTUNE,4,NEPTUNE house 4: Home foundation,8,General,6,Home foundation,LONG,"Stabilize family, home, and emotional ground."
+LIBRA,NEPTUNE,5,NEPTUNE house 5: Creative opening,12,Love,6,Creative opening,LONG,"Make space for joy, romance, and self-expression."
+LIBRA,NEPTUNE,6,NEPTUNE house 6: Routine refinement,8,Work,6,Routine refinement,LONG,Improve work rhythms and health maintenance.
+LIBRA,NEPTUNE,7,NEPTUNE house 7: Partnership focus,14,Love,8,Partnership focus,LONG,Choose conversations and alliances carefully.
+LIBRA,NEPTUNE,8,NEPTUNE house 8: Deep restructuring,6,Money,6,Deep restructuring,LONG,Handle shared resources and emotional commitments.
+LIBRA,NEPTUNE,9,NEPTUNE house 9: Expansion and study,10,General,6,Expansion and study,LONG,"Plan travel, study, publishing, or long-range growth."
+LIBRA,NEPTUNE,10,NEPTUNE house 10: Career visibility,18,Work,8,Career visibility,LONG,Move public goals and responsibilities forward.
+LIBRA,NEPTUNE,11,NEPTUNE house 11: Community gains,10,General,6,Community gains,LONG,"Use networks, teams, and future plans wisely."
+LIBRA,NEPTUNE,12,NEPTUNE house 12: Closure and preparation,-6,General,6,Closure and preparation,LONG,"Rest, clear old patterns, and prepare the next cycle."
+LIBRA,PLUTO,1,PLUTO house 1: Identity reset,14,General,8,Identity reset,LONG,Put your own direction first.
+LIBRA,PLUTO,2,PLUTO house 2: Resource building,12,Money,6,Resource building,LONG,"Review income, assets, and spending habits."
+LIBRA,PLUTO,3,PLUTO house 3: Learning and communication,8,General,6,Learning and communication,LONG,Share ideas and refine your daily routes.
+LIBRA,PLUTO,4,PLUTO house 4: Home foundation,10,General,6,Home foundation,LONG,"Stabilize family, home, and emotional ground."
+LIBRA,PLUTO,5,PLUTO house 5: Creative opening,14,Love,6,Creative opening,LONG,"Make space for joy, romance, and self-expression."
+LIBRA,PLUTO,6,PLUTO house 6: Routine refinement,10,Work,6,Routine refinement,LONG,Improve work rhythms and health maintenance.
+LIBRA,PLUTO,7,PLUTO house 7: Partnership focus,16,Love,8,Partnership focus,LONG,Choose conversations and alliances carefully.
+LIBRA,PLUTO,8,PLUTO house 8: Deep restructuring,8,Money,6,Deep restructuring,LONG,Handle shared resources and emotional commitments.
+LIBRA,PLUTO,9,PLUTO house 9: Expansion and study,12,General,6,Expansion and study,LONG,"Plan travel, study, publishing, or long-range growth."
+LIBRA,PLUTO,10,PLUTO house 10: Career visibility,20,Work,8,Career visibility,LONG,Move public goals and responsibilities forward.
+LIBRA,PLUTO,11,PLUTO house 11: Community gains,12,General,6,Community gains,LONG,"Use networks, teams, and future plans wisely."
+LIBRA,PLUTO,12,PLUTO house 12: Closure and preparation,-4,General,6,Closure and preparation,LONG,"Rest, clear old patterns, and prepare the next cycle."
+SCORPIO,JUPITER,1,JUPITER house 1: Identity reset,22,General,8,Identity reset,LONG,Put your own direction first.
+SCORPIO,JUPITER,2,JUPITER house 2: Resource building,20,Money,6,Resource building,LONG,"Review income, assets, and spending habits."
+SCORPIO,JUPITER,3,JUPITER house 3: Learning and communication,16,General,6,Learning and communication,LONG,Share ideas and refine your daily routes.
+SCORPIO,JUPITER,4,JUPITER house 4: Home foundation,18,General,6,Home foundation,LONG,"Stabilize family, home, and emotional ground."
+SCORPIO,JUPITER,5,JUPITER house 5: Creative opening,22,Love,6,Creative opening,LONG,"Make space for joy, romance, and self-expression."
+SCORPIO,JUPITER,6,JUPITER house 6: Routine refinement,18,Work,6,Routine refinement,LONG,Improve work rhythms and health maintenance.
+SCORPIO,JUPITER,7,JUPITER house 7: Partnership focus,24,Love,8,Partnership focus,LONG,Choose conversations and alliances carefully.
+SCORPIO,JUPITER,8,JUPITER house 8: Deep restructuring,16,Money,6,Deep restructuring,LONG,Handle shared resources and emotional commitments.
+SCORPIO,JUPITER,9,JUPITER house 9: Expansion and study,20,General,6,Expansion and study,LONG,"Plan travel, study, publishing, or long-range growth."
+SCORPIO,JUPITER,10,JUPITER house 10: Career visibility,28,Work,10,Career visibility,LONG,Move public goals and responsibilities forward.
+SCORPIO,JUPITER,11,JUPITER house 11: Community gains,20,General,6,Community gains,LONG,"Use networks, teams, and future plans wisely."
+SCORPIO,JUPITER,12,JUPITER house 12: Closure and preparation,4,General,6,Closure and preparation,LONG,"Rest, clear old patterns, and prepare the next cycle."
+SCORPIO,SATURN,1,SATURN house 1: Identity reset,8,General,8,Identity reset,LONG,Put your own direction first.
+SCORPIO,SATURN,2,SATURN house 2: Resource building,6,Money,6,Resource building,LONG,"Review income, assets, and spending habits."
+SCORPIO,SATURN,3,SATURN house 3: Learning and communication,2,General,6,Learning and communication,LONG,Share ideas and refine your daily routes.
+SCORPIO,SATURN,4,SATURN house 4: Home foundation,4,General,6,Home foundation,LONG,"Stabilize family, home, and emotional ground."
+SCORPIO,SATURN,5,SATURN house 5: Creative opening,8,Love,6,Creative opening,LONG,"Make space for joy, romance, and self-expression."
+SCORPIO,SATURN,6,SATURN house 6: Routine refinement,4,Work,6,Routine refinement,LONG,Improve work rhythms and health maintenance.
+SCORPIO,SATURN,7,SATURN house 7: Partnership focus,10,Love,8,Partnership focus,LONG,Choose conversations and alliances carefully.
+SCORPIO,SATURN,8,SATURN house 8: Deep restructuring,2,Money,6,Deep restructuring,LONG,Handle shared resources and emotional commitments.
+SCORPIO,SATURN,9,SATURN house 9: Expansion and study,6,General,6,Expansion and study,LONG,"Plan travel, study, publishing, or long-range growth."
+SCORPIO,SATURN,10,SATURN house 10: Career visibility,14,Work,8,Career visibility,LONG,Move public goals and responsibilities forward.
+SCORPIO,SATURN,11,SATURN house 11: Community gains,6,General,6,Community gains,LONG,"Use networks, teams, and future plans wisely."
+SCORPIO,SATURN,12,SATURN house 12: Closure and preparation,-10,General,6,Closure and preparation,LONG,"Rest, clear old patterns, and prepare the next cycle."
+SCORPIO,URANUS,1,URANUS house 1: Identity reset,16,General,8,Identity reset,LONG,Put your own direction first.
+SCORPIO,URANUS,2,URANUS house 2: Resource building,14,Money,6,Resource building,LONG,"Review income, assets, and spending habits."
+SCORPIO,URANUS,3,URANUS house 3: Learning and communication,10,General,6,Learning and communication,LONG,Share ideas and refine your daily routes.
+SCORPIO,URANUS,4,URANUS house 4: Home foundation,12,General,6,Home foundation,LONG,"Stabilize family, home, and emotional ground."
+SCORPIO,URANUS,5,URANUS house 5: Creative opening,16,Love,6,Creative opening,LONG,"Make space for joy, romance, and self-expression."
+SCORPIO,URANUS,6,URANUS house 6: Routine refinement,12,Work,6,Routine refinement,LONG,Improve work rhythms and health maintenance.
+SCORPIO,URANUS,7,URANUS house 7: Partnership focus,18,Love,8,Partnership focus,LONG,Choose conversations and alliances carefully.
+SCORPIO,URANUS,8,URANUS house 8: Deep restructuring,10,Money,6,Deep restructuring,LONG,Handle shared resources and emotional commitments.
+SCORPIO,URANUS,9,URANUS house 9: Expansion and study,14,General,6,Expansion and study,LONG,"Plan travel, study, publishing, or long-range growth."
+SCORPIO,URANUS,10,URANUS house 10: Career visibility,22,Work,8,Career visibility,LONG,Move public goals and responsibilities forward.
+SCORPIO,URANUS,11,URANUS house 11: Community gains,14,General,6,Community gains,LONG,"Use networks, teams, and future plans wisely."
+SCORPIO,URANUS,12,URANUS house 12: Closure and preparation,-2,General,6,Closure and preparation,LONG,"Rest, clear old patterns, and prepare the next cycle."
+SCORPIO,NEPTUNE,1,NEPTUNE house 1: Identity reset,12,General,8,Identity reset,LONG,Put your own direction first.
+SCORPIO,NEPTUNE,2,NEPTUNE house 2: Resource building,10,Money,6,Resource building,LONG,"Review income, assets, and spending habits."
+SCORPIO,NEPTUNE,3,NEPTUNE house 3: Learning and communication,6,General,6,Learning and communication,LONG,Share ideas and refine your daily routes.
+SCORPIO,NEPTUNE,4,NEPTUNE house 4: Home foundation,8,General,6,Home foundation,LONG,"Stabilize family, home, and emotional ground."
+SCORPIO,NEPTUNE,5,NEPTUNE house 5: Creative opening,12,Love,6,Creative opening,LONG,"Make space for joy, romance, and self-expression."
+SCORPIO,NEPTUNE,6,NEPTUNE house 6: Routine refinement,8,Work,6,Routine refinement,LONG,Improve work rhythms and health maintenance.
+SCORPIO,NEPTUNE,7,NEPTUNE house 7: Partnership focus,14,Love,8,Partnership focus,LONG,Choose conversations and alliances carefully.
+SCORPIO,NEPTUNE,8,NEPTUNE house 8: Deep restructuring,6,Money,6,Deep restructuring,LONG,Handle shared resources and emotional commitments.
+SCORPIO,NEPTUNE,9,NEPTUNE house 9: Expansion and study,10,General,6,Expansion and study,LONG,"Plan travel, study, publishing, or long-range growth."
+SCORPIO,NEPTUNE,10,NEPTUNE house 10: Career visibility,18,Work,8,Career visibility,LONG,Move public goals and responsibilities forward.
+SCORPIO,NEPTUNE,11,NEPTUNE house 11: Community gains,10,General,6,Community gains,LONG,"Use networks, teams, and future plans wisely."
+SCORPIO,NEPTUNE,12,NEPTUNE house 12: Closure and preparation,-6,General,6,Closure and preparation,LONG,"Rest, clear old patterns, and prepare the next cycle."
+SCORPIO,PLUTO,1,PLUTO house 1: Identity reset,14,General,8,Identity reset,LONG,Put your own direction first.
+SCORPIO,PLUTO,2,PLUTO house 2: Resource building,12,Money,6,Resource building,LONG,"Review income, assets, and spending habits."
+SCORPIO,PLUTO,3,PLUTO house 3: Learning and communication,8,General,6,Learning and communication,LONG,Share ideas and refine your daily routes.
+SCORPIO,PLUTO,4,PLUTO house 4: Home foundation,10,General,6,Home foundation,LONG,"Stabilize family, home, and emotional ground."
+SCORPIO,PLUTO,5,PLUTO house 5: Creative opening,14,Love,6,Creative opening,LONG,"Make space for joy, romance, and self-expression."
+SCORPIO,PLUTO,6,PLUTO house 6: Routine refinement,10,Work,6,Routine refinement,LONG,Improve work rhythms and health maintenance.
+SCORPIO,PLUTO,7,PLUTO house 7: Partnership focus,16,Love,8,Partnership focus,LONG,Choose conversations and alliances carefully.
+SCORPIO,PLUTO,8,PLUTO house 8: Deep restructuring,8,Money,6,Deep restructuring,LONG,Handle shared resources and emotional commitments.
+SCORPIO,PLUTO,9,PLUTO house 9: Expansion and study,12,General,6,Expansion and study,LONG,"Plan travel, study, publishing, or long-range growth."
+SCORPIO,PLUTO,10,PLUTO house 10: Career visibility,20,Work,8,Career visibility,LONG,Move public goals and responsibilities forward.
+SCORPIO,PLUTO,11,PLUTO house 11: Community gains,12,General,6,Community gains,LONG,"Use networks, teams, and future plans wisely."
+SCORPIO,PLUTO,12,PLUTO house 12: Closure and preparation,-4,General,6,Closure and preparation,LONG,"Rest, clear old patterns, and prepare the next cycle."
+SAGITTARIUS,JUPITER,1,JUPITER house 1: Identity reset,22,General,8,Identity reset,LONG,Put your own direction first.
+SAGITTARIUS,JUPITER,2,JUPITER house 2: Resource building,20,Money,6,Resource building,LONG,"Review income, assets, and spending habits."
+SAGITTARIUS,JUPITER,3,JUPITER house 3: Learning and communication,16,General,6,Learning and communication,LONG,Share ideas and refine your daily routes.
+SAGITTARIUS,JUPITER,4,JUPITER house 4: Home foundation,18,General,6,Home foundation,LONG,"Stabilize family, home, and emotional ground."
+SAGITTARIUS,JUPITER,5,JUPITER house 5: Creative opening,22,Love,6,Creative opening,LONG,"Make space for joy, romance, and self-expression."
+SAGITTARIUS,JUPITER,6,JUPITER house 6: Routine refinement,18,Work,6,Routine refinement,LONG,Improve work rhythms and health maintenance.
+SAGITTARIUS,JUPITER,7,JUPITER house 7: Partnership focus,24,Love,8,Partnership focus,LONG,Choose conversations and alliances carefully.
+SAGITTARIUS,JUPITER,8,JUPITER house 8: Deep restructuring,16,Money,6,Deep restructuring,LONG,Handle shared resources and emotional commitments.
+SAGITTARIUS,JUPITER,9,JUPITER house 9: Expansion and study,20,General,6,Expansion and study,LONG,"Plan travel, study, publishing, or long-range growth."
+SAGITTARIUS,JUPITER,10,JUPITER house 10: Career visibility,28,Work,10,Career visibility,LONG,Move public goals and responsibilities forward.
+SAGITTARIUS,JUPITER,11,JUPITER house 11: Community gains,20,General,6,Community gains,LONG,"Use networks, teams, and future plans wisely."
+SAGITTARIUS,JUPITER,12,JUPITER house 12: Closure and preparation,4,General,6,Closure and preparation,LONG,"Rest, clear old patterns, and prepare the next cycle."
+SAGITTARIUS,SATURN,1,SATURN house 1: Identity reset,8,General,8,Identity reset,LONG,Put your own direction first.
+SAGITTARIUS,SATURN,2,SATURN house 2: Resource building,6,Money,6,Resource building,LONG,"Review income, assets, and spending habits."
+SAGITTARIUS,SATURN,3,SATURN house 3: Learning and communication,2,General,6,Learning and communication,LONG,Share ideas and refine your daily routes.
+SAGITTARIUS,SATURN,4,SATURN house 4: Home foundation,4,General,6,Home foundation,LONG,"Stabilize family, home, and emotional ground."
+SAGITTARIUS,SATURN,5,SATURN house 5: Creative opening,8,Love,6,Creative opening,LONG,"Make space for joy, romance, and self-expression."
+SAGITTARIUS,SATURN,6,SATURN house 6: Routine refinement,4,Work,6,Routine refinement,LONG,Improve work rhythms and health maintenance.
+SAGITTARIUS,SATURN,7,SATURN house 7: Partnership focus,10,Love,8,Partnership focus,LONG,Choose conversations and alliances carefully.
+SAGITTARIUS,SATURN,8,SATURN house 8: Deep restructuring,2,Money,6,Deep restructuring,LONG,Handle shared resources and emotional commitments.
+SAGITTARIUS,SATURN,9,SATURN house 9: Expansion and study,6,General,6,Expansion and study,LONG,"Plan travel, study, publishing, or long-range growth."
+SAGITTARIUS,SATURN,10,SATURN house 10: Career visibility,14,Work,8,Career visibility,LONG,Move public goals and responsibilities forward.
+SAGITTARIUS,SATURN,11,SATURN house 11: Community gains,6,General,6,Community gains,LONG,"Use networks, teams, and future plans wisely."
+SAGITTARIUS,SATURN,12,SATURN house 12: Closure and preparation,-10,General,6,Closure and preparation,LONG,"Rest, clear old patterns, and prepare the next cycle."
+SAGITTARIUS,URANUS,1,URANUS house 1: Identity reset,16,General,8,Identity reset,LONG,Put your own direction first.
+SAGITTARIUS,URANUS,2,URANUS house 2: Resource building,14,Money,6,Resource building,LONG,"Review income, assets, and spending habits."
+SAGITTARIUS,URANUS,3,URANUS house 3: Learning and communication,10,General,6,Learning and communication,LONG,Share ideas and refine your daily routes.
+SAGITTARIUS,URANUS,4,URANUS house 4: Home foundation,12,General,6,Home foundation,LONG,"Stabilize family, home, and emotional ground."
+SAGITTARIUS,URANUS,5,URANUS house 5: Creative opening,16,Love,6,Creative opening,LONG,"Make space for joy, romance, and self-expression."
+SAGITTARIUS,URANUS,6,URANUS house 6: Routine refinement,12,Work,6,Routine refinement,LONG,Improve work rhythms and health maintenance.
+SAGITTARIUS,URANUS,7,URANUS house 7: Partnership focus,18,Love,8,Partnership focus,LONG,Choose conversations and alliances carefully.
+SAGITTARIUS,URANUS,8,URANUS house 8: Deep restructuring,10,Money,6,Deep restructuring,LONG,Handle shared resources and emotional commitments.
+SAGITTARIUS,URANUS,9,URANUS house 9: Expansion and study,14,General,6,Expansion and study,LONG,"Plan travel, study, publishing, or long-range growth."
+SAGITTARIUS,URANUS,10,URANUS house 10: Career visibility,22,Work,8,Career visibility,LONG,Move public goals and responsibilities forward.
+SAGITTARIUS,URANUS,11,URANUS house 11: Community gains,14,General,6,Community gains,LONG,"Use networks, teams, and future plans wisely."
+SAGITTARIUS,URANUS,12,URANUS house 12: Closure and preparation,-2,General,6,Closure and preparation,LONG,"Rest, clear old patterns, and prepare the next cycle."
+SAGITTARIUS,NEPTUNE,1,NEPTUNE house 1: Identity reset,12,General,8,Identity reset,LONG,Put your own direction first.
+SAGITTARIUS,NEPTUNE,2,NEPTUNE house 2: Resource building,10,Money,6,Resource building,LONG,"Review income, assets, and spending habits."
+SAGITTARIUS,NEPTUNE,3,NEPTUNE house 3: Learning and communication,6,General,6,Learning and communication,LONG,Share ideas and refine your daily routes.
+SAGITTARIUS,NEPTUNE,4,NEPTUNE house 4: Home foundation,8,General,6,Home foundation,LONG,"Stabilize family, home, and emotional ground."
+SAGITTARIUS,NEPTUNE,5,NEPTUNE house 5: Creative opening,12,Love,6,Creative opening,LONG,"Make space for joy, romance, and self-expression."
+SAGITTARIUS,NEPTUNE,6,NEPTUNE house 6: Routine refinement,8,Work,6,Routine refinement,LONG,Improve work rhythms and health maintenance.
+SAGITTARIUS,NEPTUNE,7,NEPTUNE house 7: Partnership focus,14,Love,8,Partnership focus,LONG,Choose conversations and alliances carefully.
+SAGITTARIUS,NEPTUNE,8,NEPTUNE house 8: Deep restructuring,6,Money,6,Deep restructuring,LONG,Handle shared resources and emotional commitments.
+SAGITTARIUS,NEPTUNE,9,NEPTUNE house 9: Expansion and study,10,General,6,Expansion and study,LONG,"Plan travel, study, publishing, or long-range growth."
+SAGITTARIUS,NEPTUNE,10,NEPTUNE house 10: Career visibility,18,Work,8,Career visibility,LONG,Move public goals and responsibilities forward.
+SAGITTARIUS,NEPTUNE,11,NEPTUNE house 11: Community gains,10,General,6,Community gains,LONG,"Use networks, teams, and future plans wisely."
+SAGITTARIUS,NEPTUNE,12,NEPTUNE house 12: Closure and preparation,-6,General,6,Closure and preparation,LONG,"Rest, clear old patterns, and prepare the next cycle."
+SAGITTARIUS,PLUTO,1,PLUTO house 1: Identity reset,14,General,8,Identity reset,LONG,Put your own direction first.
+SAGITTARIUS,PLUTO,2,PLUTO house 2: Resource building,12,Money,6,Resource building,LONG,"Review income, assets, and spending habits."
+SAGITTARIUS,PLUTO,3,PLUTO house 3: Learning and communication,8,General,6,Learning and communication,LONG,Share ideas and refine your daily routes.
+SAGITTARIUS,PLUTO,4,PLUTO house 4: Home foundation,10,General,6,Home foundation,LONG,"Stabilize family, home, and emotional ground."
+SAGITTARIUS,PLUTO,5,PLUTO house 5: Creative opening,14,Love,6,Creative opening,LONG,"Make space for joy, romance, and self-expression."
+SAGITTARIUS,PLUTO,6,PLUTO house 6: Routine refinement,10,Work,6,Routine refinement,LONG,Improve work rhythms and health maintenance.
+SAGITTARIUS,PLUTO,7,PLUTO house 7: Partnership focus,16,Love,8,Partnership focus,LONG,Choose conversations and alliances carefully.
+SAGITTARIUS,PLUTO,8,PLUTO house 8: Deep restructuring,8,Money,6,Deep restructuring,LONG,Handle shared resources and emotional commitments.
+SAGITTARIUS,PLUTO,9,PLUTO house 9: Expansion and study,12,General,6,Expansion and study,LONG,"Plan travel, study, publishing, or long-range growth."
+SAGITTARIUS,PLUTO,10,PLUTO house 10: Career visibility,20,Work,8,Career visibility,LONG,Move public goals and responsibilities forward.
+SAGITTARIUS,PLUTO,11,PLUTO house 11: Community gains,12,General,6,Community gains,LONG,"Use networks, teams, and future plans wisely."
+SAGITTARIUS,PLUTO,12,PLUTO house 12: Closure and preparation,-4,General,6,Closure and preparation,LONG,"Rest, clear old patterns, and prepare the next cycle."
+CAPRICORN,JUPITER,1,JUPITER house 1: Identity reset,22,General,8,Identity reset,LONG,Put your own direction first.
+CAPRICORN,JUPITER,2,JUPITER house 2: Resource building,20,Money,6,Resource building,LONG,"Review income, assets, and spending habits."
+CAPRICORN,JUPITER,3,JUPITER house 3: Learning and communication,16,General,6,Learning and communication,LONG,Share ideas and refine your daily routes.
+CAPRICORN,JUPITER,4,JUPITER house 4: Home foundation,18,General,6,Home foundation,LONG,"Stabilize family, home, and emotional ground."
+CAPRICORN,JUPITER,5,JUPITER house 5: Creative opening,22,Love,6,Creative opening,LONG,"Make space for joy, romance, and self-expression."
+CAPRICORN,JUPITER,6,JUPITER house 6: Routine refinement,18,Work,6,Routine refinement,LONG,Improve work rhythms and health maintenance.
+CAPRICORN,JUPITER,7,JUPITER house 7: Partnership focus,24,Love,8,Partnership focus,LONG,Choose conversations and alliances carefully.
+CAPRICORN,JUPITER,8,JUPITER house 8: Deep restructuring,16,Money,6,Deep restructuring,LONG,Handle shared resources and emotional commitments.
+CAPRICORN,JUPITER,9,JUPITER house 9: Expansion and study,20,General,6,Expansion and study,LONG,"Plan travel, study, publishing, or long-range growth."
+CAPRICORN,JUPITER,10,JUPITER house 10: Career visibility,28,Work,10,Career visibility,LONG,Move public goals and responsibilities forward.
+CAPRICORN,JUPITER,11,JUPITER house 11: Community gains,20,General,6,Community gains,LONG,"Use networks, teams, and future plans wisely."
+CAPRICORN,JUPITER,12,JUPITER house 12: Closure and preparation,4,General,6,Closure and preparation,LONG,"Rest, clear old patterns, and prepare the next cycle."
+CAPRICORN,SATURN,1,SATURN house 1: Identity reset,8,General,8,Identity reset,LONG,Put your own direction first.
+CAPRICORN,SATURN,2,SATURN house 2: Resource building,6,Money,6,Resource building,LONG,"Review income, assets, and spending habits."
+CAPRICORN,SATURN,3,SATURN house 3: Learning and communication,2,General,6,Learning and communication,LONG,Share ideas and refine your daily routes.
+CAPRICORN,SATURN,4,SATURN house 4: Home foundation,4,General,6,Home foundation,LONG,"Stabilize family, home, and emotional ground."
+CAPRICORN,SATURN,5,SATURN house 5: Creative opening,8,Love,6,Creative opening,LONG,"Make space for joy, romance, and self-expression."
+CAPRICORN,SATURN,6,SATURN house 6: Routine refinement,4,Work,6,Routine refinement,LONG,Improve work rhythms and health maintenance.
+CAPRICORN,SATURN,7,SATURN house 7: Partnership focus,10,Love,8,Partnership focus,LONG,Choose conversations and alliances carefully.
+CAPRICORN,SATURN,8,SATURN house 8: Deep restructuring,2,Money,6,Deep restructuring,LONG,Handle shared resources and emotional commitments.
+CAPRICORN,SATURN,9,SATURN house 9: Expansion and study,6,General,6,Expansion and study,LONG,"Plan travel, study, publishing, or long-range growth."
+CAPRICORN,SATURN,10,SATURN house 10: Career visibility,14,Work,8,Career visibility,LONG,Move public goals and responsibilities forward.
+CAPRICORN,SATURN,11,SATURN house 11: Community gains,6,General,6,Community gains,LONG,"Use networks, teams, and future plans wisely."
+CAPRICORN,SATURN,12,SATURN house 12: Closure and preparation,-10,General,6,Closure and preparation,LONG,"Rest, clear old patterns, and prepare the next cycle."
+CAPRICORN,URANUS,1,URANUS house 1: Identity reset,16,General,8,Identity reset,LONG,Put your own direction first.
+CAPRICORN,URANUS,2,URANUS house 2: Resource building,14,Money,6,Resource building,LONG,"Review income, assets, and spending habits."
+CAPRICORN,URANUS,3,URANUS house 3: Learning and communication,10,General,6,Learning and communication,LONG,Share ideas and refine your daily routes.
+CAPRICORN,URANUS,4,URANUS house 4: Home foundation,12,General,6,Home foundation,LONG,"Stabilize family, home, and emotional ground."
+CAPRICORN,URANUS,5,URANUS house 5: Creative opening,16,Love,6,Creative opening,LONG,"Make space for joy, romance, and self-expression."
+CAPRICORN,URANUS,6,URANUS house 6: Routine refinement,12,Work,6,Routine refinement,LONG,Improve work rhythms and health maintenance.
+CAPRICORN,URANUS,7,URANUS house 7: Partnership focus,18,Love,8,Partnership focus,LONG,Choose conversations and alliances carefully.
+CAPRICORN,URANUS,8,URANUS house 8: Deep restructuring,10,Money,6,Deep restructuring,LONG,Handle shared resources and emotional commitments.
+CAPRICORN,URANUS,9,URANUS house 9: Expansion and study,14,General,6,Expansion and study,LONG,"Plan travel, study, publishing, or long-range growth."
+CAPRICORN,URANUS,10,URANUS house 10: Career visibility,22,Work,8,Career visibility,LONG,Move public goals and responsibilities forward.
+CAPRICORN,URANUS,11,URANUS house 11: Community gains,14,General,6,Community gains,LONG,"Use networks, teams, and future plans wisely."
+CAPRICORN,URANUS,12,URANUS house 12: Closure and preparation,-2,General,6,Closure and preparation,LONG,"Rest, clear old patterns, and prepare the next cycle."
+CAPRICORN,NEPTUNE,1,NEPTUNE house 1: Identity reset,12,General,8,Identity reset,LONG,Put your own direction first.
+CAPRICORN,NEPTUNE,2,NEPTUNE house 2: Resource building,10,Money,6,Resource building,LONG,"Review income, assets, and spending habits."
+CAPRICORN,NEPTUNE,3,NEPTUNE house 3: Learning and communication,6,General,6,Learning and communication,LONG,Share ideas and refine your daily routes.
+CAPRICORN,NEPTUNE,4,NEPTUNE house 4: Home foundation,8,General,6,Home foundation,LONG,"Stabilize family, home, and emotional ground."
+CAPRICORN,NEPTUNE,5,NEPTUNE house 5: Creative opening,12,Love,6,Creative opening,LONG,"Make space for joy, romance, and self-expression."
+CAPRICORN,NEPTUNE,6,NEPTUNE house 6: Routine refinement,8,Work,6,Routine refinement,LONG,Improve work rhythms and health maintenance.
+CAPRICORN,NEPTUNE,7,NEPTUNE house 7: Partnership focus,14,Love,8,Partnership focus,LONG,Choose conversations and alliances carefully.
+CAPRICORN,NEPTUNE,8,NEPTUNE house 8: Deep restructuring,6,Money,6,Deep restructuring,LONG,Handle shared resources and emotional commitments.
+CAPRICORN,NEPTUNE,9,NEPTUNE house 9: Expansion and study,10,General,6,Expansion and study,LONG,"Plan travel, study, publishing, or long-range growth."
+CAPRICORN,NEPTUNE,10,NEPTUNE house 10: Career visibility,18,Work,8,Career visibility,LONG,Move public goals and responsibilities forward.
+CAPRICORN,NEPTUNE,11,NEPTUNE house 11: Community gains,10,General,6,Community gains,LONG,"Use networks, teams, and future plans wisely."
+CAPRICORN,NEPTUNE,12,NEPTUNE house 12: Closure and preparation,-6,General,6,Closure and preparation,LONG,"Rest, clear old patterns, and prepare the next cycle."
+CAPRICORN,PLUTO,1,PLUTO house 1: Identity reset,14,General,8,Identity reset,LONG,Put your own direction first.
+CAPRICORN,PLUTO,2,PLUTO house 2: Resource building,12,Money,6,Resource building,LONG,"Review income, assets, and spending habits."
+CAPRICORN,PLUTO,3,PLUTO house 3: Learning and communication,8,General,6,Learning and communication,LONG,Share ideas and refine your daily routes.
+CAPRICORN,PLUTO,4,PLUTO house 4: Home foundation,10,General,6,Home foundation,LONG,"Stabilize family, home, and emotional ground."
+CAPRICORN,PLUTO,5,PLUTO house 5: Creative opening,14,Love,6,Creative opening,LONG,"Make space for joy, romance, and self-expression."
+CAPRICORN,PLUTO,6,PLUTO house 6: Routine refinement,10,Work,6,Routine refinement,LONG,Improve work rhythms and health maintenance.
+CAPRICORN,PLUTO,7,PLUTO house 7: Partnership focus,16,Love,8,Partnership focus,LONG,Choose conversations and alliances carefully.
+CAPRICORN,PLUTO,8,PLUTO house 8: Deep restructuring,8,Money,6,Deep restructuring,LONG,Handle shared resources and emotional commitments.
+CAPRICORN,PLUTO,9,PLUTO house 9: Expansion and study,12,General,6,Expansion and study,LONG,"Plan travel, study, publishing, or long-range growth."
+CAPRICORN,PLUTO,10,PLUTO house 10: Career visibility,20,Work,8,Career visibility,LONG,Move public goals and responsibilities forward.
+CAPRICORN,PLUTO,11,PLUTO house 11: Community gains,12,General,6,Community gains,LONG,"Use networks, teams, and future plans wisely."
+CAPRICORN,PLUTO,12,PLUTO house 12: Closure and preparation,-4,General,6,Closure and preparation,LONG,"Rest, clear old patterns, and prepare the next cycle."
+AQUARIUS,JUPITER,1,JUPITER house 1: Identity reset,22,General,8,Identity reset,LONG,Put your own direction first.
+AQUARIUS,JUPITER,2,JUPITER house 2: Resource building,20,Money,6,Resource building,LONG,"Review income, assets, and spending habits."
+AQUARIUS,JUPITER,3,JUPITER house 3: Learning and communication,16,General,6,Learning and communication,LONG,Share ideas and refine your daily routes.
+AQUARIUS,JUPITER,4,JUPITER house 4: Home foundation,18,General,6,Home foundation,LONG,"Stabilize family, home, and emotional ground."
+AQUARIUS,JUPITER,5,JUPITER house 5: Creative opening,22,Love,6,Creative opening,LONG,"Make space for joy, romance, and self-expression."
+AQUARIUS,JUPITER,6,JUPITER house 6: Routine refinement,18,Work,6,Routine refinement,LONG,Improve work rhythms and health maintenance.
+AQUARIUS,JUPITER,7,JUPITER house 7: Partnership focus,24,Love,8,Partnership focus,LONG,Choose conversations and alliances carefully.
+AQUARIUS,JUPITER,8,JUPITER house 8: Deep restructuring,16,Money,6,Deep restructuring,LONG,Handle shared resources and emotional commitments.
+AQUARIUS,JUPITER,9,JUPITER house 9: Expansion and study,20,General,6,Expansion and study,LONG,"Plan travel, study, publishing, or long-range growth."
+AQUARIUS,JUPITER,10,JUPITER house 10: Career visibility,28,Work,10,Career visibility,LONG,Move public goals and responsibilities forward.
+AQUARIUS,JUPITER,11,JUPITER house 11: Community gains,20,General,6,Community gains,LONG,"Use networks, teams, and future plans wisely."
+AQUARIUS,JUPITER,12,JUPITER house 12: Closure and preparation,4,General,6,Closure and preparation,LONG,"Rest, clear old patterns, and prepare the next cycle."
+AQUARIUS,SATURN,1,SATURN house 1: Identity reset,8,General,8,Identity reset,LONG,Put your own direction first.
+AQUARIUS,SATURN,2,SATURN house 2: Resource building,6,Money,6,Resource building,LONG,"Review income, assets, and spending habits."
+AQUARIUS,SATURN,3,SATURN house 3: Learning and communication,2,General,6,Learning and communication,LONG,Share ideas and refine your daily routes.
+AQUARIUS,SATURN,4,SATURN house 4: Home foundation,4,General,6,Home foundation,LONG,"Stabilize family, home, and emotional ground."
+AQUARIUS,SATURN,5,SATURN house 5: Creative opening,8,Love,6,Creative opening,LONG,"Make space for joy, romance, and self-expression."
+AQUARIUS,SATURN,6,SATURN house 6: Routine refinement,4,Work,6,Routine refinement,LONG,Improve work rhythms and health maintenance.
+AQUARIUS,SATURN,7,SATURN house 7: Partnership focus,10,Love,8,Partnership focus,LONG,Choose conversations and alliances carefully.
+AQUARIUS,SATURN,8,SATURN house 8: Deep restructuring,2,Money,6,Deep restructuring,LONG,Handle shared resources and emotional commitments.
+AQUARIUS,SATURN,9,SATURN house 9: Expansion and study,6,General,6,Expansion and study,LONG,"Plan travel, study, publishing, or long-range growth."
+AQUARIUS,SATURN,10,SATURN house 10: Career visibility,14,Work,8,Career visibility,LONG,Move public goals and responsibilities forward.
+AQUARIUS,SATURN,11,SATURN house 11: Community gains,6,General,6,Community gains,LONG,"Use networks, teams, and future plans wisely."
+AQUARIUS,SATURN,12,SATURN house 12: Closure and preparation,-10,General,6,Closure and preparation,LONG,"Rest, clear old patterns, and prepare the next cycle."
+AQUARIUS,URANUS,1,URANUS house 1: Identity reset,16,General,8,Identity reset,LONG,Put your own direction first.
+AQUARIUS,URANUS,2,URANUS house 2: Resource building,14,Money,6,Resource building,LONG,"Review income, assets, and spending habits."
+AQUARIUS,URANUS,3,URANUS house 3: Learning and communication,10,General,6,Learning and communication,LONG,Share ideas and refine your daily routes.
+AQUARIUS,URANUS,4,URANUS house 4: Home foundation,12,General,6,Home foundation,LONG,"Stabilize family, home, and emotional ground."
+AQUARIUS,URANUS,5,URANUS house 5: Creative opening,16,Love,6,Creative opening,LONG,"Make space for joy, romance, and self-expression."
+AQUARIUS,URANUS,6,URANUS house 6: Routine refinement,12,Work,6,Routine refinement,LONG,Improve work rhythms and health maintenance.
+AQUARIUS,URANUS,7,URANUS house 7: Partnership focus,18,Love,8,Partnership focus,LONG,Choose conversations and alliances carefully.
+AQUARIUS,URANUS,8,URANUS house 8: Deep restructuring,10,Money,6,Deep restructuring,LONG,Handle shared resources and emotional commitments.
+AQUARIUS,URANUS,9,URANUS house 9: Expansion and study,14,General,6,Expansion and study,LONG,"Plan travel, study, publishing, or long-range growth."
+AQUARIUS,URANUS,10,URANUS house 10: Career visibility,22,Work,8,Career visibility,LONG,Move public goals and responsibilities forward.
+AQUARIUS,URANUS,11,URANUS house 11: Community gains,14,General,6,Community gains,LONG,"Use networks, teams, and future plans wisely."
+AQUARIUS,URANUS,12,URANUS house 12: Closure and preparation,-2,General,6,Closure and preparation,LONG,"Rest, clear old patterns, and prepare the next cycle."
+AQUARIUS,NEPTUNE,1,NEPTUNE house 1: Identity reset,12,General,8,Identity reset,LONG,Put your own direction first.
+AQUARIUS,NEPTUNE,2,NEPTUNE house 2: Resource building,10,Money,6,Resource building,LONG,"Review income, assets, and spending habits."
+AQUARIUS,NEPTUNE,3,NEPTUNE house 3: Learning and communication,6,General,6,Learning and communication,LONG,Share ideas and refine your daily routes.
+AQUARIUS,NEPTUNE,4,NEPTUNE house 4: Home foundation,8,General,6,Home foundation,LONG,"Stabilize family, home, and emotional ground."
+AQUARIUS,NEPTUNE,5,NEPTUNE house 5: Creative opening,12,Love,6,Creative opening,LONG,"Make space for joy, romance, and self-expression."
+AQUARIUS,NEPTUNE,6,NEPTUNE house 6: Routine refinement,8,Work,6,Routine refinement,LONG,Improve work rhythms and health maintenance.
+AQUARIUS,NEPTUNE,7,NEPTUNE house 7: Partnership focus,14,Love,8,Partnership focus,LONG,Choose conversations and alliances carefully.
+AQUARIUS,NEPTUNE,8,NEPTUNE house 8: Deep restructuring,6,Money,6,Deep restructuring,LONG,Handle shared resources and emotional commitments.
+AQUARIUS,NEPTUNE,9,NEPTUNE house 9: Expansion and study,10,General,6,Expansion and study,LONG,"Plan travel, study, publishing, or long-range growth."
+AQUARIUS,NEPTUNE,10,NEPTUNE house 10: Career visibility,18,Work,8,Career visibility,LONG,Move public goals and responsibilities forward.
+AQUARIUS,NEPTUNE,11,NEPTUNE house 11: Community gains,10,General,6,Community gains,LONG,"Use networks, teams, and future plans wisely."
+AQUARIUS,NEPTUNE,12,NEPTUNE house 12: Closure and preparation,-6,General,6,Closure and preparation,LONG,"Rest, clear old patterns, and prepare the next cycle."
+AQUARIUS,PLUTO,1,PLUTO house 1: Identity reset,14,General,8,Identity reset,LONG,Put your own direction first.
+AQUARIUS,PLUTO,2,PLUTO house 2: Resource building,12,Money,6,Resource building,LONG,"Review income, assets, and spending habits."
+AQUARIUS,PLUTO,3,PLUTO house 3: Learning and communication,8,General,6,Learning and communication,LONG,Share ideas and refine your daily routes.
+AQUARIUS,PLUTO,4,PLUTO house 4: Home foundation,10,General,6,Home foundation,LONG,"Stabilize family, home, and emotional ground."
+AQUARIUS,PLUTO,5,PLUTO house 5: Creative opening,14,Love,6,Creative opening,LONG,"Make space for joy, romance, and self-expression."
+AQUARIUS,PLUTO,6,PLUTO house 6: Routine refinement,10,Work,6,Routine refinement,LONG,Improve work rhythms and health maintenance.
+AQUARIUS,PLUTO,7,PLUTO house 7: Partnership focus,16,Love,8,Partnership focus,LONG,Choose conversations and alliances carefully.
+AQUARIUS,PLUTO,8,PLUTO house 8: Deep restructuring,8,Money,6,Deep restructuring,LONG,Handle shared resources and emotional commitments.
+AQUARIUS,PLUTO,9,PLUTO house 9: Expansion and study,12,General,6,Expansion and study,LONG,"Plan travel, study, publishing, or long-range growth."
+AQUARIUS,PLUTO,10,PLUTO house 10: Career visibility,20,Work,8,Career visibility,LONG,Move public goals and responsibilities forward.
+AQUARIUS,PLUTO,11,PLUTO house 11: Community gains,12,General,6,Community gains,LONG,"Use networks, teams, and future plans wisely."
+AQUARIUS,PLUTO,12,PLUTO house 12: Closure and preparation,-4,General,6,Closure and preparation,LONG,"Rest, clear old patterns, and prepare the next cycle."
+PISCES,JUPITER,1,JUPITER house 1: Identity reset,22,General,8,Identity reset,LONG,Put your own direction first.
+PISCES,JUPITER,2,JUPITER house 2: Resource building,20,Money,6,Resource building,LONG,"Review income, assets, and spending habits."
+PISCES,JUPITER,3,JUPITER house 3: Learning and communication,16,General,6,Learning and communication,LONG,Share ideas and refine your daily routes.
+PISCES,JUPITER,4,JUPITER house 4: Home foundation,18,General,6,Home foundation,LONG,"Stabilize family, home, and emotional ground."
+PISCES,JUPITER,5,JUPITER house 5: Creative opening,22,Love,6,Creative opening,LONG,"Make space for joy, romance, and self-expression."
+PISCES,JUPITER,6,JUPITER house 6: Routine refinement,18,Work,6,Routine refinement,LONG,Improve work rhythms and health maintenance.
+PISCES,JUPITER,7,JUPITER house 7: Partnership focus,24,Love,8,Partnership focus,LONG,Choose conversations and alliances carefully.
+PISCES,JUPITER,8,JUPITER house 8: Deep restructuring,16,Money,6,Deep restructuring,LONG,Handle shared resources and emotional commitments.
+PISCES,JUPITER,9,JUPITER house 9: Expansion and study,20,General,6,Expansion and study,LONG,"Plan travel, study, publishing, or long-range growth."
+PISCES,JUPITER,10,JUPITER house 10: Career visibility,28,Work,10,Career visibility,LONG,Move public goals and responsibilities forward.
+PISCES,JUPITER,11,JUPITER house 11: Community gains,20,General,6,Community gains,LONG,"Use networks, teams, and future plans wisely."
+PISCES,JUPITER,12,JUPITER house 12: Closure and preparation,4,General,6,Closure and preparation,LONG,"Rest, clear old patterns, and prepare the next cycle."
+PISCES,SATURN,1,SATURN house 1: Identity reset,8,General,8,Identity reset,LONG,Put your own direction first.
+PISCES,SATURN,2,SATURN house 2: Resource building,6,Money,6,Resource building,LONG,"Review income, assets, and spending habits."
+PISCES,SATURN,3,SATURN house 3: Learning and communication,2,General,6,Learning and communication,LONG,Share ideas and refine your daily routes.
+PISCES,SATURN,4,SATURN house 4: Home foundation,4,General,6,Home foundation,LONG,"Stabilize family, home, and emotional ground."
+PISCES,SATURN,5,SATURN house 5: Creative opening,8,Love,6,Creative opening,LONG,"Make space for joy, romance, and self-expression."
+PISCES,SATURN,6,SATURN house 6: Routine refinement,4,Work,6,Routine refinement,LONG,Improve work rhythms and health maintenance.
+PISCES,SATURN,7,SATURN house 7: Partnership focus,10,Love,8,Partnership focus,LONG,Choose conversations and alliances carefully.
+PISCES,SATURN,8,SATURN house 8: Deep restructuring,2,Money,6,Deep restructuring,LONG,Handle shared resources and emotional commitments.
+PISCES,SATURN,9,SATURN house 9: Expansion and study,6,General,6,Expansion and study,LONG,"Plan travel, study, publishing, or long-range growth."
+PISCES,SATURN,10,SATURN house 10: Career visibility,14,Work,8,Career visibility,LONG,Move public goals and responsibilities forward.
+PISCES,SATURN,11,SATURN house 11: Community gains,6,General,6,Community gains,LONG,"Use networks, teams, and future plans wisely."
+PISCES,SATURN,12,SATURN house 12: Closure and preparation,-10,General,6,Closure and preparation,LONG,"Rest, clear old patterns, and prepare the next cycle."
+PISCES,URANUS,1,URANUS house 1: Identity reset,16,General,8,Identity reset,LONG,Put your own direction first.
+PISCES,URANUS,2,URANUS house 2: Resource building,14,Money,6,Resource building,LONG,"Review income, assets, and spending habits."
+PISCES,URANUS,3,URANUS house 3: Learning and communication,10,General,6,Learning and communication,LONG,Share ideas and refine your daily routes.
+PISCES,URANUS,4,URANUS house 4: Home foundation,12,General,6,Home foundation,LONG,"Stabilize family, home, and emotional ground."
+PISCES,URANUS,5,URANUS house 5: Creative opening,16,Love,6,Creative opening,LONG,"Make space for joy, romance, and self-expression."
+PISCES,URANUS,6,URANUS house 6: Routine refinement,12,Work,6,Routine refinement,LONG,Improve work rhythms and health maintenance.
+PISCES,URANUS,7,URANUS house 7: Partnership focus,18,Love,8,Partnership focus,LONG,Choose conversations and alliances carefully.
+PISCES,URANUS,8,URANUS house 8: Deep restructuring,10,Money,6,Deep restructuring,LONG,Handle shared resources and emotional commitments.
+PISCES,URANUS,9,URANUS house 9: Expansion and study,14,General,6,Expansion and study,LONG,"Plan travel, study, publishing, or long-range growth."
+PISCES,URANUS,10,URANUS house 10: Career visibility,22,Work,8,Career visibility,LONG,Move public goals and responsibilities forward.
+PISCES,URANUS,11,URANUS house 11: Community gains,14,General,6,Community gains,LONG,"Use networks, teams, and future plans wisely."
+PISCES,URANUS,12,URANUS house 12: Closure and preparation,-2,General,6,Closure and preparation,LONG,"Rest, clear old patterns, and prepare the next cycle."
+PISCES,NEPTUNE,1,NEPTUNE house 1: Identity reset,12,General,8,Identity reset,LONG,Put your own direction first.
+PISCES,NEPTUNE,2,NEPTUNE house 2: Resource building,10,Money,6,Resource building,LONG,"Review income, assets, and spending habits."
+PISCES,NEPTUNE,3,NEPTUNE house 3: Learning and communication,6,General,6,Learning and communication,LONG,Share ideas and refine your daily routes.
+PISCES,NEPTUNE,4,NEPTUNE house 4: Home foundation,8,General,6,Home foundation,LONG,"Stabilize family, home, and emotional ground."
+PISCES,NEPTUNE,5,NEPTUNE house 5: Creative opening,12,Love,6,Creative opening,LONG,"Make space for joy, romance, and self-expression."
+PISCES,NEPTUNE,6,NEPTUNE house 6: Routine refinement,8,Work,6,Routine refinement,LONG,Improve work rhythms and health maintenance.
+PISCES,NEPTUNE,7,NEPTUNE house 7: Partnership focus,14,Love,8,Partnership focus,LONG,Choose conversations and alliances carefully.
+PISCES,NEPTUNE,8,NEPTUNE house 8: Deep restructuring,6,Money,6,Deep restructuring,LONG,Handle shared resources and emotional commitments.
+PISCES,NEPTUNE,9,NEPTUNE house 9: Expansion and study,10,General,6,Expansion and study,LONG,"Plan travel, study, publishing, or long-range growth."
+PISCES,NEPTUNE,10,NEPTUNE house 10: Career visibility,18,Work,8,Career visibility,LONG,Move public goals and responsibilities forward.
+PISCES,NEPTUNE,11,NEPTUNE house 11: Community gains,10,General,6,Community gains,LONG,"Use networks, teams, and future plans wisely."
+PISCES,NEPTUNE,12,NEPTUNE house 12: Closure and preparation,-6,General,6,Closure and preparation,LONG,"Rest, clear old patterns, and prepare the next cycle."
+PISCES,PLUTO,1,PLUTO house 1: Identity reset,14,General,8,Identity reset,LONG,Put your own direction first.
+PISCES,PLUTO,2,PLUTO house 2: Resource building,12,Money,6,Resource building,LONG,"Review income, assets, and spending habits."
+PISCES,PLUTO,3,PLUTO house 3: Learning and communication,8,General,6,Learning and communication,LONG,Share ideas and refine your daily routes.
+PISCES,PLUTO,4,PLUTO house 4: Home foundation,10,General,6,Home foundation,LONG,"Stabilize family, home, and emotional ground."
+PISCES,PLUTO,5,PLUTO house 5: Creative opening,14,Love,6,Creative opening,LONG,"Make space for joy, romance, and self-expression."
+PISCES,PLUTO,6,PLUTO house 6: Routine refinement,10,Work,6,Routine refinement,LONG,Improve work rhythms and health maintenance.
+PISCES,PLUTO,7,PLUTO house 7: Partnership focus,16,Love,8,Partnership focus,LONG,Choose conversations and alliances carefully.
+PISCES,PLUTO,8,PLUTO house 8: Deep restructuring,8,Money,6,Deep restructuring,LONG,Handle shared resources and emotional commitments.
+PISCES,PLUTO,9,PLUTO house 9: Expansion and study,12,General,6,Expansion and study,LONG,"Plan travel, study, publishing, or long-range growth."
+PISCES,PLUTO,10,PLUTO house 10: Career visibility,20,Work,8,Career visibility,LONG,Move public goals and responsibilities forward.
+PISCES,PLUTO,11,PLUTO house 11: Community gains,12,General,6,Community gains,LONG,"Use networks, teams, and future plans wisely."
+PISCES,PLUTO,12,PLUTO house 12: Closure and preparation,-4,General,6,Closure and preparation,LONG,"Rest, clear old patterns, and prepare the next cycle."

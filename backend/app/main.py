@@ -4,7 +4,7 @@ from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 
 from backend.app.schemas import LocationSearchResponse, ReadingRequest
-from backend.app.services import geocoding_service, reading_service
+from backend.app.services import geocoding_service, reading_service, yearly_forecast_service
 from backend.app.settings import settings
 
 
@@ -72,6 +72,39 @@ def location_search(
 def create_reading(payload: ReadingRequest):
     try:
         return reading_service.generate_readings(payload)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Internal server error: {exc}") from exc
+
+
+@app.post("/api/yearly-forecast")
+def create_yearly_forecast(payload: ReadingRequest, year: int = Query(default=2026, ge=1900, le=2100)):
+    try:
+        timezone_offset = payload.timezone_offset
+        if timezone_offset is None:
+            if not payload.timezone_name:
+                raise ValueError("timezone information is missing")
+            timezone_offset, _ = geocoding_service.resolve_timezone_offset(
+                timezone_name=payload.timezone_name,
+                birth_date=payload.birth_date.isoformat(),
+                birth_time=payload.birth_time.strftime("%H:%M") if payload.birth_time else None,
+                birth_time_unknown=payload.birth_time_unknown,
+            )
+
+        birth_input = reading_service.BirthInput(
+            full_name=payload.full_name,
+            birth_date=payload.birth_date.isoformat(),
+            birth_time=payload.birth_time.strftime("%H:%M") if payload.birth_time else "",
+            birth_time_unknown=payload.birth_time_unknown,
+            birthplace=payload.birthplace,
+            latitude=payload.latitude,
+            longitude=payload.longitude,
+            timezone_offset=timezone_offset,
+        )
+        return yearly_forecast_service.generate_yearly_forecast(birth_input, year)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except FileNotFoundError as exc:

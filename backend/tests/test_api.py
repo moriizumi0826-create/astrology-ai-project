@@ -8,7 +8,7 @@ from fastapi.encoders import jsonable_encoder
 from fastapi import HTTPException
 from pydantic import ValidationError
 
-from backend.app.main import create_reading, health_check, location_search, root
+from backend.app.main import create_reading, create_yearly_forecast, health_check, location_search, root
 from backend.app.services.chart_calculator import BirthInput, build_chart_rows, write_chart_csvs
 from backend.app.services.geocoding_service import LocationMatch
 from backend.app.services.reading_service import (
@@ -20,6 +20,12 @@ from backend.app.services.reading_service import (
     get_aspect_interpretation,
     get_basic_interpretation,
     get_daily_vibe_modifiers,
+)
+from backend.app.services.yearly_forecast_service import (
+    _orb_decay,
+    _priority_weight,
+    build_yearly_forecast_cache_payload,
+    extract_milestones,
 )
 from backend.app.schemas import ReadingMeta, ReadingRequest, ReadingResponse, ReadingSection
 from scripts.natal_loader import build_natal_chart_data
@@ -390,6 +396,60 @@ class ApiTestCase(unittest.TestCase):
         self.assertEqual(countdown["title"], "LUCKY_LOVE_VENUS")
         self.assertEqual(countdown["trigger_id"], "")
 
+    def test_yearly_forecast_weight_and_orb_decay_helpers(self):
+        self.assertEqual(_priority_weight(10), 3.0)
+        self.assertEqual(_priority_weight(8), 2.0)
+        self.assertEqual(_priority_weight(3), 1.0)
+        self.assertEqual(_orb_decay(0, 180), 1.0)
+        self.assertEqual(_orb_decay(8, 180), 0.2)
+
+    def test_yearly_forecast_extracts_extreme_and_sudden_change_milestones(self):
+        yearly_data = [
+            {"date": "2026-01-01", "scores": {"total": 10}, "events": []},
+            {
+                "date": "2026-01-02",
+                "scores": {"total": 50},
+                "events": [
+                    {
+                        "id": "LUCKY_GOLDEN_PERIOD",
+                        "title": "Career peak",
+                        "description": "A strong shift.",
+                        "advised_task": "Focus on work.",
+                        "priority": 10,
+                        "t_planet": "JUPITER",
+                        "n_planet": "MC",
+                        "aspect_angle": 120,
+                        "orb_status": "Separating",
+                    }
+                ],
+            },
+            {"date": "2026-01-03", "scores": {"total": 20}, "events": []},
+        ]
+
+        milestones = extract_milestones(yearly_data)
+
+        self.assertEqual(milestones[0]["date"], "2026-01-02")
+        self.assertEqual(milestones[0]["id"], "LUCKY_GOLDEN_PERIOD")
+        self.assertIn(milestones[0]["label"], {"運命の頂点", "運命の分岐点"})
+
+    def test_yearly_forecast_cache_payload_targets_cache_table(self):
+        payload = BirthInput(
+            full_name="Test User",
+            birth_date="1984-08-26",
+            birth_time="19:20",
+            birth_time_unknown=False,
+            birthplace="Tokyo",
+            latitude=35.6812,
+            longitude=139.7671,
+            timezone_offset=9,
+        )
+
+        cache_payload = build_yearly_forecast_cache_payload(payload, 2026)
+
+        self.assertEqual(cache_payload["table"], "yearly_forecast_cache")
+        self.assertEqual(cache_payload["refresh_policy"], "login_or_weekly")
+        self.assertIn("1984-08-26", cache_payload["cache_key"])
+
     def test_daily_vibe_modifier_is_clamped(self):
         daily_vibe = get_daily_vibe_modifiers(
             event_types=["VOID_TIME", "STATIONARY", "ECLIPSE", "CRITICAL_DEGREE"]
@@ -531,6 +591,31 @@ class ApiTestCase(unittest.TestCase):
 
         self.assertTrue(response.meta.birth_time_unknown)
         self.assertEqual(response.meta.birth_time, "Unknown (calculated with 12:00 local time)")
+
+    def test_create_yearly_forecast_success(self):
+        fake_forecast = {
+            "summary": "2026年は後半に向けて仕事運が上昇します",
+            "yearly_data": [],
+            "milestones": [],
+        }
+
+        with patch(
+            "backend.app.services.yearly_forecast_service.generate_yearly_forecast",
+            return_value=fake_forecast,
+        ):
+            payload = ReadingRequest(
+                full_name="Test User",
+                birth_date="1984-08-26",
+                birth_time="19:20",
+                birth_time_unknown=False,
+                birthplace="Tokyo",
+                latitude=35.6812,
+                longitude=139.7671,
+                timezone_offset=9,
+            )
+            response = create_yearly_forecast(payload)
+
+        self.assertEqual(response, fake_forecast)
 
     def test_create_reading_validation_error(self):
         with self.assertRaises(ValidationError):
