@@ -167,10 +167,10 @@ class ApiTestCase(unittest.TestCase):
         self.assertEqual(dashboard_data["daily_vibe"]["modifier"], -20)
         self.assertEqual(dashboard_data["hero"]["score"], 42)
         self.assertIn("diagnostic", dashboard_data)
-        self.assertEqual(dashboard_data["diagnostic"]["score"], 100)
+        self.assertEqual(dashboard_data["diagnostic"]["score"], 64)
         self.assertEqual(
             [item["value"] for item in dashboard_data["diagnostic"]["items"]],
-            [50, 100, 100],
+            [45, 63, 50],
         )
         self.assertEqual(len(dashboard_data["diagnostic"]["items"]), 3)
         self.assertNotEqual(dashboard_data["countdown"]["title"], dashboard_data["countdown"]["note"])
@@ -395,6 +395,39 @@ class ApiTestCase(unittest.TestCase):
 
         self.assertEqual(countdown["title"], "LUCKY_LOVE_VENUS")
         self.assertEqual(countdown["trigger_id"], "")
+
+    def test_countdown_turning_away_scan_does_not_show_full_progress(self):
+        with patch("backend.app.services.reading_service._scan_countdown_ephemeris") as scan_mock:
+            scan_mock.return_value = {
+                "days_remaining": 0,
+                "total_days": 30,
+                "percent": 100,
+                "scan_status": "turning_away",
+                "peak_day": 0,
+                "peak_orb": 0.7,
+                "peak_retrograde": False,
+            }
+            countdown = build_countdown_data(
+                {
+                    "T_Planet": "TRANSIT_MERCURY",
+                    "N_Planet": "NATAL_MOON",
+                    "Aspect_Angle": 120,
+                    "Countdown_ID": "lucky_love_venus",
+                    "Countdown_Label": "sample",
+                    "Score_Impact": 50,
+                    "Priority": 8,
+                    "_input": {
+                        "orb": 3.2,
+                        "natal_longitude": 15.0,
+                    },
+                },
+                current_dt=datetime(2026, 5, 2),
+            )
+
+        self.assertIsNotNone(countdown)
+        self.assertEqual(countdown["scan_status"], "turning_away")
+        self.assertEqual(countdown["days_remaining"], 1)
+        self.assertLess(countdown["percent"], 100)
 
     def test_yearly_forecast_weight_and_orb_decay_helpers(self):
         self.assertEqual(_priority_weight(10), 3.0)

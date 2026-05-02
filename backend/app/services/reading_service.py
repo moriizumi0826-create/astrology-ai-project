@@ -1,4 +1,4 @@
-﻿import io
+import io
 import logging
 import re
 import sys
@@ -41,14 +41,14 @@ DEFAULT_DAILY_VIBE_MODIFIER_LIMIT = 60
 DEFAULT_COUNTDOWN_THRESHOLD_ORB = 5
 DEFAULT_COUNTDOWN_TOTAL_DAYS = 1
 DIAGNOSTIC_BASE_SCORE = 50
-DIAGNOSTIC_OVERALL_IMPACT_WEIGHT = 1.0
-DIAGNOSTIC_DECISION_IMPACT_WEIGHT = 1.0
-DIAGNOSTIC_EMOTION_IMPACT_WEIGHT = 1.0
-DIAGNOSTIC_DAILY_WORK_WEIGHT = 1.0
-DIAGNOSTIC_DAILY_LOVE_WEIGHT = 1.0
-DIAGNOSTIC_NOISE_NEGATIVE_WEIGHT = 1.0
-DIAGNOSTIC_NOISE_POSITIVE_WEIGHT = 1.0
-DIAGNOSTIC_SAFETY_WEIGHT = 1.0
+DIAGNOSTIC_OVERALL_IMPACT_WEIGHT = 0.25
+DIAGNOSTIC_DECISION_IMPACT_WEIGHT = 0.30
+DIAGNOSTIC_EMOTION_IMPACT_WEIGHT = 0.30
+DIAGNOSTIC_DAILY_WORK_WEIGHT = 0.50
+DIAGNOSTIC_DAILY_LOVE_WEIGHT = 0.50
+DIAGNOSTIC_NOISE_NEGATIVE_WEIGHT = 0.25
+DIAGNOSTIC_NOISE_POSITIVE_WEIGHT = 0.10
+DIAGNOSTIC_SAFETY_WEIGHT = 0.50
 TIMELINE_CONDITION_MULTIPLIERS = {
     "OVER": 1.08,
     "MATCH": 1.0,
@@ -103,6 +103,9 @@ TRANSIT_PLANET_ORDER = (
     "NEPTUNE",
     "PLUTO",
 )
+
+COUNTDOWN_SHORT_PLANETS = {"MOON", "SUN", "MERCURY", "VENUS", "MARS"}
+COUNTDOWN_LONG_PLANETS = {"JUPITER", "SATURN", "URANUS", "NEPTUNE", "PLUTO"}
 
 SIGN_ALIASES = {
     "ARIES": "ARIES",
@@ -329,8 +332,17 @@ def _normalize_bool_flag(value: Any) -> int | None:
     return _normalize_int(value)
 
 
-def _clamp(value: int | float, minimum: int, maximum: int) -> int:
-    return int(max(minimum, min(maximum, round(value))))
+def _damp(value: float, factor: float = 150.0) -> float:
+    """極端な合計値を抑制する減衰関数。"""
+    if value == 0:
+        return 0
+    sign = 1 if value > 0 else -1
+    abs_val = abs(value)
+    return sign * (abs_val * factor) / (abs_val + factor)
+
+
+def _clamp(value: float, min_val: float = 10.0, max_val: float = 95.0) -> float:
+    return int(max(min_val, min(max_val, round(value))))
 
 
 def _safe_number(row: dict[str, Any], column: str, default: int = 0) -> int:
@@ -984,25 +996,31 @@ def _compute_diagnostic_scores(
     daily_love_modifier: int,
     safety_modifier: int,
 ) -> dict[str, int | float]:
+    d_total = _damp(total_impact, 200)
+    d_decision = _damp(decision_impact, 150)
+    d_emotion = _damp(emotion_impact, 150)
+    d_neg_load = _damp(negative_load, 150)
+    d_pos_buf = _damp(positive_buffer, 100)
+
     overall_raw = (
         DIAGNOSTIC_BASE_SCORE
-        + (total_impact * DIAGNOSTIC_OVERALL_IMPACT_WEIGHT)
+        + (d_total * DIAGNOSTIC_OVERALL_IMPACT_WEIGHT)
         + (daily_work_modifier * DIAGNOSTIC_DAILY_WORK_WEIGHT)
     )
     decision_raw = (
         DIAGNOSTIC_BASE_SCORE
-        + (decision_impact * DIAGNOSTIC_DECISION_IMPACT_WEIGHT)
+        + (d_decision * DIAGNOSTIC_DECISION_IMPACT_WEIGHT)
         + (daily_work_modifier * DIAGNOSTIC_DAILY_WORK_WEIGHT)
     )
     emotion_raw = (
         DIAGNOSTIC_BASE_SCORE
-        + (emotion_impact * DIAGNOSTIC_EMOTION_IMPACT_WEIGHT)
+        + (d_emotion * DIAGNOSTIC_EMOTION_IMPACT_WEIGHT)
         + (daily_love_modifier * DIAGNOSTIC_DAILY_LOVE_WEIGHT)
     )
     noise_raw = (
         DIAGNOSTIC_BASE_SCORE
-        - (negative_load * DIAGNOSTIC_NOISE_NEGATIVE_WEIGHT)
-        + (positive_buffer * DIAGNOSTIC_NOISE_POSITIVE_WEIGHT)
+        - (d_neg_load * DIAGNOSTIC_NOISE_NEGATIVE_WEIGHT)
+        + (d_pos_buf * DIAGNOSTIC_NOISE_POSITIVE_WEIGHT)
         + (safety_modifier * DIAGNOSTIC_SAFETY_WEIGHT)
     )
     return {
@@ -1010,10 +1028,10 @@ def _compute_diagnostic_scores(
         "decision_raw": decision_raw,
         "emotion_raw": emotion_raw,
         "noise_raw": noise_raw,
-        "overall_score": _clamp(overall_raw, 0, 100),
-        "decision_score": _clamp(decision_raw, 0, 100),
-        "emotion_score": _clamp(emotion_raw, 0, 100),
-        "noise_score": _clamp(noise_raw, 0, 100),
+        "overall_score": _clamp(overall_raw, 10, 95),
+        "decision_score": _clamp(decision_raw, 10, 95),
+        "emotion_score": _clamp(emotion_raw, 10, 95),
+        "noise_score": _clamp(noise_raw, 10, 95),
     }
 
 
@@ -1060,20 +1078,11 @@ def _build_diagnostic_data(
     noise_score = int(score_bundle["noise_score"])
 
     status_label, summary = _diagnostic_status(overall_score)
-    primary_row = _select_primary_diagnostic_row(interpretations, overall_score)
-    primary_title = _safe_text(primary_row, "Countdown_Label") or _safe_text(primary_row, "Category", "General")
-    countdown_summary = f"到達目安はあと{countdown_data.get('days_remaining', 0)}日です。" if countdown_data and countdown_data.get("title") else ""
 
     return {
         "score": overall_score,
         "statusLabel": status_label,
-        "summary": " ".join(part for part in [summary, countdown_summary] if part).strip(),
-        "primaryFactor": {
-            "title": primary_title,
-            "impact": _safe_number(primary_row or {}, "Score_Impact"),
-            "advisedTask": _safe_text(primary_row, "Advised_Task"),
-            "countdownId": _safe_text(primary_row, "Countdown_ID"),
-        },
+        "summary": summary,
         "items": [
             {
                 "label": "意思決定の整合性",
@@ -1155,15 +1164,62 @@ def _pick_timeline_row(
 
 
 def _select_countdown_target(rows: list[dict[str, Any]]) -> dict[str, Any] | None:
+    targets = _select_countdown_targets(rows, limit=1)
+    return targets[0] if targets else None
+
+
+def _select_countdown_targets(
+    rows: list[dict[str, Any]],
+    limit: int = 3,
+    score_sign: str = "positive",
+) -> list[dict[str, Any]]:
+    score_sign_normalized = str(score_sign or "").strip().lower()
+    allowed_orb_statuses = {"APPLYING"}
+    if score_sign_normalized == "negative":
+        allowed_orb_statuses = {"APPLYING", "SEPARATING", "TURNING_AWAY"}
     candidates = [
         row
         for row in rows
-        if _normalize_orb_status(row.get("_orb_status", row.get("Orb_Status"))) == "APPLYING"
-        and _safe_number(row, "Score_Impact") > 0
+        if _normalize_orb_status(row.get("_orb_status", row.get("Orb_Status"))) in allowed_orb_statuses
+        and (
+            _safe_number(row, "Score_Impact") > 0
+            if score_sign_normalized != "negative"
+            else _safe_number(row, "Score_Impact") < 0
+        )
     ]
     if not candidates:
-        return None
-    return max(candidates, key=lambda row: (_safe_number(row, "Priority"), _safe_number(row, "Score_Impact")))
+        return []
+    if score_sign_normalized == "negative":
+        ranked = sorted(
+            candidates,
+            key=lambda row: (
+                _safe_number(row, "Priority"),
+                abs(_safe_number(row, "Score_Impact")),
+                -_extract_current_orb(row),
+            ),
+            reverse=True,
+        )
+        return ranked[:limit]
+    ranked = sorted(
+        candidates,
+        key=lambda row: (
+            _safe_number(row, "Priority"),
+            _safe_number(row, "Score_Impact"),
+            -_extract_current_orb(row),
+        ),
+        reverse=True,
+    )
+    return ranked[:limit]
+
+
+def _countdown_targets_by_planet_group(
+    rows: list[dict[str, Any]],
+    planets: set[str],
+    limit: int = 3,
+    score_sign: str = "positive",
+) -> list[dict[str, Any]]:
+    group_rows = [row for row in rows if _normalize_planet(row.get("T_Planet")) in planets]
+    return _select_countdown_targets(group_rows, limit=limit, score_sign=score_sign)
 
 
 def get_countdown_master_row(trigger_id: Any) -> dict[str, Any] | None:
@@ -1205,7 +1261,123 @@ def _estimate_days_remaining(row: dict[str, Any], current_orb: float, total_days
     return _clamp(ceil(current_orb / speed), 0, max(total_days, 0))
 
 
-def build_countdown_data(countdown_target: dict[str, Any] | None) -> dict[str, Any] | None:
+def _countdown_scan_start(current_dt: datetime | date | None) -> datetime:
+    if isinstance(current_dt, datetime):
+        return current_dt
+    if isinstance(current_dt, date):
+        return datetime.combine(current_dt, dt_time(hour=12))
+    return datetime.now()
+
+
+def _countdown_target_longitude(row: dict[str, Any]) -> float | None:
+    source = row.get("_input") if isinstance(row.get("_input"), dict) else {}
+    for candidate in (
+        source.get("natal_longitude"),
+        source.get("natalLongitude"),
+        row.get("natal_longitude"),
+        row.get("Natal_Longitude"),
+    ):
+        value = _normalize_float(candidate)
+        if value is not None:
+            return value
+    return None
+
+
+def _aspect_orb_at(
+    transit_planet: str,
+    sample_local_dt: datetime,
+    timezone_offset: float,
+    natal_longitude: float,
+    exact_angle: int,
+) -> tuple[float, bool]:
+    transit_longitude, is_retrograde = _calc_transit_planet_state(
+        transit_planet,
+        sample_local_dt,
+        timezone_offset,
+    )
+    orb = abs(get_angle_diff(transit_longitude, natal_longitude) - exact_angle)
+    return orb, is_retrograde
+
+
+def _scan_countdown_ephemeris(
+    row: dict[str, Any],
+    current_dt: datetime | date | None,
+    total_days: int,
+    threshold_orb: float,
+) -> dict[str, Any] | None:
+    if swe is None:
+        return None
+    natal_longitude = _countdown_target_longitude(row)
+    if natal_longitude is None:
+        return None
+
+    transit_planet = _normalize_planet(row.get("T_Planet"))
+    exact_angle = _safe_number(row, "Aspect_Angle")
+    source = row.get("_input") if isinstance(row.get("_input"), dict) else {}
+    timezone_offset = _normalize_float(source.get("timezone_offset")) or 9.0
+    scan_start = _countdown_scan_start(current_dt)
+    scan_horizon_days = max(total_days * 4, 60)
+    scan_horizon_days = min(scan_horizon_days, 365)
+
+    previous_orb: float | None = None
+    minimum_orb = float("inf")
+    minimum_day = 0
+    minimum_retrograde = False
+    reached_exact_day: int | None = None
+    separating_day: int | None = None
+
+    for day in range(scan_horizon_days + 1):
+        sample_dt = scan_start + timedelta(days=day)
+        orb, is_retrograde = _aspect_orb_at(
+            transit_planet,
+            sample_dt,
+            timezone_offset,
+            natal_longitude,
+            exact_angle,
+        )
+        if orb < minimum_orb:
+            minimum_orb = orb
+            minimum_day = day
+            minimum_retrograde = is_retrograde
+        if reached_exact_day is None and orb <= 0.5:
+            reached_exact_day = day
+            break
+        if previous_orb is not None and day > 0 and orb > previous_orb + 0.01:
+            separating_day = day
+            break
+        previous_orb = orb
+    
+    scan_status = "exact" if reached_exact_day is not None else "turning_away" if separating_day is not None else "closest"
+    days_remaining = reached_exact_day if reached_exact_day is not None else minimum_day
+    if scan_status != "exact" and days_remaining <= 0:
+        days_remaining = 1
+    total_progress_days = max(total_days, days_remaining, 1)
+    clamped_days_remaining = _clamp(days_remaining, 0, total_progress_days)
+    percent = ((total_progress_days - clamped_days_remaining) / total_progress_days) * 100
+    return {
+        "days_remaining": clamped_days_remaining,
+        "total_days": total_progress_days,
+        "percent": _clamp(percent, 0, 100),
+        "scan_status": scan_status,
+        "peak_day": minimum_day,
+        "peak_orb": round(minimum_orb, 3),
+        "peak_retrograde": minimum_retrograde,
+    }
+
+
+def _countdown_aspect_label(row: dict[str, Any]) -> str:
+    natal_planet = _normalize_planet(row.get("N_Planet")).title()
+    transit_planet = _normalize_planet(row.get("T_Planet")).title()
+    angle = _safe_number(row, "Aspect_Angle")
+    if not natal_planet or not transit_planet:
+        return ""
+    return f"Natal {natal_planet} × Transit {transit_planet} {angle}"
+
+
+def build_countdown_data(
+    countdown_target: dict[str, Any] | None,
+    current_dt: datetime | date | None = None,
+) -> dict[str, Any] | None:
     if not countdown_target:
         return None
     countdown_id = _safe_text(countdown_target, "Countdown_ID")
@@ -1225,15 +1397,28 @@ def build_countdown_data(countdown_target: dict[str, Any] | None) -> dict[str, A
             "trigger_id": countdown_id,
             "countdown_id": countdown_id,
             "fallback_label": fallback_label,
+            "aspect_label": _countdown_aspect_label(countdown_target),
             "current_orb": current_orb,
             "target": countdown_target,
         }
 
     threshold_orb = _normalize_float(master_row.get("Threshold_Orb")) or DEFAULT_COUNTDOWN_THRESHOLD_ORB
     total_days = _normalize_int(master_row.get("Max_Progress_Days")) or _normalize_int(master_row.get("Progress_Max_Days")) or DEFAULT_COUNTDOWN_TOTAL_DAYS
+    scan = _scan_countdown_ephemeris(countdown_target, current_dt, total_days, threshold_orb)
     percent = 100 - ((current_orb / threshold_orb) * 100) if threshold_orb > 0 else 100
     progress_percent = _clamp(percent, 0, 100)
     days_remaining = _estimate_days_remaining(countdown_target, current_orb, total_days)
+    if scan:
+        days_remaining = scan["days_remaining"]
+        total_days = scan["total_days"]
+        progress_percent = scan["percent"]
+        scan_status = scan.get("scan_status")
+        if scan_status != "exact" and days_remaining <= 0:
+            days_remaining = 1
+            total_days = max(total_days, days_remaining, 1)
+            progress_percent = ((total_days - days_remaining) / total_days) * 100
+    else:
+        scan_status = "unknown"
     title_column = "Arrival_Text" if current_orb <= 0.5 else "Display_Title"
     title = _safe_text(master_row, title_column, _safe_text(master_row, "Display_Title", fallback_label))
     note = _safe_text(master_row, "Next_Action_Hint")
@@ -1246,11 +1431,14 @@ def build_countdown_data(countdown_target: dict[str, Any] | None) -> dict[str, A
         "days_remaining": days_remaining,
         "total_days": total_days,
         "percent": progress_percent,
+        "scan_status": scan_status,
         "trigger_id": _safe_text(master_row, "Trigger_ID", countdown_id),
         "countdown_id": countdown_id,
         "fallback_label": fallback_label,
+        "aspect_label": _countdown_aspect_label(countdown_target),
         "current_orb": current_orb,
         "threshold_orb": threshold_orb,
+        "scan": scan,
         "arrival_text": _safe_text(master_row, "Arrival_Text"),
         "display_title": _safe_text(master_row, "Display_Title"),
         "target": countdown_target,
@@ -1462,19 +1650,14 @@ def _build_timeline_slot_from_rows(
     multiplier = _timeline_condition_multiplier(condition)
     final_score = _clamp(round(additive_score * multiplier), 0, 100)
 
+    aspect_recommended_action = _safe_text(dominant_row, "Recommended_Action")
     aspect_action = _safe_text(dominant_row, "Advised_Task")
+    timeline_label = _safe_text(dominant_row, "timeline_Label")
     detail = _safe_text(dominant_row, "Text_Description")
 
     advice_status = _safe_text(advice_row, "Status_Label", slot_def["id"])
-    advice_action = _safe_text(advice_row, "Status_Label")
 
-    if is_noise_heavy:
-        advice_status = "多忙注意"
-        advice_action = "境界を意識して、今は重要な決断を先延ばしにする。"
-
-    combined_recommendation = advice_action
-    if aspect_action and aspect_action != advice_action:
-        combined_recommendation = f"{advice_action} さらに、{aspect_action}"
+    combined_recommendation = aspect_recommended_action or aspect_action
 
     LOGGER.info(
         "Timeline score: slot=%s target=%s impact=%s daily=%s additive=%s final=%s condition=%s multiplier=%s",
@@ -1492,10 +1675,11 @@ def _build_timeline_slot_from_rows(
         "label": slot_def["label"],
         "title": advice_status,
         "score": final_score,
+        "timelineLabel": timeline_label,
         "recommendedAction": combined_recommendation,
-        "description": detail or aspect_action or advice_action,
+        "description": detail,
         "recommendation": combined_recommendation,
-        "detail": detail or aspect_action or advice_action,
+        "detail": detail,
         "statusLabel": advice_status,
         "actionType": _safe_text(advice_row, "Action_Type"),
         "condition": condition,
@@ -1653,7 +1837,18 @@ def _build_developer_meta(
         slot_sources: list[dict[str, Any]] = []
         aspect_source = _source_reference(
             slot.get("sourceRow"),
-            columns=["Aspect_Logic_ID", "T_Planet", "N_Planet", "Aspect_Angle", "Advised_Task", "Text_Description", "Score_Impact", "Priority"],
+            columns=[
+                "Aspect_Logic_ID",
+                "T_Planet",
+                "N_Planet",
+                "Aspect_Angle",
+                "Recommended_Action",
+                "timeline_Label",
+                "Text_Description",
+                "Advised_Task",
+                "Score_Impact",
+                "Priority",
+            ],
             note=(
                 f"{slot.get('label')} の本文に使った主アスペクトです。"
                 f"基準値 {slot.get('targetScore')} + アスペクト合計 {slot.get('scoreImpactTotal')} + "
@@ -1875,8 +2070,27 @@ def build_dashboard_data_from_interpretations(
     average_score = sum(_safe_number(row, "Score_Impact") for row in interpretations) / len(interpretations)
     final_score = _clamp(average_score + daily_modifier, 0, 100)
     hero_row = _top_priority_row(interpretations)
-    countdown_target = _select_countdown_target(interpretations)
-    countdown_data = build_countdown_data(countdown_target)
+    short_countdown_targets = _countdown_targets_by_planet_group(
+        interpretations,
+        COUNTDOWN_SHORT_PLANETS,
+        limit=3,
+        score_sign="positive",
+    )
+    long_countdown_targets = _countdown_targets_by_planet_group(
+        interpretations,
+        COUNTDOWN_LONG_PLANETS,
+        limit=3,
+        score_sign="positive",
+    )
+    short_countdown_items = [
+        item for item in (build_countdown_data(target, current_dt=current_dt) for target in short_countdown_targets) if item
+    ]
+    long_countdown_items = [
+        item for item in (build_countdown_data(target, current_dt=current_dt) for target in long_countdown_targets) if item
+    ]
+    positive_countdown_items = [*short_countdown_items, *long_countdown_items][:3]
+    countdown_items = positive_countdown_items
+    countdown_data = (positive_countdown_items or [None])[0]
     diagnostic_data = _build_diagnostic_data(interpretations, daily_vibe, countdown_data)
     is_noise_heavy = any(str(item.get("Safety_Level", "")).strip().upper() == "LOW" for item in daily_vibe.get("items", []))
     timeline = _build_timeline_from_interpretations(interpretations, final_score, birth_input=birth_input, current_dt=current_dt, daily_modifier=daily_modifier, is_noise_heavy=is_noise_heavy)
@@ -1893,6 +2107,13 @@ def build_dashboard_data_from_interpretations(
         "header": _dashboard_header(),
         "hero": hero,
         "countdown": countdown_data,
+        "countdown_items": countdown_items,
+        "countdown_groups": {
+            "short": short_countdown_items,
+            "long": long_countdown_items,
+            "legacy_short": short_countdown_items,
+            "legacy_long": long_countdown_items,
+        },
         "diagnostic": diagnostic_data,
         "timeline": timeline,
         "topics": topics,

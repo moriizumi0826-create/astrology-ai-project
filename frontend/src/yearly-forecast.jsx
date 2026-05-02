@@ -5,12 +5,18 @@ import { CalendarDays, CircleDot, Target } from "lucide-react";
 const RESULT_STORAGE_KEY = "celestial-atelier:last-reading-result";
 const WIDTH = 960;
 const HEIGHT = 340;
-const PAD = { top: 24, right: 28, bottom: 42, left: 46 };
+const PAD = { top: 72, right: 28, bottom: 42, left: 46 };
 const SERIES = [
   { key: "total", label: "総合", color: "#D4AF37" },
   { key: "work", label: "仕事", color: "#2F6FED" },
   { key: "love", label: "恋愛", color: "#D84C8B" },
   { key: "money", label: "金運", color: "#2F9E68" },
+];
+const RANGE_OPTIONS = [
+  { months: 1, label: "1ヶ月", days: 31 },
+  { months: 3, label: "3ヶ月", days: 92 },
+  { months: 6, label: "6ヶ月", days: 183 },
+  { months: 12, label: "12ヶ月", days: 366 },
 ];
 
 function cx(...values) {
@@ -86,16 +92,39 @@ function selectedDayFromMilestones(data, milestones) {
   }, 0);
 }
 
+function visibleWindow(dataLength, selectedIndex, rangeMonths) {
+  const option = RANGE_OPTIONS.find((item) => item.months === rangeMonths) || RANGE_OPTIONS[0];
+  if (option.months === 12 || dataLength <= option.days) {
+    return { start: 0, end: dataLength };
+  }
+  const half = Math.floor(option.days / 2);
+  const maxStart = Math.max(0, dataLength - option.days);
+  const start = Math.max(0, Math.min(maxStart, selectedIndex - half));
+  return { start, end: Math.min(dataLength, start + option.days) };
+}
+
+function tickIndexes(count) {
+  if (count <= 1) return [0];
+  const steps = count <= 45 ? 3 : 4;
+  return Array.from({ length: steps + 1 }, (_, index) =>
+    Math.min(count - 1, Math.round((index / steps) * (count - 1)))
+  ).filter((value, index, values) => values.indexOf(value) === index);
+}
+
 function YearlyForecastGraph({ forecast }) {
   const data = Array.isArray(forecast?.yearly_data) ? forecast.yearly_data : [];
   const milestones = Array.isArray(forecast?.milestones) ? forecast.milestones : [];
   const initialIndex = useMemo(() => (data.length ? selectedDayFromMilestones(data, milestones) : 0), [data, milestones]);
   const [selectedIndex, setSelectedIndex] = useState(initialIndex);
+  const [rangeMonths, setRangeMonths] = useState(1);
 
   if (!data.length) {
     return null;
   }
 
+  const { start: visibleStart, end: visibleEnd } = visibleWindow(data.length, selectedIndex, rangeMonths);
+  const visibleData = data.slice(visibleStart, visibleEnd);
+  const visibleSelectedIndex = Math.max(0, Math.min(visibleData.length - 1, selectedIndex - visibleStart));
   const selectedDay = data[selectedIndex] || data[0];
   const selectedEvent = strongestEvent(selectedDay);
   const milestoneDates = new Set(milestones.map((item) => item.date));
@@ -109,23 +138,40 @@ function YearlyForecastGraph({ forecast }) {
           <h2 className="font-notoSerif text-2xl text-primary md:text-3xl">2026 運勢シミュレーション</h2>
           <p className="mt-2 max-w-3xl text-sm leading-6 text-on-surface-variant">{forecast.summary}</p>
         </div>
-        <div className="grid grid-cols-2 gap-2 text-xs text-on-surface-variant sm:flex sm:flex-wrap">
-          {SERIES.map((item) => (
-            <span key={item.key} className="inline-flex items-center gap-2 rounded-full border border-outline-variant/30 px-3 py-2">
-              <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: item.color }} />
-              {item.label}
-            </span>
-          ))}
-        </div>
       </div>
 
       <div className="overflow-hidden rounded-2xl border border-outline-variant/25 bg-[#fffdf8]">
+        <div className="flex flex-col items-start gap-2 px-4 pt-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
+          <div className="grid grid-cols-4 gap-1 rounded-full border border-outline-variant/30 bg-white/85 p-1 text-xs text-on-surface-variant shadow-sm">
+            {RANGE_OPTIONS.map((item) => (
+              <button
+                key={item.months}
+                type="button"
+                className={cx(
+                  "rounded-full px-4 py-2 font-bold transition-colors",
+                  rangeMonths === item.months ? "bg-[#fbf5df] text-primary shadow-sm" : "hover:bg-[#fbf5df]/70"
+                )}
+                onClick={() => setRangeMonths(item.months)}
+              >
+                {item.label}
+              </button>
+            ))}
+          </div>
+          <div className="grid grid-cols-4 gap-1 rounded-full border border-outline-variant/30 bg-white/85 p-1 text-xs text-on-surface-variant shadow-sm">
+            {SERIES.map((item) => (
+              <span key={item.key} className="inline-flex items-center justify-center gap-2 rounded-full px-3 py-2">
+                <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: item.color }} />
+                {item.label}
+              </span>
+            ))}
+          </div>
+        </div>
         <svg
-          className="block h-[260px] w-full cursor-crosshair md:h-[360px]"
+          className="block h-[300px] w-full cursor-crosshair md:h-[390px]"
           viewBox={`0 0 ${WIDTH} ${HEIGHT}`}
           role="img"
           aria-label="2026 yearly forecast line chart"
-          onClick={(event) => setSelectedIndex(nearestIndexFromPointer(event, data.length))}
+          onClick={(event) => setSelectedIndex(visibleStart + nearestIndexFromPointer(event, visibleData.length))}
         >
           <rect x={PAD.left} y={PAD.top} width={WIDTH - PAD.left - PAD.right} height={zeroY - PAD.top} fill="#e8f5ed" opacity="0.78" />
           <rect x={PAD.left} y={zeroY} width={WIDTH - PAD.left - PAD.right} height={HEIGHT - PAD.bottom - zeroY} fill="#fdeceb" opacity="0.78" />
@@ -137,23 +183,23 @@ function YearlyForecastGraph({ forecast }) {
               </text>
             </g>
           ))}
-          {[0, 90, 181, 273, data.length - 1].map((index) => (
+          {tickIndexes(visibleData.length).map((index) => (
             <g key={index}>
-              <line x1={chartX(index, data.length)} x2={chartX(index, data.length)} y1={PAD.top} y2={HEIGHT - PAD.bottom} stroke="#e5e2d8" />
-              <text x={chartX(index, data.length)} y={HEIGHT - 16} textAnchor="middle" fontSize="12" fill="#687066">
-                {formatDate(data[index]?.date)}
+              <line x1={chartX(index, visibleData.length)} x2={chartX(index, visibleData.length)} y1={PAD.top} y2={HEIGHT - PAD.bottom} stroke="#e5e2d8" />
+              <text x={chartX(index, visibleData.length)} y={HEIGHT - 16} textAnchor="middle" fontSize="12" fill="#687066">
+                {formatDate(visibleData[index]?.date)}
               </text>
             </g>
           ))}
           {SERIES.map((item) => (
-            <path key={item.key} d={buildPath(data, item.key)} fill="none" stroke={item.color} strokeWidth={item.key === "total" ? 3.2 : 2.2} strokeLinecap="round" strokeLinejoin="round" opacity={item.key === "total" ? 1 : 0.82} />
+            <path key={item.key} d={buildPath(visibleData, item.key)} fill="none" stroke={item.color} strokeWidth={item.key === "total" ? 3.2 : 2.2} strokeLinecap="round" strokeLinejoin="round" opacity={item.key === "total" ? 1 : 0.82} />
           ))}
-          {data.map((day, index) => {
+          {visibleData.map((day, index) => {
             if (!milestoneDates.has(day.date)) return null;
             return (
               <circle
                 key={day.date}
-                cx={chartX(index, data.length)}
+                cx={chartX(index, visibleData.length)}
                 cy={chartY(scoreFor(day, "total"))}
                 r={4.5}
                 fill="#ffffff"
@@ -162,8 +208,8 @@ function YearlyForecastGraph({ forecast }) {
               />
             );
           })}
-          <line x1={chartX(selectedIndex, data.length)} x2={chartX(selectedIndex, data.length)} y1={PAD.top} y2={HEIGHT - PAD.bottom} stroke="#0A192F" strokeWidth="1.5" />
-          <circle cx={chartX(selectedIndex, data.length)} cy={chartY(scoreFor(selectedDay, "total"))} r="7" fill="#0A192F" />
+          <line x1={chartX(visibleSelectedIndex, visibleData.length)} x2={chartX(visibleSelectedIndex, visibleData.length)} y1={PAD.top} y2={HEIGHT - PAD.bottom} stroke="#0A192F" strokeWidth="1.5" />
+          <circle cx={chartX(visibleSelectedIndex, visibleData.length)} cy={chartY(scoreFor(selectedDay, "total"))} r="7" fill="#0A192F" />
         </svg>
       </div>
 

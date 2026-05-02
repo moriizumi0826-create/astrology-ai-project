@@ -215,8 +215,17 @@ def _orb_decay(orb: float | None, exact_angle: int) -> float:
     return round(0.2 + (closeness * 0.8), 4)
 
 
+def _damp(value: float, factor: float = 120.0) -> float:
+    """極端な合計値を抑制する減衰関数。"""
+    if value == 0:
+        return 0
+    sign = 1 if value > 0 else -1
+    abs_val = abs(value)
+    return sign * (abs_val * factor) / (abs_val + factor)
+
+
 def _clamp_score(value: float) -> int:
-    return int(max(-100, min(100, round(value))))
+    return int(max(-95, min(95, round(value))))
 
 
 def _category_key(value: Any) -> str:
@@ -234,12 +243,14 @@ def _score_category_totals(events: list[dict[str, Any]]) -> dict[str, int]:
     raw = {key: 0.0 for key in CATEGORY_KEYS}
     for event in events:
         raw[_category_key(event.get("category"))] += float(event.get("weighted_score", 0))
+    
+    # カテゴリごとに減衰を適用して合算
     return {
-        "total": _clamp_score(sum(raw.values())),
-        "work": _clamp_score(raw["work"]),
-        "love": _clamp_score(raw["love"]),
-        "money": _clamp_score(raw["money"]),
-        "general": _clamp_score(raw["general"]),
+        "total": _clamp_score(_damp(sum(raw.values()), 150)),
+        "work": _clamp_score(_damp(raw["work"], 120)),
+        "love": _clamp_score(_damp(raw["love"], 120)),
+        "money": _clamp_score(_damp(raw["money"], 120)),
+        "general": _clamp_score(_damp(raw["general"], 120)),
     }
 
 

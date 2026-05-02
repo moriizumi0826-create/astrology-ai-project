@@ -1,7 +1,9 @@
-﻿import React from "react";
+﻿import React, { useState } from "react";
 import {
   BatteryMedium,
   BriefcaseBusiness,
+  ChevronLeft,
+  ChevronRight,
   Clock3,
   Crown,
   Code2,
@@ -673,56 +675,62 @@ function TypographicHero({
       </Panel>
     );
   }
-function CountdownWidget({ data }) {
-  const progress = Math.max(
-    0,
-    Math.min(100, ((data.totalDays - data.daysLeft) / data.totalDays) * 100)
-  );
-
-  return (
-    <Panel title={data.title} eyebrow="Return Hook">
-      <div className="grid gap-5 lg:grid-cols-[0.7fr_1.3fr] lg:items-center">
-        <div className="rounded-3xl bg-[#0A192F] px-6 py-7 text-white">
-          <p className="text-sm uppercase tracking-[0.22em] text-white/55">Countdown</p>
-          <div className="mt-3 flex items-end gap-3">
-            <span className="text-5xl font-extrabold text-[#D4AF37]">{data.daysLeft}</span>
-            <span className="pb-2 text-lg font-semibold">譌･</span>
-          </div>
-          <p className="mt-4 text-sm leading-6 text-white/70">{data.note}</p>
-        </div>
-
-        <div className="space-y-4">
-          <div className="flex items-center justify-between text-sm font-semibold text-slate-600">
-            <span>追い風モード準備率</span>
-            <span>{Math.round(progress)}%</span>
-          </div>
-          <div className="h-4 overflow-hidden rounded-full bg-slate-100">
-            <div
-              className="h-full rounded-full bg-gradient-to-r from-[#D4AF37] via-[#e8c966] to-[#f5e6a8]"
-              style={{ width: `${progress}%` }}
-            />
-          </div>
-          <p className="text-sm leading-7 text-slate-600">
-            譛溷ｾ・､繧剃ｸ翫￡縺吶℃縺壹∬ｦｳ貂ｬ縺ｨ隱ｿ謨ｴ縺ｫ蠕ｹ縺吶ｋ縺ｻ縺ｩ蜉ｹ譫懃噪縺ｧ縺吶ょ・險ｪ縺ｮ繧ｿ繧､繝溘Φ繧ｰ繧剃ｽ懊ｋ縺溘ａ縲・            騾ｲ謐励′隕九∴繧玖ｨｭ險医↓縺励※縺・∪縺吶・          </p>
+function CountdownLane({
+  title,
+  slides,
+  activeIndex,
+  setActiveIndex,
+}) {
+  const [touchStartX, setTouchStartX] = useState(null);
+  const hasSlides = Array.isArray(slides) && slides.length > 0;
+  if (!hasSlides) {
+    return (
+      <div className="flex min-h-[190px] items-center justify-center rounded-3xl border border-slate-800 bg-slate-900 px-5 py-6 text-sm font-semibold text-slate-500">
+        <div className="text-center">
+          <p className="mb-2 text-[11px] font-bold uppercase tracking-[0.22em] text-slate-600">{title}</p>
+          対象アスペクトなし
         </div>
       </div>
-    </Panel>
-  );
-}
+    );
+  }
 
-function LunarCountdownWidget({ data, developerMode = false, developerMeta = {} }) {
-  if (!data) return null;
-
-  const rawPercent =
-    typeof data.percent === "number"
-      ? data.percent
-      : ((data.totalDays - data.daysLeft) / data.totalDays) * 100;
-  const percent = Math.max(0, Math.min(100, Math.round(rawPercent || 0)));
-  const daysRemaining = data.days_remaining ?? data.daysLeft ?? 0;
-  const daysLabel = Number(daysRemaining) === 1 ? "Day to go" : "Days to go";
+  const visibleSlides = slides.slice(0, 3);
+  const clampedIndex = Math.max(0, Math.min(activeIndex, visibleSlides.length - 1));
+  const activeSlide = visibleSlides[clampedIndex] || visibleSlides[0];
+  const daysRemaining = Number(activeSlide.days_remaining ?? activeSlide.daysLeft ?? 0);
+  const totalDays = Number(activeSlide.total_days ?? activeSlide.totalDays ?? 0);
+  const percent = Math.max(0, Math.min(100, Math.round(totalDays > 0 ? ((totalDays - daysRemaining) / totalDays) * 100 : 0)));
+  const elapsedDays = Math.max(0, totalDays - daysRemaining);
+  const progressLabel = `進行度 ${elapsedDays}/${totalDays || 0}日 (${percent}%)`;
+  const note = String(activeSlide.note || '').trim();
+  const titleText = String(activeSlide.title || activeSlide.fallback_label || 'アスペクト').trim();
+  const aspectLabel = String(activeSlide.aspect_label || '').trim();
+  const scanStatus = String(activeSlide.scan_status || activeSlide.scan?.scan_status || '').trim();
+  const countdownPrefix = scanStatus === 'turning_away' || scanStatus === 'closest' ? '最接近まで あと' : 'あと';
+  const countdownSuffix =
+    scanStatus === 'turning_away'
+      ? '※その後逆行開始により離脱、再び接近する局面を迎えます'
+      : '';
+  const goToSlide = (index) => {
+    if (visibleSlides.length <= 0) return;
+    setActiveIndex((index + visibleSlides.length) % visibleSlides.length);
+  };
+  const handleTouchEnd = (event) => {
+    if (touchStartX === null || visibleSlides.length <= 1) return;
+    const deltaX = event.changedTouches[0].clientX - touchStartX;
+    if (Math.abs(deltaX) >= 40) {
+      const nextIndex = deltaX < 0 ? clampedIndex + 1 : clampedIndex - 1;
+      goToSlide(nextIndex);
+    }
+    setTouchStartX(null);
+  };
 
   return (
-    <div className="group relative overflow-hidden rounded-3xl border border-slate-800 bg-slate-900 p-5 shadow-xl md:p-6">
+    <div
+      className="group relative overflow-hidden rounded-3xl border border-slate-800 bg-slate-900 p-5 shadow-xl md:p-6"
+      onTouchStart={(event) => setTouchStartX(event.touches[0].clientX)}
+      onTouchEnd={handleTouchEnd}
+    >
       <div
         className="absolute -right-10 -top-10 h-32 w-32 rounded-full bg-amber-500/10 blur-3xl transition-all duration-1000"
         style={{ opacity: percent / 100 }}
@@ -732,39 +740,125 @@ function LunarCountdownWidget({ data, developerMode = false, developerMeta = {} 
         style={{ opacity: percent / 100 }}
       />
 
-      <div className="relative">
-        <h3 className="mb-3 flex items-start justify-between gap-4 text-sm font-medium text-slate-400">
-          <span className="leading-6">{data.title}</span>
-          <span className="shrink-0 font-bold text-amber-500">{percent}%</span>
-        </h3>
-
-        <div className="mb-5 flex items-baseline gap-2">
-          <span className="text-4xl font-bold tracking-tighter text-white sm:text-5xl">
-            {daysRemaining}
+      <div className="relative flex min-h-[300px] flex-col">
+        <div className="mb-3 flex min-h-[28px] items-center justify-between gap-3">
+          <p className="inline-flex items-center rounded-full border border-white/70 bg-white px-3 py-1 text-[11px] font-bold tracking-[0.12em] text-slate-900">
+            {title}テーマ
+          </p>
+          <span className="shrink-0 text-right text-sm font-bold text-amber-500">
+            {progressLabel}
           </span>
-          <span className="text-base text-slate-500 sm:text-lg">{daysLabel}</span>
+        </div>
+        <div className="mb-3 flex min-h-[58px] items-start justify-between gap-4 text-sm font-medium text-slate-400">
+          <div className="min-w-0">
+            {aspectLabel ? (
+              <p className="mb-1 truncate text-[10px] font-normal uppercase tracking-[0.16em] text-slate-600">
+                {aspectLabel}
+              </p>
+            ) : null}
+            <h3 className="text-base font-semibold leading-6 text-slate-300">{titleText}</h3>
+          </div>
         </div>
 
-        <div className="mb-4 h-2 w-full overflow-hidden rounded-full bg-slate-800">
+        <div className="mb-3 min-h-[56px]">
+          <div className="flex min-h-[52px] min-w-0 items-baseline gap-x-3">
+            <span className="text-base text-slate-500 sm:text-lg">{countdownPrefix}</span>
+            <span className="text-4xl font-bold tracking-tighter text-white sm:text-5xl">
+              {daysRemaining}
+            </span>
+            <span className="text-base text-slate-500 sm:text-lg">日</span>
+            {countdownSuffix ? (
+              <p className="min-w-0 flex-1 truncate whitespace-nowrap text-left text-[10px] font-medium leading-5 text-slate-500">
+                {countdownSuffix}
+              </p>
+            ) : null}
+          </div>
+        </div>
+
+        <div className="mb-4 h-2 w-full shrink-0 overflow-hidden rounded-full bg-slate-800">
           <div
             className="h-full rounded-full bg-gradient-to-r from-amber-700 via-amber-500 to-yellow-300 shadow-[0_0_15px_rgba(245,158,11,0.5)] transition-all duration-1000 ease-out"
             style={{ width: `${percent}%` }}
           />
         </div>
 
-          {data.note ? (
-            <p className="text-xs italic leading-relaxed text-slate-400 opacity-80 transition-opacity group-hover:opacity-100">
-              {data.note}
+        <div className="min-h-[36px]">
+          {note ? (
+            <p className="line-clamp-2 text-xs italic leading-relaxed text-slate-400 opacity-80 transition-opacity group-hover:opacity-100">
+              {note}
             </p>
           ) : null}
-          {developerMode ? (
-            <DeveloperBlock title="Count down bar の根拠" meta={developerMeta.countdown} className="bg-slate-50" />
-          ) : null}
         </div>
-      </div>
-    );
-  }
 
+        {visibleSlides.length > 1 ? (
+          <div className="mt-4 flex items-center justify-center gap-3">
+            <button
+              type="button"
+              onClick={() => goToSlide(clampedIndex - 1)}
+              className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-slate-700 bg-slate-800/70 text-slate-300 transition hover:border-amber-500 hover:text-amber-300"
+              aria-label={`${title} 前のアスペクト`}
+            >
+              <ChevronLeft size={16} />
+            </button>
+            <div className="flex min-w-[72px] items-center justify-center gap-2">
+              {visibleSlides.map((slide, index) => (
+              <button
+                key={`${slide.countdown_id || slide.title || index}-${index}`}
+                type="button"
+                onClick={() => goToSlide(index)}
+                className={`h-2 rounded-full transition-all ${index === clampedIndex ? "w-7 bg-amber-500" : "w-2.5 bg-slate-700"}`}
+                aria-label={`${title} ${index + 1}`}
+              />
+              ))}
+            </div>
+            <button
+              type="button"
+              onClick={() => goToSlide(clampedIndex + 1)}
+              className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-slate-700 bg-slate-800/70 text-slate-300 transition hover:border-amber-500 hover:text-amber-300"
+              aria-label={`${title} 次のアスペクト`}
+            >
+              <ChevronRight size={16} />
+            </button>
+          </div>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
+function LunarCountdownWidget({ data, items = [], groups = {}, developerMode = false, developerMeta = {} }) {
+  const [shortIndex, setShortIndex] = useState(0);
+  const [longIndex, setLongIndex] = useState(0);
+
+  const shortSlides =
+    Array.isArray(groups?.short) && groups.short.length
+      ? groups.short
+      : Array.isArray(groups?.legacy_short) && groups.legacy_short.length
+        ? groups.legacy_short
+        : data
+          ? [data]
+          : Array.isArray(items) && items.length
+            ? items.slice(0, 1)
+            : [];
+  const longSlides =
+    Array.isArray(groups?.long) && groups.long.length
+      ? groups.long
+      : Array.isArray(groups?.legacy_long) && groups.legacy_long.length
+        ? groups.legacy_long
+        : [];
+
+  return (
+    <div className="space-y-4">
+      <div className="grid gap-4 xl:grid-cols-2">
+        <CountdownLane title="短期" slides={shortSlides} activeIndex={shortIndex} setActiveIndex={setShortIndex} />
+        <CountdownLane title="中長期" slides={longSlides} activeIndex={longIndex} setActiveIndex={setLongIndex} />
+      </div>
+      {developerMode ? (
+        <DeveloperBlock title="Count down bar の根拠" meta={developerMeta.countdown} className="bg-slate-50" />
+      ) : null}
+    </div>
+  );
+}
 function Timeline({ data, developerMode = false, developerMeta = {} }) {
   const slots = Array.isArray(data) && data.length ? data : dashboardData.timeline;
   const slotEntries = Array.isArray(developerMeta.sources) ? developerMeta.sources : [];
@@ -970,6 +1064,8 @@ export function Dashboard({ data = dashboardData, embedded = false, developerMod
         />
         <LunarCountdownWidget
           data={data.countdown}
+          items={data.countdown_items}
+          groups={data.countdown_groups}
           developerMode={developerMode}
           developerMeta={data.developerMeta || dashboardData.developerMeta}
         />
@@ -988,5 +1084,9 @@ export function Dashboard({ data = dashboardData, embedded = false, developerMod
     </div>
   );
 }
+
+
+
+
 
 
