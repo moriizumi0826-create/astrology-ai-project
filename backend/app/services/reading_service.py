@@ -110,39 +110,51 @@ COUNTDOWN_LONG_PLANETS = {"JUPITER", "SATURN", "URANUS", "NEPTUNE", "PLUTO"}
 
 SIGN_ALIASES = {
     "ARIES": "ARIES",
+    "\u7261\u7f8a\u5ea7": "ARIES",
     "迚｡鄒雁ｺｧ": "ARIES",
     "縺翫・縺､縺伜ｺｧ": "ARIES",
     "TAURUS": "TAURUS",
+    "\u7261\u725b\u5ea7": "TAURUS",
     "迚｡迚帛ｺｧ": "TAURUS",
     "縺翫≧縺怜ｺｧ": "TAURUS",
     "GEMINI": "GEMINI",
+    "\u53cc\u5b50\u5ea7": "GEMINI",
     "蜿悟ｭ仙ｺｧ": "GEMINI",
     "縺ｵ縺溘＃蠎ｧ": "GEMINI",
     "CANCER": "CANCER",
+    "\u87f9\u5ea7": "CANCER",
     "陝ｹ蠎ｧ": "CANCER",
     "縺九↓蠎ｧ": "CANCER",
     "LEO": "LEO",
+    "\u7345\u5b50\u5ea7": "LEO",
     "迯・ｭ仙ｺｧ": "LEO",
     "縺励＠蠎ｧ": "LEO",
     "VIRGO": "VIRGO",
+    "\u4e59\u5973\u5ea7": "VIRGO",
     "荵吝･ｳ蠎ｧ": "VIRGO",
     "縺翫→繧∝ｺｧ": "VIRGO",
     "LIBRA": "LIBRA",
+    "\u5929\u79e4\u5ea7": "LIBRA",
     "螟ｩ遘､蠎ｧ": "LIBRA",
     "縺ｦ繧薙・繧灘ｺｧ": "LIBRA",
     "SCORPIO": "SCORPIO",
+    "\u880d\u5ea7": "SCORPIO",
     "陟榊ｺｧ": "SCORPIO",
     "縺輔◎繧雁ｺｧ": "SCORPIO",
     "SAGITTARIUS": "SAGITTARIUS",
+    "\u5c04\u624b\u5ea7": "SAGITTARIUS",
     "蟆・焔蠎ｧ": "SAGITTARIUS",
     "縺・※蠎ｧ": "SAGITTARIUS",
     "CAPRICORN": "CAPRICORN",
+    "\u5c71\u7f8a\u5ea7": "CAPRICORN",
     "螻ｱ鄒雁ｺｧ": "CAPRICORN",
     "繧・℃蠎ｧ": "CAPRICORN",
     "AQUARIUS": "AQUARIUS",
+    "\u6c34\u74f6\u5ea7": "AQUARIUS",
     "豌ｴ逑ｶ蠎ｧ": "AQUARIUS",
     "縺ｿ縺壹′繧∝ｺｧ": "AQUARIUS",
     "PISCES": "PISCES",
+    "\u9b5a\u5ea7": "PISCES",
     "鬲壼ｺｧ": "PISCES",
     "縺・♀蠎ｧ": "PISCES",
 }
@@ -927,23 +939,25 @@ def _apply_basic_to_hero(
     category = _strongest_topic_category(aspect_rows)
     description_column = "Text_Love" if category == "Love" else "Text_Work"
     description = _safe_text(basic_row, description_column) or _safe_text(basic_row, "Text_General")
-    basic_general = _first_sentence(_safe_text(basic_row, "Text_General"))
-    aspect_description = _first_sentence(_safe_text(aspect_row, "Text_Description"))
-    advised_task = _first_sentence(_safe_text(aspect_row, "Advised_Task"))
+    aspect_description = _safe_text(aspect_row, "Text_Description")
 
     hero["description"] = description
     hero["guideline"] = _safe_text(basic_row, "Text_Health")
+    hero["basicTexts"] = {
+        "general": _safe_text(basic_row, "Text_General"),
+        "love": _safe_text(basic_row, "Text_Love"),
+        "work": _safe_text(basic_row, "Text_Work"),
+        "human": _safe_text(basic_row, "Text_Human"),
+        "health": _safe_text(basic_row, "Text_Health"),
+    }
     hero["basic"] = {
         "planet": _safe_text(basic_row, "Planet_ID"),
         "sign": _safe_text(basic_row, "Sign_ID"),
         "house": _safe_number(basic_row, "House_ID"),
         "source_planet": _safe_text(basic_row, "_source_planet", _safe_text(basic_row, "Planet_ID")),
     }
-    if basic_general and aspect_description:
-        hero["summary"] = (
-            f"本来は{basic_general}なあなたですが、今日は{aspect_description}の影響で、"
-            f"特に{advised_task or _safe_text(aspect_row, 'Category', '今日の調整')}に意識を向けると流れを活かせます。"
-        )
+    if aspect_description:
+        hero["summary"] = aspect_description
     return hero
 
 
@@ -2039,7 +2053,7 @@ def _build_developer_meta(
     if basic_primary:
         ref = _source_reference(
             basic_primary,
-            columns=["Planet_ID", "Sign_ID", "House_ID", "Text_General", "Text_Work", "Text_Love", "Text_Health"],
+            columns=["Planet_ID", "Sign_ID", "House_ID", "Text_General", "Text_Work", "Text_Love", "Text_Human", "Text_Health"],
             note="ネイタル基本解釈の参照元です。",
         )
         if ref:

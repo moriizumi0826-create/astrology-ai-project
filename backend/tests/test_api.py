@@ -113,6 +113,19 @@ class ApiTestCase(unittest.TestCase):
         self.assertEqual([row["Planet_ID"] for row in basic_rows[:2]], ["SUN", "MOON"])
         self.assertLessEqual(len(basic_rows), 3)
 
+    def test_basic_interpretations_are_extracted_from_japanese_live_chart_rows(self):
+        basic_rows = build_basic_interpretations_from_chart_rows(
+            planet_rows=[
+                ["\u592a\u967d", 11.13, "\u7261\u7f8a\u5ea7", 11.13, "\u9806\u884c", 9],
+                ["\u6708", 84.24, "\u53cc\u5b50\u5ea7", 24.24, "\u9806\u884c", 11],
+            ],
+            angle_rows=[["ASC", 117.51, "\u87f9\u5ea7", 27.51]],
+        )
+
+        self.assertEqual([row["Planet_ID"] for row in basic_rows], ["SUN", "MOON", "ASC"])
+        self.assertEqual([row["Sign_ID"] for row in basic_rows], ["ARIES", "GEMINI", "CANCER"])
+        self.assertTrue(all(row["Text_General"] for row in basic_rows))
+
     def test_dashboard_hero_combines_basic_and_aspect_context(self):
         basic = get_basic_interpretation(planet="SUN", sign="ARIES", house=1)
         dashboard_data = build_dashboard_data_from_aspects(
@@ -134,7 +147,13 @@ class ApiTestCase(unittest.TestCase):
         self.assertTrue(hero["description"])
         self.assertTrue(hero["guideline"])
         self.assertEqual(hero["basic"]["planet"], "SUN")
-        self.assertIn("本来は", hero["summary"])
+        self.assertTrue(hero["basicTexts"]["general"])
+        self.assertTrue(hero["basicTexts"]["love"])
+        self.assertTrue(hero["basicTexts"]["work"])
+        self.assertTrue(hero["basicTexts"]["human"])
+        self.assertTrue(hero["basicTexts"]["health"])
+        self.assertNotIn("本来は", hero["summary"])
+        self.assertEqual(hero["summary"], dashboard_data["aspect_interpretations"][0]["Text_Description"])
 
     def test_dashboard_data_integrates_multiple_aspects_and_daily_vibe_modifier(self):
         dashboard_data = build_dashboard_data_from_aspects(

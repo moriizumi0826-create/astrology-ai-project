@@ -528,6 +528,7 @@ function Hero({ data }) {
 function TypographicHero({
   data,
   diagnosticData,
+  basicInterpretations = [],
   developerMode = false,
   developerMeta = {},
 }) {
@@ -543,12 +544,27 @@ function TypographicHero({
     D: "text-slate-400",
   };
   const rankClass = rankStyles[rank] || rankStyles[rank.slice(0, 1)] || "text-[#D4AF37]";
-  const summaryParts = String(data.summary || "")
-    .split("。")
-    .map((part) => part.trim())
-    .filter(Boolean);
-  const basicPart = summaryParts[0] || data.description || "";
-  const aspectPart = summaryParts.slice(1).join("。") || data.guidance || "";
+  const basicFallback = Array.isArray(basicInterpretations) && basicInterpretations.length
+    ? basicInterpretations[0]
+    : {};
+  const basicTexts = data.basicTexts || {
+    general: basicFallback.Text_General,
+    love: basicFallback.Text_Love,
+    work: basicFallback.Text_Work,
+    human: basicFallback.Text_Human,
+    health: basicFallback.Text_Health,
+  };
+  const basicTextEntries = [
+    { key: "general", label: "全体", text: basicTexts.general },
+    { key: "love", label: "恋愛", text: basicTexts.love },
+    { key: "work", label: "仕事", text: basicTexts.work },
+    { key: "human", label: "対人", text: basicTexts.human },
+    { key: "health", label: "健康", text: basicTexts.health },
+  ].filter((entry) => entry.text);
+  const [activeBasicTextKey, setActiveBasicTextKey] = useState("general");
+  const activeBasicText =
+    basicTextEntries.find((entry) => entry.key === activeBasicTextKey) || basicTextEntries[0];
+  const personalBody = String(data.summary || "").trim();
     const diagnostic = diagnosticData || data.diagnostic || dashboardData.diagnostic;
     const diagnosticItems =
       Array.isArray(diagnostic?.items) && diagnostic.items.length
@@ -573,45 +589,53 @@ function TypographicHero({
               </span>
             </div>
 
-            {data.description && (
-              <div className="mb-4 flex w-full max-w-full items-start gap-2 rounded-2xl border border-amber-300/20 bg-amber-300/10 px-3 py-2 text-[11px] font-semibold text-amber-100 shadow-[0_0_22px_rgba(217,174,74,0.12)] sm:px-4 sm:text-xs">
-                <Gauge size={14} className="mt-0.5 shrink-0" />
-                <span className="min-w-0 break-words whitespace-normal leading-5">{data.description}</span>
-              </div>
-            )}
-
             <h2 className={cx("break-words text-2xl font-black leading-tight tracking-[-0.04em] sm:text-5xl", rankClass)}>
               {data.title}
             </h2>
 
-            {data.guidance && (
-              <p className="mt-4 max-w-2xl text-base font-semibold leading-7 text-white sm:text-xl sm:leading-8">
-                {data.guidance}
-              </p>
+            {personalBody && (
+              <div className="mt-6 border-l border-[#D4AF37]/25 pl-4 sm:pl-5">
+                <p className="break-words text-sm font-light leading-7 text-slate-300 sm:text-base sm:leading-8">
+                  {personalBody}
+                </p>
+              </div>
             )}
 
-            <div className="mt-6 space-y-3 border-l border-[#D4AF37]/25 pl-4 sm:pl-5">
-              {basicPart && (
-                <p className="break-words text-sm font-light leading-7 text-slate-400 sm:text-base sm:leading-8">
-                  {basicPart}。
-                </p>
-              )}
-              {aspectPart && (
-                <p className="inline break-words border-b border-amber-500/30 pb-1 text-sm font-semibold leading-7 text-white sm:text-base sm:leading-8">
-                  {aspectPart}
-                </p>
-              )}
-            </div>
+              {basicTextEntries.length ? (
+                <div className="mt-6 rounded-2xl border border-white/10 bg-white/[0.04] p-3 sm:p-4">
+                  <div className="mb-4 flex flex-wrap gap-2" role="tablist" aria-label="Basic interpretation tabs">
+                    {basicTextEntries.map((entry) => {
+                      const isActive = activeBasicText?.key === entry.key;
+                      return (
+                        <button
+                          key={entry.key}
+                          type="button"
+                          role="tab"
+                          aria-selected={isActive}
+                          className={cx(
+                            "rounded-full border px-3 py-1.5 text-[11px] font-bold transition sm:text-xs",
+                            isActive
+                              ? "border-amber-300/70 bg-amber-300/15 text-amber-200"
+                              : "border-white/10 bg-white/[0.03] text-slate-400 hover:border-amber-300/40 hover:text-amber-200"
+                          )}
+                          onClick={() => setActiveBasicTextKey(entry.key)}
+                        >
+                          {entry.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  {activeBasicText ? (
+                    <section role="tabpanel" aria-label={activeBasicText.label}>
+                      <p className="mb-2 text-[11px] font-bold uppercase tracking-[0.16em] text-amber-300">
+                        {activeBasicText.label}
+                      </p>
+                      <p className="break-words text-sm leading-7 text-slate-300">{activeBasicText.text}</p>
+                    </section>
+                  ) : null}
+                </div>
+              ) : null}
 
-              {data.guideline && (
-                <div className="mt-6 rounded-2xl border border-white/10 bg-white/[0.06] p-4">
-                <div className="mb-2 flex flex-wrap items-center gap-2 text-[11px] font-bold uppercase tracking-[0.16em] text-amber-300 sm:text-xs sm:tracking-[0.2em]">
-                  <Sparkles size={15} />
-                  Atelier Prescription
-                </div>
-                  <p className="break-words text-sm leading-7 text-slate-300">{data.guideline}</p>
-                </div>
-              )}
                 {developerMode ? (
                  <PersonalReadingDeveloperBlock data={data} meta={developerMeta.personalReading} className="bg-white/95" />
                 ) : null}
@@ -1123,6 +1147,7 @@ export function Dashboard({ data = dashboardData, embedded = false, developerMod
         <TypographicHero
           data={data.hero}
           diagnosticData={data.diagnostic}
+          basicInterpretations={data.basic_interpretations}
           developerMode={developerMode}
           developerMeta={data.developerMeta || dashboardData.developerMeta}
         />
