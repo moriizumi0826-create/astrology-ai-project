@@ -136,7 +136,7 @@ function cx(...values) {
   return values.filter(Boolean).join(" ");
 }
 
-function Panel({ title, eyebrow, children, className }) {
+function Panel({ title, eyebrow, children, className, headerAction }) {
   return (
     <section
       className={cx(
@@ -150,7 +150,10 @@ function Panel({ title, eyebrow, children, className }) {
             {eyebrow}
           </p>
         ) : null}
-        <h2 className="text-lg font-bold text-[#0A192F] md:text-xl">{title}</h2>
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+          <h2 className="text-lg font-bold text-[#0A192F] md:text-xl">{title}</h2>
+          {headerAction ? <div className="shrink-0">{headerAction}</div> : null}
+        </div>
       </div>
       <div className="px-5 py-5 md:px-6 md:py-6">{children}</div>
     </section>
@@ -866,12 +869,55 @@ function LunarCountdownWidget({ data, items = [], groups = {}, developerMode = f
     </div>
   );
 }
-function Timeline({ data, developerMode = false, developerMeta = {} }) {
-  const slots = Array.isArray(data) && data.length ? data : dashboardData.timeline;
+function formatTimelineDate(value) {
+  const date = new Date(`${value || ""}T00:00:00`);
+  if (Number.isNaN(date.getTime())) return value || "";
+  return `${date.getFullYear()}/${date.getMonth() + 1}/${date.getDate()}`;
+}
+
+function Timeline({ data, date, days = [], developerMode = false, developerMeta = {} }) {
+  const timelineDays = Array.isArray(days) && days.length
+    ? days
+    : [{ date, timeline: Array.isArray(data) && data.length ? data : dashboardData.timeline }];
+  const initialDate = date || timelineDays[1]?.date || timelineDays[0]?.date || "";
+  const [activeDate, setActiveDate] = useState(initialDate);
+  const activeDay = timelineDays.find((item) => item.date === activeDate) || timelineDays[0];
+  const slots = Array.isArray(activeDay?.timeline) && activeDay.timeline.length
+    ? activeDay.timeline
+    : Array.isArray(data) && data.length
+      ? data
+      : dashboardData.timeline;
   const slotEntries = Array.isArray(developerMeta.sources) ? developerMeta.sources : [];
 
   return (
-      <Panel title="リソース最適化・タイムライン" eyebrow="Work / Action">
+      <Panel
+        title="リソース最適化・タイムライン"
+        eyebrow="Work / Action"
+        headerAction={
+          timelineDays.length ? (
+            <div className="grid grid-cols-3 gap-1 rounded-full border border-slate-200 bg-slate-50 p-1 text-xs font-bold text-slate-500">
+              {timelineDays.map((item) => {
+                const isActive = item.date === activeDay?.date;
+                return (
+                  <button
+                    key={item.date}
+                    type="button"
+                    onClick={() => setActiveDate(item.date)}
+                    className={cx(
+                      "rounded-full transition-colors",
+                      isActive
+                        ? "bg-white px-3 py-1.5 text-xs text-[#0A192F] shadow-sm"
+                        : "px-2 py-1 text-[10px] text-slate-400 hover:bg-white/70 hover:text-[#0A192F]"
+                    )}
+                  >
+                    {formatTimelineDate(item.date)}
+                  </button>
+                );
+              })}
+            </div>
+          ) : null
+        }
+      >
         <div className="grid gap-4 xl:grid-cols-4">
           {slots.map((slot) => {
             const score = Math.max(0, Math.min(100, Number(slot.score) || 0));
@@ -880,7 +926,7 @@ function Timeline({ data, developerMode = false, developerMeta = {} }) {
             const recommendedAction = slot.recommendedAction || slot.recommendation || "";
             const aspectDescription = slot.description || slot.detail || "";
             const isPeak = score >= 80;
-            const developerEntry = slotEntries.find((entry) => entry.slot === slot.label);
+            const developerEntry = activeDay?.date === date ? slotEntries.find((entry) => entry.slot === slot.label) : null;
 
             return (
             <article
@@ -1089,6 +1135,8 @@ export function Dashboard({ data = dashboardData, embedded = false, developerMod
         />
         <Timeline
           data={data.timeline}
+          date={data.timelineDate}
+          days={data.timelineDays}
           developerMode={developerMode}
           developerMeta={(data.developerMeta || dashboardData.developerMeta).timeline || {}}
         />

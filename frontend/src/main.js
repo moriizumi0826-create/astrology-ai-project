@@ -126,6 +126,13 @@ function collectFormSnapshot() {
   };
 }
 
+function localIsoDate(value = new Date()) {
+  const year = value.getFullYear();
+  const month = String(value.getMonth() + 1).padStart(2, "0");
+  const day = String(value.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
 function normalizeBirthDateInput(value) {
   const match = String(value || "")
     .trim()
@@ -547,6 +554,7 @@ form.addEventListener("submit", async (event) => {
       postJson("/api/readings", payload),
       postJson("/api/yearly-forecast", payload),
     ]);
+    yearlyForecast.reading_date = localIsoDate();
     data.yearly_forecast = yearlyForecast;
 
     window.sessionStorage.setItem(RESULT_STORAGE_KEY, JSON.stringify(data));

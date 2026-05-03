@@ -84,15 +84,15 @@ function strongestEvent(day) {
   )[0];
 }
 
-function selectedDayFromMilestones(data, milestones) {
-  const firstMilestone = Array.isArray(milestones) ? milestones[0] : null;
-  if (firstMilestone?.date) {
-    const index = data.findIndex((day) => day.date === firstMilestone.date);
+function selectedDayFromReadingDate(data, forecast) {
+  const readingDate = forecast?.reading_date || forecast?.date || forecast?.meta?.birth_date;
+  if (readingDate) {
+    const index = data.findIndex((day) => day.date === readingDate);
     if (index >= 0) return index;
   }
-  return data.reduce((bestIndex, day, index) => {
-    return scoreFor(day, "total") > scoreFor(data[bestIndex], "total") ? index : bestIndex;
-  }, 0);
+  const today = new Date().toISOString().slice(0, 10);
+  const todayIndex = data.findIndex((day) => day.date === today);
+  return todayIndex >= 0 ? todayIndex : 0;
 }
 
 function visibleWindow(dataLength, selectedIndex, rangeMonths) {
@@ -117,7 +117,7 @@ function tickIndexes(count) {
 function YearlyForecastGraph({ forecast }) {
   const data = Array.isArray(forecast?.yearly_data) ? forecast.yearly_data : [];
   const milestones = Array.isArray(forecast?.milestones) ? forecast.milestones : [];
-  const initialIndex = useMemo(() => (data.length ? selectedDayFromMilestones(data, milestones) : 0), [data, milestones]);
+  const initialIndex = useMemo(() => (data.length ? selectedDayFromReadingDate(data, forecast) : 0), [data, forecast]);
   const [selectedIndex, setSelectedIndex] = useState(initialIndex);
   const [rangeMonths, setRangeMonths] = useState(1);
 
@@ -130,7 +130,6 @@ function YearlyForecastGraph({ forecast }) {
   const visibleSelectedIndex = Math.max(0, Math.min(visibleData.length - 1, selectedIndex - visibleStart));
   const selectedDay = data[selectedIndex] || data[0];
   const selectedEvent = strongestEvent(selectedDay);
-  const milestoneDates = new Set(milestones.map((item) => item.date));
   const zeroY = chartY(0);
 
   return (
@@ -214,20 +213,6 @@ function YearlyForecastGraph({ forecast }) {
           {SERIES.map((item) => (
             <path key={item.key} d={buildPath(visibleData, item.key)} fill="none" stroke={item.color} strokeWidth={item.key === "total" ? 3.2 : 2.2} strokeLinecap="round" strokeLinejoin="round" opacity={item.key === "total" ? 1 : 0.82} />
           ))}
-          {visibleData.map((day, index) => {
-            if (!milestoneDates.has(day.date)) return null;
-            return (
-              <circle
-                key={day.date}
-                cx={chartX(index, visibleData.length)}
-                cy={chartY(scoreFor(day, "total"))}
-                r={4.5}
-                fill="#ffffff"
-                stroke="#0A192F"
-                strokeWidth="2"
-              />
-            );
-          })}
           <line x1={chartX(visibleSelectedIndex, visibleData.length)} x2={chartX(visibleSelectedIndex, visibleData.length)} y1={PAD.top} y2={HEIGHT - PAD.bottom} stroke="#0A192F" strokeWidth="1.5" />
           <circle cx={chartX(visibleSelectedIndex, visibleData.length)} cy={chartY(scoreFor(selectedDay, "total"))} r="7" fill="#0A192F" />
         </svg>

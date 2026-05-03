@@ -823,6 +823,48 @@ def _dashboard_header() -> dict[str, Any]:
     }
 
 
+def _dashboard_date(current_dt: datetime | date | None) -> str:
+    if isinstance(current_dt, datetime):
+        return current_dt.date().isoformat()
+    if isinstance(current_dt, date):
+        return current_dt.isoformat()
+    return date.today().isoformat()
+
+
+def _dashboard_target_date(current_dt: datetime | date | None) -> date:
+    if isinstance(current_dt, datetime):
+        return current_dt.date()
+    if isinstance(current_dt, date):
+        return current_dt
+    return date.today()
+
+
+def _build_timeline_days(
+    rows: list[dict[str, Any]],
+    baseline_score: int,
+    *,
+    birth_input: BirthInput | None,
+    current_dt: datetime | date | None,
+    daily_modifier: int,
+    is_noise_heavy: bool,
+) -> list[dict[str, Any]]:
+    target_date = _dashboard_target_date(current_dt)
+    return [
+        {
+            "date": (target_date + timedelta(days=offset)).isoformat(),
+            "timeline": _build_timeline_from_interpretations(
+                rows,
+                baseline_score,
+                birth_input=birth_input,
+                current_dt=target_date + timedelta(days=offset),
+                daily_modifier=daily_modifier,
+                is_noise_heavy=is_noise_heavy,
+            ),
+        }
+        for offset in (-1, 0, 1)
+    ]
+
+
 def build_dashboard_data_from_aspect(row: dict[str, Any]) -> dict[str, Any]:
     return build_dashboard_data_from_interpretations([row] if row else [], {"modifier": 0, "raw_modifier": 0, "items": []})
 
@@ -1221,6 +1263,20 @@ def _countdown_targets_by_planet_group(
     return _select_countdown_targets(group_rows, limit=limit, score_sign=score_sign)
 
 
+def _select_display_countdown_items(items: list[dict[str, Any]], limit: int = 3) -> list[dict[str, Any]]:
+    def display_bucket(item: dict[str, Any]) -> int:
+        days_remaining = _normalize_int(item.get("days_remaining", item.get("daysLeft"))) or 0
+        scan_status = str(item.get("scan_status") or item.get("scan", {}).get("scan_status") or "").strip().lower()
+        if days_remaining > 0:
+            return 0
+        if scan_status == "exact":
+            return 1
+        return 2
+
+    ranked = sorted(enumerate(items), key=lambda pair: (display_bucket(pair[1]), pair[0]))
+    return [item for _index, item in ranked[:limit]]
+
+
 def get_countdown_master_row(trigger_id: Any) -> dict[str, Any] | None:
     normalized_trigger_id = _normalize_trigger_id(trigger_id)
     if not normalized_trigger_id:
@@ -1532,6 +1588,7 @@ def build_countdown_data(
         return None
     countdown_id = _safe_text(countdown_target, "Countdown_ID")
     fallback_label = _safe_text(countdown_target, "Countdown_Label")
+    advised_task = _safe_text(countdown_target, "Advised_Task")
     current_orb = _extract_current_orb(countdown_target)
     master_row = get_countdown_master_row(countdown_id)
     if not master_row:
@@ -1540,7 +1597,7 @@ def build_countdown_data(
             "title": title,
             "daysLeft": 0,
             "totalDays": DEFAULT_COUNTDOWN_TOTAL_DAYS,
-            "note": title,
+            "note": advised_task or title,
             "days_remaining": 0,
             "total_days": DEFAULT_COUNTDOWN_TOTAL_DAYS,
             "percent": 0,
@@ -1576,12 +1633,18 @@ def build_countdown_data(
     else:
         scan_status = "unknown"
     if countdown_mode_normalized == "departure":
-        title_column = "Arrival_Text" if days_remaining <= 0 else "Display_Title"
-        title = _safe_text(master_row, title_column, _safe_text(master_row, "Display_Title", fallback_label))
+        title = (
+            _safe_text(master_row, "Arrival_Text", fallback_label or _safe_text(master_row, "Display_Title"))
+            if days_remaining <= 0
+            else fallback_label or _safe_text(master_row, "Display_Title")
+        )
     else:
-        title_column = "Arrival_Text" if current_orb <= 0.5 else "Display_Title"
-        title = _safe_text(master_row, title_column, _safe_text(master_row, "Display_Title", fallback_label))
-    note = _safe_text(master_row, "Next_Action_Hint")
+        title = (
+            _safe_text(master_row, "Arrival_Text", fallback_label or _safe_text(master_row, "Display_Title"))
+            if current_orb <= 0.5
+            else fallback_label or _safe_text(master_row, "Display_Title")
+        )
+    note = advised_task or _safe_text(master_row, "Next_Action_Hint")
 
     return {
         "title": title,
@@ -1610,7 +1673,7 @@ TIMELINE_SLOT_DEFS = [
     {"id": "MORNING", "label": "06:00 - 12:00 (Morning)", "time_range": "06:00-12:00", "sample_hour": 9},
     {"id": "AFTERNOON", "label": "12:00 - 18:00 (Afternoon)", "time_range": "12:00-18:00", "sample_hour": 15},
     {"id": "EVENING", "label": "18:00 - 24:00 (Evening)", "time_range": "18:00-24:00", "sample_hour": 21},
-    {"id": "NIGHT", "label": "00:00 - 06:00 (Night)", "time_range": "00:00-06:00", "sample_hour": 3},
+    {"id": "NIGHT", "label": "00:00 - 06:00 (Night)", "time_range": "00:00-06:00", "sample_hour": 3, "day_offset": 1},
 ]
 
 
@@ -1709,8 +1772,8 @@ def _build_natal_aspect_points(birth_input: BirthInput) -> list[dict[str, Any]]:
     return natal_rows
 
 
-def _local_sample_datetime(target_date: date, sample_hour: int) -> datetime:
-    return datetime.combine(target_date, dt_time(hour=sample_hour))
+def _local_sample_datetime(target_date: date, sample_hour: int, day_offset: int = 0) -> datetime:
+    return datetime.combine(target_date + timedelta(days=day_offset), dt_time(hour=sample_hour))
 
 
 def _calc_transit_moon_state(sample_local_dt: datetime, timezone_offset: float) -> tuple[float, bool]:
@@ -1760,7 +1823,7 @@ def _classify_orb_status(
 
 def _build_slot_interpretations(birth_input: BirthInput, slot_def: dict[str, Any], target_date: date) -> list[dict[str, Any]]:
     natal_rows = _build_natal_planet_rows(birth_input)
-    sample_local_dt = _local_sample_datetime(target_date, slot_def["sample_hour"])
+    sample_local_dt = _local_sample_datetime(target_date, slot_def["sample_hour"], slot_def.get("day_offset", 0))
     transit_longitude, is_retrograde = _calc_transit_moon_state(sample_local_dt, birth_input.timezone_offset)
     slot_rows: list[dict[str, Any]] = []
     for natal_row in natal_rows:
@@ -2213,6 +2276,7 @@ def build_dashboard_data_from_interpretations(
         diagnostic = _build_diagnostic_data([], daily_vibe, None)
         is_noise_heavy = any(str(item.get("Safety_Level", "")).strip().upper() == "LOW" for item in daily_vibe.get("items", []))
         timeline = _build_timeline_from_interpretations([], final_score, birth_input=birth_input, current_dt=current_dt, daily_modifier=daily_modifier, is_noise_heavy=is_noise_heavy)
+        timeline_days = _build_timeline_days([], final_score, birth_input=birth_input, current_dt=current_dt, daily_modifier=daily_modifier, is_noise_heavy=is_noise_heavy)
         topics = _build_topics_from_interpretations([], final_score)
         return _to_json_compatible({
             "header": _dashboard_header(),
@@ -2220,6 +2284,8 @@ def build_dashboard_data_from_interpretations(
             "countdown": None,
             "diagnostic": diagnostic,
             "timeline": timeline,
+            "timelineDate": _dashboard_date(current_dt),
+            "timelineDays": timeline_days,
             "topics": topics,
             "premium": {"title": "Premium AI Preview", "description": "", "placeholder": "", "preview": ""},
             "aspect_interpretations": [],
@@ -2234,13 +2300,13 @@ def build_dashboard_data_from_interpretations(
     short_countdown_targets = _countdown_targets_by_planet_group(
         interpretations,
         COUNTDOWN_SHORT_PLANETS,
-        limit=3,
+        limit=12,
         score_sign="positive",
     )
     long_countdown_targets = _countdown_targets_by_planet_group(
         interpretations,
         COUNTDOWN_LONG_PLANETS,
-        limit=3,
+        limit=12,
         score_sign="positive",
     )
     short_negative_countdown_targets = _countdown_targets_by_planet_group(
@@ -2255,12 +2321,14 @@ def build_dashboard_data_from_interpretations(
         limit=12,
         score_sign="negative",
     )
-    short_countdown_items = [
+    short_countdown_candidates = [
         item for item in (build_countdown_data(target, current_dt=current_dt) for target in short_countdown_targets) if item
     ]
-    long_countdown_items = [
+    long_countdown_candidates = [
         item for item in (build_countdown_data(target, current_dt=current_dt) for target in long_countdown_targets) if item
     ]
+    short_countdown_items = _select_display_countdown_items(short_countdown_candidates, limit=3)
+    long_countdown_items = _select_display_countdown_items(long_countdown_candidates, limit=3)
     short_negative_countdown_items = [
         item
         for item in (
@@ -2285,6 +2353,7 @@ def build_dashboard_data_from_interpretations(
     diagnostic_data = _build_diagnostic_data(interpretations, daily_vibe, countdown_data)
     is_noise_heavy = any(str(item.get("Safety_Level", "")).strip().upper() == "LOW" for item in daily_vibe.get("items", []))
     timeline = _build_timeline_from_interpretations(interpretations, final_score, birth_input=birth_input, current_dt=current_dt, daily_modifier=daily_modifier, is_noise_heavy=is_noise_heavy)
+    timeline_days = _build_timeline_days(interpretations, final_score, birth_input=birth_input, current_dt=current_dt, daily_modifier=daily_modifier, is_noise_heavy=is_noise_heavy)
     topics = _build_topics_from_interpretations(interpretations, final_score)
     hero = {
         "rank": _score_to_rank(final_score),
@@ -2307,6 +2376,8 @@ def build_dashboard_data_from_interpretations(
         },
         "diagnostic": diagnostic_data,
         "timeline": timeline,
+        "timelineDate": _dashboard_date(current_dt),
+        "timelineDays": timeline_days,
         "topics": topics,
         "premium": {
             "title": "Premium AI Preview",

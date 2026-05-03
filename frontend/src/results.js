@@ -134,29 +134,12 @@ function buildTopLevelPanels(payload) {
   const fullReport = payload.readings.find((item) => item.type === "full_report") || payload.readings[0];
   const sections = fullReport ? splitReportSections(fullReport.content) : [];
 
-  const loveContent = extractTopicContent(sections, [
-    "恋愛",
-    "愛情",
-    "対人",
-    "パートナー",
-    "関係",
-    "結婚",
-    "好意",
-  ]);
-  const workContent = extractTopicContent(sections, [
-    "仕事",
-    "キャリア",
-    "職場",
-    "社会",
-    "業務",
-    "成果",
-    "働",
-  ]);
+  const topicPlaceholder = "\u30fb\u30fb\u30fb\u4f5c\u6210\u4e2d\u30fb\u30fb\u30fb";
 
   return [
-    renderNestedReportPanel("Full_report", sections),
-    renderTopicPanel("恋愛", loveContent),
-    renderTopicPanel("仕事", workContent),
+    renderNestedReportPanel("フルリポート", sections),
+    renderTopicPanel("恋愛", topicPlaceholder),
+    renderTopicPanel("仕事", topicPlaceholder),
   ];
 }
 

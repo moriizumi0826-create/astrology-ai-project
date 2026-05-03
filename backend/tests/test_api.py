@@ -18,12 +18,14 @@ from backend.app.services.reading_service import (
     build_dashboard_data_from_interpretations,
     build_dashboard_data_from_aspects,
     build_transit_aspect_inputs,
+    _local_sample_datetime,
     get_aspect_dashboard_data,
     get_aspect_interpretation,
     get_basic_interpretation,
     get_daily_vibe_modifiers,
 )
 from backend.app.services.yearly_forecast_service import (
+    _display_countdown_label,
     _orb_decay,
     _priority_weight,
     build_yearly_forecast_cache_payload,
@@ -292,6 +294,11 @@ class ApiTestCase(unittest.TestCase):
         self.assertIn("additive=", joined)
         self.assertIn("final=", joined)
 
+    def test_timeline_night_slot_samples_next_day(self):
+        sample_dt = _local_sample_datetime(date(2026, 5, 3), 3, day_offset=1)
+
+        self.assertEqual(sample_dt, datetime(2026, 5, 4, 3, 0))
+
     def test_timeline_score_combines_aspect_daily_vibe_and_condition_multiplier(self):
         dashboard_data = build_dashboard_data_from_aspects(
             aspects=[
@@ -372,6 +379,31 @@ class ApiTestCase(unittest.TestCase):
 
         self.assertEqual(countdown["title"], countdown["arrival_text"])
 
+    def test_countdown_prefers_aspect_label_and_advised_task(self):
+        countdown = build_countdown_data(
+            {
+                "T_Planet": "TRANSIT_VENUS",
+                "Countdown_ID": "LUCKY_LOVE_VENUS",
+                "Countdown_Label": "個別ラベルを表示",
+                "Advised_Task": "個別タスクを使う",
+                "_input": {"orb": 2.0},
+            }
+        )
+
+        self.assertEqual(countdown["title"], "個別ラベルを表示")
+        self.assertEqual(countdown["note"], "個別タスクを使う")
+
+    def test_countdown_falls_back_to_master_title_when_label_is_missing(self):
+        countdown = build_countdown_data(
+            {
+                "T_Planet": "TRANSIT_VENUS",
+                "Countdown_ID": "LUCKY_LOVE_VENUS",
+                "_input": {"orb": 2.0},
+            }
+        )
+
+        self.assertEqual(countdown["title"], countdown["display_title"])
+
     def test_countdown_label_is_only_fallback_when_master_is_missing(self):
         countdown = build_countdown_data(
             {
@@ -430,6 +462,17 @@ class ApiTestCase(unittest.TestCase):
         self.assertEqual(countdown["scan_status"], "turning_away")
         self.assertEqual(countdown["days_remaining"], 0)
         self.assertEqual(countdown["percent"], 100)
+
+    def test_display_countdown_items_prefer_future_days_over_past_peak(self):
+        items = [
+            {"title": "past peak", "days_remaining": 0, "scan_status": "turning_away"},
+            {"title": "future peak", "days_remaining": 2, "scan_status": "closest"},
+            {"title": "today exact", "days_remaining": 0, "scan_status": "exact"},
+        ]
+
+        selected = reading_service._select_display_countdown_items(items, limit=3)
+
+        self.assertEqual([item["title"] for item in selected], ["future peak", "today exact", "past peak"])
 
     def test_countdown_scan_distinguishes_retrograde_turning_away(self):
         with patch("backend.app.services.reading_service._aspect_orb_at") as orb_mock, patch(
@@ -650,6 +693,12 @@ class ApiTestCase(unittest.TestCase):
         self.assertEqual(_priority_weight(3), 1.0)
         self.assertEqual(_orb_decay(0, 180), 1.0)
         self.assertEqual(_orb_decay(8, 180), 0.2)
+
+    def test_yearly_forecast_countdown_label_trims_display_suffix(self):
+        self.assertEqual(_display_countdown_label("恋愛運ピーク日"), "恋愛運ピーク")
+        self.assertEqual(_display_countdown_label("大きな転機まで"), "大きな転機")
+        self.assertEqual(_display_countdown_label("収穫日まで"), "収穫")
+        self.assertEqual(_display_countdown_label("そのまま表示"), "そのまま表示")
 
     def test_yearly_forecast_extracts_extreme_and_sudden_change_milestones(self):
         yearly_data = [
