@@ -694,10 +694,12 @@ function CountdownLane({
     );
   }
 
-  const visibleSlides = slides.slice(0, 3);
+  const visibleSlides = slides.slice(0, 6);
   const clampedIndex = Math.max(0, Math.min(activeIndex, visibleSlides.length - 1));
   const activeSlide = visibleSlides[clampedIndex] || visibleSlides[0];
   const daysRemaining = Number(activeSlide.days_remaining ?? activeSlide.daysLeft ?? 0);
+  const departureDays = Number(activeSlide.scan?.departure_day);
+  const hasDepartureDays = Number.isFinite(departureDays);
   const totalDays = Number(activeSlide.total_days ?? activeSlide.totalDays ?? 0);
   const percent = Math.max(0, Math.min(100, Math.round(totalDays > 0 ? ((totalDays - daysRemaining) / totalDays) * 100 : 0)));
   const elapsedDays = Math.max(0, totalDays - daysRemaining);
@@ -705,10 +707,17 @@ function CountdownLane({
   const note = String(activeSlide.note || '').trim();
   const titleText = String(activeSlide.title || activeSlide.fallback_label || 'アスペクト').trim();
   const aspectLabel = String(activeSlide.aspect_label || '').trim();
+  const isNegativeCountdown = String(activeSlide.countdown_mode || '').trim().toLowerCase() === 'departure';
+  const isNegativeApplying =
+    isNegativeCountdown &&
+    String(activeSlide.target?._orb_status || activeSlide.target?.Orb_Status || '').trim().toUpperCase() === 'APPLYING';
   const scanStatus = String(activeSlide.scan_status || activeSlide.scan?.scan_status || '').trim();
-  const countdownPrefix = scanStatus === 'turning_away' || scanStatus === 'closest' ? '最接近まで あと' : 'あと';
+  const isRetrogradeTurnaway =
+    scanStatus === 'retrograde_turning_away' ||
+    (scanStatus === 'turning_away' && activeSlide.scan?.peak_retrograde === true);
+  const countdownPrefix = isRetrogradeTurnaway || scanStatus === 'closest' ? '最接近まで あと' : 'あと';
   const countdownSuffix =
-    scanStatus === 'turning_away'
+    isRetrogradeTurnaway
       ? '※その後逆行開始により離脱、再び接近する局面を迎えます'
       : '';
   const goToSlide = (index) => {
@@ -752,7 +761,10 @@ function CountdownLane({
         <div className="mb-3 flex min-h-[58px] items-start justify-between gap-4 text-sm font-medium text-slate-400">
           <div className="min-w-0">
             {aspectLabel ? (
-              <p className="mb-1 truncate text-[10px] font-normal uppercase tracking-[0.16em] text-slate-600">
+              <p className={cx(
+                "mb-1 truncate text-[10px] font-normal uppercase tracking-[0.16em]",
+                isNegativeCountdown ? "text-rose-300/85" : "text-slate-600"
+              )}>
                 {aspectLabel}
               </p>
             ) : null}
@@ -760,15 +772,20 @@ function CountdownLane({
           </div>
         </div>
 
-        <div className="mb-3 min-h-[56px]">
-          <div className="flex min-h-[52px] min-w-0 items-baseline gap-x-3">
+        <div className="mb-3 min-h-[72px]">
+          <div className="flex min-h-[68px] min-w-0 flex-wrap items-baseline gap-x-3 gap-y-1">
             <span className="text-base text-slate-500 sm:text-lg">{countdownPrefix}</span>
             <span className="text-4xl font-bold tracking-tighter text-white sm:text-5xl">
               {daysRemaining}
             </span>
             <span className="text-base text-slate-500 sm:text-lg">日</span>
+            {isNegativeApplying && hasDepartureDays ? (
+              <span className="text-[10px] font-medium leading-5 text-rose-300/80">
+                {`(影響下を抜けるまで${departureDays}日)`}
+              </span>
+            ) : null}
             {countdownSuffix ? (
-              <p className="min-w-0 flex-1 truncate whitespace-nowrap text-left text-[10px] font-medium leading-5 text-slate-500">
+              <p className="basis-full whitespace-normal break-words text-left text-[10px] font-medium leading-5 text-slate-500">
                 {countdownSuffix}
               </p>
             ) : null}
@@ -869,8 +886,9 @@ function Timeline({ data, developerMode = false, developerMeta = {} }) {
           {slots.map((slot) => {
             const score = Math.max(0, Math.min(100, Number(slot.score) || 0));
             const title = slot.title || slot.phase || slot.recommendation || "Action Timing";
+            const timelineLabel = slot.timelineLabel || "";
             const recommendedAction = slot.recommendedAction || slot.recommendation || "";
-            const description = slot.description || slot.detail || "";
+            const aspectDescription = slot.description || slot.detail || "";
             const isPeak = score >= 80;
             const developerEntry = slotEntries.find((entry) => entry.slot === slot.label);
 
@@ -913,10 +931,20 @@ function Timeline({ data, developerMode = false, developerMeta = {} }) {
             </div>
 
               <div className="space-y-3">
-                <p className="inline-flex rounded-full bg-[#0A192F]/5 px-3 py-1 text-sm font-bold text-[#0A192F]">
-                  {recommendedAction}
-                </p>
-                <p className="text-sm leading-7 text-slate-600">{description}</p>
+                {timelineLabel ? (
+                  <p className="inline-flex rounded-full bg-[#0A192F]/5 px-3 py-1 text-sm font-bold text-[#0A192F]">
+                    {timelineLabel}
+                  </p>
+                ) : null}
+                <p className="text-sm leading-7 text-slate-600">{recommendedAction}</p>
+                {aspectDescription ? (
+                  <details className="rounded-2xl border border-slate-200 bg-white/70 px-3 py-2">
+                    <summary className="cursor-pointer text-xs font-bold text-[#0A192F]">
+                      アスペクト
+                    </summary>
+                    <p className="mt-2 text-sm leading-7 text-slate-600">{aspectDescription}</p>
+                  </details>
+                ) : null}
               </div>
                 {developerMode ? <TimelineDeveloperBlock entry={developerEntry} slot={slot} /> : null}
               </article>

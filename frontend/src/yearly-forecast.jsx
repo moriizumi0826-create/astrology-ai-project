@@ -5,7 +5,10 @@ import { CalendarDays, CircleDot, Target } from "lucide-react";
 const RESULT_STORAGE_KEY = "celestial-atelier:last-reading-result";
 const WIDTH = 960;
 const HEIGHT = 340;
-const PAD = { top: 72, right: 28, bottom: 42, left: 46 };
+const PAD = { top: 64, right: 28, bottom: 58, left: 68 };
+const CHART_TITLE = "運勢スコア推移";
+const Y_AXIS_LABEL = "運勢スコア";
+const X_AXIS_LABEL = "日付";
 const SERIES = [
   { key: "total", label: "総合", color: "#D4AF37" },
   { key: "work", label: "仕事", color: "#2F6FED" },
@@ -131,17 +134,17 @@ function YearlyForecastGraph({ forecast }) {
   const zeroY = chartY(0);
 
   return (
-    <section className="rounded-[28px] border border-outline-variant/30 bg-white p-5 shadow-[0_18px_36px_rgba(46,52,45,0.08)] md:p-7">
-      <div className="mb-5 flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+    <section className="rounded-[28px] border border-outline-variant/30 bg-white p-4 shadow-[0_18px_36px_rgba(46,52,45,0.08)] md:p-7">
+      <div className="mb-4 flex flex-col gap-2 md:mb-5 md:flex-row md:items-end md:justify-between md:gap-3">
         <div>
-          <p className="mb-2 text-[10px] font-bold uppercase tracking-[0.3em] text-secondary">Yearly Forecast</p>
+          <p className="mb-1.5 text-[10px] font-bold uppercase tracking-[0.3em] text-secondary md:mb-2">Yearly Forecast</p>
           <h2 className="font-notoSerif text-2xl text-primary md:text-3xl">2026 運勢シミュレーション</h2>
-          <p className="mt-2 max-w-3xl text-sm leading-6 text-on-surface-variant">{forecast.summary}</p>
+          <p className="mt-1.5 max-w-3xl text-sm leading-6 text-on-surface-variant md:mt-2">{forecast.summary}</p>
         </div>
       </div>
 
       <div className="overflow-hidden rounded-2xl border border-outline-variant/25 bg-[#fffdf8]">
-        <div className="flex flex-col items-start gap-2 px-4 pt-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
+        <div className="flex flex-col items-start gap-2 px-3 pt-3 sm:flex-row sm:items-center sm:justify-between sm:px-6 sm:pt-4">
           <div className="grid grid-cols-4 gap-1 rounded-full border border-outline-variant/30 bg-white/85 p-1 text-xs text-on-surface-variant shadow-sm">
             {RANGE_OPTIONS.map((item) => (
               <button
@@ -167,12 +170,29 @@ function YearlyForecastGraph({ forecast }) {
           </div>
         </div>
         <svg
-          className="block h-[300px] w-full cursor-crosshair md:h-[390px]"
+          className="block h-[245px] w-full cursor-crosshair sm:h-[300px] md:h-[390px]"
           viewBox={`0 0 ${WIDTH} ${HEIGHT}`}
           role="img"
           aria-label="2026 yearly forecast line chart"
           onClick={(event) => setSelectedIndex(visibleStart + nearestIndexFromPointer(event, visibleData.length))}
         >
+          <text x={WIDTH / 2} y="28" textAnchor="middle" fontSize="18" fontWeight="700" fill="#0A192F">
+            {CHART_TITLE}
+          </text>
+          <text
+            x="18"
+            y={(PAD.top + HEIGHT - PAD.bottom) / 2}
+            textAnchor="middle"
+            fontSize="13"
+            fontWeight="700"
+            fill="#687066"
+            transform={`rotate(-90 18 ${(PAD.top + HEIGHT - PAD.bottom) / 2})`}
+          >
+            {Y_AXIS_LABEL}
+          </text>
+          <text x={(PAD.left + WIDTH - PAD.right) / 2} y={HEIGHT - 14} textAnchor="middle" fontSize="13" fontWeight="700" fill="#687066">
+            {X_AXIS_LABEL}
+          </text>
           <rect x={PAD.left} y={PAD.top} width={WIDTH - PAD.left - PAD.right} height={zeroY - PAD.top} fill="#e8f5ed" opacity="0.78" />
           <rect x={PAD.left} y={zeroY} width={WIDTH - PAD.left - PAD.right} height={HEIGHT - PAD.bottom - zeroY} fill="#fdeceb" opacity="0.78" />
           {[-100, -50, 0, 50, 100].map((tick) => (
@@ -186,7 +206,7 @@ function YearlyForecastGraph({ forecast }) {
           {tickIndexes(visibleData.length).map((index) => (
             <g key={index}>
               <line x1={chartX(index, visibleData.length)} x2={chartX(index, visibleData.length)} y1={PAD.top} y2={HEIGHT - PAD.bottom} stroke="#e5e2d8" />
-              <text x={chartX(index, visibleData.length)} y={HEIGHT - 16} textAnchor="middle" fontSize="12" fill="#687066">
+              <text x={chartX(index, visibleData.length)} y={HEIGHT - 32} textAnchor="middle" fontSize="12" fill="#687066">
                 {formatDate(visibleData[index]?.date)}
               </text>
             </g>
@@ -213,7 +233,7 @@ function YearlyForecastGraph({ forecast }) {
         </svg>
       </div>
 
-      <div className="mt-5 grid grid-cols-1 gap-4 lg:grid-cols-[0.7fr_1.3fr]">
+      <div className="mt-4 grid grid-cols-1 gap-3 md:mt-5 md:gap-4 lg:grid-cols-[0.7fr_1.3fr]">
         <div className="rounded-2xl border border-outline-variant/30 bg-surface-container-low px-5 py-4">
           <div className="mb-3 flex items-center gap-2 text-primary">
             <CalendarDays size={17} />

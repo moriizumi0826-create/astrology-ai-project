@@ -11,9 +11,11 @@ from pydantic import ValidationError
 from backend.app.main import create_reading, create_yearly_forecast, health_check, location_search, root
 from backend.app.services.chart_calculator import BirthInput, build_chart_rows, write_chart_csvs
 from backend.app.services.geocoding_service import LocationMatch
+from backend.app.services import reading_service
 from backend.app.services.reading_service import (
     build_basic_interpretations_from_chart_rows,
     build_countdown_data,
+    build_dashboard_data_from_interpretations,
     build_dashboard_data_from_aspects,
     build_transit_aspect_inputs,
     get_aspect_dashboard_data,
@@ -428,6 +430,219 @@ class ApiTestCase(unittest.TestCase):
         self.assertEqual(countdown["scan_status"], "turning_away")
         self.assertEqual(countdown["days_remaining"], 1)
         self.assertLess(countdown["percent"], 100)
+
+    def test_countdown_scan_distinguishes_retrograde_turning_away(self):
+        with patch("backend.app.services.reading_service._aspect_orb_at") as orb_mock, patch(
+            "backend.app.services.reading_service._retrograde_calendar_start_day",
+            return_value=1,
+        ) as calendar_start_mock:
+            orb_mock.side_effect = [
+                (2.0, False),
+                (1.0, True),
+                (1.2, True),
+                (1.1, True),
+            ]
+            scan = reading_service._scan_countdown_ephemeris(
+                {
+                    "T_Planet": "TRANSIT_MERCURY",
+                    "N_Planet": "NATAL_SUN",
+                    "Aspect_Angle": 120,
+                    "_input": {"natal_longitude": 15.0, "timezone_offset": 9},
+                },
+                current_dt=datetime(2026, 5, 2),
+                total_days=7,
+                threshold_orb=5,
+            )
+
+        self.assertEqual(scan["scan_status"], "retrograde_turning_away")
+        self.assertTrue(scan["peak_retrograde"])
+        self.assertEqual(scan["retrograde_started_day"], 1)
+        self.assertEqual(scan["calendar_retrograde_start_day"], 1)
+        self.assertEqual(scan["retrograde_timing"], "at_peak")
+        self.assertEqual(scan["reapproach_day"], 3)
+        calendar_start_mock.assert_called_once()
+
+    def test_countdown_scan_treats_after_peak_retrograde_start_as_regular_turning_away(self):
+        with patch("backend.app.services.reading_service._aspect_orb_at") as orb_mock, patch(
+            "backend.app.services.reading_service._retrograde_calendar_start_day",
+            return_value=2,
+        ):
+            orb_mock.side_effect = [
+                (2.0, False),
+                (1.0, False),
+                (1.2, True),
+                (1.1, True),
+            ]
+            scan = reading_service._scan_countdown_ephemeris(
+                {
+                    "T_Planet": "TRANSIT_MERCURY",
+                    "N_Planet": "NATAL_SUN",
+                    "Aspect_Angle": 120,
+                    "_input": {"natal_longitude": 15.0, "timezone_offset": 9},
+                },
+                current_dt=datetime(2026, 5, 2),
+                total_days=7,
+                threshold_orb=5,
+            )
+
+        self.assertEqual(scan["scan_status"], "turning_away")
+        self.assertEqual(scan["retrograde_timing"], "after_peak")
+
+    def test_countdown_scan_keeps_ephemeris_retrograde_without_calendar_start_as_turning_away(self):
+        with patch("backend.app.services.reading_service._aspect_orb_at") as orb_mock, patch(
+            "backend.app.services.reading_service._retrograde_calendar_start_day",
+            return_value=None,
+        ):
+            orb_mock.side_effect = [
+                (2.0, False),
+                (1.0, True),
+                (1.2, True),
+                (1.1, True),
+            ]
+            scan = reading_service._scan_countdown_ephemeris(
+                {
+                    "T_Planet": "TRANSIT_MERCURY",
+                    "N_Planet": "NATAL_SUN",
+                    "Aspect_Angle": 120,
+                    "_input": {"natal_longitude": 15.0, "timezone_offset": 9},
+                },
+                current_dt=datetime(2026, 5, 2),
+                total_days=7,
+                threshold_orb=5,
+            )
+
+        self.assertEqual(scan["scan_status"], "turning_away")
+        self.assertIsNone(scan["calendar_retrograde_start_day"])
+
+    def test_retrograde_calendar_start_day_uses_transit_calendar_master(self):
+        self.assertEqual(
+            reading_service._retrograde_calendar_start_day(
+                "TRANSIT_MERCURY",
+                datetime(2026, 2, 25, 12),
+                2,
+            ),
+            1,
+        )
+
+    def test_dashboard_countdown_groups_include_negative_departure_items(self):
+        rows = []
+        short_planets = ["TRANSIT_MOON", "TRANSIT_MERCURY", "TRANSIT_VENUS"]
+        long_planets = ["TRANSIT_JUPITER", "TRANSIT_SATURN", "TRANSIT_URANUS"]
+        for index, planet in enumerate(short_planets):
+            rows.append(
+                {
+                    "T_Planet": planet,
+                    "N_Planet": "NATAL_SUN",
+                    "Aspect_Angle": 120,
+                    "Countdown_ID": "STUDY_EFFICIENCY_MAX",
+                    "Countdown_Label": f"short positive {index}",
+                    "Score_Impact": 40 + index,
+                    "Priority": 8,
+                    "_orb_status": "Separating" if index == 1 else "Applying",
+                    "_input": {"orb": 1.0},
+                }
+            )
+            rows.append(
+                {
+                    "T_Planet": planet,
+                    "N_Planet": "NATAL_MOON",
+                    "Aspect_Angle": 90,
+                    "Countdown_ID": "MIND_BODY_BALANCE",
+                    "Countdown_Label": f"short negative {index}",
+                    "Score_Impact": -40 - index,
+                    "Priority": 8,
+                    "_orb_status": "Applying" if index == 1 else "Separating",
+                    "_input": {"orb": 1.0},
+                }
+            )
+        for index, planet in enumerate(long_planets):
+            rows.append(
+                {
+                    "T_Planet": planet,
+                    "N_Planet": "NATAL_SUN",
+                    "Aspect_Angle": 120,
+                    "Countdown_ID": "WORK_SUCCESS_JUPITER",
+                    "Countdown_Label": f"long positive {index}",
+                    "Score_Impact": 60 + index,
+                    "Priority": 8,
+                    "_orb_status": "Separating" if index == 1 else "Applying",
+                    "_input": {"orb": 1.0},
+                }
+            )
+            rows.append(
+                {
+                    "T_Planet": planet,
+                    "N_Planet": "NATAL_MOON",
+                    "Aspect_Angle": 90,
+                    "Countdown_ID": "FATED_TURNING_POINT",
+                    "Countdown_Label": f"long negative {index}",
+                    "Score_Impact": -60 - index,
+                    "Priority": 8,
+                    "_orb_status": "Applying" if index == 1 else "Separating",
+                    "_input": {"orb": 1.0},
+                }
+            )
+
+        with patch("backend.app.services.reading_service._scan_countdown_departure") as departure_scan_mock:
+            departure_scan_mock.return_value = {
+                "days_remaining": 3,
+                "total_days": 10,
+                "percent": 70,
+                "scan_status": "departing",
+                "departure_day": 3,
+                "departure_orb": 5.1,
+                "departure_retrograde": False,
+            }
+            dashboard = build_dashboard_data_from_interpretations(rows, {"modifier": 0, "items": []})
+
+        self.assertEqual(len(dashboard["countdown_groups"]["short"]), 6)
+        self.assertEqual(len(dashboard["countdown_groups"]["long"]), 6)
+        self.assertEqual(
+            [item["target"]["_orb_status"] for item in dashboard["countdown_groups"]["short"][:3]],
+            ["Applying", "Separating", "Applying"],
+        )
+        self.assertTrue(
+            all(item["target"]["Score_Impact"] > 0 for item in dashboard["countdown_groups"]["short"][:3])
+        )
+        self.assertEqual(
+            [item["countdown_mode"] for item in dashboard["countdown_groups"]["short"][3:]],
+            ["departure", "departure", "departure"],
+        )
+        self.assertEqual(
+            [item["scan_status"] for item in dashboard["countdown_groups"]["short"][3:]],
+            ["departing", "departing", "departing"],
+        )
+        self.assertEqual(
+            [item["target"]["_orb_status"] for item in dashboard["countdown_groups"]["short"][3:]],
+            ["Separating", "Applying", "Separating"],
+        )
+        self.assertTrue(
+            all(item["target"]["Score_Impact"] < 0 for item in dashboard["countdown_groups"]["short"][3:])
+        )
+        self.assertEqual(
+            [item["target"]["_orb_status"] for item in dashboard["countdown_groups"]["long"][:3]],
+            ["Applying", "Separating", "Applying"],
+        )
+        self.assertTrue(
+            all(item["target"]["Score_Impact"] > 0 for item in dashboard["countdown_groups"]["long"][:3])
+        )
+        self.assertEqual(
+            [item["countdown_mode"] for item in dashboard["countdown_groups"]["long"][3:]],
+            ["departure", "departure", "departure"],
+        )
+        self.assertEqual(
+            [item["scan_status"] for item in dashboard["countdown_groups"]["long"][3:]],
+            ["departing", "departing", "departing"],
+        )
+        self.assertEqual(
+            [item["target"]["_orb_status"] for item in dashboard["countdown_groups"]["long"][3:]],
+            ["Separating", "Applying", "Separating"],
+        )
+        self.assertTrue(
+            all(item["target"]["Score_Impact"] < 0 for item in dashboard["countdown_groups"]["long"][3:])
+        )
+        self.assertEqual(len(dashboard["countdown_groups"]["legacy_short"]), 3)
+        self.assertEqual(len(dashboard["countdown_groups"]["legacy_long"]), 3)
 
     def test_yearly_forecast_weight_and_orb_decay_helpers(self):
         self.assertEqual(_priority_weight(10), 3.0)

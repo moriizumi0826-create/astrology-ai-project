@@ -68,6 +68,7 @@ MASTER_CSV_FILES = {
     "daily_vibe": "M_Daily_Vibe_Logic.csv",
     "countdown": "M_Countdown_Master.csv",
     "timeline_advice": "M_Timeline_Advice.csv",
+    "transit_calendar": "M_Transit_Calendar_2026.csv",
 }
 
 ASPECT_MASTER_CSV_FILES = [
@@ -1174,9 +1175,7 @@ def _select_countdown_targets(
     score_sign: str = "positive",
 ) -> list[dict[str, Any]]:
     score_sign_normalized = str(score_sign or "").strip().lower()
-    allowed_orb_statuses = {"APPLYING"}
-    if score_sign_normalized == "negative":
-        allowed_orb_statuses = {"APPLYING", "SEPARATING", "TURNING_AWAY"}
+    allowed_orb_statuses = {"APPLYING", "SEPARATING"}
     candidates = [
         row
         for row in rows
@@ -1261,12 +1260,64 @@ def _estimate_days_remaining(row: dict[str, Any], current_orb: float, total_days
     return _clamp(ceil(current_orb / speed), 0, max(total_days, 0))
 
 
+def _estimate_departure_days(row: dict[str, Any], current_orb: float, total_days: int, threshold_orb: float) -> int:
+    transit_planet = _normalize_planet(row.get("T_Planet"))
+    speed = AVERAGE_PLANET_SPEED_DEGREES_PER_DAY.get(transit_planet, 1.0)
+    if speed <= 0:
+        speed = 1.0
+    orb_status = _normalize_orb_status(row.get("_orb_status", row.get("Orb_Status")))
+    remaining_orb = max(threshold_orb - current_orb, 0)
+    if orb_status == "APPLYING":
+        remaining_orb = threshold_orb + current_orb
+    return _clamp(ceil(remaining_orb / speed), 0, max(total_days, 0))
+
+
 def _countdown_scan_start(current_dt: datetime | date | None) -> datetime:
     if isinstance(current_dt, datetime):
         return current_dt
     if isinstance(current_dt, date):
         return datetime.combine(current_dt, dt_time(hour=12))
     return datetime.now()
+
+
+def _parse_transit_calendar_date(value: Any) -> date | None:
+    if isinstance(value, datetime):
+        return value.date()
+    if isinstance(value, date):
+        return value
+    try:
+        parsed = pd.to_datetime(value, errors="coerce")
+    except Exception:
+        return None
+    if pd.isna(parsed):
+        return None
+    return parsed.date()
+
+
+def _retrograde_calendar_start_day(
+    transit_planet: str,
+    scan_start: datetime,
+    through_day: int,
+) -> int | None:
+    calendar_df = MASTER_DATAFRAMES.get("transit_calendar", pd.DataFrame())
+    if calendar_df.empty:
+        return None
+    required_columns = {"Date", "Planet", "Retrograde_Start_Flag"}
+    if not required_columns.issubset(calendar_df.columns):
+        return None
+    normalized_planet = _normalize_planet(transit_planet)
+    start_date = scan_start.date()
+    end_date = (scan_start + timedelta(days=max(through_day, 0))).date()
+    for row in calendar_df.to_dict("records"):
+        if _normalize_planet(row.get("Planet")) != normalized_planet:
+            continue
+        if _normalize_bool_flag(row.get("Retrograde_Start_Flag")) != 1:
+            continue
+        event_date = _parse_transit_calendar_date(row.get("Date"))
+        if event_date is None or not (start_date <= event_date <= end_date):
+            continue
+        return (event_date - start_date).days
+    return None
 
 
 def _countdown_target_longitude(row: dict[str, Any]) -> float | None:
@@ -1325,6 +1376,9 @@ def _scan_countdown_ephemeris(
     minimum_retrograde = False
     reached_exact_day: int | None = None
     separating_day: int | None = None
+    separating_orb: float | None = None
+    retrograde_started_day: int | None = None
+    previous_retrograde: bool | None = None
 
     for day in range(scan_horizon_days + 1):
         sample_dt = scan_start + timedelta(days=day)
@@ -1335,6 +1389,8 @@ def _scan_countdown_ephemeris(
             natal_longitude,
             exact_angle,
         )
+        if previous_retrograde is False and is_retrograde:
+            retrograde_started_day = day
         if orb < minimum_orb:
             minimum_orb = orb
             minimum_day = day
@@ -1344,10 +1400,54 @@ def _scan_countdown_ephemeris(
             break
         if previous_orb is not None and day > 0 and orb > previous_orb + 0.01:
             separating_day = day
+            separating_orb = orb
             break
         previous_orb = orb
+        previous_retrograde = is_retrograde
+
+    reapproach_day: int | None = None
+    if separating_day is not None and separating_orb is not None:
+        previous_orb = separating_orb
+        for day in range(separating_day + 1, scan_horizon_days + 1):
+            sample_dt = scan_start + timedelta(days=day)
+            orb, _is_retrograde = _aspect_orb_at(
+                transit_planet,
+                sample_dt,
+                timezone_offset,
+                natal_longitude,
+                exact_angle,
+            )
+            if orb < previous_orb - 0.01:
+                reapproach_day = day
+                break
+            previous_orb = orb
+    calendar_retrograde_start_day = (
+        _retrograde_calendar_start_day(transit_planet, scan_start, separating_day)
+        if separating_day is not None
+        else None
+    )
+    retrograde_timing = ""
+    if calendar_retrograde_start_day is not None:
+        if calendar_retrograde_start_day < minimum_day:
+            retrograde_timing = "before_peak"
+        elif calendar_retrograde_start_day == minimum_day:
+            retrograde_timing = "at_peak"
+        else:
+            retrograde_timing = "after_peak"
     
-    scan_status = "exact" if reached_exact_day is not None else "turning_away" if separating_day is not None else "closest"
+    if reached_exact_day is not None:
+        scan_status = "exact"
+    elif (
+        separating_day is not None
+        and calendar_retrograde_start_day is not None
+        and retrograde_timing in {"before_peak", "at_peak"}
+        and reapproach_day is not None
+    ):
+        scan_status = "retrograde_turning_away"
+    elif separating_day is not None:
+        scan_status = "turning_away"
+    else:
+        scan_status = "closest"
     days_remaining = reached_exact_day if reached_exact_day is not None else minimum_day
     if scan_status != "exact" and days_remaining <= 0:
         days_remaining = 1
@@ -1362,7 +1462,58 @@ def _scan_countdown_ephemeris(
         "peak_day": minimum_day,
         "peak_orb": round(minimum_orb, 3),
         "peak_retrograde": minimum_retrograde,
+        "retrograde_started_day": retrograde_started_day,
+        "calendar_retrograde_start_day": calendar_retrograde_start_day,
+        "retrograde_timing": retrograde_timing,
+        "reapproach_day": reapproach_day,
     }
+
+
+def _scan_countdown_departure(
+    row: dict[str, Any],
+    current_dt: datetime | date | None,
+    total_days: int,
+    threshold_orb: float,
+) -> dict[str, Any] | None:
+    if swe is None:
+        return None
+    natal_longitude = _countdown_target_longitude(row)
+    if natal_longitude is None:
+        return None
+
+    transit_planet = _normalize_planet(row.get("T_Planet"))
+    exact_angle = _safe_number(row, "Aspect_Angle")
+    source = row.get("_input") if isinstance(row.get("_input"), dict) else {}
+    timezone_offset = _normalize_float(source.get("timezone_offset")) or 9.0
+    scan_start = _countdown_scan_start(current_dt)
+    scan_horizon_days = max(total_days * 4, 60)
+    scan_horizon_days = min(scan_horizon_days, 365)
+    has_been_within_threshold = False
+
+    for day in range(scan_horizon_days + 1):
+        sample_dt = scan_start + timedelta(days=day)
+        orb, is_retrograde = _aspect_orb_at(
+            transit_planet,
+            sample_dt,
+            timezone_offset,
+            natal_longitude,
+            exact_angle,
+        )
+        if orb <= threshold_orb:
+            has_been_within_threshold = True
+        if has_been_within_threshold and day > 0 and orb > threshold_orb:
+            total_progress_days = max(total_days, day, 1)
+            percent = ((total_progress_days - day) / total_progress_days) * 100
+            return {
+                "days_remaining": _clamp(day, 0, total_progress_days),
+                "total_days": total_progress_days,
+                "percent": _clamp(percent, 0, 100),
+                "scan_status": "departing",
+                "departure_day": day,
+                "departure_orb": round(orb, 3),
+                "departure_retrograde": is_retrograde,
+            }
+    return None
 
 
 def _countdown_aspect_label(row: dict[str, Any]) -> str:
@@ -1377,6 +1528,7 @@ def _countdown_aspect_label(row: dict[str, Any]) -> str:
 def build_countdown_data(
     countdown_target: dict[str, Any] | None,
     current_dt: datetime | date | None = None,
+    countdown_mode: str = "arrival",
 ) -> dict[str, Any] | None:
     if not countdown_target:
         return None
@@ -1399,15 +1551,25 @@ def build_countdown_data(
             "fallback_label": fallback_label,
             "aspect_label": _countdown_aspect_label(countdown_target),
             "current_orb": current_orb,
+            "countdown_mode": countdown_mode,
             "target": countdown_target,
         }
 
     threshold_orb = _normalize_float(master_row.get("Threshold_Orb")) or DEFAULT_COUNTDOWN_THRESHOLD_ORB
     total_days = _normalize_int(master_row.get("Max_Progress_Days")) or _normalize_int(master_row.get("Progress_Max_Days")) or DEFAULT_COUNTDOWN_TOTAL_DAYS
-    scan = _scan_countdown_ephemeris(countdown_target, current_dt, total_days, threshold_orb)
+    countdown_mode_normalized = str(countdown_mode or "").strip().lower()
+    scan = (
+        _scan_countdown_departure(countdown_target, current_dt, total_days, threshold_orb)
+        if countdown_mode_normalized == "departure"
+        else _scan_countdown_ephemeris(countdown_target, current_dt, total_days, threshold_orb)
+    )
     percent = 100 - ((current_orb / threshold_orb) * 100) if threshold_orb > 0 else 100
     progress_percent = _clamp(percent, 0, 100)
-    days_remaining = _estimate_days_remaining(countdown_target, current_orb, total_days)
+    days_remaining = (
+        _estimate_departure_days(countdown_target, current_orb, total_days, threshold_orb)
+        if countdown_mode_normalized == "departure"
+        else _estimate_days_remaining(countdown_target, current_orb, total_days)
+    )
     if scan:
         days_remaining = scan["days_remaining"]
         total_days = scan["total_days"]
@@ -1438,6 +1600,7 @@ def build_countdown_data(
         "aspect_label": _countdown_aspect_label(countdown_target),
         "current_orb": current_orb,
         "threshold_orb": threshold_orb,
+        "countdown_mode": countdown_mode_normalized or "arrival",
         "scan": scan,
         "arrival_text": _safe_text(master_row, "Arrival_Text"),
         "display_title": _safe_text(master_row, "Display_Title"),
@@ -2082,12 +2245,42 @@ def build_dashboard_data_from_interpretations(
         limit=3,
         score_sign="positive",
     )
+    short_negative_countdown_targets = _countdown_targets_by_planet_group(
+        interpretations,
+        COUNTDOWN_SHORT_PLANETS,
+        limit=12,
+        score_sign="negative",
+    )
+    long_negative_countdown_targets = _countdown_targets_by_planet_group(
+        interpretations,
+        COUNTDOWN_LONG_PLANETS,
+        limit=12,
+        score_sign="negative",
+    )
     short_countdown_items = [
         item for item in (build_countdown_data(target, current_dt=current_dt) for target in short_countdown_targets) if item
     ]
     long_countdown_items = [
         item for item in (build_countdown_data(target, current_dt=current_dt) for target in long_countdown_targets) if item
     ]
+    short_negative_countdown_items = [
+        item
+        for item in (
+            build_countdown_data(target, current_dt=current_dt, countdown_mode="departure")
+            for target in short_negative_countdown_targets
+        )
+        if item and item.get("scan_status") == "departing"
+    ][:3]
+    long_negative_countdown_items = [
+        item
+        for item in (
+            build_countdown_data(target, current_dt=current_dt, countdown_mode="departure")
+            for target in long_negative_countdown_targets
+        )
+        if item and item.get("scan_status") == "departing"
+    ][:3]
+    short_countdown_group = [*short_countdown_items, *short_negative_countdown_items]
+    long_countdown_group = [*long_countdown_items, *long_negative_countdown_items]
     positive_countdown_items = [*short_countdown_items, *long_countdown_items][:3]
     countdown_items = positive_countdown_items
     countdown_data = (positive_countdown_items or [None])[0]
@@ -2109,8 +2302,8 @@ def build_dashboard_data_from_interpretations(
         "countdown": countdown_data,
         "countdown_items": countdown_items,
         "countdown_groups": {
-            "short": short_countdown_items,
-            "long": long_countdown_items,
+            "short": short_countdown_group,
+            "long": long_countdown_group,
             "legacy_short": short_countdown_items,
             "legacy_long": long_countdown_items,
         },
