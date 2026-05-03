@@ -398,7 +398,7 @@ class ApiTestCase(unittest.TestCase):
         self.assertEqual(countdown["title"], "LUCKY_LOVE_VENUS")
         self.assertEqual(countdown["trigger_id"], "")
 
-    def test_countdown_turning_away_scan_does_not_show_full_progress(self):
+    def test_countdown_turning_away_after_peak_keeps_zero_days(self):
         with patch("backend.app.services.reading_service._scan_countdown_ephemeris") as scan_mock:
             scan_mock.return_value = {
                 "days_remaining": 0,
@@ -428,8 +428,8 @@ class ApiTestCase(unittest.TestCase):
 
         self.assertIsNotNone(countdown)
         self.assertEqual(countdown["scan_status"], "turning_away")
-        self.assertEqual(countdown["days_remaining"], 1)
-        self.assertLess(countdown["percent"], 100)
+        self.assertEqual(countdown["days_remaining"], 0)
+        self.assertEqual(countdown["percent"], 100)
 
     def test_countdown_scan_distinguishes_retrograde_turning_away(self):
         with patch("backend.app.services.reading_service._aspect_orb_at") as orb_mock, patch(

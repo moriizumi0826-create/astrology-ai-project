@@ -1449,8 +1449,6 @@ def _scan_countdown_ephemeris(
     else:
         scan_status = "closest"
     days_remaining = reached_exact_day if reached_exact_day is not None else minimum_day
-    if scan_status != "exact" and days_remaining <= 0:
-        days_remaining = 1
     total_progress_days = max(total_days, days_remaining, 1)
     clamped_days_remaining = _clamp(days_remaining, 0, total_progress_days)
     percent = ((total_progress_days - clamped_days_remaining) / total_progress_days) * 100
@@ -1575,14 +1573,14 @@ def build_countdown_data(
         total_days = scan["total_days"]
         progress_percent = scan["percent"]
         scan_status = scan.get("scan_status")
-        if scan_status != "exact" and days_remaining <= 0:
-            days_remaining = 1
-            total_days = max(total_days, days_remaining, 1)
-            progress_percent = ((total_days - days_remaining) / total_days) * 100
     else:
         scan_status = "unknown"
-    title_column = "Arrival_Text" if current_orb <= 0.5 else "Display_Title"
-    title = _safe_text(master_row, title_column, _safe_text(master_row, "Display_Title", fallback_label))
+    if countdown_mode_normalized == "departure":
+        title_column = "Arrival_Text" if days_remaining <= 0 else "Display_Title"
+        title = _safe_text(master_row, title_column, _safe_text(master_row, "Display_Title", fallback_label))
+    else:
+        title_column = "Arrival_Text" if current_orb <= 0.5 else "Display_Title"
+        title = _safe_text(master_row, title_column, _safe_text(master_row, "Display_Title", fallback_label))
     note = _safe_text(master_row, "Next_Action_Hint")
 
     return {

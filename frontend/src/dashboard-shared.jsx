@@ -698,8 +698,6 @@ function CountdownLane({
   const clampedIndex = Math.max(0, Math.min(activeIndex, visibleSlides.length - 1));
   const activeSlide = visibleSlides[clampedIndex] || visibleSlides[0];
   const daysRemaining = Number(activeSlide.days_remaining ?? activeSlide.daysLeft ?? 0);
-  const departureDays = Number(activeSlide.scan?.departure_day);
-  const hasDepartureDays = Number.isFinite(departureDays);
   const totalDays = Number(activeSlide.total_days ?? activeSlide.totalDays ?? 0);
   const percent = Math.max(0, Math.min(100, Math.round(totalDays > 0 ? ((totalDays - daysRemaining) / totalDays) * 100 : 0)));
   const elapsedDays = Math.max(0, totalDays - daysRemaining);
@@ -708,9 +706,6 @@ function CountdownLane({
   const titleText = String(activeSlide.title || activeSlide.fallback_label || 'アスペクト').trim();
   const aspectLabel = String(activeSlide.aspect_label || '').trim();
   const isNegativeCountdown = String(activeSlide.countdown_mode || '').trim().toLowerCase() === 'departure';
-  const isNegativeApplying =
-    isNegativeCountdown &&
-    String(activeSlide.target?._orb_status || activeSlide.target?.Orb_Status || '').trim().toUpperCase() === 'APPLYING';
   const scanStatus = String(activeSlide.scan_status || activeSlide.scan?.scan_status || '').trim();
   const isRetrogradeTurnaway =
     scanStatus === 'retrograde_turning_away' ||
@@ -779,11 +774,6 @@ function CountdownLane({
               {daysRemaining}
             </span>
             <span className="text-base text-slate-500 sm:text-lg">日</span>
-            {isNegativeApplying && hasDepartureDays ? (
-              <span className="text-[10px] font-medium leading-5 text-rose-300/80">
-                {`(影響下を抜けるまで${departureDays}日)`}
-              </span>
-            ) : null}
             {countdownSuffix ? (
               <p className="basis-full whitespace-normal break-words text-left text-[10px] font-medium leading-5 text-slate-500">
                 {countdownSuffix}
