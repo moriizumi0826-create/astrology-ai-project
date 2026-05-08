@@ -1,9 +1,9 @@
 import React from "react";
 import { createRoot } from "react-dom/client";
-import { Dashboard, dashboardData } from "./dashboard-shared.jsx";
+import { Dashboard } from "./dashboard-shared.jsx";
+import { getStoredReadingResult } from "./reading-storage.js";
 
 const mountNode = document.getElementById("dashboard-prototype");
-const RESULT_STORAGE_KEY = "celestial-atelier:last-reading-result";
 
 function isDeveloperMode() {
   try {
@@ -15,23 +15,16 @@ function isDeveloperMode() {
 }
 
 function getDashboardData() {
-  try {
-    const raw = window.sessionStorage.getItem(RESULT_STORAGE_KEY);
-    if (!raw) return dashboardData;
-
-    const payload = JSON.parse(raw);
-    if (!payload?.dashboard_data) return dashboardData;
-
-    return payload.dashboard_data;
-  } catch {
-    return dashboardData;
-  }
+  const payload = getStoredReadingResult();
+  return payload?.dashboard_data || null;
 }
 
-if (mountNode) {
+const data = getDashboardData();
+
+if (mountNode && data) {
   createRoot(mountNode).render(
     <React.StrictMode>
-      <Dashboard data={getDashboardData()} embedded developerMode={isDeveloperMode()} />
+      <Dashboard data={data} embedded developerMode={isDeveloperMode()} />
     </React.StrictMode>
   );
 }

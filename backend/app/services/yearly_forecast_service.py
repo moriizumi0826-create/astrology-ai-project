@@ -39,6 +39,17 @@ SIGNS = (
     "PISCES",
 )
 MILESTONE_LIMIT = 12
+YEARLY_TEXT_PLACEHOLDER = "----"
+
+
+def _yearly_text(value: Any, column: str | None = None, default: str = "") -> str:
+    if column is not None:
+        text = reading_service._safe_text(value, column, default)
+    elif value is None or pd.isna(value):
+        text = default
+    else:
+        text = str(value)
+    return text.strip() or YEARLY_TEXT_PLACEHOLDER
 
 
 def _forecast_planet_ids() -> dict[str, int]:
@@ -225,7 +236,7 @@ def _damp(value: float, factor: float = 120.0) -> float:
 
 
 def _clamp_score(value: float) -> int:
-    return int(max(-95, min(95, round(value))))
+    return int(max(-100, min(100, round(value))))
 
 
 def _category_key(value: Any) -> str:
@@ -374,8 +385,8 @@ def _event_from_interpretation(
         or f"{transit_planet}_{natal_point['planet']}_{exact_angle}",
         "title": _display_countdown_label(reading_service._safe_text(interpretation, "Countdown_Label"))
         or reading_service._safe_text(interpretation, "Category", "Transit Aspect"),
-        "description": reading_service._safe_text(interpretation, "Text_Description"),
-        "advised_task": reading_service._safe_text(interpretation, "Advised_Task"),
+        "description": _yearly_text(interpretation, "Text_Description"),
+        "advised_task": _yearly_text(interpretation, "Advised_Task"),
         "priority": priority,
         "category": reading_service._safe_text(interpretation, "Category", "General"),
         "layer": _event_layer(transit_planet),
@@ -408,8 +419,8 @@ def _base_event_from_logic(base_row: dict[str, Any], planet: str, house: int, ca
     return {
         "id": f"BASE_{planet}_HOUSE_{house}_{calendar_row.get('Date')}",
         "title": reading_service._safe_text(base_row, "Milestone_Label") or reading_service._safe_text(base_row, "Text_Theme"),
-        "description": reading_service._safe_text(base_row, "Text_Theme"),
-        "advised_task": reading_service._safe_text(base_row, "Advised_Task"),
+        "description": _yearly_text(base_row, "Text_Theme"),
+        "advised_task": _yearly_text(base_row, "Advised_Task"),
         "priority": priority,
         "category": reading_service._safe_text(base_row, "Category", "General"),
         "layer": "Main_Trend",
@@ -444,8 +455,8 @@ def _calendar_trigger_events(day: date, planet: str, calendar_row: dict[str, Any
         events.append({
             "id": f"{trigger_id}_{planet}_{day.isoformat()}",
             "title": f"{planet} {title}",
-            "description": f"{planet} triggered {title.lower()} in {calendar_row.get('Sign_ID')}.",
-            "advised_task": "Review the theme that is changing from today.",
+            "description": YEARLY_TEXT_PLACEHOLDER,
+            "advised_task": YEARLY_TEXT_PLACEHOLDER,
             "priority": priority,
             "category": "General",
             "layer": _event_layer(planet),
@@ -567,8 +578,8 @@ def _milestone_from_day(day: dict[str, Any], label: str) -> dict[str, Any]:
         "label": label,
         "id": event.get("id") or f"MILESTONE_{day['date']}",
         "title": event.get("title", label),
-        "description": event.get("description", ""),
-        "advised_task": event.get("advised_task", ""),
+        "description": _yearly_text(event.get("description")),
+        "advised_task": _yearly_text(event.get("advised_task")),
         "priority": event.get("priority", 1),
         "score": day["scores"]["total"],
     }
@@ -607,7 +618,7 @@ def extract_milestones(yearly_data: list[dict[str, Any]]) -> list[dict[str, Any]
 
 def build_yearly_summary(yearly_data: list[dict[str, Any]]) -> str:
     if not yearly_data:
-        return "2026年の年間推移データはまだ生成されていません"
+        return YEARLY_TEXT_PLACEHOLDER
 
     halves = {
         "first": yearly_data[: len(yearly_data) // 2],

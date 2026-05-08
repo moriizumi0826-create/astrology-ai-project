@@ -9,8 +9,6 @@ import {
   Code2,
   Gauge,
   History,
-  Lock,
-  MessageSquareText,
   Shield,
   Sparkles,
   UserCircle2,
@@ -33,6 +31,16 @@ export const dashboardData = {
     description: "品質管理、分析、医療、教育など、一つずつ確実に進める作業と好相性です。",
     guideline: "腹痛や神経過敏、過労に注意して、休息と水分補給を意識してください。",
   },
+  planetMotion: [
+    { planet: "MERCURY", label: "水星", status: "direct" },
+    { planet: "VENUS", label: "金星", status: "direct" },
+    { planet: "MARS", label: "火星", status: "direct" },
+    { planet: "JUPITER", label: "木星", status: "direct" },
+    { planet: "SATURN", label: "土星", status: "direct" },
+    { planet: "URANUS", label: "天王星", status: "direct" },
+    { planet: "NEPTUNE", label: "海王星", status: "stationary" },
+    { planet: "PLUTO", label: "冥王星", status: "retrograde" },
+  ],
   countdown: {
     title: "恋愛運・追い風モード突入まで",
     daysLeft: 12,
@@ -117,13 +125,6 @@ export const dashboardData = {
         "消耗が出やすいので、頑張りすぎる前に休憩を入れる設計が有効です。",
     },
   ],
-  premium: {
-    title: "Premium AI Preview",
-    description: "AIがトランジットと本質傾向を重ね、次の一手を深掘りします。",
-    placeholder: "例 今日、仕事と恋愛どちらにリソースを割くべき",
-    preview:
-      "運気の山だけでなく、どの領域に摩擦が出やすいかまで読めると、選択の精度が一段上がります。",
-  },
   developerMeta: {
     personalReading: { logic: "", sources: [] },
     diagnostic: { logic: "", sources: [] },
@@ -212,22 +213,17 @@ function PersonalReadingDeveloperBlock({ data, meta, className = "" }) {
   const basicSource = sources.find((source) =>
     Array.isArray(source.columns) && source.columns.includes("Planet_ID")
   );
-  const summaryParts = String(data?.summary || "")
-    .split("。")
-    .map((part) => part.trim())
-    .filter(Boolean);
-  const basicPart = summaryParts[0] || data?.description || "";
-  const aspectPart = summaryParts.slice(1).join("。") || data?.guidance || "";
+  const aspectDescription = String(data?.summary || "").trim();
 
   const textEntries = [
       {
         label: "タイトル",
         text: data?.title,
-        note: "Hero スコアからランクを判定し、そのランクに対応する定型キャッチコピーをバックエンドで生成しています。全4パターンです。ランク判定は S: 90以上、A: 80以上、B+: 70以上、B: 60以上、C: 45以上、D: 30以上、E: 29以下 です。キャッチコピーは 追い風をつかむ日、流れを整えて前進する日、足元を整える日、慎重に余白を守る日 の4種類です。",
+        note: "Hero スコアからランクを判定し、そのランクに対応する定型キャッチコピーをバックエンドで生成しています。ランク判定は S: 90以上、A: 80以上、B+: 70以上、B: 60以上、C: 45以上、D: 30以上、E: 29以下です。",
         columns: ["Score_Impact", "Work_Efficiency_Modifier", "rank"],
         source: null,
         generatedLabel: "生成ロジック",
-        generatedDetail: "CSV直参照ではなく、backend/app/services/reading_service.py の _score_to_rank と _rank_to_catchcopy で生成しています。ランク判定は S: 90以上、A: 80以上、B+: 70以上、B: 60以上、C: 45以上、D: 30以上、E: 29以下です。キャッチコピーの全4パターンは 追い風をつかむ日、流れを整えて前進する日、足元を整える日、慎重に余白を守る日 です。",
+        generatedDetail: "CSV直参照ではなく、backend/app/services/reading_service.py の _score_to_rank と _rank_to_catchcopy で生成しています。S、A、B+、B、C、D、E それぞれに別のキャッチコピーを割り当てています。",
       },
     {
       label: "強調バッジ",
@@ -243,24 +239,13 @@ function PersonalReadingDeveloperBlock({ data, meta, className = "" }) {
       columns: ["Advised_Task"],
       source: aspectSource,
     },
-      {
-        label: "要約 前半",
-        text: basicPart ? `${basicPart}。` : "",
-        note: "画面では hero.summary を 句点で分割し、最初の 1 文だけを 要約 前半 として表示しています。元の summary 自体は、バックエンドが Text_General の 1 文目を使って 本来は...なあなたですが という形に組み立てています。",
-        columns: ["Text_General"],
-        source: basicSource,
-        generatedLabel: "生成テンプレート",
-        generatedDetail: "backend/app/services/reading_service.py で 本来は{Text_Generalの1文目}なあなたですが という定型文を生成し、frontend/src/dashboard-shared.jsx で hero.summary を句点分割して 1 文目だけを前半表示しています。",
-      },
-      {
-        label: "要約 後半",
-        text: aspectPart,
-        note: "画面では hero.summary を 句点で分割し、2 文目以降を結合して 要約 後半 として表示しています。元の summary 自体は、バックエンドが Text_Description と Advised_Task または Category を使って 後半文 を組み立てています。",
+    {
+      label: "Text_Description",
+      text: aspectDescription,
+      note: "最優先アスペクト行の Text_Description を省略せず、そのまま全文表示しています。",
         columns: ["Text_Description", "Advised_Task"],
         source: aspectSource,
-        generatedLabel: "生成テンプレート",
-        generatedDetail: "backend/app/services/reading_service.py で 今日は{Text_Description}の影響で、特に{Advised_Task または Category}に意識を向けると流れを活かせます という後半文を生成し、frontend/src/dashboard-shared.jsx で 2 文目以降を後半表示しています。",
-      },
+    },
     {
       label: "処方箋",
       text: data?.guideline,
@@ -525,10 +510,65 @@ function Hero({ data }) {
   );
 }
 
+const MOTION_STATUS_STYLES = {
+  direct: {
+    dot: "bg-sky-400 shadow-[0_0_12px_rgba(56,189,248,0.65)]",
+    label: "順行中",
+  },
+  stationary: {
+    dot: "bg-yellow-300 shadow-[0_0_12px_rgba(253,224,71,0.7)]",
+    label: "留/停止中",
+  },
+  retrograde: {
+    dot: "bg-rose-500 shadow-[0_0_12px_rgba(244,63,94,0.7)]",
+    label: "逆行中",
+  },
+};
+
+function MotionDot({ status }) {
+  const style = MOTION_STATUS_STYLES[status] || MOTION_STATUS_STYLES.direct;
+  return (
+    <span
+      aria-hidden="true"
+      className={cx("inline-block h-2.5 w-2.5 shrink-0 rounded-full", style.dot)}
+    />
+  );
+}
+
+function PlanetMotionPanel({ items = [] }) {
+  const motionItems = Array.isArray(items) ? items : [];
+  if (!motionItems.length) return null;
+
+  return (
+    <section className="mt-6 rounded-2xl border border-white/10 bg-white/[0.04] p-4 sm:p-5">
+      <div className="mb-5 flex flex-wrap items-center gap-x-4 gap-y-2 text-[11px] font-bold text-slate-300">
+        {Object.entries(MOTION_STATUS_STYLES).map(([status, style]) => (
+          <span key={status} className="inline-flex items-center gap-2">
+            <MotionDot status={status} />
+            {style.label}
+          </span>
+        ))}
+      </div>
+      <div className="grid grid-cols-2 gap-x-5 gap-y-3 sm:grid-cols-4">
+        {motionItems.map((item) => (
+          <div
+            key={item.planet || item.label}
+            className="inline-flex min-w-0 items-center gap-2 text-sm font-semibold text-slate-200"
+            title={MOTION_STATUS_STYLES[item.status]?.label || MOTION_STATUS_STYLES.direct.label}
+          >
+            <MotionDot status={item.status} />
+            <span className="truncate">{item.label || item.planet}</span>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
 function TypographicHero({
   data,
   diagnosticData,
-  basicInterpretations = [],
+  planetMotion = [],
   developerMode = false,
   developerMeta = {},
 }) {
@@ -544,26 +584,6 @@ function TypographicHero({
     D: "text-slate-400",
   };
   const rankClass = rankStyles[rank] || rankStyles[rank.slice(0, 1)] || "text-[#D4AF37]";
-  const basicFallback = Array.isArray(basicInterpretations) && basicInterpretations.length
-    ? basicInterpretations[0]
-    : {};
-  const basicTexts = data.basicTexts || {
-    general: basicFallback.Text_General,
-    love: basicFallback.Text_Love,
-    work: basicFallback.Text_Work,
-    human: basicFallback.Text_Human,
-    health: basicFallback.Text_Health,
-  };
-  const basicTextEntries = [
-    { key: "general", label: "全体", text: basicTexts.general },
-    { key: "love", label: "恋愛", text: basicTexts.love },
-    { key: "work", label: "仕事", text: basicTexts.work },
-    { key: "human", label: "対人", text: basicTexts.human },
-    { key: "health", label: "健康", text: basicTexts.health },
-  ].filter((entry) => entry.text);
-  const [activeBasicTextKey, setActiveBasicTextKey] = useState("general");
-  const activeBasicText =
-    basicTextEntries.find((entry) => entry.key === activeBasicTextKey) || basicTextEntries[0];
   const personalBody = String(data.summary || "").trim();
     const diagnostic = diagnosticData || data.diagnostic || dashboardData.diagnostic;
     const diagnosticItems =
@@ -601,40 +621,7 @@ function TypographicHero({
               </div>
             )}
 
-              {basicTextEntries.length ? (
-                <div className="mt-6 rounded-2xl border border-white/10 bg-white/[0.04] p-3 sm:p-4">
-                  <div className="mb-4 flex flex-wrap gap-2" role="tablist" aria-label="Basic interpretation tabs">
-                    {basicTextEntries.map((entry) => {
-                      const isActive = activeBasicText?.key === entry.key;
-                      return (
-                        <button
-                          key={entry.key}
-                          type="button"
-                          role="tab"
-                          aria-selected={isActive}
-                          className={cx(
-                            "rounded-full border px-3 py-1.5 text-[11px] font-bold transition sm:text-xs",
-                            isActive
-                              ? "border-amber-300/70 bg-amber-300/15 text-amber-200"
-                              : "border-white/10 bg-white/[0.03] text-slate-400 hover:border-amber-300/40 hover:text-amber-200"
-                          )}
-                          onClick={() => setActiveBasicTextKey(entry.key)}
-                        >
-                          {entry.label}
-                        </button>
-                      );
-                    })}
-                  </div>
-                  {activeBasicText ? (
-                    <section role="tabpanel" aria-label={activeBasicText.label}>
-                      <p className="mb-2 text-[11px] font-bold uppercase tracking-[0.16em] text-amber-300">
-                        {activeBasicText.label}
-                      </p>
-                      <p className="break-words text-sm leading-7 text-slate-300">{activeBasicText.text}</p>
-                    </section>
-                  ) : null}
-                </div>
-              ) : null}
+              <PlanetMotionPanel items={planetMotion} />
 
                 {developerMode ? (
                  <PersonalReadingDeveloperBlock data={data} meta={developerMeta.personalReading} className="bg-white/95" />
@@ -1076,49 +1063,6 @@ function TopicGrid({ data, developerMode = false, developerMeta = {} }) {
   );
 }
 
-function PremiumPreview({ data }) {
-  return (
-    <Panel title={data.title} eyebrow="Conversion Path">
-      <div className="grid gap-6 xl:grid-cols-[0.9fr_1.1fr]">
-        <div className="space-y-5">
-          <div className="inline-flex items-center gap-2 rounded-full border border-[#D4AF37]/30 bg-[#D4AF37]/10 px-3 py-1.5 text-sm font-semibold text-[#0A192F]">
-            <Crown size={16} className="text-[#D4AF37]" />
-            Premium AI Preview
-          </div>
-          <p className="text-base leading-8 text-slate-700">{data.description}</p>
-          <label className="block space-y-3">
-            <span className="text-sm font-semibold text-slate-600">AI縺ｸ逶ｸ隲・☆繧句・螳ｹ</span>
-            <div className="flex items-center gap-3 rounded-3xl border border-slate-200 bg-slate-50 px-4 py-4 shadow-inner">
-              <MessageSquareText size={20} className="text-slate-500" />
-              <input
-                className="w-full bg-transparent text-sm text-[#0A192F] outline-none placeholder:text-slate-400"
-                defaultValue={data.placeholder}
-                readOnly
-                type="text"
-              />
-            </div>
-          </label>
-        </div>
-
-        <div className="relative overflow-hidden rounded-3xl border border-slate-200 bg-gradient-to-br from-[#10233e] via-[#173353] to-[#25466d] p-6 text-white">
-          <div className="pointer-events-none absolute inset-0 backdrop-blur-md" />
-          <div className="relative">
-            <p className="mb-3 text-xs uppercase tracking-[0.24em] text-white/60">
-              AI Response Preview
-            </p>
-            <p className="text-sm leading-8 text-white/82">{data.preview}</p>
-          </div>
-          <div className="absolute inset-0 flex items-center justify-center bg-[#0a192f]/22">
-            <div className="rounded-full border border-white/20 bg-white/12 p-5 text-[#D4AF37]">
-              <Lock size={28} />
-            </div>
-          </div>
-        </div>
-      </div>
-    </Panel>
-  );
-}
-
 export function Dashboard({ data = dashboardData, embedded = false, developerMode = false }) {
   const handleToggleDeveloperMode = () => {
     const url = new URL(window.location.href);
@@ -1147,7 +1091,7 @@ export function Dashboard({ data = dashboardData, embedded = false, developerMod
         <TypographicHero
           data={data.hero}
           diagnosticData={data.diagnostic}
-          basicInterpretations={data.basic_interpretations}
+          planetMotion={data.planetMotion}
           developerMode={developerMode}
           developerMeta={data.developerMeta || dashboardData.developerMeta}
         />
@@ -1170,7 +1114,6 @@ export function Dashboard({ data = dashboardData, embedded = false, developerMod
           developerMode={developerMode}
           developerMeta={(data.developerMeta || dashboardData.developerMeta).topics || {}}
         />
-        <PremiumPreview data={data.premium} />
       </main>
     </div>
   );

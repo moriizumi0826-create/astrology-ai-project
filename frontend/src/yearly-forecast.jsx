@@ -1,8 +1,8 @@
 import React, { useMemo, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { CalendarDays, CircleDot, Target } from "lucide-react";
+import { getStoredReadingResult } from "./reading-storage.js";
 
-const RESULT_STORAGE_KEY = "celestial-atelier:last-reading-result";
 const WIDTH = 960;
 const HEIGHT = 340;
 const PAD = { top: 64, right: 28, bottom: 58, left: 68 };
@@ -27,14 +27,7 @@ function cx(...values) {
 }
 
 function getYearlyForecast() {
-  try {
-    const raw = window.sessionStorage.getItem(RESULT_STORAGE_KEY);
-    if (!raw) return null;
-    const payload = JSON.parse(raw);
-    return payload?.yearly_forecast || null;
-  } catch {
-    return null;
-  }
+  return getStoredReadingResult()?.yearly_forecast || null;
 }
 
 function scoreFor(day, key) {
@@ -242,7 +235,7 @@ function YearlyForecastGraph({ forecast }) {
             <p className="text-sm font-bold">{selectedEvent?.title || "穏やかな調整日"}</p>
           </div>
           <p className="text-sm leading-6 text-on-surface-variant">
-            {selectedEvent?.description || "大きなイベントは少ない日です。基礎リズムを整えるほど流れが安定します。"}
+            {selectedEvent?.description || "----"}
           </p>
           <div className="mt-4 rounded-xl bg-[#fffaf0] px-4 py-3">
             <div className="mb-1 flex items-center gap-2 text-secondary">
@@ -250,7 +243,7 @@ function YearlyForecastGraph({ forecast }) {
               <p className="text-xs font-bold uppercase tracking-[0.18em]">Advised Task</p>
             </div>
             <p className="text-sm leading-6 text-on-surface">
-              {selectedEvent?.advised_task || "今日やることを一つに絞り、余白を残して進める。"}
+              {selectedEvent?.advised_task || "----"}
             </p>
           </div>
         </div>

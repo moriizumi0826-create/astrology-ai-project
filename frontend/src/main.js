@@ -1,3 +1,5 @@
+import { storeReadingResult } from "./reading-storage.js";
+
 function resolveApiBaseUrl() {
   const configured = String(__APP_API_BASE_URL__ || "").trim();
   if (configured) {
@@ -37,7 +39,6 @@ const longitudeInput = form.querySelector('input[name="longitude"]');
 const timezoneOffsetInput = form.querySelector('input[name="timezone_offset"]');
 const numericInputs = [latitudeInput, longitudeInput, timezoneOffsetInput];
 const FORM_STORAGE_KEY = "celestial-atelier:last-reading-form";
-const RESULT_STORAGE_KEY = "celestial-atelier:last-reading-result";
 
 function roundCoordinate(value) {
   return Number(value).toFixed(4);
@@ -557,7 +558,7 @@ form.addEventListener("submit", async (event) => {
     yearlyForecast.reading_date = localIsoDate();
     data.yearly_forecast = yearlyForecast;
 
-    window.sessionStorage.setItem(RESULT_STORAGE_KEY, JSON.stringify(data));
+    storeReadingResult(data);
     persistFormData(collectFormSnapshot());
     window.location.href = "/results.html";
   } catch (error) {

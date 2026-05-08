@@ -1,9 +1,16 @@
 import csv
 import unittest
+from datetime import date
 from pathlib import Path
 
 from backend.app.services.chart_calculator import BirthInput
-from backend.app.services.yearly_forecast_service import _solar_house, generate_yearly_forecast
+from backend.app.services.yearly_forecast_service import (
+    _calendar_trigger_events,
+    _clamp_score,
+    _milestone_from_day,
+    _solar_house,
+    generate_yearly_forecast,
+)
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -37,6 +44,10 @@ class YearlyForecastTestCase(unittest.TestCase):
         self.assertEqual(_solar_house("CANCER", "CANCER"), 1)
         self.assertEqual(_solar_house("GEMINI", "CANCER"), 12)
 
+    def test_yearly_score_clamps_to_full_chart_range(self):
+        self.assertEqual(_clamp_score(120), 100)
+        self.assertEqual(_clamp_score(-120), -100)
+
     def test_generate_yearly_forecast_returns_frontend_shape(self):
         payload = BirthInput(
             full_name="Test User",
@@ -57,6 +68,38 @@ class YearlyForecastTestCase(unittest.TestCase):
         self.assertIn("events", first_day)
         self.assertTrue(forecast["milestones"])
         self.assertEqual(forecast["cache"]["table"], "yearly_forecast_cache")
+
+    def test_calendar_trigger_text_falls_back_to_placeholder(self):
+        events = _calendar_trigger_events(
+            day=date(2026, 1, 1),
+            planet="MERCURY",
+            calendar_row={
+                "Date": "2026-01-01",
+                "Sign_ID": "ARIES",
+                "Ecliptic_Longitude": "0",
+                "Sign_Ingress_Flag": "1",
+                "Retrograde_Start_Flag": "1",
+                "Retrograde_End_Flag": "0",
+            },
+            solar_house=1,
+        )
+
+        self.assertTrue(events)
+        self.assertTrue(all(event["description"] == "----" for event in events))
+        self.assertTrue(all(event["advised_task"] == "----" for event in events))
+
+    def test_empty_milestone_text_falls_back_to_placeholder(self):
+        milestone = _milestone_from_day(
+            {
+                "date": "2026-01-01",
+                "scores": {"total": 0},
+                "events": [{"id": "EMPTY_TEXT", "description": "", "advised_task": ""}],
+            },
+            "Test",
+        )
+
+        self.assertEqual(milestone["description"], "----")
+        self.assertEqual(milestone["advised_task"], "----")
 
 
 if __name__ == "__main__":

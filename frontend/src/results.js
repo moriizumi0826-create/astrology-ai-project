@@ -1,4 +1,4 @@
-const RESULT_STORAGE_KEY = "celestial-atelier:last-reading-result";
+import { getStoredReadingResult } from "./reading-storage.js";
 
 const errorBox = document.querySelector("#error-box");
 const readingGrid = document.querySelector("#reading-grid");
@@ -159,19 +159,16 @@ function renderReadings(payload) {
 }
 
 function restoreLatestResult() {
+  const payload = getStoredReadingResult();
+  if (!payload) {
+    setError("表示できる鑑定結果がありません。入力ページからもう一度お試しください。");
+    return;
+  }
+
   try {
-    const raw = window.sessionStorage.getItem(RESULT_STORAGE_KEY);
-    if (!raw) {
-      setError("表示できる鑑定結果がありません。入力ページからホロスコープを算出してください。");
-      return;
-    }
-    const payload = JSON.parse(raw);
-    if (!payload || typeof payload !== "object") {
-      throw new Error("invalid payload");
-    }
     renderReadings(payload);
   } catch {
-    setError("鑑定結果の読み込みに失敗しました。入力ページからもう一度お試しください。");
+    setError("鑑定結果の表示に失敗しました。入力ページからもう一度お試しください。");
   }
 }
 

@@ -40,6 +40,7 @@ UNKNOWN_BIRTH_TIME_LABEL = "Unknown (calculated with 12:00 local time)"
 DEFAULT_DAILY_VIBE_MODIFIER_LIMIT = 60
 DEFAULT_COUNTDOWN_THRESHOLD_ORB = 5
 DEFAULT_COUNTDOWN_TOTAL_DAYS = 1
+HERO_ASPECT_AVERAGE_WEIGHT = 2.0
 DIAGNOSTIC_BASE_SCORE = 50
 DIAGNOSTIC_OVERALL_IMPACT_WEIGHT = 0.25
 DIAGNOSTIC_DECISION_IMPACT_WEIGHT = 0.30
@@ -104,6 +105,34 @@ TRANSIT_PLANET_ORDER = (
     "NEPTUNE",
     "PLUTO",
 )
+MOTION_INDICATOR_PLANETS = (
+    "MERCURY",
+    "VENUS",
+    "MARS",
+    "JUPITER",
+    "SATURN",
+    "URANUS",
+    "NEPTUNE",
+    "PLUTO",
+)
+PLANET_MOTION_LABELS = {
+    "MERCURY": "\u6c34\u661f",
+    "VENUS": "\u91d1\u661f",
+    "MARS": "\u706b\u661f",
+    "JUPITER": "\u6728\u661f",
+    "SATURN": "\u571f\u661f",
+    "URANUS": "\u5929\u738b\u661f",
+    "NEPTUNE": "\u6d77\u738b\u661f",
+    "PLUTO": "\u51a5\u738b\u661f",
+}
+PLANET_STATION_SPEED_THRESHOLDS = {
+    "MERCURY": 0.05,
+    "VENUS": 0.03,
+    "MARS": 0.02,
+    "JUPITER": 0.005,
+    "SATURN": 0.003,
+}
+STATIONARY_LOOKAHEAD_DAYS = 3
 
 COUNTDOWN_SHORT_PLANETS = {"MOON", "SUN", "MERCURY", "VENUS", "MARS"}
 COUNTDOWN_LONG_PLANETS = {"JUPITER", "SATURN", "URANUS", "NEPTUNE", "PLUTO"}
@@ -519,6 +548,7 @@ def _fallback_aspect_text(
     orb_status: str,
     is_retrograde: bool,
 ) -> str:
+    return "----"
     transit_label = _planet_label(transit_planet)
     natal_label = _planet_label(natal_planet)
     phase_text = (
@@ -535,6 +565,7 @@ def _fallback_aspect_text(
 
 
 def _fallback_aspect_task(category: str, orb_status: str, is_retrograde: bool) -> str:
+    return "----"
     if is_retrograde:
         return "過去の記録や未処理タスクを見直し、急がず再調整してください。"
     if _normalize_orb_status(orb_status) == "APPLYING":
@@ -882,13 +913,16 @@ def build_dashboard_data_from_aspect(row: dict[str, Any]) -> dict[str, Any]:
 
 
 def _rank_to_catchcopy(rank: str) -> str:
-    if rank in {"S", "A"}:
-        return "追い風をつかむ日"
-    if rank in {"B+", "B"}:
-        return "流れを整えて前進する日"
-    if rank == "C":
-        return "足元を整える日"
-    return "慎重に余白を守る日"
+    catchcopies = {
+        "S": "\u8ffd\u3044\u98a8\u3092\u6700\u5927\u9650\u306b\u6d3b\u304b\u3059\u65e5",
+        "A": "\u8ffd\u3044\u98a8\u3092\u3064\u304b\u3080\u65e5",
+        "B+": "\u6d41\u308c\u3092\u6574\u3048\u3066\u524d\u9032\u3059\u308b\u65e5",
+        "B": "\u6d41\u308c\u3092\u4fdd\u3061\u306a\u304c\u3089\u9032\u3080\u65e5",
+        "C": "\u8db3\u5143\u3092\u6574\u3048\u308b\u65e5",
+        "D": "\u614e\u91cd\u306b\u4f59\u767d\u3092\u5b88\u308b\u65e5",
+        "E": "\u7121\u7406\u3092\u305b\u305a\u56de\u5fa9\u3092\u512a\u5148\u3059\u308b\u65e5",
+    }
+    return catchcopies.get(rank, catchcopies.get(rank[:1], catchcopies["C"]))
 
 
 def _first_sentence(text: str, max_length: int = 140) -> str:
@@ -1648,17 +1682,17 @@ def build_countdown_data(
         scan_status = "unknown"
     if countdown_mode_normalized == "departure":
         title = (
-            _safe_text(master_row, "Arrival_Text", fallback_label or _safe_text(master_row, "Display_Title"))
+            _safe_text(master_row, "Arrival_Text", _safe_text(master_row, "Display_Title") or fallback_label)
             if days_remaining <= 0
-            else fallback_label or _safe_text(master_row, "Display_Title")
+            else _safe_text(master_row, "Display_Title") or fallback_label
         )
     else:
         title = (
-            _safe_text(master_row, "Arrival_Text", fallback_label or _safe_text(master_row, "Display_Title"))
+            _safe_text(master_row, "Arrival_Text", _safe_text(master_row, "Display_Title") or fallback_label)
             if current_orb <= 0.5
-            else fallback_label or _safe_text(master_row, "Display_Title")
+            else _safe_text(master_row, "Display_Title") or fallback_label
         )
-    note = advised_task or _safe_text(master_row, "Next_Action_Hint")
+    note = _safe_text(master_row, "Next_Action_Hint") or advised_task
 
     return {
         "title": title,
@@ -1812,13 +1846,113 @@ def _transit_planet_ids() -> dict[str, int]:
 
 
 def _calc_transit_planet_state(planet: str, sample_local_dt: datetime, timezone_offset: float) -> tuple[float, bool]:
+    longitude, speed = _calc_transit_planet_motion(planet, sample_local_dt, timezone_offset)
+    return longitude, speed < 0
+
+
+def _calc_transit_planet_motion(planet: str, sample_local_dt: datetime, timezone_offset: float) -> tuple[float, float]:
     planet_ids = _transit_planet_ids()
     planet_id = planet_ids[_normalize_planet(planet)]
     utc_dt = sample_local_dt - timedelta(hours=timezone_offset)
     hour_decimal = utc_dt.hour + (utc_dt.minute / 60) + (utc_dt.second / 3600)
     jd = swe.julday(utc_dt.year, utc_dt.month, utc_dt.day, hour_decimal)
     result = swe.calc_ut(jd, planet_id, swe.FLG_SPEED)
-    return float(result[0][0]), float(result[0][3]) < 0
+    return float(result[0][0]), float(result[0][3])
+
+
+def _motion_status_from_speed(
+    planet: str,
+    speed: float,
+    future_speed: float | None = None,
+) -> str:
+    normalized_planet = _normalize_planet(planet)
+    threshold = PLANET_STATION_SPEED_THRESHOLDS.get(normalized_planet)
+    if (
+        threshold is not None
+        and future_speed is not None
+        and abs(speed) <= threshold
+        and ((speed >= 0 > future_speed) or (speed <= 0 < future_speed))
+    ):
+        return "stationary"
+    return "retrograde" if speed < 0 else "direct"
+
+
+def build_current_retrograde_planets(
+    current_dt: datetime | date | None = None,
+    timezone_offset: float = 0,
+) -> list[str]:
+    if swe is None:
+        raise RuntimeError("swisseph is not installed")
+
+    if isinstance(current_dt, datetime):
+        sample_local_dt = current_dt
+    elif isinstance(current_dt, date):
+        sample_local_dt = datetime.combine(current_dt, dt_time(hour=12))
+    else:
+        sample_local_dt = datetime.now()
+
+    retrograde_planets: list[str] = []
+    for planet in TRANSIT_PLANET_ORDER:
+        _, is_retrograde = _calc_transit_planet_state(
+            planet,
+            sample_local_dt,
+            timezone_offset,
+        )
+        if is_retrograde:
+            retrograde_planets.append(planet)
+    return retrograde_planets
+
+
+def build_current_planet_motion_indicators(
+    current_dt: datetime | date | None = None,
+    timezone_offset: float = 0,
+) -> list[dict[str, Any]]:
+    if swe is None:
+        raise RuntimeError("swisseph is not installed")
+
+    if isinstance(current_dt, datetime):
+        sample_local_dt = current_dt
+    elif isinstance(current_dt, date):
+        sample_local_dt = datetime.combine(current_dt, dt_time(hour=12))
+    else:
+        sample_local_dt = datetime.now()
+
+    indicators: list[dict[str, Any]] = []
+    for planet in MOTION_INDICATOR_PLANETS:
+        longitude, speed = _calc_transit_planet_motion(
+            planet,
+            sample_local_dt,
+            timezone_offset,
+        )
+        _, future_speed = _calc_transit_planet_motion(
+            planet,
+            sample_local_dt + timedelta(days=STATIONARY_LOOKAHEAD_DAYS),
+            timezone_offset,
+        )
+        indicators.append({
+            "planet": planet,
+            "label": PLANET_MOTION_LABELS.get(planet, planet),
+            "status": _motion_status_from_speed(planet, speed, future_speed),
+            "speed": round(speed, 6),
+            "longitude": round(longitude, 2),
+        })
+    return indicators
+
+
+def _dashboard_planet_motion(
+    birth_input: BirthInput | None,
+    current_dt: datetime | date | None,
+) -> list[dict[str, Any]]:
+    if birth_input is None or swe is None:
+        return []
+    try:
+        return build_current_planet_motion_indicators(
+            current_dt,
+            birth_input.timezone_offset,
+        )
+    except Exception as exc:
+        LOGGER.warning("Failed to build planet motion indicators: %s", exc)
+        return []
 
 
 def _classify_orb_status(
@@ -2163,10 +2297,10 @@ def _build_developer_meta(
     return {
         "personalReading": {
             "logic": (
-                f"計算式は 平均アスペクト値 + 日運補正 = Hero スコア です。"
+                f"計算式は 基準点 50 + 平均アスペクト値 × {HERO_ASPECT_AVERAGE_WEIGHT} + 日運補正 = Hero スコア です。"
                 f"平均アスペクト値の内訳は ({hero_score_breakdown_text}) / {hero_score_count} = {round(average_score, 2)} です。"
-                f"今回は {round(average_score, 2)} + {daily_work_modifier} = {final_score} として算出しています。"
-                f"つまり Score_Impact の合計 {total_impact} を {hero_score_count} 件で割って平均を出し、そこへ日運補正 {daily_work_modifier} を加えています。"
+                f"今回は 50 + {round(average_score, 2)} × {HERO_ASPECT_AVERAGE_WEIGHT} + {daily_work_modifier} = {final_score} として算出しています。"
+                f"つまり基準点 50 に、Score_Impact の合計 {total_impact} を {hero_score_count} 件で割った平均へ倍率をかけ、日運補正 {daily_work_modifier} を加えています。"
             ),
             "sources": personal_sources,
         },
@@ -2300,6 +2434,7 @@ def build_dashboard_data_from_interpretations(
             "timeline": timeline,
             "timelineDate": _dashboard_date(current_dt),
             "timelineDays": timeline_days,
+            "planetMotion": _dashboard_planet_motion(birth_input, current_dt),
             "topics": topics,
             "premium": {"title": "Premium AI Preview", "description": "", "placeholder": "", "preview": ""},
             "aspect_interpretations": [],
@@ -2309,7 +2444,7 @@ def build_dashboard_data_from_interpretations(
         })
 
     average_score = sum(_safe_number(row, "Score_Impact") for row in interpretations) / len(interpretations)
-    final_score = _clamp(average_score + daily_modifier, 0, 100)
+    final_score = _clamp(50 + (average_score * HERO_ASPECT_AVERAGE_WEIGHT) + daily_modifier, 0, 100)
     hero_row = _top_priority_row(interpretations)
     short_countdown_targets = _countdown_targets_by_planet_group(
         interpretations,
@@ -2392,6 +2527,7 @@ def build_dashboard_data_from_interpretations(
         "timeline": timeline,
         "timelineDate": _dashboard_date(current_dt),
         "timelineDays": timeline_days,
+        "planetMotion": _dashboard_planet_motion(birth_input, current_dt),
         "topics": topics,
         "premium": {
             "title": "Premium AI Preview",
@@ -2577,7 +2713,10 @@ def generate_readings(payload: ReadingRequest) -> ReadingResponse:
     dashboard_data = build_dashboard_data_from_aspects(
         aspects=build_transit_aspect_inputs(birth_input, current_dt),
         current_dt=current_dt,
-        retrograde_planets=extract_retrograde_planets_from_chart_rows(chart_rows["planets"]),
+        retrograde_planets=build_current_retrograde_planets(
+            current_dt,
+            birth_input.timezone_offset,
+        ),
         basic_interpretations=build_basic_interpretations_from_chart_rows(
             chart_rows["planets"],
             chart_rows["angles"],
