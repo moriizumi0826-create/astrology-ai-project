@@ -1,4 +1,4 @@
-﻿import React, { useState } from "react";
+﻿import React, { useEffect, useState } from "react";
 import {
   BatteryMedium,
   BriefcaseBusiness,
@@ -307,30 +307,46 @@ function TimelineTextSourceList({ slot }) {
   if (!slot) return null;
 
   const textSources = [];
-  if (slot.sourceRow) {
-    const csv = slot.sourceRow._csv_file || "CSV不明";
-    const row = slot.sourceRow._csv_row;
-    const key = slot.sourceRow.Aspect_Logic_ID || slot.sourceAspect?.t_planet || "";
-    if (slot.recommendedAction) {
-      textSources.push({
-        label: "推奨アクション",
-        csv,
-        row,
-        key,
-        column: "Advised_Task",
-        text: slot.recommendedAction,
-      });
-    }
-    if (slot.description || slot.detail) {
-      textSources.push({
-        label: "説明文",
-        csv,
-        row,
-        key,
-        column: "Text_Description",
-        text: slot.description || slot.detail,
-      });
-    }
+  const timelineAspects = Array.isArray(slot.timelineAspects) && slot.timelineAspects.length
+    ? slot.timelineAspects
+    : slot.sourceRow
+      ? [{
+          planetLabel: slot.sourceAspect?.t_planet || "",
+          sourceRow: slot.sourceRow,
+          sourceAspect: slot.sourceAspect,
+          recommendedAction: slot.recommendedAction,
+          description: slot.description || slot.detail,
+        }]
+      : [];
+
+  if (timelineAspects.length) {
+    timelineAspects.forEach((aspect) => {
+      const sourceRow = aspect.sourceRow || {};
+      const csv = sourceRow._csv_file || "CSV不明";
+      const row = sourceRow._csv_row;
+      const key = sourceRow.Aspect_Logic_ID || aspect.sourceAspect?.t_planet || "";
+      const prefix = aspect.planetLabel ? `${aspect.planetLabel} / ` : "";
+      if (aspect.recommendedAction) {
+        textSources.push({
+          label: `${prefix}推奨アクション`,
+          csv,
+          row,
+          key,
+          column: "Recommended_Action / Advised_Task",
+          text: aspect.recommendedAction,
+        });
+      }
+      if (aspect.description) {
+        textSources.push({
+          label: `${prefix}説明文`,
+          csv,
+          row,
+          key,
+          column: "Text_Description",
+          text: aspect.description,
+        });
+      }
+    });
   } else if (slot.timelineAdviceRow) {
     const csv = slot.timelineAdviceRow._csv_file || "CSV不明";
     const row = slot.timelineAdviceRow._csv_row;
@@ -694,21 +710,37 @@ function CountdownLane({
   slides,
   activeIndex,
   setActiveIndex,
+  maxSlides = 6,
+  headerAction = null,
 }) {
   const [touchStartX, setTouchStartX] = useState(null);
   const hasSlides = Array.isArray(slides) && slides.length > 0;
   if (!hasSlides) {
     return (
-      <div className="flex min-h-[190px] items-center justify-center rounded-3xl border border-slate-800 bg-slate-900 px-5 py-6 text-sm font-semibold text-slate-500">
-        <div className="text-center">
-          <p className="mb-2 text-[11px] font-bold uppercase tracking-[0.22em] text-slate-600">{title}</p>
-          対象アスペクトなし
+      <div className="flex min-h-[300px] flex-col rounded-3xl border border-slate-800 bg-slate-900 p-5 text-sm font-semibold text-slate-500 shadow-xl md:p-6">
+        {headerAction ? (
+          <div className="mb-3 flex min-h-[34px] items-start justify-between gap-3">
+            <div className="flex min-w-0 items-start gap-3">
+              <p className="inline-flex h-8 min-w-[116px] shrink-0 items-center justify-center rounded-full border border-white/70 bg-white px-3 text-[11px] font-bold tracking-[0.12em] text-slate-900">
+                {title}テーマ
+              </p>
+              <div className="shrink-0">{headerAction}</div>
+            </div>
+          </div>
+        ) : null}
+        <div className="flex flex-1 items-center justify-center text-center">
+          <div>
+            {!headerAction ? (
+              <p className="mb-2 text-[11px] font-bold uppercase tracking-[0.22em] text-slate-600">{title}</p>
+            ) : null}
+            対象アスペクトなし
+          </div>
         </div>
       </div>
     );
   }
 
-  const visibleSlides = slides.slice(0, 6);
+  const visibleSlides = Number.isFinite(maxSlides) ? slides.slice(0, maxSlides) : slides;
   const clampedIndex = Math.max(0, Math.min(activeIndex, visibleSlides.length - 1));
   const activeSlide = visibleSlides[clampedIndex] || visibleSlides[0];
   const daysRemaining = Number(activeSlide.days_remaining ?? activeSlide.daysLeft ?? 0);
@@ -759,13 +791,18 @@ function CountdownLane({
       />
 
       <div className="relative flex min-h-[300px] flex-col">
-        <div className="mb-3 flex min-h-[28px] items-center justify-between gap-3">
-          <p className="inline-flex items-center rounded-full border border-white/70 bg-white px-3 py-1 text-[11px] font-bold tracking-[0.12em] text-slate-900">
-            {title}テーマ
-          </p>
-          <span className="shrink-0 text-right text-sm font-bold text-amber-500">
-            {progressLabel}
-          </span>
+        <div className="mb-3 flex min-h-[34px] items-start justify-between gap-3">
+          <div className="flex min-w-0 items-start gap-3">
+            <p className="inline-flex h-8 min-w-[116px] shrink-0 items-center justify-center rounded-full border border-white/70 bg-white px-3 text-[11px] font-bold tracking-[0.12em] text-slate-900">
+              {title}テーマ
+            </p>
+            {headerAction ? <div className="shrink-0">{headerAction}</div> : null}
+          </div>
+          <div className="flex shrink-0 items-start">
+            <span className="text-right text-sm font-bold text-amber-500">
+              {progressLabel}
+            </span>
+          </div>
         </div>
         <div className="mb-3 flex min-h-[58px] items-start justify-between gap-4 text-sm font-medium text-slate-400">
           <div className="min-w-0">
@@ -821,7 +858,7 @@ function CountdownLane({
             >
               <ChevronLeft size={16} />
             </button>
-            <div className="flex min-w-[72px] items-center justify-center gap-2">
+            <div className="flex min-w-[72px] max-w-[260px] flex-wrap items-center justify-center gap-2">
               {visibleSlides.map((slide, index) => (
               <button
                 key={`${slide.countdown_id || slide.title || index}-${index}`}
@@ -847,9 +884,27 @@ function CountdownLane({
   );
 }
 
+function countdownSlideKey(slide) {
+  if (!slide) return "";
+  const target = slide.target || {};
+  return [
+    slide.countdown_id || slide.trigger_id || "",
+    target.T_Planet || slide.t_planet || "",
+    target.N_Planet || slide.n_planet || "",
+    target.Aspect_Angle || slide.aspect_angle || "",
+    slide.countdown_mode || "",
+  ].join("|");
+}
+
 function LunarCountdownWidget({ data, items = [], groups = {}, developerMode = false, developerMeta = {} }) {
   const [shortIndex, setShortIndex] = useState(0);
   const [longIndex, setLongIndex] = useState(0);
+  const [longPriority, setLongPriority] = useState("high");
+  const priorityBands = groups?.priority_bands || {
+    high: { label: "高" },
+    middle: { label: "中" },
+    low: { label: "低" },
+  };
 
   const shortSlides =
     Array.isArray(groups?.short) && groups.short.length
@@ -862,17 +917,76 @@ function LunarCountdownWidget({ data, items = [], groups = {}, developerMode = f
             ? items.slice(0, 1)
             : [];
   const longSlides =
-    Array.isArray(groups?.long) && groups.long.length
+    groups?.long_by_priority && Array.isArray(groups.long_by_priority[longPriority])
+      ? groups.long_by_priority[longPriority]
+      : Array.isArray(groups?.long) && groups.long.length
       ? groups.long
       : Array.isArray(groups?.legacy_long) && groups.legacy_long.length
         ? groups.legacy_long
         : [];
 
+  useEffect(() => {
+    if (!Array.isArray(longSlides) || !longSlides.length) return;
+    try {
+      const lockedKey = window.localStorage.getItem(`celestial-atelier:long-countdown:${longPriority}`);
+      if (!lockedKey) return;
+      const lockedIndex = longSlides.findIndex((slide) => countdownSlideKey(slide) === lockedKey);
+      if (lockedIndex >= 0) {
+        setLongIndex(lockedIndex);
+      }
+    } catch {
+      // Storage is best-effort; countdown still works without it.
+    }
+  }, [longPriority, longSlides]);
+
+  useEffect(() => {
+    if (!Array.isArray(longSlides) || !longSlides.length) return;
+    const activeSlide = longSlides[Math.max(0, Math.min(longIndex, longSlides.length - 1))];
+    const key = countdownSlideKey(activeSlide);
+    if (!key) return;
+    try {
+      window.localStorage.setItem(`celestial-atelier:long-countdown:${longPriority}`, key);
+    } catch {
+      // Storage is best-effort; countdown still works without it.
+    }
+  }, [longIndex, longPriority, longSlides]);
+
+  const longPriorityControl = (
+    <div className="flex h-8 w-[156px] items-center gap-2">
+      <span className="w-[36px] shrink-0 text-[9px] font-bold leading-none tracking-[0.12em] text-slate-500">影響力</span>
+      <div className="grid h-8 w-[112px] shrink-0 grid-cols-3 gap-1 rounded-full border border-slate-700 bg-slate-800/80 p-1 text-[11px] font-bold text-slate-400">
+        {["high", "middle", "low"].map((band) => (
+          <button
+            key={band}
+            type="button"
+            className={cx(
+              "flex h-6 w-8 items-center justify-center rounded-full transition",
+              longPriority === band ? "bg-amber-500 text-slate-950 shadow-sm" : "hover:bg-slate-700 hover:text-white"
+            )}
+            onClick={() => {
+              setLongPriority(band);
+              setLongIndex(0);
+            }}
+          >
+            {priorityBands[band]?.label || band}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+
   return (
     <div className="space-y-4">
       <div className="grid gap-4 xl:grid-cols-2">
         <CountdownLane title="短期" slides={shortSlides} activeIndex={shortIndex} setActiveIndex={setShortIndex} />
-        <CountdownLane title="中長期" slides={longSlides} activeIndex={longIndex} setActiveIndex={setLongIndex} />
+        <CountdownLane
+          title="中長期"
+          slides={longSlides}
+          activeIndex={longIndex}
+          setActiveIndex={setLongIndex}
+          maxSlides={Infinity}
+          headerAction={longPriorityControl}
+        />
       </div>
       {developerMode ? (
         <DeveloperBlock title="Count down bar の根拠" meta={developerMeta.countdown} className="bg-slate-50" />
@@ -933,9 +1047,18 @@ function Timeline({ data, date, days = [], developerMode = false, developerMeta 
           {slots.map((slot) => {
             const score = Math.max(0, Math.min(100, Number(slot.score) || 0));
             const title = slot.title || slot.phase || slot.recommendation || "Action Timing";
-            const timelineLabel = slot.timelineLabel || "";
-            const recommendedAction = slot.recommendedAction || slot.recommendation || "";
-            const aspectDescription = slot.description || slot.detail || "";
+            const timelineAspects = Array.isArray(slot.timelineAspects) && slot.timelineAspects.length
+              ? slot.timelineAspects
+              : [{
+                  planetLabel: slot.sourceAspect?.t_planet || "",
+                  timelineLabel: slot.timelineLabel || "",
+                  recommendedAction: slot.recommendedAction || slot.recommendation || "",
+                  description: slot.description || slot.detail || "",
+                }];
+            const recommendedAction = timelineAspects
+              .map((aspect) => aspect.recommendedAction)
+              .filter(Boolean)
+              .join(" / ");
             const isPeak = score >= 80;
             const developerEntry = activeDay?.date === date ? slotEntries.find((entry) => entry.slot === slot.label) : null;
 
@@ -978,20 +1101,37 @@ function Timeline({ data, date, days = [], developerMode = false, developerMeta 
             </div>
 
               <div className="space-y-3">
-                {timelineLabel ? (
-                  <p className="inline-flex rounded-full bg-[#0A192F]/5 px-3 py-1 text-sm font-bold text-[#0A192F]">
-                    {timelineLabel}
-                  </p>
-                ) : null}
-                <p className="text-sm leading-7 text-slate-600">{recommendedAction}</p>
-                {aspectDescription ? (
-                  <details className="rounded-2xl border border-slate-200 bg-white/70 px-3 py-2">
-                    <summary className="cursor-pointer text-xs font-bold text-[#0A192F]">
-                      アスペクト
-                    </summary>
-                    <p className="mt-2 text-sm leading-7 text-slate-600">{aspectDescription}</p>
-                  </details>
-                ) : null}
+                {timelineAspects.map((aspect, aspectIndex) => {
+                  const aspectKey = `${aspect.planet || aspect.planetLabel || "aspect"}-${aspect.sourceAspect?.n_planet || aspectIndex}-${aspect.sourceAspect?.angle || aspectIndex}`;
+                  const aspectDescription = aspect.description || "";
+                  return (
+                    <div key={aspectKey} className="rounded-2xl border border-slate-200 bg-white/70 px-3 py-3">
+                      <div className="mb-2 flex flex-wrap items-center gap-2">
+                        {aspect.planetLabel ? (
+                          <span className="rounded-full bg-[#D4AF37]/15 px-2.5 py-1 text-[11px] font-extrabold text-[#8a6a08]">
+                            {aspect.planetLabel}
+                          </span>
+                        ) : null}
+                        {aspect.timelineLabel ? (
+                          <span className="rounded-full bg-[#0A192F]/5 px-3 py-1 text-xs font-bold text-[#0A192F]">
+                            {aspect.timelineLabel}
+                          </span>
+                        ) : null}
+                      </div>
+                      {aspect.recommendedAction ? (
+                        <p className="text-sm leading-7 text-slate-600">{aspect.recommendedAction}</p>
+                      ) : null}
+                      {aspectDescription ? (
+                        <details className="mt-2 rounded-xl border border-slate-200 bg-slate-50/70 px-3 py-2">
+                          <summary className="cursor-pointer text-xs font-bold text-[#0A192F]">
+                            アスペクト
+                          </summary>
+                          <p className="mt-2 text-sm leading-7 text-slate-600">{aspectDescription}</p>
+                        </details>
+                      ) : null}
+                    </div>
+                  );
+                })}
               </div>
                 {developerMode ? <TimelineDeveloperBlock entry={developerEntry} slot={slot} /> : null}
               </article>

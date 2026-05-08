@@ -136,6 +136,11 @@ STATIONARY_LOOKAHEAD_DAYS = 3
 
 COUNTDOWN_SHORT_PLANETS = {"MOON", "SUN", "MERCURY", "VENUS", "MARS"}
 COUNTDOWN_LONG_PLANETS = {"JUPITER", "SATURN", "URANUS", "NEPTUNE", "PLUTO"}
+COUNTDOWN_PRIORITY_BANDS = {
+    "high": {"label": "高", "min": 8, "max": None},
+    "middle": {"label": "中", "min": 5, "max": 7},
+    "low": {"label": "低", "min": None, "max": 4},
+}
 
 SIGN_ALIASES = {
     "ARIES": "ARIES",
@@ -1254,6 +1259,146 @@ def _pick_timeline_row(
     return pool[slot_index % len(pool)] if pool else None
 
 
+def _ordered_timeline_pool(rows: list[dict[str, Any]], slot_index: int) -> list[dict[str, Any]]:
+    if not rows:
+        return []
+    return rows[slot_index:] + rows[:slot_index]
+
+
+def _pick_timeline_row_for_planet(
+    pools: list[list[dict[str, Any]]],
+    planet: str | None,
+    slot_index: int,
+    used_keys: set[tuple[str, str, int, str]],
+    allow_used: bool = False,
+) -> dict[str, Any] | None:
+    for pool in pools:
+        for row in _ordered_timeline_pool(pool, slot_index):
+            if planet is not None and _normalize_planet(row.get("T_Planet")) != planet:
+                continue
+            if not allow_used and _timeline_row_key(row) in used_keys:
+                continue
+            return row
+    return None
+
+
+def _select_timeline_display_rows(
+    primary_rows: list[dict[str, Any]],
+    fallback_rows: list[dict[str, Any]],
+    slot_index: int,
+    used_keys: set[tuple[str, str, int, str]],
+) -> list[dict[str, Any]]:
+    pools = [primary_rows, fallback_rows]
+
+    def pick_pair(first_planet: str, second_planet: str, allow_used: bool = False) -> list[dict[str, Any]]:
+        first = _pick_timeline_row_for_planet(pools, first_planet, slot_index, used_keys, allow_used)
+        second = _pick_timeline_row_for_planet(pools, second_planet, slot_index, used_keys, allow_used)
+        if not first or not second:
+            return []
+        if _timeline_row_key(first) == _timeline_row_key(second):
+            return []
+        return [first, second]
+
+    def pick_single(planet: str, allow_used: bool = False) -> list[dict[str, Any]]:
+        row = _pick_timeline_row_for_planet(pools, planet, slot_index, used_keys, allow_used)
+        return [row] if row else []
+
+    def pick_other(allow_used: bool = False) -> list[dict[str, Any]]:
+        excluded = {"MOON", "SUN", "MERCURY"}
+        for pool in pools:
+            for row in _ordered_timeline_pool(pool, slot_index):
+                if _normalize_planet(row.get("T_Planet")) in excluded:
+                    continue
+                if not allow_used and _timeline_row_key(row) in used_keys:
+                    continue
+                return [row]
+        return []
+
+    for allow_used in (False, True):
+        selected = (
+            pick_pair("MOON", "MERCURY", allow_used)
+            or pick_pair("SUN", "MERCURY", allow_used)
+            or pick_single("MOON", allow_used)
+            or pick_single("MERCURY", allow_used)
+            or pick_other(allow_used)
+        )
+        if selected:
+            for row in selected:
+                used_keys.add(_timeline_row_key(row))
+            return selected
+    return []
+
+
+def _timeline_aspect_entry(row: dict[str, Any] | None) -> dict[str, Any]:
+    if not row:
+        return {}
+    recommended_action = _safe_text(row, "Recommended_Action") or _safe_text(row, "Advised_Task")
+    return {
+        "planet": _normalize_planet(row.get("T_Planet")),
+        "planetLabel": _planet_label(row.get("T_Planet")),
+        "timelineLabel": _safe_text(row, "timeline_Label"),
+        "recommendedAction": recommended_action,
+        "description": _safe_text(row, "Text_Description"),
+        "sourceRow": row,
+        "sourceAspect": {
+            "t_planet": _normalize_planet(row.get("T_Planet")),
+            "n_planet": _normalize_planet(row.get("N_Planet")),
+            "angle": _safe_number(row or {}, "Aspect_Angle"),
+            "category": _safe_text(row, "Category", "General"),
+        },
+    }
+
+
+def _rank_timeline_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    return sorted(
+        rows,
+        key=lambda row: (_safe_number(row, "Priority"), abs(_safe_number(row, "Score_Impact"))),
+        reverse=True,
+    )
+
+
+def _has_timeline_planet(rows: list[dict[str, Any]], planet: str) -> bool:
+    return any(_normalize_planet(row.get("T_Planet")) == planet for row in rows)
+
+
+def _build_prioritized_slot_interpretations(
+    birth_input: BirthInput,
+    slot_def: dict[str, Any],
+    target_date: date,
+) -> list[dict[str, Any]]:
+    rows = _build_slot_interpretations(
+        birth_input,
+        slot_def,
+        target_date,
+        transit_planets=("MOON", "MERCURY"),
+    )
+    has_moon = _has_timeline_planet(rows, "MOON")
+    has_mercury = _has_timeline_planet(rows, "MERCURY")
+    if has_moon and has_mercury:
+        return _rank_timeline_rows(rows)
+    if has_mercury and not has_moon:
+        rows.extend(
+            _build_slot_interpretations(
+                birth_input,
+                slot_def,
+                target_date,
+                transit_planets=("SUN",),
+            )
+        )
+        return _rank_timeline_rows(rows)
+    if has_moon:
+        return _rank_timeline_rows(rows)
+    rows.extend(
+        _build_slot_interpretations(
+            birth_input,
+            slot_def,
+            target_date,
+            transit_planets=tuple(planet for planet in TRANSIT_PLANET_ORDER if planet not in {"MOON", "SUN", "MERCURY"}),
+        )
+    )
+    return _rank_timeline_rows(rows)
+
+
 def _select_countdown_target(rows: list[dict[str, Any]]) -> dict[str, Any] | None:
     targets = _select_countdown_targets(rows, limit=1)
     return targets[0] if targets else None
@@ -1323,6 +1468,27 @@ def _select_display_countdown_items(items: list[dict[str, Any]], limit: int = 3)
 
     ranked = sorted(enumerate(items), key=lambda pair: (display_bucket(pair[1]), pair[0]))
     return [item for _index, item in ranked[:limit]]
+
+
+def _countdown_priority_band(priority: Any) -> str:
+    normalized = _normalize_int(priority) or 0
+    if normalized >= 8:
+        return "high"
+    if normalized >= 5:
+        return "middle"
+    return "low"
+
+
+def _countdown_priority_band_groups(items: list[dict[str, Any]]) -> dict[str, list[dict[str, Any]]]:
+    groups = {key: [] for key in COUNTDOWN_PRIORITY_BANDS}
+    for item in items:
+        target = item.get("target") if isinstance(item.get("target"), dict) else {}
+        priority = item.get("priority", target.get("Priority"))
+        band = _countdown_priority_band(priority)
+        item["priority_band"] = band
+        item["priority_band_label"] = COUNTDOWN_PRIORITY_BANDS[band]["label"]
+        groups[band].append(item)
+    return groups
 
 
 def get_countdown_master_row(trigger_id: Any) -> dict[str, Any] | None:
@@ -1649,6 +1815,7 @@ def build_countdown_data(
             "days_remaining": 0,
             "total_days": DEFAULT_COUNTDOWN_TOTAL_DAYS,
             "percent": 0,
+            "priority": _safe_number(countdown_target, "Priority"),
             "trigger_id": countdown_id,
             "countdown_id": countdown_id,
             "fallback_label": fallback_label,
@@ -1703,6 +1870,7 @@ def build_countdown_data(
         "total_days": total_days,
         "percent": progress_percent,
         "scan_status": scan_status,
+        "priority": _safe_number(countdown_target, "Priority"),
         "trigger_id": _safe_text(master_row, "Trigger_ID", countdown_id),
         "countdown_id": countdown_id,
         "fallback_label": fallback_label,
@@ -1969,39 +2137,55 @@ def _classify_orb_status(
     return "Applying" if future_deviation < current_deviation else "Separating"
 
 
-def _build_slot_interpretations(birth_input: BirthInput, slot_def: dict[str, Any], target_date: date) -> list[dict[str, Any]]:
+def _build_slot_interpretations(
+    birth_input: BirthInput,
+    slot_def: dict[str, Any],
+    target_date: date,
+    transit_planets: tuple[str, ...] = TRANSIT_PLANET_ORDER,
+) -> list[dict[str, Any]]:
     natal_rows = _build_natal_planet_rows(birth_input)
     sample_local_dt = _local_sample_datetime(target_date, slot_def["sample_hour"], slot_def.get("day_offset", 0))
-    transit_longitude, is_retrograde = _calc_transit_moon_state(sample_local_dt, birth_input.timezone_offset)
     slot_rows: list[dict[str, Any]] = []
-    for natal_row in natal_rows:
-        angle_diff = get_angle_diff(transit_longitude, natal_row["longitude"])
-        _, exact_angle, orb_diff = get_aspect(angle_diff)
-        if exact_angle is None:
-            continue
-        orb_status = _classify_orb_status(sample_local_dt, birth_input.timezone_offset, natal_row["longitude"], exact_angle)
-        interpretation = get_aspect_interpretation(
-            t_planet="MOON",
-            n_planet=natal_row["planet"],
-            angle=exact_angle,
-            house=natal_row["house"],
-            is_retrograde=is_retrograde,
-            orb_status=orb_status,
+    for transit_planet in transit_planets:
+        transit_longitude, is_retrograde = _calc_transit_planet_state(
+            transit_planet,
+            sample_local_dt,
+            birth_input.timezone_offset,
         )
-        if not interpretation:
-            continue
-        interpretation = dict(interpretation)
-        interpretation["_input"] = {
-            "t_planet": "MOON",
-            "n_planet": natal_row["planet"],
-            "angle": exact_angle,
-            "house": natal_row["house"],
-            "orb": orb_diff,
-            "sample_time": sample_local_dt.strftime("%H:%M"),
-            "time_slot_id": slot_def["id"],
-        }
-        interpretation["_orb_status"] = orb_status
-        slot_rows.append(interpretation)
+        for natal_row in natal_rows:
+            angle_diff = get_angle_diff(transit_longitude, natal_row["longitude"])
+            _, exact_angle, orb_diff = get_aspect(angle_diff)
+            if exact_angle is None:
+                continue
+            orb_status = _classify_orb_status(
+                sample_local_dt,
+                birth_input.timezone_offset,
+                natal_row["longitude"],
+                exact_angle,
+                transit_planet=transit_planet,
+            )
+            interpretation = get_aspect_interpretation(
+                t_planet=transit_planet,
+                n_planet=natal_row["planet"],
+                angle=exact_angle,
+                house=natal_row["house"],
+                is_retrograde=is_retrograde,
+                orb_status=orb_status,
+            )
+            if not interpretation:
+                continue
+            interpretation = dict(interpretation)
+            interpretation["_input"] = {
+                "t_planet": transit_planet,
+                "n_planet": natal_row["planet"],
+                "angle": exact_angle,
+                "house": natal_row["house"],
+                "orb": orb_diff,
+                "sample_time": sample_local_dt.strftime("%H:%M"),
+                "time_slot_id": slot_def["id"],
+            }
+            interpretation["_orb_status"] = orb_status
+            slot_rows.append(interpretation)
     return slot_rows
 
 
@@ -2026,6 +2210,7 @@ def _build_timeline_slot_from_rows(
     aspect_action = _safe_text(dominant_row, "Advised_Task")
     timeline_label = _safe_text(dominant_row, "timeline_Label")
     detail = _safe_text(dominant_row, "Text_Description")
+    timeline_aspects = [_timeline_aspect_entry(row) for row in dominant_candidates if row]
 
     advice_status = _safe_text(advice_row, "Status_Label", slot_def["id"])
 
@@ -2048,6 +2233,7 @@ def _build_timeline_slot_from_rows(
         "title": advice_status,
         "score": final_score,
         "timelineLabel": timeline_label,
+        "timelineAspects": timeline_aspects,
         "recommendedAction": combined_recommendation,
         "description": detail,
         "recommendation": combined_recommendation,
@@ -2063,8 +2249,8 @@ def _build_timeline_slot_from_rows(
         "sourceRow": dominant_row,
         "timelineAdviceRow": advice_row,
         "sourceAspect": {
-            "t_planet": _safe_text(dominant_row, "T_Planet"),
-            "n_planet": _safe_text(dominant_row, "N_Planet"),
+            "t_planet": _normalize_planet(dominant_row.get("T_Planet")) if dominant_row else "",
+            "n_planet": _normalize_planet(dominant_row.get("N_Planet")) if dominant_row else "",
             "angle": _safe_number(dominant_row or {}, "Aspect_Angle"),
             "category": _safe_text(dominant_row, "Category", "General"),
         },
@@ -2079,25 +2265,24 @@ def _build_timeline_from_interpretations(
     daily_modifier: int = 0,
     is_noise_heavy: bool = False,
 ) -> list[dict[str, Any]]:
-    ranked = sorted(rows, key=lambda row: (_safe_number(row, "Priority"), abs(_safe_number(row, "Score_Impact"))), reverse=True)
+    ranked = _rank_timeline_rows(rows)
 
     if birth_input is not None and swe is not None:
         target_date = current_dt.date() if isinstance(current_dt, datetime) else current_dt or date.today()
         used_keys: set[tuple[str, str, int, str]] = set()
         timeline: list[dict[str, Any]] = []
         for index, slot_def in enumerate(TIMELINE_SLOT_DEFS):
-            slot_rows = _build_slot_interpretations(birth_input, slot_def, target_date)
-            fallback_row = _pick_timeline_row(slot_rows, ranked, index, used_keys)
-            timeline.append(_build_timeline_slot_from_rows(slot_def, slot_rows, fallback_row, daily_modifier=daily_modifier, is_noise_heavy=is_noise_heavy))
+            slot_rows = _build_prioritized_slot_interpretations(birth_input, slot_def, target_date)
+            display_rows = _select_timeline_display_rows(slot_rows, ranked, index, used_keys)
+            fallback_row = display_rows[0] if display_rows else None
+            timeline.append(_build_timeline_slot_from_rows(slot_def, display_rows, fallback_row, daily_modifier=daily_modifier, is_noise_heavy=is_noise_heavy))
         return timeline
 
-    moon_rows = [row for row in ranked if _normalize_planet(row.get("T_Planet")) == "MOON"]
     used_keys: set[tuple[str, str, int, str]] = set()
     timeline: list[dict[str, Any]] = []
     for index, slot_def in enumerate(TIMELINE_SLOT_DEFS):
-        row = _pick_timeline_row(moon_rows, ranked, index, used_keys)
-        fallback_row = row or _pick_timeline_row([], ranked, index, used_keys)
-        slot_rows = [row] if row else []
+        slot_rows = _select_timeline_display_rows(ranked, [], index, used_keys)
+        fallback_row = slot_rows[0] if slot_rows else None
         if not slot_rows and fallback_row is None:
             target_score = _timeline_target_score(slot_def["id"])
             additive_score = _clamp(target_score + daily_modifier, 0, 100)
@@ -2124,6 +2309,7 @@ def _build_timeline_from_interpretations(
                 "sourceRow": None,
                 "timelineAdviceRow": advice_row,
                 "sourceAspect": {"t_planet": "", "n_planet": "", "angle": 0, "category": "General"},
+                "timelineAspects": [],
             })
             continue
         timeline.append(_build_timeline_slot_from_rows(slot_def, slot_rows, fallback_row, daily_modifier=daily_modifier, is_noise_heavy=is_noise_heavy))
@@ -2455,7 +2641,7 @@ def build_dashboard_data_from_interpretations(
     long_countdown_targets = _countdown_targets_by_planet_group(
         interpretations,
         COUNTDOWN_LONG_PLANETS,
-        limit=12,
+        limit=999,
         score_sign="positive",
     )
     short_negative_countdown_targets = _countdown_targets_by_planet_group(
@@ -2467,7 +2653,7 @@ def build_dashboard_data_from_interpretations(
     long_negative_countdown_targets = _countdown_targets_by_planet_group(
         interpretations,
         COUNTDOWN_LONG_PLANETS,
-        limit=12,
+        limit=999,
         score_sign="negative",
     )
     short_countdown_candidates = [
@@ -2478,6 +2664,10 @@ def build_dashboard_data_from_interpretations(
     ]
     short_countdown_items = _select_display_countdown_items(short_countdown_candidates, limit=3)
     long_countdown_items = _select_display_countdown_items(long_countdown_candidates, limit=3)
+    long_countdown_all_items = _select_display_countdown_items(
+        long_countdown_candidates,
+        limit=len(long_countdown_candidates),
+    )
     short_negative_countdown_items = [
         item
         for item in (
@@ -2493,9 +2683,10 @@ def build_dashboard_data_from_interpretations(
             for target in long_negative_countdown_targets
         )
         if item and item.get("scan_status") == "departing"
-    ][:3]
+    ]
     short_countdown_group = [*short_countdown_items, *short_negative_countdown_items]
-    long_countdown_group = [*long_countdown_items, *long_negative_countdown_items]
+    long_countdown_group = [*long_countdown_all_items, *long_negative_countdown_items]
+    long_countdown_priority_groups = _countdown_priority_band_groups(long_countdown_group)
     positive_countdown_items = [*short_countdown_items, *long_countdown_items][:3]
     countdown_items = positive_countdown_items
     countdown_data = (positive_countdown_items or [None])[0]
@@ -2520,6 +2711,11 @@ def build_dashboard_data_from_interpretations(
         "countdown_groups": {
             "short": short_countdown_group,
             "long": long_countdown_group,
+            "long_by_priority": long_countdown_priority_groups,
+            "priority_bands": {
+                key: {"label": value["label"]}
+                for key, value in COUNTDOWN_PRIORITY_BANDS.items()
+            },
             "legacy_short": short_countdown_items,
             "legacy_long": long_countdown_items,
         },

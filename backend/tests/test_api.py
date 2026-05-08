@@ -212,10 +212,10 @@ class ApiTestCase(unittest.TestCase):
         self.assertEqual(dashboard_data["daily_vibe"]["modifier"], -20)
         self.assertEqual(dashboard_data["hero"]["score"], 100)
         self.assertIn("diagnostic", dashboard_data)
-        self.assertEqual(dashboard_data["diagnostic"]["score"], 66)
+        self.assertEqual(dashboard_data["diagnostic"]["score"], 64)
         self.assertEqual(
             [item["value"] for item in dashboard_data["diagnostic"]["items"]],
-            [51, 63, 51],
+            [45, 63, 50],
         )
         self.assertEqual(len(dashboard_data["diagnostic"]["items"]), 3)
         self.assertNotEqual(dashboard_data["countdown"]["title"], dashboard_data["countdown"]["note"])
@@ -298,21 +298,54 @@ class ApiTestCase(unittest.TestCase):
         self.assertTrue(all(slot["targetScore"] in {100, 55, 30, 10} for slot in timeline))
         self.assertTrue(all(slot.get("sourceRow") for slot in timeline))
         self.assertTrue(all(slot.get("timelineAdviceRow") for slot in timeline))
+        self.assertTrue(all(slot.get("timelineAspects") for slot in timeline))
         self.assertGreater(len({slot["recommendedAction"] for slot in timeline}), 1)
-        self.assertEqual(
-            len(
-                {
-                    (
-                        slot["sourceAspect"]["t_planet"],
-                        slot["sourceAspect"]["n_planet"],
-                        slot["sourceAspect"]["angle"],
-                    )
-                    for slot in timeline
-                }
-            ),
-            4,
+        self.assertTrue(
+            any(
+                [aspect["sourceAspect"]["t_planet"] for aspect in slot["timelineAspects"]] == ["SUN", "MERCURY"]
+                for slot in timeline
+            )
         )
         self.assertTrue(any(slot["sourceAspect"]["angle"] == 150 for slot in timeline))
+
+    def test_dashboard_timeline_prefers_moon_and_mercury_as_separate_entries(self):
+        dashboard_data = build_dashboard_data_from_aspects(
+            aspects=[
+                {
+                    "t_planet": "MOON",
+                    "n_planet": "SUN",
+                    "angle": 0,
+                    "house": 1,
+                    "is_retrograde": False,
+                    "orb_status": "Applying",
+                },
+                {
+                    "t_planet": "MERCURY",
+                    "n_planet": "SATURN",
+                    "angle": 0,
+                    "house": 6,
+                    "is_retrograde": False,
+                    "orb_status": "Applying",
+                },
+                {
+                    "t_planet": "MARS",
+                    "n_planet": "SUN",
+                    "angle": 150,
+                    "house": 1,
+                    "is_retrograde": False,
+                    "orb_status": "Separating",
+                },
+            ]
+        )
+
+        first_slot = dashboard_data["timeline"][0]
+        self.assertEqual(
+            [aspect["sourceAspect"]["t_planet"] for aspect in first_slot["timelineAspects"]],
+            ["MOON", "MERCURY"],
+        )
+        self.assertEqual(len(first_slot["timelineAspects"]), 2)
+        self.assertTrue(all(aspect["recommendedAction"] for aspect in first_slot["timelineAspects"]))
+        self.assertTrue(all(aspect["description"] for aspect in first_slot["timelineAspects"]))
 
     def test_timeline_logs_target_score_and_final_score(self):
         with self.assertLogs("backend.app.services.reading_service", level="INFO") as logs:
@@ -640,6 +673,7 @@ class ApiTestCase(unittest.TestCase):
                     "_input": {"orb": 1.0},
                 }
             )
+        long_priorities = [9, 6, 3]
         for index, planet in enumerate(long_planets):
             rows.append(
                 {
@@ -649,7 +683,7 @@ class ApiTestCase(unittest.TestCase):
                     "Countdown_ID": "WORK_SUCCESS_JUPITER",
                     "Countdown_Label": f"long positive {index}",
                     "Score_Impact": 60 + index,
-                    "Priority": 8,
+                    "Priority": long_priorities[index],
                     "_orb_status": "Separating" if index == 1 else "Applying",
                     "_input": {"orb": 1.0},
                 }
@@ -662,7 +696,7 @@ class ApiTestCase(unittest.TestCase):
                     "Countdown_ID": "FATED_TURNING_POINT",
                     "Countdown_Label": f"long negative {index}",
                     "Score_Impact": -60 - index,
-                    "Priority": 8,
+                    "Priority": long_priorities[index],
                     "_orb_status": "Applying" if index == 1 else "Separating",
                     "_input": {"orb": 1.0},
                 }
@@ -728,6 +762,12 @@ class ApiTestCase(unittest.TestCase):
         )
         self.assertEqual(len(dashboard["countdown_groups"]["legacy_short"]), 3)
         self.assertEqual(len(dashboard["countdown_groups"]["legacy_long"]), 3)
+        self.assertEqual(len(dashboard["countdown_groups"]["long_by_priority"]["high"]), 2)
+        self.assertEqual(len(dashboard["countdown_groups"]["long_by_priority"]["middle"]), 2)
+        self.assertEqual(len(dashboard["countdown_groups"]["long_by_priority"]["low"]), 2)
+        self.assertTrue(
+            all(item["priority_band"] == "high" for item in dashboard["countdown_groups"]["long_by_priority"]["high"])
+        )
 
     def test_yearly_forecast_weight_and_orb_decay_helpers(self):
         self.assertEqual(_priority_weight(10), 3.0)
