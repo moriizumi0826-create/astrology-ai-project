@@ -15,6 +15,12 @@ const SERIES = [
   { key: "love", label: "恋愛", color: "#D84C8B" },
   { key: "money", label: "金運", color: "#2F9E68" },
 ];
+const DETAIL_SERIES = [
+  { key: "general", label: "一般", color: "#D4AF37" },
+  { key: "work", label: "仕事", color: "#2F6FED" },
+  { key: "love", label: "恋愛", color: "#D84C8B" },
+  { key: "money", label: "金運", color: "#2F9E68" },
+];
 const RANGE_OPTIONS = [
   { months: 1, label: "1ヶ月", days: 31 },
   { months: 3, label: "3ヶ月", days: 92 },
@@ -123,7 +129,7 @@ function YearlyForecastGraph({ forecast }) {
   const initialIndex = useMemo(() => (data.length ? selectedDayFromReadingDate(data, forecast) : 0), [data, forecast]);
   const [selectedIndex, setSelectedIndex] = useState(initialIndex);
   const [rangeMonths, setRangeMonths] = useState(1);
-  const [detailSeries, setDetailSeries] = useState("total");
+  const [detailSeries, setDetailSeries] = useState("general");
 
   if (!data.length) {
     return null;
@@ -133,7 +139,7 @@ function YearlyForecastGraph({ forecast }) {
   const visibleData = data.slice(visibleStart, visibleEnd);
   const visibleSelectedIndex = Math.max(0, Math.min(visibleData.length - 1, selectedIndex - visibleStart));
   const selectedDay = data[selectedIndex] || data[0];
-  const detailSeriesMeta = SERIES.find((item) => item.key === detailSeries) || SERIES[0];
+  const detailSeriesMeta = DETAIL_SERIES.find((item) => item.key === detailSeries) || DETAIL_SERIES[0];
   const selectedEvent = eventForSeries(selectedDay, detailSeries) || {
     title: `${detailSeriesMeta.label}：アスペクトなし`,
     description: "アスペクトなし",
@@ -252,7 +258,7 @@ function YearlyForecastGraph({ forecast }) {
           </div>
           <div className="absolute right-5 top-4">
             <div className="grid grid-cols-4 gap-1 rounded-full border border-outline-variant/30 bg-white/85 p-1 text-[11px] text-on-surface-variant shadow-sm">
-              {SERIES.map((item) => (
+              {DETAIL_SERIES.map((item) => (
                 <button
                   key={item.key}
                   type="button"

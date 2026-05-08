@@ -67,7 +67,7 @@ class YearlyForecastTestCase(unittest.TestCase):
         first_day = forecast["yearly_data"][0]
         self.assertTrue({"total", "work", "love", "money", "general"}.issubset(first_day["scores"]))
         self.assertIn("events", first_day)
-        self.assertTrue({"total", "work", "love", "money"}.issubset(first_day["category_highlights"]))
+        self.assertTrue({"general", "work", "love", "money"}.issubset(first_day["category_highlights"]))
         self.assertTrue(forecast["milestones"])
         self.assertEqual(forecast["cache"]["table"], "yearly_forecast_cache")
 
@@ -76,10 +76,11 @@ class YearlyForecastTestCase(unittest.TestCase):
             {"category": "Work", "aspect_angle": 120, "priority": 3, "weighted_score": 20},
             {"category": "Work", "aspect_angle": 90, "priority": 4, "weighted_score": 5},
             {"category": "Love", "aspect_angle": 60, "priority": 2, "weighted_score": -50},
+            {"category": "General", "aspect_angle": 0, "priority": 1, "weighted_score": 100},
             {"category": "Money", "aspect_angle": None, "priority": 10, "weighted_score": 100},
         ])
 
-        self.assertEqual(highlights["total"]["aspect_angle"], 90)
+        self.assertEqual(highlights["general"]["aspect_angle"], 0)
         self.assertEqual(highlights["work"]["aspect_angle"], 90)
         self.assertEqual(highlights["love"]["aspect_angle"], 60)
         self.assertIsNone(highlights["money"])

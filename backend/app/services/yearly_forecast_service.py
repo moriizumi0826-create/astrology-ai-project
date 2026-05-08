@@ -287,7 +287,7 @@ def _strongest_yearly_aspect(events: list[dict[str, Any]], category: str = "tota
 
 def _category_highlights(events: list[dict[str, Any]]) -> dict[str, dict[str, Any] | None]:
     return {
-        "total": _strongest_yearly_aspect(events, "total"),
+        "general": _strongest_yearly_aspect(events, "general"),
         "work": _strongest_yearly_aspect(events, "work"),
         "love": _strongest_yearly_aspect(events, "love"),
         "money": _strongest_yearly_aspect(events, "money"),
