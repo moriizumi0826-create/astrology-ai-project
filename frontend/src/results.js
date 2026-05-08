@@ -54,25 +54,6 @@ function splitReportSections(content) {
   return sections;
 }
 
-function extractTopicContent(sections, keywords) {
-  const blocks = sections
-    .map((section) => {
-      const matchedLines = section.body
-        .split("\n")
-        .map((line) => line.trim())
-        .filter((line) => line && keywords.some((keyword) => line.includes(keyword)));
-
-      if (!matchedLines.length) {
-        return "";
-      }
-
-      return `${section.title}\n${matchedLines.join("\n")}`;
-    })
-    .filter(Boolean);
-
-  return blocks.join("\n\n").trim();
-}
-
 function renderInnerSection(section) {
   return `
     <article class="bg-surface-container-lowest p-0 flex flex-col border border-outline-variant/35 rounded-2xl overflow-hidden shadow-[0px_12px_24px_rgba(46,52,45,0.05)]">
@@ -134,12 +115,8 @@ function buildTopLevelPanels(payload) {
   const fullReport = payload.readings.find((item) => item.type === "full_report") || payload.readings[0];
   const sections = fullReport ? splitReportSections(fullReport.content) : [];
 
-  const topicPlaceholder = "\u30fb\u30fb\u30fb\u4f5c\u6210\u4e2d\u30fb\u30fb\u30fb";
-
   return [
     renderNestedReportPanel("フルリポート", sections),
-    renderTopicPanel("恋愛", topicPlaceholder),
-    renderTopicPanel("仕事", topicPlaceholder),
   ];
 }
 

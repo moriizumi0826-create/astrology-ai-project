@@ -265,6 +265,35 @@ def _score_category_totals(events: list[dict[str, Any]]) -> dict[str, int]:
     }
 
 
+def _strongest_yearly_aspect(events: list[dict[str, Any]], category: str = "total") -> dict[str, Any] | None:
+    category_normalized = str(category or "total").strip().lower()
+    aspect_events = [
+        event
+        for event in events
+        if event.get("aspect_angle") is not None
+        and (category_normalized == "total" or _category_key(event.get("category")) == category_normalized)
+    ]
+    if not aspect_events:
+        return None
+    return sorted(
+        aspect_events,
+        key=lambda event: (
+            reading_service._safe_number(event, "priority"),
+            abs(reading_service._safe_number(event, "weighted_score")),
+        ),
+        reverse=True,
+    )[0]
+
+
+def _category_highlights(events: list[dict[str, Any]]) -> dict[str, dict[str, Any] | None]:
+    return {
+        "total": _strongest_yearly_aspect(events, "total"),
+        "work": _strongest_yearly_aspect(events, "work"),
+        "love": _strongest_yearly_aspect(events, "love"),
+        "money": _strongest_yearly_aspect(events, "money"),
+    }
+
+
 def _sample_local_datetime(day: date) -> datetime:
     return datetime.combine(day, dt_time(hour=12))
 
@@ -538,6 +567,7 @@ def _build_day_forecast(
         "date": day.isoformat(),
         "scores": scores,
         "events": top_events,
+        "category_highlights": _category_highlights(events),
     }
 
 

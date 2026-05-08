@@ -67,10 +67,20 @@ function formatDate(value) {
   return `${date.getMonth() + 1}/${date.getDate()}`;
 }
 
-function strongestEvent(day) {
+function eventForSeries(day, key) {
+  const highlights = day?.category_highlights || day?.categoryHighlights || {};
+  if (Object.prototype.hasOwnProperty.call(highlights, key)) {
+    return highlights[key] || null;
+  }
   const events = Array.isArray(day?.events) ? day.events : [];
-  if (!events.length) return null;
-  return [...events].sort(
+  const aspectEvents = events.filter((event) => event?.aspect_angle !== null && event?.aspect_angle !== undefined);
+  if (!aspectEvents.length) return null;
+  const candidates =
+    key === "total"
+      ? aspectEvents
+      : aspectEvents.filter((event) => String(event?.category || "").trim().toLowerCase() === key);
+  if (!candidates.length) return null;
+  return [...candidates].sort(
     (a, b) =>
       Number(b.priority || 0) - Number(a.priority || 0) ||
       Math.abs(Number(b.weighted_score || 0)) - Math.abs(Number(a.weighted_score || 0))
@@ -113,6 +123,7 @@ function YearlyForecastGraph({ forecast }) {
   const initialIndex = useMemo(() => (data.length ? selectedDayFromReadingDate(data, forecast) : 0), [data, forecast]);
   const [selectedIndex, setSelectedIndex] = useState(initialIndex);
   const [rangeMonths, setRangeMonths] = useState(1);
+  const [detailSeries, setDetailSeries] = useState("total");
 
   if (!data.length) {
     return null;
@@ -122,7 +133,12 @@ function YearlyForecastGraph({ forecast }) {
   const visibleData = data.slice(visibleStart, visibleEnd);
   const visibleSelectedIndex = Math.max(0, Math.min(visibleData.length - 1, selectedIndex - visibleStart));
   const selectedDay = data[selectedIndex] || data[0];
-  const selectedEvent = strongestEvent(selectedDay);
+  const detailSeriesMeta = SERIES.find((item) => item.key === detailSeries) || SERIES[0];
+  const selectedEvent = eventForSeries(selectedDay, detailSeries) || {
+    title: `${detailSeriesMeta.label}：アスペクトなし`,
+    description: "アスペクトなし",
+    advised_task: "アスペクトなし",
+  };
   const zeroY = chartY(0);
 
   return (
@@ -229,10 +245,29 @@ function YearlyForecastGraph({ forecast }) {
           </div>
         </div>
 
-        <div className="rounded-2xl border border-outline-variant/30 bg-white px-5 py-4">
-          <div className="mb-3 flex items-center gap-2 text-primary">
+        <div className="relative rounded-2xl border border-outline-variant/30 bg-white px-5 py-4 pt-16 sm:pt-4">
+          <div className="mb-3 flex items-center gap-2 pr-0 text-primary sm:pr-72">
             <Target size={17} />
-            <p className="text-sm font-bold">{selectedEvent?.title || "穏やかな調整日"}</p>
+            <p className="truncate text-sm font-bold">{selectedEvent?.title || "穏やかな調整日"}</p>
+          </div>
+          <div className="absolute right-5 top-4">
+            <div className="grid grid-cols-4 gap-1 rounded-full border border-outline-variant/30 bg-white/85 p-1 text-[11px] text-on-surface-variant shadow-sm">
+              {SERIES.map((item) => (
+                <button
+                  key={item.key}
+                  type="button"
+                  className={cx(
+                    "inline-flex items-center justify-center gap-1.5 rounded-full px-2.5 py-1.5 font-bold transition-colors",
+                    detailSeries === item.key ? "bg-[#fbf5df] text-primary shadow-sm" : "hover:bg-[#fbf5df]/70"
+                  )}
+                  onClick={() => setDetailSeries(item.key)}
+                  title={`${item.label}の最強アスペクトを表示`}
+                >
+                  <span className="h-2 w-2 rounded-full" style={{ backgroundColor: item.color }} />
+                  <span>{item.label}</span>
+                </button>
+              ))}
+            </div>
           </div>
           <p className="text-sm leading-6 text-on-surface-variant">
             {selectedEvent?.description || "----"}
