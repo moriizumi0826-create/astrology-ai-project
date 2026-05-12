@@ -537,6 +537,8 @@ class ApiTestCase(unittest.TestCase):
         self.assertEqual(countdown["scan_status"], "turning_away")
         self.assertEqual(countdown["days_remaining"], 0)
         self.assertEqual(countdown["percent"], 100)
+        self.assertEqual(countdown["orb_percent"], 36)
+        self.assertEqual(countdown["exit_days_remaining"], 2)
 
     def test_display_countdown_items_prefer_future_days_over_past_peak(self):
         items = [

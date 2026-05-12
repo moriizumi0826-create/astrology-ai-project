@@ -70,6 +70,7 @@ MASTER_CSV_FILES = {
     "countdown": "M_Countdown_Master.csv",
     "timeline_advice": "M_Timeline_Advice.csv",
     "transit_calendar": "M_Transit_Calendar_2026.csv",
+    "retrograde_calendar": "M_Retrograde_Calendar.generated.csv",
 }
 
 ASPECT_MASTER_CSV_FILES = [
@@ -133,6 +134,7 @@ PLANET_STATION_SPEED_THRESHOLDS = {
     "SATURN": 0.003,
 }
 STATIONARY_LOOKAHEAD_DAYS = 3
+MOTION_CHANGE_LOOKAHEAD_DAYS = 800
 
 COUNTDOWN_SHORT_PLANETS = {"MOON", "SUN", "MERCURY", "VENUS", "MARS"}
 COUNTDOWN_LONG_PLANETS = {"JUPITER", "SATURN", "URANUS", "NEPTUNE", "PLUTO"}
@@ -1004,6 +1006,53 @@ def _top_priority_row(rows: list[dict[str, Any]]) -> dict[str, Any]:
     return max(rows, key=lambda row: (_safe_number(row, "Priority"), _safe_number(row, "Score_Impact")))
 
 
+def _hero_aspect_label(row: dict[str, Any]) -> str:
+    transit_label = _planet_label(row.get("T_Planet"))
+    natal_label = _planet_label(row.get("N_Planet"))
+    angle = _safe_number(row, "Aspect_Angle")
+    if transit_label and natal_label and angle is not None:
+        return f"ネイタル{natal_label} × トランジット{transit_label} {angle}"
+    return _safe_text(row, "Aspect_Logic_ID") or "アスペクト"
+
+
+def _hero_aspect_highlight(row: dict[str, Any], polarity: str) -> dict[str, Any]:
+    score = _safe_number(row, "Score_Impact")
+    return {
+        "polarity": polarity,
+        "label": _hero_aspect_label(row),
+        "score": score,
+        "impact": abs(score),
+        "priority": _safe_number(row, "Priority"),
+        "category": _safe_text(row, "Category", "General"),
+        "description": _safe_text(row, "Text_Description"),
+        "advisedTask": _safe_text(row, "Advised_Task"),
+        "source": _source_reference(
+            row,
+            columns=["Aspect_Logic_ID", "T_Planet", "N_Planet", "Aspect_Angle", "Score_Impact", "Priority", "Text_Description", "Advised_Task"],
+        ),
+    }
+
+
+def _top_hero_aspect_highlights(rows: list[dict[str, Any]], limit: int = 2) -> dict[str, list[dict[str, Any]]]:
+    positive_rows = [row for row in rows if _safe_number(row, "Score_Impact") > 0]
+    negative_rows = [row for row in rows if _safe_number(row, "Score_Impact") < 0]
+
+    positive_ranked = sorted(
+        positive_rows,
+        key=lambda row: (_safe_number(row, "Score_Impact"), _safe_number(row, "Priority")),
+        reverse=True,
+    )[:limit]
+    negative_ranked = sorted(
+        negative_rows,
+        key=lambda row: (abs(_safe_number(row, "Score_Impact")), _safe_number(row, "Priority")),
+        reverse=True,
+    )[:limit]
+    return {
+        "positive": [_hero_aspect_highlight(row, "positive") for row in positive_ranked],
+        "negative": [_hero_aspect_highlight(row, "negative") for row in negative_ranked],
+    }
+
+
 def _sum_daily_vibe_column(daily_vibe: dict[str, Any], column: str) -> int:
     return sum(_safe_number(item, column) for item in daily_vibe.get("items", []))
 
@@ -1542,6 +1591,15 @@ def _estimate_departure_days(row: dict[str, Any], current_orb: float, total_days
     return _clamp(ceil(remaining_orb / speed), 0, max(total_days, 0))
 
 
+def _estimate_exit_days(row: dict[str, Any], current_orb: float, total_days: int, threshold_orb: float) -> int:
+    transit_planet = _normalize_planet(row.get("T_Planet"))
+    speed = AVERAGE_PLANET_SPEED_DEGREES_PER_DAY.get(transit_planet, 1.0)
+    if speed <= 0:
+        speed = 1.0
+    remaining_orb = max(threshold_orb - current_orb, 0)
+    return _clamp(ceil(remaining_orb / speed), 0, max(total_days, 0))
+
+
 def _countdown_scan_start(current_dt: datetime | date | None) -> datetime:
     if isinstance(current_dt, datetime):
         return current_dt
@@ -1649,6 +1707,7 @@ def _scan_countdown_ephemeris(
     separating_orb: float | None = None
     retrograde_started_day: int | None = None
     previous_retrograde: bool | None = None
+    current_orb: float | None = None
 
     for day in range(scan_horizon_days + 1):
         sample_dt = scan_start + timedelta(days=day)
@@ -1659,6 +1718,8 @@ def _scan_countdown_ephemeris(
             natal_longitude,
             exact_angle,
         )
+        if day == 0:
+            current_orb = orb
         if previous_retrograde is False and is_retrograde:
             retrograde_started_day = day
         if orb < minimum_orb:
@@ -1729,6 +1790,7 @@ def _scan_countdown_ephemeris(
         "scan_status": scan_status,
         "peak_day": minimum_day,
         "peak_orb": round(minimum_orb, 3),
+        "current_orb": round(current_orb if current_orb is not None else minimum_orb, 3),
         "peak_retrograde": minimum_retrograde,
         "retrograde_started_day": retrograde_started_day,
         "calendar_retrograde_start_day": calendar_retrograde_start_day,
@@ -1757,6 +1819,7 @@ def _scan_countdown_departure(
     scan_horizon_days = max(total_days * 4, 60)
     scan_horizon_days = min(scan_horizon_days, 365)
     has_been_within_threshold = False
+    current_orb: float | None = None
 
     for day in range(scan_horizon_days + 1):
         sample_dt = scan_start + timedelta(days=day)
@@ -1767,6 +1830,10 @@ def _scan_countdown_departure(
             natal_longitude,
             exact_angle,
         )
+        if day == 0:
+            current_orb = orb
+            if orb > threshold_orb:
+                return None
         if orb <= threshold_orb:
             has_been_within_threshold = True
         if has_been_within_threshold and day > 0 and orb > threshold_orb:
@@ -1777,6 +1844,7 @@ def _scan_countdown_departure(
                 "total_days": total_progress_days,
                 "percent": _clamp(percent, 0, 100),
                 "scan_status": "departing",
+                "current_orb": round(current_orb if current_orb is not None else orb, 3),
                 "departure_day": day,
                 "departure_orb": round(orb, 3),
                 "departure_retrograde": is_retrograde,
@@ -1815,6 +1883,9 @@ def build_countdown_data(
             "days_remaining": 0,
             "total_days": DEFAULT_COUNTDOWN_TOTAL_DAYS,
             "percent": 0,
+            "orb_percent": 0,
+            "exit_days_remaining": 0,
+            "departure_days_remaining": 0,
             "priority": _safe_number(countdown_target, "Priority"),
             "trigger_id": countdown_id,
             "countdown_id": countdown_id,
@@ -1833,13 +1904,17 @@ def build_countdown_data(
         if countdown_mode_normalized == "departure"
         else _scan_countdown_ephemeris(countdown_target, current_dt, total_days, threshold_orb)
     )
+    if scan and _normalize_float(scan.get("current_orb")) is not None:
+        current_orb = abs(_normalize_float(scan.get("current_orb")) or 0)
     percent = 100 - ((current_orb / threshold_orb) * 100) if threshold_orb > 0 else 100
-    progress_percent = _clamp(percent, 0, 100)
+    orb_percent = _clamp(percent, 0, 100)
+    progress_percent = orb_percent
     days_remaining = (
         _estimate_departure_days(countdown_target, current_orb, total_days, threshold_orb)
         if countdown_mode_normalized == "departure"
         else _estimate_days_remaining(countdown_target, current_orb, total_days)
     )
+    exit_days_remaining = _estimate_exit_days(countdown_target, current_orb, total_days, threshold_orb)
     if scan:
         days_remaining = scan["days_remaining"]
         total_days = scan["total_days"]
@@ -1869,6 +1944,9 @@ def build_countdown_data(
         "days_remaining": days_remaining,
         "total_days": total_days,
         "percent": progress_percent,
+        "orb_percent": orb_percent,
+        "exit_days_remaining": exit_days_remaining,
+        "departure_days_remaining": exit_days_remaining,
         "scan_status": scan_status,
         "priority": _safe_number(countdown_target, "Priority"),
         "trigger_id": _safe_text(master_row, "Trigger_ID", countdown_id),
@@ -2045,6 +2123,98 @@ def _motion_status_from_speed(
     return "retrograde" if speed < 0 else "direct"
 
 
+def _format_motion_change_date(value: date) -> str:
+    return f"{value.year}年{value.month}月{value.day}日"
+
+
+def _retrograde_calendar_rows(
+    current_dt: datetime | date | None = None,
+    planet: str | None = None,
+    event_type: str | None = None,
+) -> list[dict[str, Any]]:
+    calendar_df = MASTER_DATAFRAMES.get("retrograde_calendar", pd.DataFrame())
+    if calendar_df.empty:
+        return []
+    target_date = current_dt.date() if isinstance(current_dt, datetime) else current_dt
+    if target_date is None:
+        target_date = datetime.now().date()
+    normalized_planet = _normalize_planet(planet) if planet else ""
+    normalized_event = str(event_type or "").strip().upper()
+    rows: list[dict[str, Any]] = []
+    for raw_row in calendar_df.to_dict("records"):
+        event_date = _parse_transit_calendar_date(raw_row.get("Event_Date"))
+        if event_date is None or event_date < target_date:
+            continue
+        if normalized_planet and _normalize_planet(raw_row.get("Planet")) != normalized_planet:
+            continue
+        if normalized_event and str(raw_row.get("Event_Type") or "").strip().upper() != normalized_event:
+            continue
+        row = dict(raw_row)
+        row["Event_Date"] = event_date.isoformat()
+        rows.append(row)
+    rows.sort(key=lambda row: (str(row.get("Event_DateTime_JST") or row.get("Event_Date")), str(row.get("Planet") or "")))
+    return rows
+
+
+def _next_motion_change_from_calendar(
+    planet: str,
+    sample_local_dt: datetime,
+    current_speed: float,
+) -> dict[str, str] | None:
+    event_type = "RETROGRADE_START" if current_speed >= 0 else "DIRECT_START"
+    rows = _retrograde_calendar_rows(sample_local_dt, planet=planet, event_type=event_type)
+    if not rows:
+        return None
+    row = rows[0]
+    event_date = _parse_transit_calendar_date(row.get("Event_Date"))
+    if event_date is None:
+        return None
+    type_label = "次の逆行開始日" if event_type == "RETROGRADE_START" else "次の順行開始日"
+    date_label = _format_motion_change_date(event_date)
+    degree_display = _safe_text(row, "Degree_Display")
+    return {
+        "type": event_type.lower(),
+        "date": event_date.isoformat(),
+        "label": f"{type_label}: {date_label}{f' {degree_display}' if degree_display else ''}",
+    }
+
+
+def _next_motion_change(
+    planet: str,
+    sample_local_dt: datetime,
+    timezone_offset: float,
+    current_speed: float,
+) -> dict[str, str] | None:
+    calendar_change = _next_motion_change_from_calendar(planet, sample_local_dt, current_speed)
+    if calendar_change:
+        return calendar_change
+    target_retrograde = current_speed >= 0
+    previous_is_retrograde = current_speed < 0
+
+    for day in range(1, MOTION_CHANGE_LOOKAHEAD_DAYS + 1):
+        check_dt = sample_local_dt + timedelta(days=day)
+        _, speed = _calc_transit_planet_motion(planet, check_dt, timezone_offset)
+        is_retrograde = speed < 0
+        if is_retrograde == previous_is_retrograde:
+            continue
+        if target_retrograde and is_retrograde:
+            event_date = check_dt.date()
+            return {
+                "type": "retrograde_start",
+                "date": event_date.isoformat(),
+                "label": f"次の逆行開始日: {_format_motion_change_date(event_date)}",
+            }
+        if not target_retrograde and not is_retrograde:
+            event_date = check_dt.date()
+            return {
+                "type": "direct_start",
+                "date": event_date.isoformat(),
+                "label": f"次の順行開始日: {_format_motion_change_date(event_date)}",
+            }
+        previous_is_retrograde = is_retrograde
+    return None
+
+
 def build_current_retrograde_planets(
     current_dt: datetime | date | None = None,
     timezone_offset: float = 0,
@@ -2097,12 +2267,15 @@ def build_current_planet_motion_indicators(
             sample_local_dt + timedelta(days=STATIONARY_LOOKAHEAD_DAYS),
             timezone_offset,
         )
+        motion_change = _next_motion_change(planet, sample_local_dt, timezone_offset, speed)
         indicators.append({
             "planet": planet,
             "label": PLANET_MOTION_LABELS.get(planet, planet),
             "status": _motion_status_from_speed(planet, speed, future_speed),
             "speed": round(speed, 6),
             "longitude": round(longitude, 2),
+            "next_motion_change": motion_change,
+            "motion_tooltip": motion_change.get("label") if motion_change else "",
         })
     return indicators
 
@@ -2121,6 +2294,28 @@ def _dashboard_planet_motion(
     except Exception as exc:
         LOGGER.warning("Failed to build planet motion indicators: %s", exc)
         return []
+
+
+def _dashboard_retrograde_calendar(current_dt: datetime | date | None) -> list[dict[str, Any]]:
+    rows = _retrograde_calendar_rows(current_dt)
+    calendar: list[dict[str, Any]] = []
+    for row in rows:
+        event_type = str(row.get("Event_Type") or "").strip().upper()
+        event_date = _parse_transit_calendar_date(row.get("Event_Date"))
+        calendar.append({
+            "planet": _safe_text(row, "Planet"),
+            "planet_label": _safe_text(row, "Planet_Label") or PLANET_MOTION_LABELS.get(_normalize_planet(row.get("Planet")), ""),
+            "event_type": event_type,
+            "event_label": "逆行開始" if event_type == "RETROGRADE_START" else "順行開始",
+            "event_date": event_date.isoformat() if event_date else _safe_text(row, "Event_Date"),
+            "event_datetime_jst": _safe_text(row, "Event_DateTime_JST"),
+            "sign": _safe_text(row, "Sign_ID"),
+            "sign_label": _safe_text(row, "Sign_Label"),
+            "degree_in_sign": _safe_number(row, "Degree_In_Sign"),
+            "degree_display": _safe_text(row, "Degree_Display"),
+            "display_label": _safe_text(row, "Display_Label"),
+        })
+    return calendar
 
 
 def _classify_orb_status(
@@ -2621,6 +2816,7 @@ def build_dashboard_data_from_interpretations(
             "timelineDate": _dashboard_date(current_dt),
             "timelineDays": timeline_days,
             "planetMotion": _dashboard_planet_motion(birth_input, current_dt),
+            "retrogradeCalendar": _dashboard_retrograde_calendar(current_dt),
             "topics": topics,
             "premium": {"title": "Premium AI Preview", "description": "", "placeholder": "", "preview": ""},
             "aspect_interpretations": [],
@@ -2701,6 +2897,7 @@ def build_dashboard_data_from_interpretations(
         "title": "Today Overview",
         "guidance": _safe_text(hero_row, "Advised_Task"),
         "summary": _safe_text(hero_row, "Text_Description"),
+        "aspectHighlights": _top_hero_aspect_highlights(interpretations),
     }
     hero = _apply_basic_to_hero(hero, basic_interpretations, hero_row, interpretations)
     return _to_json_compatible({
@@ -2724,6 +2921,7 @@ def build_dashboard_data_from_interpretations(
         "timelineDate": _dashboard_date(current_dt),
         "timelineDays": timeline_days,
         "planetMotion": _dashboard_planet_motion(birth_input, current_dt),
+        "retrogradeCalendar": _dashboard_retrograde_calendar(current_dt),
         "topics": topics,
         "premium": {
             "title": "Premium AI Preview",

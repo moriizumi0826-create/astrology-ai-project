@@ -132,10 +132,6 @@
             <h2 class="text-4xl md:text-5xl font-notoSerif text-primary leading-snug">
               Astrology as an Artisanal Interface.
             </h2>
-            <p class="text-on-surface-variant font-notoSansJP leading-loose text-lg">
-              本番課金前のテスト運用向けに、入力フォームから出生図の計算と鑑定文生成までを一気通貫でつなぎました。
-              バックエンド API は分離されているため、将来は VPS やレンタルサーバー上へそのまま移しやすい構成です。
-            </p>
           </div>
         </div>
       </section>
@@ -252,8 +248,8 @@
                     </div>
                   </div>
                   <div class="flex flex-col md:flex-row md:items-end gap-4">
-                    <button class="shrink-0 border border-outline-variant/40 px-5 py-3 text-xs tracking-[0.18em] uppercase text-primary hover:border-secondary hover:text-secondary transition-colors duration-500" id="search-location-button" type="button">
-                      Place Search
+                    <button class="shrink-0 bg-primary px-5 py-3 text-xs tracking-[0.18em] text-on-primary hover:bg-primary-dim transition-colors duration-500" id="search-location-button" type="button">
+                      検索する
                     </button>
                   </div>
                   <p class="text-[11px] text-on-surface-variant/80 font-notoSansJP leading-relaxed">
@@ -300,13 +296,6 @@
 
       <section class="px-6 md:px-12 py-24 md:py-32 bg-white" id="results">
         <div class="max-w-7xl mx-auto">
-          <div class="flex justify-between items-end mb-16">
-            <div class="flex flex-col gap-2">
-              <label class="text-[10px] uppercase tracking-[0.3em] text-secondary font-bold">The Reading</label>
-              <h2 class="text-4xl md:text-5xl font-notoSerif text-primary">Curated Results</h2>
-              <span class="text-[10px] font-notoSansJP text-secondary/70">鑑定結果</span>
-            </div>
-          </div>
 
           <div class="hidden mb-12 bg-surface-container-low p-8" id="meta-card">
             <div class="grid grid-cols-1 md:grid-cols-3 gap-6 text-sm text-on-surface-variant font-notoSansJP">
@@ -317,15 +306,6 @@
           </div>
 
           <div class="grid grid-cols-1 lg:grid-cols-3 gap-8" id="reading-grid">
-            <article class="bg-surface-container-lowest p-10 min-h-[280px] flex flex-col justify-between">
-              <div>
-                <p class="text-[10px] uppercase tracking-[0.3em] text-secondary font-bold mb-4">Waiting</p>
-                <h3 class="font-notoSerif text-2xl text-primary mb-4">Your reading will appear here.</h3>
-                <p class="text-on-surface-variant leading-relaxed">
-                  フォーム送信後に全文レポートを章ごとのプルダウン形式でここへ表示します。
-                </p>
-              </div>
-            </article>
           </div>
 
           <div class="hidden mt-12 bg-inverse-surface text-on-primary p-10" id="chart-card">

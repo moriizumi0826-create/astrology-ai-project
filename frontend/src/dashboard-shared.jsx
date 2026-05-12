@@ -1,4 +1,5 @@
 ﻿import React, { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import {
   BatteryMedium,
   BriefcaseBusiness,
@@ -32,14 +33,19 @@ export const dashboardData = {
     guideline: "腹痛や神経過敏、過労に注意して、休息と水分補給を意識してください。",
   },
   planetMotion: [
-    { planet: "MERCURY", label: "水星", status: "direct" },
-    { planet: "VENUS", label: "金星", status: "direct" },
-    { planet: "MARS", label: "火星", status: "direct" },
-    { planet: "JUPITER", label: "木星", status: "direct" },
-    { planet: "SATURN", label: "土星", status: "direct" },
-    { planet: "URANUS", label: "天王星", status: "direct" },
-    { planet: "NEPTUNE", label: "海王星", status: "stationary" },
-    { planet: "PLUTO", label: "冥王星", status: "retrograde" },
+    { planet: "MERCURY", label: "水星", status: "direct", motion_tooltip: "次の逆行開始日: 2026年6月30日 蟹座26度15分" },
+    { planet: "VENUS", label: "金星", status: "direct", motion_tooltip: "次の逆行開始日: 2026年10月3日 蠍座8度29分" },
+    { planet: "MARS", label: "火星", status: "direct", motion_tooltip: "次の逆行開始日: 2027年1月10日 乙女座10度25分" },
+    { planet: "JUPITER", label: "木星", status: "direct", motion_tooltip: "次の逆行開始日: 2026年12月13日 獅子座27度01分" },
+    { planet: "SATURN", label: "土星", status: "direct", motion_tooltip: "次の逆行開始日: 2026年7月27日 牡羊座14度45分" },
+    { planet: "URANUS", label: "天王星", status: "direct", motion_tooltip: "次の逆行開始日: 2026年9月11日 双子座5度41分" },
+    { planet: "NEPTUNE", label: "海王星", status: "stationary", motion_tooltip: "次の逆行開始日: 2026年7月7日 牡羊座4度25分" },
+    { planet: "PLUTO", label: "冥王星", status: "retrograde", motion_tooltip: "次の順行開始日: 2026年10月16日 水瓶座3度04分" },
+  ],
+  retrogradeCalendar: [
+    { planet: "MERCURY", planet_label: "水星", event_label: "逆行開始", event_date: "2026-06-30", degree_display: "蟹座26°15′" },
+    { planet: "MERCURY", planet_label: "水星", event_label: "順行開始", event_date: "2026-07-24", degree_display: "蟹座16°19′" },
+    { planet: "PLUTO", planet_label: "冥王星", event_label: "順行開始", event_date: "2026-10-16", degree_display: "水瓶座3°04′" },
   ],
   countdown: {
     title: "恋愛運・追い風モード突入まで",
@@ -412,12 +418,127 @@ function TimelineDeveloperBlock({ entry, slot }) {
     );
   }
 
-function Header({ data: header, embedded = false, developerMode = false, onToggleDeveloperMode }) {
+function HeaderMotionMenu({ items = [], retrogradeCalendar = [] }) {
+  const [isOpen, setIsOpen] = useState(false);
+  const [calendarSort, setCalendarSort] = useState("date");
+  const motionItems = Array.isArray(items) ? items : [];
+  const calendarItems = Array.isArray(retrogradeCalendar) ? retrogradeCalendar : [];
+  const planetSortOrder = new Map(MOTION_PLANET_SORT_ORDER.map((planet, index) => [planet, index]));
+  const sortedCalendarItems = [...calendarItems].sort((a, b) => {
+    const dateCompare = String(a.event_date || "").localeCompare(String(b.event_date || ""));
+    if (calendarSort === "planet") {
+      const aPlanet = planetSortOrder.get(String(a.planet || "").toUpperCase()) ?? 999;
+      const bPlanet = planetSortOrder.get(String(b.planet || "").toUpperCase()) ?? 999;
+      return aPlanet - bPlanet || dateCompare;
+    }
+    return dateCompare || String(a.planet || "").localeCompare(String(b.planet || ""));
+  });
+  if (!motionItems.length) return null;
+
+  const modal = isOpen && typeof document !== "undefined" ? createPortal(
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-slate-950/70 px-4 backdrop-blur-sm">
+      <div
+        className="flex max-h-[86vh] overflow-hidden rounded-2xl border border-white/10 bg-slate-950 shadow-2xl"
+        style={{ width: "min(1120px, calc(100vw - 32px))" }}
+      >
+        <div className="flex min-h-0 w-full flex-col">
+          <div className="flex items-center justify-between border-b border-white/10 px-5 py-4">
+            <p className="text-sm font-black tracking-[0.16em] text-slate-100">逆行カレンダー</p>
+            <div className="flex items-center gap-2">
+              <div className="grid grid-cols-2 rounded-full border border-white/10 bg-white/[0.04] p-1 text-[10px] font-bold text-slate-400">
+                {[
+                  ["date", "時系列順"],
+                  ["planet", "天体別順"],
+                ].map(([value, label]) => (
+                  <button
+                    key={value}
+                    type="button"
+                    onClick={() => setCalendarSort(value)}
+                    className={cx(
+                      "rounded-full px-3 py-1 transition",
+                      calendarSort === value ? "bg-amber-400 text-slate-950" : "hover:bg-white/10 hover:text-slate-100"
+                    )}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsOpen(false)}
+                className="rounded-full border border-white/10 px-3 py-1 text-xs font-bold text-slate-300 transition hover:border-amber-300 hover:text-amber-200"
+              >
+                閉じる
+              </button>
+            </div>
+          </div>
+          <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4 pb-6">
+            <div className="grid gap-2">
+              {sortedCalendarItems.map((item, index) => (
+                <div
+                  key={`${item.planet || item.planet_label}-${item.event_date}-${item.event_label}-${index}`}
+                  className="grid gap-3 rounded-xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm text-slate-200 sm:grid-cols-[140px_120px_1fr]"
+                >
+                  <span className="font-bold text-slate-100">{item.planet_label || item.label || item.planet}</span>
+                  <span className={cx(
+                    "font-bold",
+                    String(item.event_type || "").includes("RETROGRADE") || item.event_label === "逆行開始"
+                      ? "text-rose-300"
+                      : "text-sky-300"
+                  )}>
+                    {item.event_label || item.event_type}
+                  </span>
+                  <span className="text-slate-300">
+                    {formatCalendarDate(item.event_date)} {item.degree_display || item.degreeDisplay || ""}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+          <div className="shrink-0 border-t border-white/10 bg-slate-950/95 px-5 py-4">
+            <div className="mb-3 flex flex-wrap items-center gap-x-4 gap-y-2 text-[11px] font-bold text-slate-300">
+              {Object.entries(MOTION_STATUS_STYLES).map(([status, style]) => (
+                <span key={status} className="inline-flex items-center gap-2">
+                  <MotionDot status={status} />
+                  {style.label}
+                </span>
+              ))}
+            </div>
+            <MotionIndicatorGrid items={motionItems} compact />
+          </div>
+        </div>
+      </div>
+    </div>,
+    document.body
+  ) : null;
+
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => setIsOpen((value) => !value)}
+        className={cx(
+          "inline-flex items-center gap-2 rounded-2xl border px-3 py-2 text-xs font-semibold transition sm:px-4 sm:text-sm",
+          isOpen
+            ? "border-[#D4AF37] bg-[#fff7df] text-[#0A192F]"
+            : "border-slate-200 bg-white text-[#0A192F] hover:border-[#D4AF37] hover:text-[#D4AF37]"
+        )}
+        aria-expanded={isOpen}
+      >
+        <Clock3 size={16} />
+        <span>逆行カレンダー</span>
+      </button>
+      {modal}
+    </>
+  );
+}
+
+function Header({ data: header, embedded = false, developerMode = false, onToggleDeveloperMode, planetMotion = [], retrogradeCalendar = [] }) {
   return (
     <header
       className={cx(
-        "border-b border-slate-200/90 bg-[#f8fafc]/80 backdrop-blur-xl",
-        embedded ? "rounded-t-[28px]" : "sticky top-0 z-30"
+        "sticky top-0 z-30 border-b border-slate-200/90 bg-[#f8fafc]/80 backdrop-blur-xl",
+        embedded ? "rounded-t-[28px]" : ""
       )}
     >
       <div className="flex flex-col items-start gap-3 px-4 py-4 sm:flex-row sm:items-center sm:justify-between md:px-6">
@@ -450,6 +571,7 @@ function Header({ data: header, embedded = false, developerMode = false, onToggl
                 </button>
               );
             })}
+            <HeaderMotionMenu items={planetMotion} retrogradeCalendar={retrogradeCalendar} />
             <button
               className={cx(
                 "inline-flex items-center gap-2 rounded-2xl border px-3 py-2 text-xs font-semibold transition sm:px-4 sm:text-sm",
@@ -540,6 +662,16 @@ const MOTION_STATUS_STYLES = {
     label: "逆行中",
   },
 };
+const MOTION_PLANET_SORT_ORDER = [
+  "MERCURY",
+  "VENUS",
+  "MARS",
+  "JUPITER",
+  "SATURN",
+  "URANUS",
+  "NEPTUNE",
+  "PLUTO",
+];
 
 function MotionDot({ status }) {
   const style = MOTION_STATUS_STYLES[status] || MOTION_STATUS_STYLES.direct;
@@ -551,33 +683,272 @@ function MotionDot({ status }) {
   );
 }
 
-function PlanetMotionPanel({ items = [] }) {
+function formatCalendarDate(value) {
+  if (!value) return "";
+  const date = new Date(`${value}T00:00:00`);
+  if (Number.isNaN(date.getTime())) return String(value);
+  return `${date.getFullYear()}年${date.getMonth() + 1}月${date.getDate()}日`;
+}
+
+function MotionIndicatorGrid({ items = [], compact = false }) {
+  const motionItems = Array.isArray(items) ? items : [];
+  return (
+    <div className={cx("grid gap-x-5 gap-y-3", compact ? "grid-cols-2 sm:grid-cols-4" : "grid-cols-2 sm:grid-cols-4")}>
+      {motionItems.map((item) => {
+        const tooltip =
+          item.motion_tooltip ||
+          item.motionTooltip ||
+          item.next_motion_change?.label ||
+          item.nextMotionChange?.label ||
+          MOTION_STATUS_STYLES[item.status]?.label ||
+          MOTION_STATUS_STYLES.direct.label;
+        return (
+          <div
+            key={item.planet || item.label}
+            className="group relative inline-flex min-w-0 items-center gap-2 text-sm font-semibold text-slate-200"
+            tabIndex={0}
+          >
+            <MotionDot status={item.status} />
+            <span className="truncate">{item.label || item.planet}</span>
+            {tooltip ? (
+              <span className="pointer-events-none absolute bottom-full left-1/2 z-40 mb-2 min-w-max -translate-x-1/2 rounded-md border border-white/10 bg-slate-950 px-3 py-2 text-[11px] font-bold leading-none text-white opacity-0 shadow-xl transition-opacity duration-150 group-hover:opacity-100 group-focus:opacity-100">
+                {tooltip}
+              </span>
+            ) : null}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function PlanetMotionPanel({ items = [], retrogradeCalendar = [], title = "", compact = false, className = "" }) {
+  const [isCalendarOpen, setIsCalendarOpen] = useState(false);
+  const [calendarSort, setCalendarSort] = useState("date");
+  const motionItems = Array.isArray(items) ? items : [];
+  const calendarItems = Array.isArray(retrogradeCalendar) ? retrogradeCalendar : [];
+  const planetSortOrder = new Map(MOTION_PLANET_SORT_ORDER.map((planet, index) => [planet, index]));
+  const sortedCalendarItems = [...calendarItems].sort((a, b) => {
+    const dateCompare = String(a.event_date || "").localeCompare(String(b.event_date || ""));
+    if (calendarSort === "planet") {
+      const aPlanet = planetSortOrder.get(String(a.planet || "").toUpperCase()) ?? 999;
+      const bPlanet = planetSortOrder.get(String(b.planet || "").toUpperCase()) ?? 999;
+      return aPlanet - bPlanet || dateCompare;
+    }
+    return dateCompare || String(a.planet || "").localeCompare(String(b.planet || ""));
+  });
+  if (!motionItems.length) return null;
+
+  return (
+    <section className={cx("rounded-2xl border border-[#D4AF37]/20 bg-[#050A17]/70 p-4 sm:p-5", className)}>
+      <div className="flex items-center justify-between gap-3">
+        {title ? (
+          <p className="min-w-0 text-xs font-black tracking-[0.14em] text-[#D4AF37]">{title}</p>
+        ) : null}
+        {calendarItems.length ? (
+          <button
+            type="button"
+            onClick={() => setIsCalendarOpen(true)}
+            className="shrink-0 rounded-full border border-white/15 bg-white/10 px-3 py-1.5 text-[10px] font-bold text-slate-100 transition hover:border-amber-300/70 hover:text-amber-200"
+          >
+            逆行カレンダー
+          </button>
+        ) : null}
+      </div>
+      {isCalendarOpen ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 px-4 backdrop-blur-sm">
+          <div
+            className="flex max-h-[86vh] overflow-hidden rounded-2xl border border-white/10 bg-slate-950 shadow-2xl"
+            style={{ width: "min(1120px, calc(100vw - 32px))" }}
+          >
+            <div className="flex min-h-0 w-full flex-col">
+            <div className="flex items-center justify-between border-b border-white/10 px-5 py-4">
+              <p className="text-sm font-black tracking-[0.16em] text-slate-100">逆行カレンダー</p>
+              <div className="flex items-center gap-2">
+                <div className="grid grid-cols-2 rounded-full border border-white/10 bg-white/[0.04] p-1 text-[10px] font-bold text-slate-400">
+                  {[
+                    ["date", "時系列順"],
+                    ["planet", "天体別順"],
+                  ].map(([value, label]) => (
+                    <button
+                      key={value}
+                      type="button"
+                      onClick={() => setCalendarSort(value)}
+                      className={cx(
+                        "rounded-full px-3 py-1 transition",
+                        calendarSort === value ? "bg-amber-400 text-slate-950" : "hover:bg-white/10 hover:text-slate-100"
+                      )}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsCalendarOpen(false)}
+                  className="rounded-full border border-white/10 px-3 py-1 text-xs font-bold text-slate-300 transition hover:border-amber-300 hover:text-amber-200"
+                >
+                  閉じる
+                </button>
+              </div>
+            </div>
+            <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4 pb-6">
+              <div className="grid gap-2">
+                {sortedCalendarItems.map((item, index) => (
+                  <div
+                    key={`${item.planet || item.planet_label}-${item.event_date}-${item.event_label}-${index}`}
+                    className="grid gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm text-slate-200 sm:grid-cols-[92px_92px_1fr]"
+                  >
+                    <span className="font-bold text-slate-100">{item.planet_label || item.label || item.planet}</span>
+                    <span className={cx(
+                      "font-bold",
+                      String(item.event_type || "").includes("RETROGRADE") || item.event_label === "逆行開始"
+                        ? "text-rose-300"
+                        : "text-sky-300"
+                    )}>
+                      {item.event_label || item.event_type}
+                    </span>
+                    <span className="text-slate-300">
+                      {formatCalendarDate(item.event_date)} {item.degree_display || item.degreeDisplay || ""}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div className="shrink-0 border-t border-white/10 bg-slate-950/95 px-5 py-4">
+              <div className="mb-3 flex flex-wrap items-center gap-x-4 gap-y-2 text-[11px] font-bold text-slate-300">
+                {Object.entries(MOTION_STATUS_STYLES).map(([status, style]) => (
+                  <span key={status} className="inline-flex items-center gap-2">
+                    <MotionDot status={status} />
+                    {style.label}
+                  </span>
+                ))}
+              </div>
+              <MotionIndicatorGrid items={motionItems} compact={compact} />
+            </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
+    </section>
+  );
+}
+
+function FixedMotionSidebar({ items = [], retrogradeCalendar = [] }) {
+  const [isOpen, setIsOpen] = useState(false);
   const motionItems = Array.isArray(items) ? items : [];
   if (!motionItems.length) return null;
 
   return (
-    <section className="mt-6 rounded-2xl border border-white/10 bg-white/[0.04] p-4 sm:p-5">
-      <div className="mb-5 flex flex-wrap items-center gap-x-4 gap-y-2 text-[11px] font-bold text-slate-300">
-        {Object.entries(MOTION_STATUS_STYLES).map(([status, style]) => (
-          <span key={status} className="inline-flex items-center gap-2">
-            <MotionDot status={status} />
-            {style.label}
-          </span>
-        ))}
-      </div>
-      <div className="grid grid-cols-2 gap-x-5 gap-y-3 sm:grid-cols-4">
-        {motionItems.map((item) => (
-          <div
-            key={item.planet || item.label}
-            className="inline-flex min-w-0 items-center gap-2 text-sm font-semibold text-slate-200"
-            title={MOTION_STATUS_STYLES[item.status]?.label || MOTION_STATUS_STYLES.direct.label}
-          >
-            <MotionDot status={item.status} />
-            <span className="truncate">{item.label || item.planet}</span>
+    <div className="fixed left-4 top-[88px] z-40">
+      <button
+        type="button"
+        onClick={() => setIsOpen((value) => !value)}
+        className="flex h-10 w-10 items-center justify-center rounded-full border border-[#D4AF37]/30 bg-[#050A17] text-lg font-black text-[#D4AF37] shadow-[0_14px_40px_rgba(3,7,18,0.22)] transition hover:border-[#D4AF37]/70"
+        aria-expanded={isOpen}
+        aria-label="サイドバーメニュー"
+      >
+        {isOpen ? "＜" : "＞"}
+      </button>
+      {isOpen ? (
+        <div className="mt-3 w-[280px] rounded-[1.5rem] border border-[#D4AF37]/20 bg-[#050A17]/95 p-3 shadow-[0_24px_80px_rgba(3,7,18,0.42)] backdrop-blur-xl">
+          <p className="mb-3 text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500">Side Menu</p>
+          <PlanetMotionPanel
+            items={motionItems}
+            retrogradeCalendar={retrogradeCalendar}
+            title="順行逆行カレンダー"
+            compact
+            className="border-white/10 bg-slate-950/30 p-3 sm:p-3"
+          />
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function PersonalAspectHighlights({ positive = [], negative = [] }) {
+  const groups = [
+    {
+      key: "positive",
+      title: "ポジティブ",
+      label: "追い風",
+      items: positive,
+      borderClass: "border-amber-300/25",
+      badgeClass: "bg-amber-300/12 text-amber-200",
+      scoreClass: "text-amber-200",
+    },
+    {
+      key: "negative",
+      title: "ネガティブ",
+      label: "負荷",
+      items: negative,
+      borderClass: "border-rose-300/25",
+      badgeClass: "bg-rose-300/12 text-rose-200",
+      scoreClass: "text-rose-200",
+    },
+  ];
+
+  return (
+    <div className="mt-6 space-y-3">
+      {groups.map((group) => (
+        <details
+          key={group.key}
+          open
+          className={cx(
+            "rounded-2xl border bg-white/[0.04] px-4 py-3 text-slate-200",
+            group.borderClass
+          )}
+        >
+          <summary className="cursor-pointer list-none">
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex min-w-0 items-center gap-2">
+                <span className={cx("rounded-full px-2.5 py-1 text-[11px] font-bold", group.badgeClass)}>
+                  {group.label}
+                </span>
+                <span className="truncate text-sm font-bold">{group.title}</span>
+              </div>
+              <span className="shrink-0 text-[11px] font-semibold text-slate-500">
+                {group.items.length}件
+              </span>
+            </div>
+          </summary>
+          <div className="mt-3 space-y-3">
+            {group.items.length ? (
+              group.items.map((item, index) => {
+                const score = Number(item.score || 0);
+                return (
+                  <article key={`${group.key}-${item.label || index}`} className="rounded-xl border border-white/10 bg-slate-950/35 px-3 py-3">
+                    <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                      <p className="min-w-0 break-words text-xs font-bold leading-5 text-slate-200">
+                        {index + 1}. {item.label || "アスペクト"}
+                      </p>
+                      <span className={cx("shrink-0 text-xs font-black", group.scoreClass)}>
+                        {score > 0 ? "+" : ""}
+                        {score}
+                      </span>
+                    </div>
+                    {item.description ? (
+                      <p className="break-words text-sm font-light leading-7 text-slate-300">
+                        {item.description}
+                      </p>
+                    ) : null}
+                    {item.advisedTask ? (
+                      <p className="mt-2 break-words border-l border-white/10 pl-3 text-xs leading-6 text-slate-400">
+                        {item.advisedTask}
+                      </p>
+                    ) : null}
+                  </article>
+                );
+              })
+            ) : (
+              <p className="rounded-xl border border-white/10 bg-slate-950/35 px-3 py-3 text-sm leading-6 text-slate-500">
+                該当アスペクトなし
+              </p>
+            )}
           </div>
-        ))}
-      </div>
-    </section>
+        </details>
+      ))}
+    </div>
   );
 }
 
@@ -585,6 +956,7 @@ function TypographicHero({
   data,
   diagnosticData,
   planetMotion = [],
+  retrogradeCalendar = [],
   developerMode = false,
   developerMeta = {},
 }) {
@@ -601,6 +973,10 @@ function TypographicHero({
   };
   const rankClass = rankStyles[rank] || rankStyles[rank.slice(0, 1)] || "text-[#D4AF37]";
   const personalBody = String(data.summary || "").trim();
+  const aspectHighlights = data.aspectHighlights || data.aspect_highlights || {};
+  const positiveHighlights = Array.isArray(aspectHighlights.positive) ? aspectHighlights.positive.slice(0, 2) : [];
+  const negativeHighlights = Array.isArray(aspectHighlights.negative) ? aspectHighlights.negative.slice(0, 2) : [];
+  const hasAspectHighlights = positiveHighlights.length > 0 || negativeHighlights.length > 0;
     const diagnostic = diagnosticData || data.diagnostic || dashboardData.diagnostic;
     const diagnosticItems =
       Array.isArray(diagnostic?.items) && diagnostic.items.length
@@ -629,22 +1005,22 @@ function TypographicHero({
               {data.title}
             </h2>
 
-            {personalBody && (
+            {hasAspectHighlights ? (
+              <PersonalAspectHighlights positive={positiveHighlights} negative={negativeHighlights} />
+            ) : personalBody && (
               <div className="mt-6 border-l border-[#D4AF37]/25 pl-4 sm:pl-5">
                 <p className="break-words text-sm font-light leading-7 text-slate-300 sm:text-base sm:leading-8">
                   {personalBody}
                 </p>
               </div>
             )}
-
-              <PlanetMotionPanel items={planetMotion} />
-
                 {developerMode ? (
                  <PersonalReadingDeveloperBlock data={data} meta={developerMeta.personalReading} className="bg-white/95" />
                 ) : null}
               </div>
             </div>
 
+        <div className="space-y-4">
         <div className="min-w-0 rounded-[2rem] border border-white/10 bg-gradient-to-br from-white/[0.08] to-white/[0.02] p-4 sm:p-6">
           <div className="mb-5 flex items-start gap-3 sm:items-center">
             <div className="shrink-0 rounded-2xl bg-[#D4AF37]/15 p-3 text-[#D4AF37]">
@@ -702,9 +1078,38 @@ function TypographicHero({
             ))}
           </div>
         </div>
+        </div>
       </Panel>
     );
   }
+function CountdownDirectionArrow({ percent, direction = 'approach' }) {
+  const isDeparting = direction === 'departing';
+  const points = isDeparting ? '20 4 4 12 20 20' : '4 4 20 12 4 20';
+  const stroke = isDeparting ? 'rgb(30 41 59)' : 'rgb(253 224 71)';
+
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      aria-hidden="true"
+      className="pointer-events-none absolute top-1/2 z-20 h-6 w-6 overflow-visible transition-all duration-1000 ease-out"
+      style={{
+        left: `${percent}%`,
+        transform: isDeparting ? 'translate(-4px, -50%)' : 'translate(-20px, -50%)',
+      }}
+    >
+      <polyline
+        points={points}
+        fill="none"
+        stroke={stroke}
+        strokeWidth="8"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        className={isDeparting ? undefined : "drop-shadow-[0_0_8px_rgba(253,224,71,0.65)]"}
+      />
+    </svg>
+  );
+}
+
 function CountdownLane({
   title,
   slides,
@@ -712,6 +1117,11 @@ function CountdownLane({
   setActiveIndex,
   maxSlides = 6,
   headerAction = null,
+  showProgressLabel = true,
+  showPeakMarker = false,
+  showDirectionArrow = false,
+  useOrbProgress = false,
+  departurePrefix = "離脱まであと",
 }) {
   const [touchStartX, setTouchStartX] = useState(null);
   const hasSlides = Array.isArray(slides) && slides.length > 0;
@@ -746,21 +1156,73 @@ function CountdownLane({
   const daysRemaining = Number(activeSlide.days_remaining ?? activeSlide.daysLeft ?? 0);
   const totalDays = Number(activeSlide.total_days ?? activeSlide.totalDays ?? 0);
   const percent = Math.max(0, Math.min(100, Math.round(totalDays > 0 ? ((totalDays - daysRemaining) / totalDays) * 100 : 0)));
+  const rawOrbPercent = activeSlide.orb_percent ?? activeSlide.orbPercent ?? activeSlide.scan?.orb_percent;
+  const currentOrbValue = Number(
+    activeSlide.current_orb ??
+    activeSlide.currentOrb ??
+    activeSlide.scan?.current_orb ??
+    activeSlide.target?._input?.orb ??
+    activeSlide.target?._input?.orb_diff ??
+    activeSlide.target?.orb ??
+    activeSlide.target?.Orb
+  );
+  const thresholdOrbValue = Number(activeSlide.threshold_orb ?? activeSlide.thresholdOrb ?? activeSlide.target?.threshold_orb ?? 5);
+  const calculatedOrbPercent =
+    Number.isFinite(currentOrbValue) && Number.isFinite(thresholdOrbValue) && thresholdOrbValue > 0
+      ? 100 - ((currentOrbValue / thresholdOrbValue) * 100)
+      : NaN;
+  const orbPercentValue = Number(rawOrbPercent ?? calculatedOrbPercent);
+  const isNegativeCountdown = String(activeSlide.countdown_mode || '').trim().toLowerCase() === 'departure';
+  const clampedOrbPercent = Number.isFinite(orbPercentValue)
+    ? Math.max(0, Math.min(100, Math.round(orbPercentValue)))
+    : NaN;
+  const departureFallbackPercent = isNegativeCountdown && daysRemaining > 0
+    ? Math.max(8, Math.min(100, Math.round((daysRemaining / Math.max(totalDays, daysRemaining, 1)) * 100)))
+    : NaN;
+  const barPercent = (useOrbProgress || isNegativeCountdown)
+    ? Number.isFinite(clampedOrbPercent) && clampedOrbPercent > 0
+      ? clampedOrbPercent
+      : Number.isFinite(departureFallbackPercent)
+        ? departureFallbackPercent
+        : percent
+    : percent;
   const elapsedDays = Math.max(0, totalDays - daysRemaining);
   const progressLabel = `進行度 ${elapsedDays}/${totalDays || 0}日 (${percent}%)`;
   const note = String(activeSlide.note || '').trim();
   const titleText = String(activeSlide.title || activeSlide.fallback_label || 'アスペクト').trim();
   const aspectLabel = String(activeSlide.aspect_label || '').trim();
-  const isNegativeCountdown = String(activeSlide.countdown_mode || '').trim().toLowerCase() === 'departure';
   const scanStatus = String(activeSlide.scan_status || activeSlide.scan?.scan_status || '').trim();
+  const isDepartingPeak =
+    isNegativeCountdown ||
+    scanStatus === 'departing' ||
+    scanStatus === 'separating' ||
+    scanStatus === 'retrograde_turning_away' ||
+    scanStatus === 'turning_away';
   const isRetrogradeTurnaway =
     scanStatus === 'retrograde_turning_away' ||
     (scanStatus === 'turning_away' && activeSlide.scan?.peak_retrograde === true);
-  const countdownPrefix = isRetrogradeTurnaway || scanStatus === 'closest' ? '最接近まで あと' : 'あと';
-  const countdownSuffix =
-    isRetrogradeTurnaway
-      ? '※その後逆行開始により離脱、再び接近する局面を迎えます'
-      : '';
+  const isPositiveAfterPeak = !isNegativeCountdown && (
+    scanStatus === 'turning_away' ||
+    scanStatus === 'retrograde_turning_away'
+  );
+  const exitDaysRemaining = Number(activeSlide.exit_days_remaining ?? activeSlide.departure_days_remaining ?? activeSlide.exitDaysRemaining ?? daysRemaining);
+  const postPeakLabel =
+    isPositiveAfterPeak && barPercent >= 67
+      ? "ピーク通過"
+      : isPositiveAfterPeak && barPercent >= 34
+        ? "影響下"
+        : "";
+  const countdownPrefix =
+    isPositiveAfterPeak && !postPeakLabel
+      ? departurePrefix
+      : isRetrogradeTurnaway || scanStatus === 'closest'
+        ? '最接近まで あと'
+        : 'あと';
+  const displayedDays = isPositiveAfterPeak && !postPeakLabel && Number.isFinite(exitDaysRemaining)
+    ? Math.max(0, Math.round(exitDaysRemaining))
+    : daysRemaining;
+  const isInfluenceDeparturePrefix = countdownPrefix === "影響下から離脱するまであと";
+  const countdownSuffix = '';
   const goToSlide = (index) => {
     if (visibleSlides.length <= 0) return;
     setActiveIndex((index + visibleSlides.length) % visibleSlides.length);
@@ -783,11 +1245,11 @@ function CountdownLane({
     >
       <div
         className="absolute -right-10 -top-10 h-32 w-32 rounded-full bg-amber-500/10 blur-3xl transition-all duration-1000"
-        style={{ opacity: percent / 100 }}
+        style={{ opacity: barPercent / 100 }}
       />
       <div
         className="absolute inset-x-0 bottom-0 h-px bg-gradient-to-r from-transparent via-amber-400/70 to-transparent transition-opacity duration-1000"
-        style={{ opacity: percent / 100 }}
+        style={{ opacity: barPercent / 100 }}
       />
 
       <div className="relative flex min-h-[300px] flex-col">
@@ -799,7 +1261,7 @@ function CountdownLane({
             {headerAction ? <div className="shrink-0">{headerAction}</div> : null}
           </div>
           <div className="flex shrink-0 items-start">
-            <span className="text-right text-sm font-bold text-amber-500">
+            <span className={cx("text-right text-sm font-bold text-amber-500", !showProgressLabel && "hidden")}>
               {progressLabel}
             </span>
           </div>
@@ -818,13 +1280,47 @@ function CountdownLane({
           </div>
         </div>
 
-        <div className="mb-3 min-h-[72px]">
-          <div className="flex min-h-[68px] min-w-0 flex-wrap items-baseline gap-x-3 gap-y-1">
-            <span className="text-base text-slate-500 sm:text-lg">{countdownPrefix}</span>
-            <span className="text-4xl font-bold tracking-tighter text-white sm:text-5xl">
-              {daysRemaining}
-            </span>
-            <span className="text-base text-slate-500 sm:text-lg">日</span>
+        <div className="mb-3 h-[84px]">
+          <div className="flex h-full min-w-0 flex-wrap items-baseline gap-x-3 gap-y-1">
+            {postPeakLabel === "ピーク通過" ? (
+              <div className="flex basis-full flex-col items-start gap-1">
+                <div className="flex items-baseline gap-x-2">
+                  <span className="text-base text-slate-500 sm:text-lg">あと</span>
+                  <span className="text-4xl font-bold tracking-tighter text-white sm:text-5xl">
+                    0
+                  </span>
+                  <span className="text-base text-slate-500 sm:text-lg">日</span>
+                </div>
+                <span className="text-sm font-semibold leading-5 text-slate-300 sm:text-base">
+                  ピーク通過/影響継続中
+                </span>
+              </div>
+            ) : postPeakLabel ? (
+              <span className="text-xl font-bold tracking-tight text-white sm:text-2xl">
+                {postPeakLabel}
+              </span>
+            ) : isInfluenceDeparturePrefix ? (
+              <div className="flex basis-full flex-col items-start gap-1">
+                <div className="flex items-baseline gap-x-2">
+                  <span className="text-base text-slate-500 sm:text-lg">あと</span>
+                  <span className="text-4xl font-bold tracking-tighter text-white sm:text-5xl">
+                    0
+                  </span>
+                  <span className="text-base text-slate-500 sm:text-lg">日</span>
+                </div>
+                <span className="text-sm font-semibold leading-5 text-slate-300 sm:text-base">
+                  影響下/現在離脱中
+                </span>
+              </div>
+            ) : (
+              <>
+                <span className="text-base text-slate-500 sm:text-lg">{countdownPrefix}</span>
+                <span className="text-4xl font-bold tracking-tighter text-white sm:text-5xl">
+                  {displayedDays}
+                </span>
+                <span className="text-base text-slate-500 sm:text-lg">日</span>
+              </>
+            )}
             {countdownSuffix ? (
               <p className="basis-full whitespace-normal break-words text-left text-[10px] font-medium leading-5 text-slate-500">
                 {countdownSuffix}
@@ -833,11 +1329,33 @@ function CountdownLane({
           </div>
         </div>
 
-        <div className="mb-4 h-2 w-full shrink-0 overflow-hidden rounded-full bg-slate-800">
-          <div
-            className="h-full rounded-full bg-gradient-to-r from-amber-700 via-amber-500 to-yellow-300 shadow-[0_0_15px_rgba(245,158,11,0.5)] transition-all duration-1000 ease-out"
-            style={{ width: `${percent}%` }}
-          />
+        <div className={cx("mb-4 w-full shrink-0", showPeakMarker && "pt-5")}>
+          <div className="relative">
+            {showPeakMarker ? (
+              <>
+                <div className="absolute left-2 top-1/2 z-30 -translate-y-1/2 text-left text-[10px] font-bold leading-none tracking-[0.08em] text-slate-500">
+                  ◀離脱
+                </div>
+                <div className="absolute right-2 top-1/2 z-30 -translate-y-1/2 text-right text-[10px] font-bold leading-none tracking-[0.08em] text-amber-300">
+                  ピーク▶
+                </div>
+              </>
+            ) : null}
+            <div className="relative h-2 w-full">
+              <div className="h-2 w-full overflow-hidden rounded-full bg-slate-800">
+                <div
+                  className="h-full rounded-full bg-gradient-to-r from-amber-700 via-amber-500 to-yellow-300 shadow-[0_0_15px_rgba(245,158,11,0.5)] transition-all duration-1000 ease-out"
+                  style={{ width: `${barPercent}%` }}
+                />
+              </div>
+              {showDirectionArrow ? (
+                <CountdownDirectionArrow
+                  percent={barPercent}
+                  direction={isDepartingPeak ? 'departing' : 'approach'}
+                />
+              ) : null}
+            </div>
+          </div>
         </div>
 
         <div className="min-h-[36px]">
@@ -978,7 +1496,16 @@ function LunarCountdownWidget({ data, items = [], groups = {}, developerMode = f
   return (
     <div className="space-y-4">
       <div className="grid gap-4 xl:grid-cols-2">
-        <CountdownLane title="短期" slides={shortSlides} activeIndex={shortIndex} setActiveIndex={setShortIndex} />
+        <CountdownLane
+          title="短期"
+          slides={shortSlides}
+          activeIndex={shortIndex}
+          setActiveIndex={setShortIndex}
+          showProgressLabel={false}
+          showPeakMarker
+          showDirectionArrow
+          useOrbProgress
+        />
         <CountdownLane
           title="中長期"
           slides={longSlides}
@@ -986,6 +1513,11 @@ function LunarCountdownWidget({ data, items = [], groups = {}, developerMode = f
           setActiveIndex={setLongIndex}
           maxSlides={Infinity}
           headerAction={longPriorityControl}
+          showProgressLabel={false}
+          showPeakMarker
+          showDirectionArrow
+          useOrbProgress
+          departurePrefix="影響下から離脱するまであと"
         />
       </div>
       {developerMode ? (
@@ -1215,47 +1747,53 @@ export function Dashboard({ data = dashboardData, embedded = false, developerMod
   };
 
   return (
-    <div
-      className={cx(
-        "overflow-hidden rounded-[32px] border border-slate-200/80 bg-white/80 shadow-[0_24px_55px_rgba(10,25,47,0.08)] backdrop-blur-xl",
-        embedded ? "" : "min-h-screen"
-      )}
-    >
-      <Header
-        data={data.header}
-        embedded={embedded}
-        developerMode={developerMode}
-        onToggleDeveloperMode={handleToggleDeveloperMode}
-      />
-      <main className="flex flex-col gap-6 px-4 py-6 md:px-6 md:py-8">
-        <TypographicHero
-          data={data.hero}
-          diagnosticData={data.diagnostic}
+    <>
+      <div
+        className={cx(
+          "rounded-[32px] border border-slate-200/80 bg-white/80 shadow-[0_24px_55px_rgba(10,25,47,0.08)] backdrop-blur-xl",
+          embedded ? "overflow-visible" : "overflow-hidden",
+          embedded ? "" : "min-h-screen"
+        )}
+      >
+        <Header
+          data={data.header}
+          embedded={embedded}
+          developerMode={developerMode}
+          onToggleDeveloperMode={handleToggleDeveloperMode}
           planetMotion={data.planetMotion}
-          developerMode={developerMode}
-          developerMeta={data.developerMeta || dashboardData.developerMeta}
+          retrogradeCalendar={data.retrogradeCalendar}
         />
-        <LunarCountdownWidget
-          data={data.countdown}
-          items={data.countdown_items}
-          groups={data.countdown_groups}
-          developerMode={developerMode}
-          developerMeta={data.developerMeta || dashboardData.developerMeta}
-        />
-        <Timeline
-          data={data.timeline}
-          date={data.timelineDate}
-          days={data.timelineDays}
-          developerMode={developerMode}
-          developerMeta={(data.developerMeta || dashboardData.developerMeta).timeline || {}}
-        />
-        <TopicGrid
-          data={data.topics}
-          developerMode={developerMode}
-          developerMeta={(data.developerMeta || dashboardData.developerMeta).topics || {}}
-        />
-      </main>
-    </div>
+        <main className="flex flex-col gap-6 px-4 py-6 md:px-6 md:py-8">
+          <TypographicHero
+            data={data.hero}
+            diagnosticData={data.diagnostic}
+            planetMotion={data.planetMotion}
+            retrogradeCalendar={data.retrogradeCalendar}
+            developerMode={developerMode}
+            developerMeta={data.developerMeta || dashboardData.developerMeta}
+          />
+          <LunarCountdownWidget
+            data={data.countdown}
+            items={data.countdown_items}
+            groups={data.countdown_groups}
+            developerMode={developerMode}
+            developerMeta={data.developerMeta || dashboardData.developerMeta}
+          />
+          <Timeline
+            data={data.timeline}
+            date={data.timelineDate}
+            days={data.timelineDays}
+            developerMode={developerMode}
+            developerMeta={(data.developerMeta || dashboardData.developerMeta).timeline || {}}
+          />
+          <TopicGrid
+            data={data.topics}
+            developerMode={developerMode}
+            developerMeta={(data.developerMeta || dashboardData.developerMeta).topics || {}}
+          />
+        </main>
+      </div>
+    </>
   );
 }
 
