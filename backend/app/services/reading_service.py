@@ -7,6 +7,7 @@ from math import ceil
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import Any
+from zoneinfo import ZoneInfo
 
 import pandas as pd
 
@@ -63,6 +64,7 @@ SAFETY_LEVEL_MODIFIERS = {
 
 LOGGER = logging.getLogger(__name__)
 DATABASE_DIR = PROJECT_ROOT / "database"
+APP_TIMEZONE = ZoneInfo("Asia/Tokyo")
 
 MASTER_CSV_FILES = {
     "basic": "M_Basic_Interpretation.csv",
@@ -873,12 +875,20 @@ def _dashboard_header() -> dict[str, Any]:
     }
 
 
+def _app_now() -> datetime:
+    return datetime.now(APP_TIMEZONE).replace(tzinfo=None)
+
+
+def _app_today() -> date:
+    return _app_now().date()
+
+
 def _dashboard_date(current_dt: datetime | date | None) -> str:
     if isinstance(current_dt, datetime):
         return current_dt.date().isoformat()
     if isinstance(current_dt, date):
         return current_dt.isoformat()
-    return date.today().isoformat()
+    return _app_today().isoformat()
 
 
 def _dashboard_target_date(current_dt: datetime | date | None) -> date:
@@ -886,7 +896,7 @@ def _dashboard_target_date(current_dt: datetime | date | None) -> date:
         return current_dt.date()
     if isinstance(current_dt, date):
         return current_dt
-    return date.today()
+    return _app_today()
 
 
 def _build_timeline_days(
@@ -1605,7 +1615,7 @@ def _countdown_scan_start(current_dt: datetime | date | None) -> datetime:
         return current_dt
     if isinstance(current_dt, date):
         return datetime.combine(current_dt, dt_time(hour=12))
-    return datetime.now()
+    return _app_now()
 
 
 def _parse_transit_calendar_date(value: Any) -> date | None:
@@ -2137,7 +2147,7 @@ def _retrograde_calendar_rows(
         return []
     target_date = current_dt.date() if isinstance(current_dt, datetime) else current_dt
     if target_date is None:
-        target_date = datetime.now().date()
+        target_date = _app_today()
     normalized_planet = _normalize_planet(planet) if planet else ""
     normalized_event = str(event_type or "").strip().upper()
     rows: list[dict[str, Any]] = []
@@ -2227,7 +2237,7 @@ def build_current_retrograde_planets(
     elif isinstance(current_dt, date):
         sample_local_dt = datetime.combine(current_dt, dt_time(hour=12))
     else:
-        sample_local_dt = datetime.now()
+        sample_local_dt = _app_now()
 
     retrograde_planets: list[str] = []
     for planet in TRANSIT_PLANET_ORDER:
@@ -2253,7 +2263,7 @@ def build_current_planet_motion_indicators(
     elif isinstance(current_dt, date):
         sample_local_dt = datetime.combine(current_dt, dt_time(hour=12))
     else:
-        sample_local_dt = datetime.now()
+        sample_local_dt = _app_now()
 
     indicators: list[dict[str, Any]] = []
     for planet in MOTION_INDICATOR_PLANETS:
@@ -2463,7 +2473,7 @@ def _build_timeline_from_interpretations(
     ranked = _rank_timeline_rows(rows)
 
     if birth_input is not None and swe is not None:
-        target_date = current_dt.date() if isinstance(current_dt, datetime) else current_dt or date.today()
+        target_date = current_dt.date() if isinstance(current_dt, datetime) else current_dt or _app_today()
         used_keys: set[tuple[str, str, int, str]] = set()
         timeline: list[dict[str, Any]] = []
         for index, slot_def in enumerate(TIMELINE_SLOT_DEFS):
@@ -2992,7 +3002,7 @@ def build_transit_aspect_inputs(
     elif isinstance(current_dt, date):
         sample_local_dt = datetime.combine(current_dt, dt_time(hour=12))
     else:
-        sample_local_dt = datetime.now()
+        sample_local_dt = _app_now()
 
     natal_points = _build_natal_aspect_points(birth_input)
     inputs: list[dict[str, Any]] = []
@@ -3103,7 +3113,7 @@ def generate_readings(payload: ReadingRequest) -> ReadingResponse:
     )
 
     chart_rows = build_chart_rows(birth_input)
-    current_dt = datetime.now()
+    current_dt = _app_now()
     dashboard_data = build_dashboard_data_from_aspects(
         aspects=build_transit_aspect_inputs(birth_input, current_dt),
         current_dt=current_dt,
