@@ -894,7 +894,7 @@ function PersonalAspectHighlights({ positive = [], negative = [] }) {
         <details
           key={group.key}
           className={cx(
-            "rounded-2xl border bg-white/[0.04] px-4 py-3 text-slate-200",
+            "group rounded-2xl border bg-white/[0.04] px-4 py-3 text-slate-200",
             group.borderClass
           )}
         >
