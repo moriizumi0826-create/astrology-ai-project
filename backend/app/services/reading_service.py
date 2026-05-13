@@ -69,6 +69,7 @@ APP_TIMEZONE = ZoneInfo("Asia/Tokyo")
 MASTER_CSV_FILES = {
     "basic": "M_Basic_Interpretation.csv",
     "daily_vibe": "M_Daily_Vibe_Logic.csv",
+    "daily_star_vibe": "M_Daily_Star_Vibe.csv",
     "countdown": "M_Countdown_Master.csv",
     "timeline_advice": "M_Timeline_Advice.csv",
     "transit_calendar": "M_Transit_Calendar_2026.csv",
@@ -140,6 +141,7 @@ MOTION_CHANGE_LOOKAHEAD_DAYS = 800
 
 COUNTDOWN_SHORT_PLANETS = {"MOON", "SUN", "MERCURY", "VENUS", "MARS"}
 COUNTDOWN_LONG_PLANETS = {"JUPITER", "SATURN", "URANUS", "NEPTUNE", "PLUTO"}
+PERSONAL_READING_TRANSIT_PLANETS = {"MOON", "MERCURY", "VENUS", "MARS"}
 COUNTDOWN_PRIORITY_BANDS = {
     "high": {"label": "高", "min": 8, "max": None},
     "middle": {"label": "中", "min": 5, "max": 7},
@@ -849,6 +851,23 @@ def get_daily_vibe_modifiers(
     }
 
 
+def get_daily_star_vibe_description(current_dt: datetime | date | None = None) -> str:
+    daily_star_df = MASTER_DATAFRAMES.get("daily_star_vibe", pd.DataFrame())
+    if daily_star_df.empty:
+        return ""
+
+    target_date = _dashboard_target_date(current_dt)
+    target_values = {
+        target_date.strftime("%Y/%m/%d"),
+        target_date.isoformat(),
+    }
+    for row in daily_star_df.to_dict("records"):
+        row_date = _safe_text(row, "Date").strip()
+        if row_date in target_values:
+            return _safe_text(row, "Text_Description").strip()
+    return ""
+
+
 def _score_to_rank(score: Any) -> str:
     score_value = _normalize_int(score)
     if score_value is None:
@@ -1044,8 +1063,13 @@ def _hero_aspect_highlight(row: dict[str, Any], polarity: str) -> dict[str, Any]
 
 
 def _top_hero_aspect_highlights(rows: list[dict[str, Any]], limit: int = 2) -> dict[str, list[dict[str, Any]]]:
-    positive_rows = [row for row in rows if _safe_number(row, "Score_Impact") > 0]
-    negative_rows = [row for row in rows if _safe_number(row, "Score_Impact") < 0]
+    eligible_rows = [
+        row
+        for row in rows
+        if _normalize_planet(row.get("T_Planet")) in PERSONAL_READING_TRANSIT_PLANETS
+    ]
+    positive_rows = [row for row in eligible_rows if _safe_number(row, "Score_Impact") > 0]
+    negative_rows = [row for row in eligible_rows if _safe_number(row, "Score_Impact") < 0]
 
     positive_ranked = sorted(
         positive_rows,
@@ -2802,12 +2826,14 @@ def build_dashboard_data_from_interpretations(
     current_dt: datetime | date | None = None,
 ) -> dict[str, Any]:
     daily_modifier = _safe_number(daily_vibe, "modifier")
+    daily_star_vibe = get_daily_star_vibe_description(current_dt)
     if not interpretations:
         final_score = _clamp(50 + daily_modifier, 0, 100)
         hero = {
             "rank": _score_to_rank(final_score),
             "score": final_score,
             "title": "Today Overview",
+            "dailyStarVibe": daily_star_vibe,
             "guidance": "穏やかな日です。予定を詰め込みすぎず、余白を保つほど安定します。",
             "summary": "大きな追い風も逆風も薄い日です。整えること、記録すること、静かに選ぶことが今日の運気を底上げします。",
         }
@@ -2908,6 +2934,7 @@ def build_dashboard_data_from_interpretations(
         "guidance": _safe_text(hero_row, "Advised_Task"),
         "summary": _safe_text(hero_row, "Text_Description"),
         "aspectHighlights": _top_hero_aspect_highlights(interpretations),
+        "dailyStarVibe": daily_star_vibe,
     }
     hero = _apply_basic_to_hero(hero, basic_interpretations, hero_row, interpretations)
     return _to_json_compatible({

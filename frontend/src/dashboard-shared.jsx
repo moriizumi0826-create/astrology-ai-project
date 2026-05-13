@@ -893,7 +893,6 @@ function PersonalAspectHighlights({ positive = [], negative = [] }) {
       {groups.map((group) => (
         <details
           key={group.key}
-          open
           className={cx(
             "rounded-2xl border bg-white/[0.04] px-4 py-3 text-slate-200",
             group.borderClass
@@ -902,8 +901,9 @@ function PersonalAspectHighlights({ positive = [], negative = [] }) {
           <summary className="cursor-pointer list-none">
             <div className="flex items-center justify-between gap-3">
               <div className="flex min-w-0 items-center gap-2">
-                <span className={cx("rounded-full px-2.5 py-1 text-[11px] font-bold", group.badgeClass)}>
-                  {group.label}
+                <span className={cx("inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-bold", group.badgeClass)}>
+                  <span className="transition-transform duration-150 group-open:rotate-90">▶</span>
+                  <span>{group.label}</span>
                 </span>
                 <span className="truncate text-sm font-bold">{group.title}</span>
               </div>
@@ -960,6 +960,7 @@ function TypographicHero({
   developerMode = false,
   developerMeta = {},
 }) {
+  const [personalReadingTab, setPersonalReadingTab] = useState("daily");
   const rank = data.rank || "B";
   const rankStyles = {
     S: "text-amber-300 drop-shadow-[0_0_18px_rgba(251,191,36,0.42)]",
@@ -973,6 +974,7 @@ function TypographicHero({
   };
   const rankClass = rankStyles[rank] || rankStyles[rank.slice(0, 1)] || "text-[#D4AF37]";
   const personalBody = String(data.summary || "").trim();
+  const dailyStarVibe = String(data.dailyStarVibe || data.daily_star_vibe || "").trim();
   const aspectHighlights = data.aspectHighlights || data.aspect_highlights || {};
   const positiveHighlights = Array.isArray(aspectHighlights.positive) ? aspectHighlights.positive.slice(0, 2) : [];
   const negativeHighlights = Array.isArray(aspectHighlights.negative) ? aspectHighlights.negative.slice(0, 2) : [];
@@ -988,7 +990,7 @@ function TypographicHero({
 
   return (
       <Panel title="ユーザーステータス" eyebrow="Today Overview" className="overflow-hidden">
-        <div className="grid gap-4 sm:gap-6 lg:grid-cols-[1.2fr_0.8fr]">
+        <div className="-mx-5 grid gap-4 sm:gap-6 md:-mx-6 lg:grid-cols-[1.2fr_0.8fr]">
           <div className="space-y-5">
             <div className="rounded-[2rem] border border-[#D4AF37]/20 bg-[#050A17]/70 p-4 shadow-[0_24px_80px_rgba(3,7,18,0.45)] sm:p-6">
             <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
@@ -1005,7 +1007,32 @@ function TypographicHero({
               {data.title}
             </h2>
 
-            {hasAspectHighlights ? (
+            <div className="mt-5 grid grid-cols-2 gap-2 rounded-2xl border border-white/10 bg-white/[0.04] p-1 text-xs font-bold text-slate-400">
+              {[
+                ["daily", "本日の星模様"],
+                ["personal", "あなたの星模様"],
+              ].map(([value, label]) => (
+                <button
+                  key={value}
+                  type="button"
+                  onClick={() => setPersonalReadingTab(value)}
+                  className={cx(
+                    "rounded-xl px-3 py-2 transition",
+                    personalReadingTab === value
+                      ? "bg-[#D4AF37] text-[#050A17]"
+                      : "hover:bg-white/10 hover:text-slate-100"
+                  )}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+
+            {personalReadingTab === "daily" ? (
+              <div className="mt-4 min-h-[4.5rem] rounded-2xl border border-white/10 bg-slate-950/35 px-4 py-4 text-sm font-semibold leading-7 text-slate-400">
+                {dailyStarVibe}
+              </div>
+            ) : hasAspectHighlights ? (
               <PersonalAspectHighlights positive={positiveHighlights} negative={negativeHighlights} />
             ) : personalBody && (
               <div className="mt-6 border-l border-[#D4AF37]/25 pl-4 sm:pl-5">
@@ -1053,7 +1080,11 @@ function TypographicHero({
             ) : null}
 
             {diagnosticItems.map((item) => (
-              <div key={item.label} className="mb-4 min-w-0">
+              <div
+                key={item.label}
+                className="group relative mb-4 min-w-0"
+                tabIndex={item.description ? 0 : undefined}
+              >
                 <div className="mb-2 flex flex-col gap-1 text-xs text-slate-400 sm:flex-row sm:items-center sm:justify-between">
                   <span className="break-words pr-2 leading-5">{item.label}</span>
                   <span className="shrink-0 font-semibold text-slate-300">{Number(item.value || 0)}%</span>
@@ -1065,7 +1096,9 @@ function TypographicHero({
                 />
               </div>
                 {item.description && (
-                  <p className="mt-2 break-words text-[11px] leading-5 text-slate-500">{item.description}</p>
+                  <div className="pointer-events-none absolute left-0 top-full z-40 mt-2 max-w-[280px] rounded-xl border border-white/10 bg-slate-950 px-3 py-2 text-[11px] font-medium leading-5 text-slate-200 opacity-0 shadow-xl transition-opacity duration-150 group-hover:opacity-100 group-focus:opacity-100">
+                    {item.description}
+                  </div>
                 )}
                 {developerMode ? (
                   <DeveloperBlock

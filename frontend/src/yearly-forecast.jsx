@@ -3,9 +3,9 @@ import { createRoot } from "react-dom/client";
 import { CalendarDays, CircleDot, Target } from "lucide-react";
 import { getStoredReadingResult } from "./reading-storage.js";
 
-const WIDTH = 960;
-const HEIGHT = 340;
-const PAD = { top: 64, right: 28, bottom: 58, left: 68 };
+const WIDTH = 1200;
+const HEIGHT = 380;
+const PAD = { top: 52, right: 12, bottom: 46, left: 44 };
 const CHART_TITLE = "運勢スコア推移";
 const Y_AXIS_LABEL = "運勢スコア";
 const X_AXIS_LABEL = "日付";
@@ -148,7 +148,7 @@ function YearlyForecastGraph({ forecast }) {
   const zeroY = chartY(0);
 
   return (
-    <section className="rounded-[28px] border border-outline-variant/30 bg-white p-4 shadow-[0_18px_36px_rgba(46,52,45,0.08)] md:p-7">
+    <section className="rounded-[28px] border border-outline-variant/30 bg-white p-3 shadow-[0_18px_36px_rgba(46,52,45,0.08)] md:p-4">
       <div className="mb-4 flex flex-col gap-2 md:mb-5 md:flex-row md:items-end md:justify-between md:gap-3">
         <div>
           <p className="mb-1.5 text-[10px] font-bold uppercase tracking-[0.3em] text-secondary md:mb-2">Yearly Forecast</p>
@@ -158,7 +158,7 @@ function YearlyForecastGraph({ forecast }) {
       </div>
 
       <div className="overflow-hidden rounded-2xl border border-outline-variant/25 bg-[#fffdf8]">
-        <div className="flex flex-col items-start gap-2 px-3 pt-3 sm:flex-row sm:items-center sm:justify-between sm:px-6 sm:pt-4">
+        <div className="flex flex-col items-start gap-2 px-3 pt-3 sm:flex-row sm:items-center sm:justify-between sm:px-4 sm:pt-4">
           <div className="grid grid-cols-4 gap-1 rounded-full border border-outline-variant/30 bg-white/85 p-1 text-xs text-on-surface-variant shadow-sm">
             {RANGE_OPTIONS.map((item) => (
               <button
@@ -184,7 +184,7 @@ function YearlyForecastGraph({ forecast }) {
           </div>
         </div>
         <svg
-          className="block h-[245px] w-full cursor-crosshair sm:h-[300px] md:h-[390px]"
+          className="block h-[285px] w-full cursor-crosshair sm:h-[340px] md:h-[430px]"
           viewBox={`0 0 ${WIDTH} ${HEIGHT}`}
           role="img"
           aria-label="2026 yearly forecast line chart"
