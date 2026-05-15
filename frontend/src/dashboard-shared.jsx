@@ -534,34 +534,33 @@ function HeaderMotionMenu({ items = [], retrogradeCalendar = [] }) {
 }
 
 function Header({ data: header, embedded = false, developerMode = false, onToggleDeveloperMode, planetMotion = [], retrogradeCalendar = [] }) {
-  return (
-    <>
-      <header
-        className={cx(
-          "fixed inset-x-0 top-0 z-50 border-b border-slate-200/90 bg-[#f8fafc]/95 backdrop-blur-xl",
-          ""
-        )}
-      >
-        <div className="flex flex-col items-start gap-3 px-0 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-4 md:px-6">
-          <div className="flex min-w-0 items-center gap-3 sm:gap-4">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-[#0A192F] text-[#D4AF37] shadow-[0_18px_36px_rgba(10,25,47,0.08)] sm:h-11 sm:w-11">
-              <Sparkles size={20} />
-            </div>
-            <div className="min-w-0">
-              <p className="truncate text-[15px] font-extrabold tracking-tight text-[#0A192F] sm:text-base">
-                {header.brand.name}
-              </p>
-              <p className="truncate text-[10px] uppercase tracking-[0.14em] text-slate-500 sm:text-xs sm:tracking-[0.18em]">
-                {header.brand.sublabel}
-              </p>
-            </div>
+  const headerContent = (
+    <header
+      className={cx(
+        "fixed inset-x-0 top-0 z-50 border-b border-slate-200/90 bg-[#f8fafc]/95 backdrop-blur-xl",
+        ""
+      )}
+    >
+      <div className="flex flex-col items-start gap-3 px-0 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-4 md:px-6">
+        <div className="flex min-w-0 items-center gap-3 sm:gap-4">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-[#0A192F] text-[#D4AF37] shadow-[0_18px_36px_rgba(10,25,47,0.08)] sm:h-11 sm:w-11">
+            <Sparkles size={20} />
           </div>
+          <div className="min-w-0">
+            <p className="truncate text-[15px] font-extrabold tracking-tight text-[#0A192F] sm:text-base">
+              {header.brand.name}
+            </p>
+            <p className="truncate text-[10px] uppercase tracking-[0.14em] text-slate-500 sm:text-xs sm:tracking-[0.18em]">
+              {header.brand.sublabel}
+            </p>
+          </div>
+        </div>
 
-          <nav className="flex w-full max-w-full flex-nowrap items-center gap-2 overflow-x-auto pb-1 sm:w-auto sm:flex-wrap sm:justify-end sm:overflow-visible sm:pb-0">
-            {header.actions.map((action, index) => {
-              const iconMap = [History, UserCircle2, Crown];
-              const Icon = iconMap[index] || UserCircle2;
-              return (
+        <nav className="flex w-full max-w-full flex-nowrap items-center gap-2 overflow-x-auto pb-1 sm:w-auto sm:flex-wrap sm:justify-end sm:overflow-visible sm:pb-0">
+          {header.actions.map((action, index) => {
+            const iconMap = [History, UserCircle2, Crown];
+            const Icon = iconMap[index] || UserCircle2;
+            return (
               <button
                 key={action}
                 className="inline-flex shrink-0 items-center gap-2 rounded-2xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-[#0A192F] transition hover:border-[#D4AF37] hover:text-[#D4AF37] sm:px-4 sm:text-sm"
@@ -569,26 +568,31 @@ function Header({ data: header, embedded = false, developerMode = false, onToggl
               >
                 <Icon size={16} />
                 <span>{action}</span>
-                </button>
-              );
-            })}
-            <HeaderMotionMenu items={planetMotion} retrogradeCalendar={retrogradeCalendar} />
-            <button
-              className={cx(
-                "inline-flex shrink-0 items-center gap-2 rounded-2xl border px-3 py-2 text-xs font-semibold transition sm:px-4 sm:text-sm",
-                developerMode
-                  ? "border-[#D4AF37] bg-[#fff7df] text-[#0A192F]"
-                  : "border-slate-200 bg-white text-[#0A192F] hover:border-[#D4AF37] hover:text-[#D4AF37]"
-              )}
-              onClick={onToggleDeveloperMode}
-              type="button"
-            >
-              <Code2 size={16} />
-              <span>開発者用</span>
-            </button>
-          </nav>
-        </div>
-      </header>
+              </button>
+            );
+          })}
+          <HeaderMotionMenu items={planetMotion} retrogradeCalendar={retrogradeCalendar} />
+          <button
+            className={cx(
+              "inline-flex shrink-0 items-center gap-2 rounded-2xl border px-3 py-2 text-xs font-semibold transition sm:px-4 sm:text-sm",
+              developerMode
+                ? "border-[#D4AF37] bg-[#fff7df] text-[#0A192F]"
+                : "border-slate-200 bg-white text-[#0A192F] hover:border-[#D4AF37] hover:text-[#D4AF37]"
+            )}
+            onClick={onToggleDeveloperMode}
+            type="button"
+          >
+            <Code2 size={16} />
+            <span>開発者用</span>
+          </button>
+        </nav>
+      </div>
+    </header>
+  );
+
+  return (
+    <>
+      {typeof document !== "undefined" ? createPortal(headerContent, document.body) : headerContent}
       <div aria-hidden="true" className="h-[132px] shrink-0 sm:h-[80px]" />
     </>
     );
@@ -1851,13 +1855,6 @@ export function Dashboard({ data = dashboardData, embedded = false, developerMod
             developerMode={developerMode}
             developerMeta={data.developerMeta || dashboardData.developerMeta}
           />
-          <LunarCountdownWidget
-            data={data.countdown}
-            items={data.countdown_items}
-            groups={data.countdown_groups}
-            developerMode={developerMode}
-            developerMeta={data.developerMeta || dashboardData.developerMeta}
-          />
           <Timeline
             data={data.timeline}
             date={data.timelineDate}
@@ -1869,6 +1866,13 @@ export function Dashboard({ data = dashboardData, embedded = false, developerMod
             data={data.topics}
             developerMode={developerMode}
             developerMeta={(data.developerMeta || dashboardData.developerMeta).topics || {}}
+          />
+          <LunarCountdownWidget
+            data={data.countdown}
+            items={data.countdown_items}
+            groups={data.countdown_groups}
+            developerMode={developerMode}
+            developerMeta={data.developerMeta || dashboardData.developerMeta}
           />
         </main>
       </div>

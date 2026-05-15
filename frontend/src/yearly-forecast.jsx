@@ -22,11 +22,27 @@ const DETAIL_SERIES = [
   { key: "money", label: "金運", color: "#2F9E68" },
 ];
 const RANGE_OPTIONS = [
+  { months: 0.25, label: "1週間", days: 7 },
   { months: 1, label: "1ヶ月", days: 31 },
   { months: 3, label: "3ヶ月", days: 92 },
   { months: 6, label: "6ヶ月", days: 183 },
   { months: 12, label: "12ヶ月", days: 366 },
 ];
+
+const PLANET_LABELS = {
+  SUN: "太陽",
+  MOON: "月",
+  MERCURY: "水星",
+  VENUS: "金星",
+  MARS: "火星",
+  JUPITER: "木星",
+  SATURN: "土星",
+  URANUS: "天王星",
+  NEPTUNE: "海王星",
+  PLUTO: "冥王星",
+  ASC: "ASC",
+  MC: "MC",
+};
 
 function cx(...values) {
   return values.filter(Boolean).join(" ");
@@ -34,6 +50,14 @@ function cx(...values) {
 
 function getYearlyForecast() {
   return getStoredReadingResult()?.yearly_forecast || null;
+}
+
+function isDeveloperMode() {
+  try {
+    return new URL(window.location.href).searchParams.get("mode") === "developer";
+  } catch {
+    return false;
+  }
 }
 
 function scoreFor(day, key) {
@@ -139,6 +163,41 @@ function CalendarDatePicker({ value, min, max, onChange, size = 17 }) {
   );
 }
 
+function planetLabel(value) {
+  const key = String(value || "").trim().toUpperCase();
+  if (!key) return "";
+  if (key.startsWith("SOLAR_HOUSE_")) return `ソーラーハウス${key.replace("SOLAR_HOUSE_", "")}`;
+  return PLANET_LABELS[key] || value;
+}
+
+function aspectStateLabel(event) {
+  const motionLabel =
+    event?.is_retrograde === true || event?.retrograde === true || event?.t_retrograde === true
+      ? "逆行"
+      : "順行";
+  const status = String(event?.orb_status || event?.scan_status || "").trim().toLowerCase();
+  const phaseLabel =
+    status.includes("separating") || status.includes("depart") || status.includes("turning_away")
+      ? "離脱"
+      : status.includes("applying") || status.includes("approach") || status.includes("closest") || status.includes("exact")
+        ? "接近"
+        : "";
+  return [motionLabel, phaseLabel].filter(Boolean).join(" / ");
+}
+
+function aspectDisplayLabel(event) {
+  const angle = event?.aspect_angle ?? event?.angle ?? event?.exact_angle;
+  const transitPlanet = planetLabel(event?.t_planet || event?.transit_planet);
+  const natalPlanet = planetLabel(event?.n_planet || event?.natal_planet);
+  if (!transitPlanet || !natalPlanet || angle === null || angle === undefined || angle === "") {
+    return "";
+  }
+  const numericAngle = Number(angle);
+  const angleLabel = Number.isFinite(numericAngle) ? numericAngle : angle;
+  const state = aspectStateLabel(event);
+  return `ネイタル${natalPlanet} × トランジット${transitPlanet} ${angleLabel}°${state ? `（${state}）` : ""}`;
+}
+
 function eventForSeries(day, key) {
   const highlights = day?.category_highlights || day?.categoryHighlights || {};
   if (Object.prototype.hasOwnProperty.call(highlights, key)) {
@@ -189,7 +248,7 @@ function tickIndexes(count) {
   ).filter((value, index, values) => values.indexOf(value) === index);
 }
 
-function YearlyForecastGraph({ forecast }) {
+function YearlyForecastGraph({ forecast, developerMode = false }) {
   const data = Array.isArray(forecast?.yearly_data) ? forecast.yearly_data : [];
   const milestones = Array.isArray(forecast?.milestones) ? forecast.milestones : [];
   const initialIndex = useMemo(() => (data.length ? selectedDayFromReadingDate(data, forecast) : 0), [data, forecast]);
@@ -221,6 +280,7 @@ function YearlyForecastGraph({ forecast }) {
     description: "アスペクトなし",
     advised_task: "アスペクトなし",
   };
+  const selectedAspectLabel = aspectDisplayLabel(selectedEvent);
   const zeroY = chartY(0);
 
   return (
@@ -235,13 +295,13 @@ function YearlyForecastGraph({ forecast }) {
 
       <div className="overflow-hidden rounded-2xl border border-outline-variant/25 bg-[#fffdf8]">
         <div className="flex flex-col items-start gap-2 px-3 pt-3 sm:flex-row sm:items-center sm:justify-between sm:px-4 sm:pt-4">
-          <div className="grid grid-cols-4 gap-1 rounded-full border border-outline-variant/30 bg-white/85 p-1 text-xs text-on-surface-variant shadow-sm">
+          <div className="grid grid-cols-5 gap-1 rounded-full border border-outline-variant/30 bg-white/85 p-1 text-xs text-on-surface-variant shadow-sm">
             {RANGE_OPTIONS.map((item) => (
               <button
                 key={item.months}
                 type="button"
                 className={cx(
-                  "rounded-full px-4 py-2 font-bold transition-colors",
+                  "rounded-full px-2 py-2 font-bold transition-colors sm:px-4",
                   rangeMonths === item.months ? "bg-[#fbf5df] text-primary shadow-sm" : "hover:bg-[#fbf5df]/70"
                 )}
                 onClick={() => setRangeMonths(item.months)}
@@ -291,22 +351,8 @@ function YearlyForecastGraph({ forecast }) {
           aria-label="2026 yearly forecast line chart"
           onClick={(event) => setSelectedIndex(visibleStart + nearestIndexFromPointer(event, visibleData.length))}
         >
-          <text x={WIDTH / 2} y="34" textAnchor="middle" fontSize="28" fontWeight="900" fill="#0A192F">
+          <text x={WIDTH / 2} y="34" textAnchor="middle" fontSize="28" fontWeight="400" fontFamily="'Noto Sans JP', sans-serif" fill="#0A192F">
             {CHART_TITLE}
-          </text>
-          <text
-            x="18"
-            y={(PAD.top + HEIGHT - PAD.bottom) / 2}
-            textAnchor="middle"
-            fontSize="19"
-            fontWeight="800"
-            fill="#687066"
-            transform={`rotate(-90 18 ${(PAD.top + HEIGHT - PAD.bottom) / 2})`}
-          >
-            {Y_AXIS_LABEL}
-          </text>
-          <text x={(PAD.left + WIDTH - PAD.right) / 2} y={HEIGHT - 12} textAnchor="middle" fontSize="19" fontWeight="800" fill="#687066">
-            {X_AXIS_LABEL}
           </text>
           <rect x={PAD.left} y={PAD.top} width={WIDTH - PAD.left - PAD.right} height={zeroY - PAD.top} fill="#e8f5ed" opacity="0.78" />
           <rect x={PAD.left} y={zeroY} width={WIDTH - PAD.left - PAD.right} height={HEIGHT - PAD.bottom - zeroY} fill="#fdeceb" opacity="0.78" />
@@ -348,7 +394,7 @@ function YearlyForecastGraph({ forecast }) {
           </div>
           <div className="grid grid-cols-2 gap-3 text-sm">
             {SERIES.map((item) => (
-              <div key={item.key} className="rounded-xl bg-[#fbf5df] px-3 py-3">
+              <div key={item.key} className="rounded-xl bg-white px-3 py-3">
                 <p className="text-[10px] uppercase tracking-[0.18em] text-on-surface-variant">{item.label}</p>
                 <p className="mt-1 text-xl font-bold" style={{ color: item.color }}>
                   {scoreFor(selectedDay, item.key)}
@@ -382,6 +428,11 @@ function YearlyForecastGraph({ forecast }) {
               ))}
             </div>
           </div>
+          {developerMode && selectedAspectLabel ? (
+            <p className="mb-2 rounded-xl border border-outline-variant/30 bg-surface-container-low px-3 py-2 text-xs font-bold leading-5 text-primary">
+              {selectedAspectLabel}
+            </p>
+          ) : null}
           <p className="text-sm leading-6 text-on-surface-variant">
             {selectedEvent?.description || "----"}
           </p>
@@ -404,7 +455,7 @@ const mountNode = document.getElementById("yearly-forecast");
 if (mountNode) {
   createRoot(mountNode).render(
     <React.StrictMode>
-      <YearlyForecastGraph forecast={getYearlyForecast()} />
+      <YearlyForecastGraph forecast={getYearlyForecast()} developerMode={isDeveloperMode()} />
     </React.StrictMode>
   );
 }

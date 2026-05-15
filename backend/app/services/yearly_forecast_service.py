@@ -394,6 +394,7 @@ def _event_from_interpretation(
     exact_angle: int,
     orb: float,
     orb_status: str,
+    is_retrograde: bool,
     transit_longitude: float,
     angle_diff: float,
 ) -> dict[str, Any]:
@@ -426,6 +427,7 @@ def _event_from_interpretation(
         "aspect_angle": exact_angle,
         "orb": orb,
         "orb_status": orb_status,
+        "is_retrograde": bool(is_retrograde),
         "score_impact": score_impact,
         "priority_weight": priority_weight,
         "orb_decay": orb_decay,
@@ -555,6 +557,7 @@ def _build_day_forecast(
                 exact_angle,
                 orb,
                 orb_status,
+                is_retrograde,
                 transit_longitude,
                 angle_diff,
             )
