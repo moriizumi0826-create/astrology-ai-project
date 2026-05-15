@@ -1040,7 +1040,7 @@ def _hero_aspect_label(row: dict[str, Any]) -> str:
     natal_label = _planet_label(row.get("N_Planet"))
     angle = _safe_number(row, "Aspect_Angle")
     if transit_label and natal_label and angle is not None:
-        return f"ネイタル{natal_label} × トランジット{transit_label} {angle}"
+        return f"ネイタル{natal_label} × トランジット{transit_label} {angle}°"
     return _safe_text(row, "Aspect_Logic_ID") or "アスペクト"
 
 
@@ -1887,11 +1887,12 @@ def _scan_countdown_departure(
 
 
 def _countdown_aspect_label(row: dict[str, Any]) -> str:
-    natal_planet = _normalize_planet(row.get("N_Planet")).title()
-    transit_planet = _normalize_planet(row.get("T_Planet")).title()
+    natal_planet = _planet_label(row.get("N_Planet"))
+    transit_planet = _planet_label(row.get("T_Planet"))
     angle = _safe_number(row, "Aspect_Angle")
     if not natal_planet or not transit_planet:
         return ""
+    return f"ネイタル{natal_planet} × トランジット{transit_planet} {angle}°"
     return f"Natal {natal_planet} × Transit {transit_planet} {angle}"
 
 

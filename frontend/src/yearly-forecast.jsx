@@ -148,8 +148,8 @@ function YearlyForecastGraph({ forecast }) {
   const zeroY = chartY(0);
 
   return (
-    <section className="rounded-[28px] border border-outline-variant/30 bg-white p-3 shadow-[0_18px_36px_rgba(46,52,45,0.08)] md:p-4">
-      <div className="mb-4 flex flex-col gap-2 md:mb-5 md:flex-row md:items-end md:justify-between md:gap-3">
+    <section className="rounded-[28px] border border-outline-variant/30 bg-white px-0 py-3 shadow-[0_18px_36px_rgba(46,52,45,0.08)] md:p-4">
+      <div className="mb-4 flex flex-col gap-2 px-3 md:mb-5 md:flex-row md:items-end md:justify-between md:gap-3 md:px-0">
         <div>
           <p className="mb-1.5 text-[10px] font-bold uppercase tracking-[0.3em] text-secondary md:mb-2">Yearly Forecast</p>
           <h2 className="font-notoSerif text-2xl text-primary md:text-3xl">2026 運勢シミュレーション</h2>
@@ -174,13 +174,32 @@ function YearlyForecastGraph({ forecast }) {
               </button>
             ))}
           </div>
-          <div className="grid grid-cols-4 gap-1 rounded-full border border-outline-variant/30 bg-white/85 p-1 text-xs text-on-surface-variant shadow-sm">
+          <div className="hidden grid-cols-4 gap-1 rounded-full border border-outline-variant/30 bg-white/85 p-1 text-xs text-on-surface-variant shadow-sm md:grid">
             {SERIES.map((item) => (
               <span key={item.key} className="inline-flex items-center justify-center gap-2 rounded-full px-3 py-2">
                 <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: item.color }} />
                 {item.label}
               </span>
             ))}
+          </div>
+          <div className="w-full rounded-2xl border border-outline-variant/30 bg-white/90 p-3 text-on-surface-variant shadow-sm md:hidden">
+            <div className="mb-2 flex items-center gap-2 text-primary">
+              <CalendarDays size={15} />
+              <p className="text-xs font-bold">{selectedDay.date}</p>
+            </div>
+            <div className="grid grid-cols-4 gap-1.5">
+              {SERIES.map((item) => (
+                <div key={item.key} className="min-w-0 rounded-xl bg-[#fffdf8] px-2 py-2 text-center">
+                  <div className="flex items-center justify-center gap-1.5">
+                    <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: item.color }} />
+                    <span className="truncate text-[11px] font-bold">{item.label}</span>
+                  </div>
+                  <p className="mt-1 text-lg font-black leading-none" style={{ color: item.color }}>
+                    {scoreFor(selectedDay, item.key)}
+                  </p>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
         <svg
@@ -190,21 +209,21 @@ function YearlyForecastGraph({ forecast }) {
           aria-label="2026 yearly forecast line chart"
           onClick={(event) => setSelectedIndex(visibleStart + nearestIndexFromPointer(event, visibleData.length))}
         >
-          <text x={WIDTH / 2} y="28" textAnchor="middle" fontSize="18" fontWeight="700" fill="#0A192F">
+          <text x={WIDTH / 2} y="34" textAnchor="middle" fontSize="28" fontWeight="900" fill="#0A192F">
             {CHART_TITLE}
           </text>
           <text
             x="18"
             y={(PAD.top + HEIGHT - PAD.bottom) / 2}
             textAnchor="middle"
-            fontSize="13"
-            fontWeight="700"
+            fontSize="19"
+            fontWeight="800"
             fill="#687066"
             transform={`rotate(-90 18 ${(PAD.top + HEIGHT - PAD.bottom) / 2})`}
           >
             {Y_AXIS_LABEL}
           </text>
-          <text x={(PAD.left + WIDTH - PAD.right) / 2} y={HEIGHT - 14} textAnchor="middle" fontSize="13" fontWeight="700" fill="#687066">
+          <text x={(PAD.left + WIDTH - PAD.right) / 2} y={HEIGHT - 12} textAnchor="middle" fontSize="19" fontWeight="800" fill="#687066">
             {X_AXIS_LABEL}
           </text>
           <rect x={PAD.left} y={PAD.top} width={WIDTH - PAD.left - PAD.right} height={zeroY - PAD.top} fill="#e8f5ed" opacity="0.78" />
@@ -212,7 +231,7 @@ function YearlyForecastGraph({ forecast }) {
           {[-100, -50, 0, 50, 100].map((tick) => (
             <g key={tick}>
               <line x1={PAD.left} x2={WIDTH - PAD.right} y1={chartY(tick)} y2={chartY(tick)} stroke="#d7d9d2" strokeDasharray={tick === 0 ? "0" : "5 7"} />
-              <text x={PAD.left - 10} y={chartY(tick) + 4} textAnchor="end" fontSize="12" fill="#687066">
+              <text x={PAD.left - 10} y={chartY(tick) + 5} textAnchor="end" fontSize="17" fontWeight="700" fill="#687066">
                 {tick}
               </text>
             </g>
@@ -220,7 +239,7 @@ function YearlyForecastGraph({ forecast }) {
           {tickIndexes(visibleData.length).map((index) => (
             <g key={index}>
               <line x1={chartX(index, visibleData.length)} x2={chartX(index, visibleData.length)} y1={PAD.top} y2={HEIGHT - PAD.bottom} stroke="#e5e2d8" />
-              <text x={chartX(index, visibleData.length)} y={HEIGHT - 32} textAnchor="middle" fontSize="12" fill="#687066">
+              <text x={chartX(index, visibleData.length)} y={HEIGHT - 31} textAnchor="middle" fontSize="17" fontWeight="700" fill="#687066">
                 {formatDate(visibleData[index]?.date)}
               </text>
             </g>
@@ -234,7 +253,7 @@ function YearlyForecastGraph({ forecast }) {
       </div>
 
       <div className="mt-4 grid grid-cols-1 gap-3 md:mt-5 md:gap-4 lg:grid-cols-[0.7fr_1.3fr]">
-        <div className="rounded-2xl border border-outline-variant/30 bg-surface-container-low px-5 py-4">
+        <div className="hidden rounded-2xl border border-outline-variant/30 bg-surface-container-low px-5 py-4 md:block">
           <div className="mb-3 flex items-center gap-2 text-primary">
             <CalendarDays size={17} />
             <p className="text-sm font-bold">{selectedDay.date}</p>

@@ -143,15 +143,15 @@ function cx(...values) {
   return values.filter(Boolean).join(" ");
 }
 
-function Panel({ title, eyebrow, children, className, headerAction }) {
+function Panel({ title, eyebrow, children, className, headerAction, headerClassName, bodyClassName, bare = false }) {
   return (
     <section
       className={cx(
-        "rounded-3xl border border-slate-200/90 bg-white/95 shadow-[0_18px_36px_rgba(10,25,47,0.08)] backdrop-blur-sm",
+        bare ? "min-w-0" : "rounded-3xl border border-slate-200/90 bg-white/95 shadow-[0_18px_36px_rgba(10,25,47,0.08)] backdrop-blur-sm",
         className
       )}
     >
-      <div className="border-b border-slate-200/90 px-5 py-4 md:px-6">
+      <div className={cx(bare ? "" : "border-b border-slate-200/90 px-5 py-4 md:px-6", headerClassName)}>
         {eyebrow ? (
           <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.28em] text-slate-500">
             {eyebrow}
@@ -162,7 +162,7 @@ function Panel({ title, eyebrow, children, className, headerAction }) {
           {headerAction ? <div className="shrink-0">{headerAction}</div> : null}
         </div>
       </div>
-      <div className="px-5 py-5 md:px-6 md:py-6">{children}</div>
+      <div className={cx(bare ? "" : "px-5 py-5 md:px-6 md:py-6", bodyClassName)}>{children}</div>
     </section>
   );
 }
@@ -518,7 +518,7 @@ function HeaderMotionMenu({ items = [], retrogradeCalendar = [] }) {
         type="button"
         onClick={() => setIsOpen((value) => !value)}
         className={cx(
-          "inline-flex items-center gap-2 rounded-2xl border px-3 py-2 text-xs font-semibold transition sm:px-4 sm:text-sm",
+        "inline-flex shrink-0 items-center gap-2 rounded-2xl border px-3 py-2 text-xs font-semibold transition sm:px-4 sm:text-sm",
           isOpen
             ? "border-[#D4AF37] bg-[#fff7df] text-[#0A192F]"
             : "border-slate-200 bg-white text-[#0A192F] hover:border-[#D4AF37] hover:text-[#D4AF37]"
@@ -538,10 +538,10 @@ function Header({ data: header, embedded = false, developerMode = false, onToggl
     <header
       className={cx(
         "sticky top-0 z-30 border-b border-slate-200/90 bg-[#f8fafc]/80 backdrop-blur-xl",
-        embedded ? "rounded-t-[28px]" : ""
+        ""
       )}
     >
-      <div className="flex flex-col items-start gap-3 px-4 py-4 sm:flex-row sm:items-center sm:justify-between md:px-6">
+      <div className="flex flex-col items-start gap-3 px-0 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-4 md:px-6">
         <div className="flex min-w-0 items-center gap-3 sm:gap-4">
           <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-[#0A192F] text-[#D4AF37] shadow-[0_18px_36px_rgba(10,25,47,0.08)] sm:h-11 sm:w-11">
             <Sparkles size={20} />
@@ -556,14 +556,14 @@ function Header({ data: header, embedded = false, developerMode = false, onToggl
           </div>
         </div>
 
-          <nav className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:justify-end">
+          <nav className="flex w-full max-w-full flex-nowrap items-center gap-2 overflow-x-auto pb-1 sm:w-auto sm:flex-wrap sm:justify-end sm:overflow-visible sm:pb-0">
             {header.actions.map((action, index) => {
               const iconMap = [History, UserCircle2, Crown];
               const Icon = iconMap[index] || UserCircle2;
               return (
               <button
                 key={action}
-                className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-[#0A192F] transition hover:border-[#D4AF37] hover:text-[#D4AF37] sm:px-4 sm:text-sm"
+                className="inline-flex shrink-0 items-center gap-2 rounded-2xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-[#0A192F] transition hover:border-[#D4AF37] hover:text-[#D4AF37] sm:px-4 sm:text-sm"
                 type="button"
               >
                 <Icon size={16} />
@@ -574,7 +574,7 @@ function Header({ data: header, embedded = false, developerMode = false, onToggl
             <HeaderMotionMenu items={planetMotion} retrogradeCalendar={retrogradeCalendar} />
             <button
               className={cx(
-                "inline-flex items-center gap-2 rounded-2xl border px-3 py-2 text-xs font-semibold transition sm:px-4 sm:text-sm",
+                "inline-flex shrink-0 items-center gap-2 rounded-2xl border px-3 py-2 text-xs font-semibold transition sm:px-4 sm:text-sm",
                 developerMode
                   ? "border-[#D4AF37] bg-[#fff7df] text-[#0A192F]"
                   : "border-slate-200 bg-white text-[#0A192F] hover:border-[#D4AF37] hover:text-[#D4AF37]"
@@ -894,11 +894,11 @@ function PersonalAspectHighlights({ positive = [], negative = [] }) {
         <details
           key={group.key}
           className={cx(
-            "group rounded-2xl border bg-white/[0.04] px-4 py-3 text-slate-200",
+            "group overflow-hidden rounded-2xl border bg-white/[0.04] py-3 text-slate-200",
             group.borderClass
           )}
         >
-          <summary className="cursor-pointer list-none">
+          <summary className="cursor-pointer list-none px-4">
             <div className="flex items-center justify-between gap-3">
               <div className="flex min-w-0 items-center gap-2">
                 <span className={cx("inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-bold", group.badgeClass)}>
@@ -917,7 +917,7 @@ function PersonalAspectHighlights({ positive = [], negative = [] }) {
               group.items.map((item, index) => {
                 const score = Number(item.score || 0);
                 return (
-                  <article key={`${group.key}-${item.label || index}`} className="rounded-xl border border-white/10 bg-slate-950/35 px-3 py-3">
+                  <article key={`${group.key}-${item.label || index}`} className="border-y border-white/10 bg-slate-950/35 px-4 py-3">
                     <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
                       <p className="min-w-0 break-words text-xs font-bold leading-5 text-slate-200">
                         {index + 1}. {item.label || "アスペクト"}
@@ -941,7 +941,7 @@ function PersonalAspectHighlights({ positive = [], negative = [] }) {
                 );
               })
             ) : (
-              <p className="rounded-xl border border-white/10 bg-slate-950/35 px-3 py-3 text-sm leading-6 text-slate-500">
+              <p className="border-y border-white/10 bg-slate-950/35 px-4 py-3 text-sm leading-6 text-slate-500">
                 該当アスペクトなし
               </p>
             )}
@@ -989,11 +989,18 @@ function TypographicHero({
       : [];
 
   return (
-      <Panel title="ユーザーステータス" eyebrow="Today Overview" className="overflow-hidden">
-        <div className="-mx-5 grid gap-4 sm:gap-6 md:-mx-6 lg:grid-cols-[1.2fr_0.8fr]">
-          <div className="space-y-5">
-            <div className="rounded-[2rem] border border-[#D4AF37]/20 bg-[#050A17]/70 p-4 shadow-[0_24px_80px_rgba(3,7,18,0.45)] sm:p-6">
-            <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
+      <Panel
+        title="ユーザーステータス"
+        eyebrow="Today Overview"
+        bare
+        className="w-full max-w-full overflow-hidden"
+        headerClassName="border-0 bg-transparent px-5 py-0 md:px-6"
+        bodyClassName="px-0 py-4 md:px-0 md:py-5"
+      >
+        <div className="grid w-full min-w-0 max-w-full gap-4 sm:gap-6 lg:grid-cols-[1.2fr_0.8fr]">
+          <div className="min-w-0 space-y-5">
+            <div className="min-w-0 overflow-hidden rounded-[2rem] border border-[#D4AF37]/20 bg-[#050A17]/70 px-0 py-4 shadow-[0_24px_80px_rgba(3,7,18,0.45)] sm:p-6">
+            <div className="mb-5 flex flex-wrap items-center justify-between gap-3 px-4 sm:px-0">
               <div className="inline-flex max-w-full items-center gap-2 rounded-full border border-[#D4AF37]/30 bg-[#D4AF37]/10 px-3 py-1 text-[10px] font-bold uppercase tracking-[0.18em] text-[#D4AF37] sm:text-[11px] sm:tracking-[0.24em]">
                 <Sparkles size={14} />
                 <span className="truncate">Personal Reading</span>
@@ -1003,11 +1010,11 @@ function TypographicHero({
               </span>
             </div>
 
-            <h2 className={cx("break-words text-2xl font-black leading-tight tracking-[-0.04em] sm:text-5xl", rankClass)}>
+            <h2 className={cx("break-words px-4 text-2xl font-black leading-tight tracking-[-0.04em] sm:px-0 sm:text-5xl", rankClass)}>
               {data.title}
             </h2>
 
-            <div className="mt-5 grid grid-cols-2 gap-2 rounded-2xl border border-white/10 bg-white/[0.04] p-1 text-xs font-bold text-slate-400">
+            <div className="mt-5 grid grid-cols-2 gap-1 rounded-2xl border border-white/10 bg-white/[0.04] p-1 text-[11px] font-bold text-slate-400 sm:gap-2 sm:text-xs">
               {[
                 ["daily", "本日の星模様"],
                 ["personal", "あなたの星模様"],
@@ -1017,13 +1024,13 @@ function TypographicHero({
                   type="button"
                   onClick={() => setPersonalReadingTab(value)}
                   className={cx(
-                    "rounded-xl px-3 py-2 transition",
+                    "min-w-0 rounded-xl px-1 py-2 transition sm:px-3",
                     personalReadingTab === value
                       ? "bg-[#D4AF37] text-[#050A17]"
                       : "hover:bg-white/10 hover:text-slate-100"
                   )}
                 >
-                  {label}
+                  <span className="block truncate">{label}</span>
                 </button>
               ))}
             </div>
@@ -1047,8 +1054,8 @@ function TypographicHero({
               </div>
             </div>
 
-        <div className="space-y-4">
-        <div className="min-w-0 rounded-[2rem] border border-white/10 bg-gradient-to-br from-white/[0.08] to-white/[0.02] p-4 sm:p-6">
+        <div className="min-w-0 space-y-4">
+        <div className="min-w-0 overflow-hidden rounded-[2rem] border border-white/10 bg-gradient-to-br from-white/[0.08] to-white/[0.02] p-4 sm:p-6">
           <div className="mb-5 flex items-start gap-3 sm:items-center">
             <div className="shrink-0 rounded-2xl bg-[#D4AF37]/15 p-3 text-[#D4AF37]">
               <Gauge size={24} />
@@ -1583,6 +1590,7 @@ function Timeline({ data, date, days = [], developerMode = false, developerMeta 
       <Panel
         title="リソース最適化・タイムライン"
         eyebrow="Work / Action"
+        bodyClassName="!px-0 py-5 md:!px-0 md:py-6"
         headerAction={
           timelineDays.length ? (
             <div className="grid grid-cols-3 gap-1 rounded-full border border-slate-200 bg-slate-50 p-1 text-xs font-bold text-slate-500">
@@ -1608,7 +1616,7 @@ function Timeline({ data, date, days = [], developerMode = false, developerMeta 
           ) : null
         }
       >
-        <div className="grid gap-4 xl:grid-cols-4">
+        <div className="flex snap-x snap-mandatory gap-4 overflow-x-auto xl:grid xl:grid-cols-4 xl:overflow-visible">
           {slots.map((slot) => {
             const score = Math.max(0, Math.min(100, Number(slot.score) || 0));
             const title = slot.title || slot.phase || slot.recommendation || "Action Timing";
@@ -1631,7 +1639,7 @@ function Timeline({ data, date, days = [], developerMode = false, developerMeta 
             <article
               key={`${slot.label}-${title}`}
             className={cx(
-              "rounded-3xl border p-5 transition-all duration-500",
+              "w-full shrink-0 snap-start rounded-3xl border p-5 transition-all duration-500 xl:w-auto",
               isPeak
                 ? "border-amber-300/40 bg-amber-500/20 shadow-[0_18px_50px_rgba(217,174,74,0.18)]"
                 : "border-slate-200 bg-gradient-to-b from-white to-[#f7fafc]"
@@ -1724,22 +1732,15 @@ function TopicGrid({ data, developerMode = false, developerMeta = {} }) {
             </p>
             <h2 className="text-lg font-bold text-[#0A192F] md:text-xl">トピック強化カード</h2>
           </div>
-          <div className="max-w-xl rounded-2xl border border-dashed border-[#D4AF37]/30 bg-[#fffaf0] px-4 py-3">
-            <p className="text-xs font-bold text-[#0A192F]">表示条件</p>
-            <p className="mt-1 text-xs leading-6 text-slate-600">
-              Category ごとに Score_Impact が最も高いアスペクトだけを採用して表示します。
-              該当カテゴリの解釈が無い場合、そのカードは表示されません。
-            </p>
-          </div>
         </div>
       </div>
-      <div className="px-5 py-5 md:px-6 md:py-6">
-        <div className="grid gap-4 xl:grid-cols-3">
+      <div className="px-0 py-5 md:px-0 md:py-6">
+        <div className="flex snap-x snap-mandatory gap-4 overflow-x-auto xl:grid xl:grid-cols-3 xl:overflow-visible">
           {data.map((topic) => {
             const Icon = topic.icon || BriefcaseBusiness;
             const body = topic.body || topic.description || "";
             return (
-              <article key={topic.title} className="rounded-3xl border border-slate-200 bg-white p-5">
+              <article key={topic.title} className="w-full shrink-0 snap-start rounded-3xl border border-slate-200 bg-white p-5 xl:w-auto">
                 <div className="mb-5 flex items-start justify-between gap-4">
                   <div>
                     <p className="text-xs uppercase tracking-[0.2em] text-slate-500">{topic.caption}</p>
@@ -1783,8 +1784,8 @@ export function Dashboard({ data = dashboardData, embedded = false, developerMod
     <>
       <div
         className={cx(
-          "rounded-[32px] border border-slate-200/80 bg-white/80 shadow-[0_24px_55px_rgba(10,25,47,0.08)] backdrop-blur-xl",
-          embedded ? "overflow-visible" : "overflow-hidden",
+          "w-full max-w-full min-w-0 rounded-none border-0 bg-transparent shadow-none backdrop-blur-0",
+          "overflow-x-hidden overflow-y-visible",
           embedded ? "" : "min-h-screen"
         )}
       >
@@ -1796,7 +1797,10 @@ export function Dashboard({ data = dashboardData, embedded = false, developerMod
           planetMotion={data.planetMotion}
           retrogradeCalendar={data.retrogradeCalendar}
         />
-        <main className="flex flex-col gap-6 px-4 py-6 md:px-6 md:py-8">
+        <main className={cx(
+          "flex min-w-0 max-w-full flex-col gap-6 overflow-x-hidden",
+          embedded ? "px-0 py-4 md:px-0 md:py-5" : "px-0 py-4 md:px-0 md:py-5"
+        )}>
           <TypographicHero
             data={data.hero}
             diagnosticData={data.diagnostic}
