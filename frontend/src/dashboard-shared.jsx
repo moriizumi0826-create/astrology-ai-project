@@ -143,7 +143,7 @@ function cx(...values) {
   return values.filter(Boolean).join(" ");
 }
 
-function Panel({ title, eyebrow, children, className, headerAction, headerClassName, bodyClassName, bare = false }) {
+function Panel({ title, eyebrow, children, className, headerAction, headerClassName, headerRowClassName, bodyClassName, bare = false }) {
   return (
     <section
       className={cx(
@@ -157,7 +157,7 @@ function Panel({ title, eyebrow, children, className, headerAction, headerClassN
             {eyebrow}
           </p>
         ) : null}
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+        <div className={cx("flex flex-col gap-3 sm:flex-row sm:items-end", headerRowClassName)}>
           <h2 className="text-lg font-bold text-[#0A192F] md:text-xl">{title}</h2>
           {headerAction ? <div className="shrink-0">{headerAction}</div> : null}
         </div>
@@ -535,26 +535,27 @@ function HeaderMotionMenu({ items = [], retrogradeCalendar = [] }) {
 
 function Header({ data: header, embedded = false, developerMode = false, onToggleDeveloperMode, planetMotion = [], retrogradeCalendar = [] }) {
   return (
-    <header
-      className={cx(
-        "sticky top-0 z-30 border-b border-slate-200/90 bg-[#f8fafc]/80 backdrop-blur-xl",
-        ""
-      )}
-    >
-      <div className="flex flex-col items-start gap-3 px-0 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-4 md:px-6">
-        <div className="flex min-w-0 items-center gap-3 sm:gap-4">
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-[#0A192F] text-[#D4AF37] shadow-[0_18px_36px_rgba(10,25,47,0.08)] sm:h-11 sm:w-11">
-            <Sparkles size={20} />
+    <>
+      <header
+        className={cx(
+          "fixed inset-x-0 top-0 z-50 border-b border-slate-200/90 bg-[#f8fafc]/95 backdrop-blur-xl",
+          ""
+        )}
+      >
+        <div className="flex flex-col items-start gap-3 px-0 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-4 md:px-6">
+          <div className="flex min-w-0 items-center gap-3 sm:gap-4">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-[#0A192F] text-[#D4AF37] shadow-[0_18px_36px_rgba(10,25,47,0.08)] sm:h-11 sm:w-11">
+              <Sparkles size={20} />
+            </div>
+            <div className="min-w-0">
+              <p className="truncate text-[15px] font-extrabold tracking-tight text-[#0A192F] sm:text-base">
+                {header.brand.name}
+              </p>
+              <p className="truncate text-[10px] uppercase tracking-[0.14em] text-slate-500 sm:text-xs sm:tracking-[0.18em]">
+                {header.brand.sublabel}
+              </p>
+            </div>
           </div>
-          <div className="min-w-0">
-            <p className="truncate text-[15px] font-extrabold tracking-tight text-[#0A192F] sm:text-base">
-              {header.brand.name}
-            </p>
-            <p className="truncate text-[10px] uppercase tracking-[0.14em] text-slate-500 sm:text-xs sm:tracking-[0.18em]">
-              {header.brand.sublabel}
-            </p>
-          </div>
-        </div>
 
           <nav className="flex w-full max-w-full flex-nowrap items-center gap-2 overflow-x-auto pb-1 sm:w-auto sm:flex-wrap sm:justify-end sm:overflow-visible sm:pb-0">
             {header.actions.map((action, index) => {
@@ -588,6 +589,8 @@ function Header({ data: header, embedded = false, developerMode = false, onToggl
           </nav>
         </div>
       </header>
+      <div aria-hidden="true" className="h-[132px] shrink-0 sm:h-[80px]" />
+    </>
     );
   }
 
@@ -688,6 +691,26 @@ function formatCalendarDate(value) {
   const date = new Date(`${value}T00:00:00`);
   if (Number.isNaN(date.getTime())) return String(value);
   return `${date.getFullYear()}年${date.getMonth() + 1}月${date.getDate()}日`;
+}
+
+function formatIsoDate(value) {
+  if (typeof value === "string") {
+    const match = value.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})/);
+    if (match) {
+      const [, year, month, day] = match;
+      return `${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}`;
+    }
+  }
+
+  if (!value) {
+    return "";
+  }
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return "";
+  }
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
 }
 
 function MotionIndicatorGrid({ items = [], compact = false }) {
@@ -957,6 +980,7 @@ function TypographicHero({
   diagnosticData,
   planetMotion = [],
   retrogradeCalendar = [],
+  displayDate = "",
   developerMode = false,
   developerMeta = {},
 }) {
@@ -995,11 +1019,17 @@ function TypographicHero({
         bare
         className="w-full max-w-full overflow-hidden"
         headerClassName="border-0 bg-transparent px-5 py-0 md:px-6"
+        headerRowClassName="flex-row items-baseline gap-4"
+        headerAction={displayDate ? (
+          <span className="text-sm font-bold tabular-nums tracking-[0.08em] text-slate-500">
+            {displayDate}
+          </span>
+        ) : null}
         bodyClassName="px-0 py-4 md:px-0 md:py-5"
       >
         <div className="grid w-full min-w-0 max-w-full gap-4 sm:gap-6 lg:grid-cols-[1.2fr_0.8fr]">
           <div className="min-w-0 space-y-5">
-            <div className="min-w-0 overflow-hidden rounded-[2rem] border border-[#D4AF37]/20 bg-[#050A17]/70 px-0 py-4 shadow-[0_24px_80px_rgba(3,7,18,0.45)] sm:p-6">
+            <div className="min-w-0 overflow-hidden rounded-none border border-[#D4AF37]/20 bg-[#050A17]/70 px-0 py-4 shadow-[0_24px_80px_rgba(3,7,18,0.45)] sm:p-6">
             <div className="mb-5 flex flex-wrap items-center justify-between gap-3 px-4 sm:px-0">
               <div className="inline-flex max-w-full items-center gap-2 rounded-full border border-[#D4AF37]/30 bg-[#D4AF37]/10 px-3 py-1 text-[10px] font-bold uppercase tracking-[0.18em] text-[#D4AF37] sm:text-[11px] sm:tracking-[0.24em]">
                 <Sparkles size={14} />
@@ -1055,7 +1085,7 @@ function TypographicHero({
             </div>
 
         <div className="min-w-0 space-y-4">
-        <div className="min-w-0 overflow-hidden rounded-[2rem] border border-white/10 bg-gradient-to-br from-white/[0.08] to-white/[0.02] p-4 sm:p-6">
+        <div className="min-w-0 overflow-hidden rounded-none border border-white/10 bg-gradient-to-br from-white/[0.08] to-white/[0.02] p-4 sm:p-6">
           <div className="mb-5 flex items-start gap-3 sm:items-center">
             <div className="shrink-0 rounded-2xl bg-[#D4AF37]/15 p-3 text-[#D4AF37]">
               <Gauge size={24} />
@@ -1639,7 +1669,7 @@ function Timeline({ data, date, days = [], developerMode = false, developerMeta 
             <article
               key={`${slot.label}-${title}`}
             className={cx(
-              "w-full shrink-0 snap-start rounded-3xl border p-5 transition-all duration-500 xl:w-auto",
+              "w-[calc(100%-40px)] shrink-0 snap-start rounded-3xl border p-5 transition-all duration-500 xl:w-auto",
               isPeak
                 ? "border-amber-300/40 bg-amber-500/20 shadow-[0_18px_50px_rgba(217,174,74,0.18)]"
                 : "border-slate-200 bg-gradient-to-b from-white to-[#f7fafc]"
@@ -1740,7 +1770,7 @@ function TopicGrid({ data, developerMode = false, developerMeta = {} }) {
             const Icon = topic.icon || BriefcaseBusiness;
             const body = topic.body || topic.description || "";
             return (
-              <article key={topic.title} className="w-full shrink-0 snap-start rounded-3xl border border-slate-200 bg-white p-5 xl:w-auto">
+              <article key={topic.title} className="w-[calc(100%-40px)] shrink-0 snap-start rounded-3xl border border-slate-200 bg-white p-5 xl:w-auto">
                 <div className="mb-5 flex items-start justify-between gap-4">
                   <div>
                     <p className="text-xs uppercase tracking-[0.2em] text-slate-500">{topic.caption}</p>
@@ -1770,6 +1800,17 @@ function TopicGrid({ data, developerMode = false, developerMeta = {} }) {
 }
 
 export function Dashboard({ data = dashboardData, embedded = false, developerMode = false }) {
+  const displayDate = formatIsoDate(
+    data.readingDate ||
+      data.reading_date ||
+      data.date ||
+      data.timelineDate ||
+      data.timelineDays?.[0]?.date ||
+      data.yearlyForecast?.reading_date ||
+      data.yearly_forecast?.reading_date ||
+      data.meta?.reading_date ||
+      data.meta?.date
+  );
   const handleToggleDeveloperMode = () => {
     const url = new URL(window.location.href);
     if (developerMode) {
@@ -1806,6 +1847,7 @@ export function Dashboard({ data = dashboardData, embedded = false, developerMod
             diagnosticData={data.diagnostic}
             planetMotion={data.planetMotion}
             retrogradeCalendar={data.retrogradeCalendar}
+            displayDate={displayDate}
             developerMode={developerMode}
             developerMeta={data.developerMeta || dashboardData.developerMeta}
           />

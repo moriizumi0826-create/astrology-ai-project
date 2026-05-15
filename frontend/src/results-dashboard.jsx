@@ -16,7 +16,19 @@ function isDeveloperMode() {
 
 function getDashboardData() {
   const payload = getStoredReadingResult();
-  return payload?.dashboard_data || null;
+  if (!payload?.dashboard_data) {
+    return null;
+  }
+  return {
+    ...payload.dashboard_data,
+    reading_date:
+      payload.dashboard_data.reading_date ||
+      payload.dashboard_data.readingDate ||
+      payload.yearly_forecast?.reading_date ||
+      payload.yearly_forecast?.date ||
+      payload.meta?.reading_date ||
+      payload.meta?.date,
+  };
 }
 
 const data = getDashboardData();

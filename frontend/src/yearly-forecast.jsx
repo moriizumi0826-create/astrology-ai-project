@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useMemo, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { CalendarDays, CircleDot, Target } from "lucide-react";
 import { getStoredReadingResult } from "./reading-storage.js";
@@ -73,6 +73,72 @@ function formatDate(value) {
   return `${date.getMonth() + 1}/${date.getDate()}`;
 }
 
+function toInputDate(value) {
+  if (typeof value === "string") {
+    const match = value.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})/);
+    if (match) {
+      const [, year, month, day] = match;
+      return `${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}`;
+    }
+  }
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+}
+
+function nearestDateIndex(data, value) {
+  const target = new Date(`${value}T00:00:00`).getTime();
+  if (Number.isNaN(target)) return -1;
+  let bestIndex = -1;
+  let bestDistance = Infinity;
+  data.forEach((day, index) => {
+    const time = new Date(`${toInputDate(day.date)}T00:00:00`).getTime();
+    if (Number.isNaN(time)) return;
+    const distance = Math.abs(time - target);
+    if (distance < bestDistance) {
+      bestDistance = distance;
+      bestIndex = index;
+    }
+  });
+  return bestIndex;
+}
+
+function CalendarDatePicker({ value, min, max, onChange, size = 17 }) {
+  const inputRef = useRef(null);
+  const openPicker = () => {
+    const input = inputRef.current;
+    if (!input) return;
+    if (typeof input.showPicker === "function") {
+      input.showPicker();
+      return;
+    }
+    input.click();
+  };
+
+  return (
+    <span className="relative inline-flex shrink-0">
+      <button
+        type="button"
+        className="inline-flex items-center justify-center rounded-md text-primary transition hover:text-secondary"
+        onClick={openPicker}
+        aria-label="日付を選択"
+      >
+        <CalendarDays size={size} />
+      </button>
+      <input
+        ref={inputRef}
+        type="date"
+        value={value}
+        min={min}
+        max={max}
+        onChange={(event) => onChange(event.target.value)}
+        className="pointer-events-none absolute left-0 top-0 h-px w-px opacity-0"
+        tabIndex={-1}
+      />
+    </span>
+  );
+}
+
 function eventForSeries(day, key) {
   const highlights = day?.category_highlights || day?.categoryHighlights || {};
   if (Object.prototype.hasOwnProperty.call(highlights, key)) {
@@ -139,6 +205,16 @@ function YearlyForecastGraph({ forecast }) {
   const visibleData = data.slice(visibleStart, visibleEnd);
   const visibleSelectedIndex = Math.max(0, Math.min(visibleData.length - 1, selectedIndex - visibleStart));
   const selectedDay = data[selectedIndex] || data[0];
+  const selectedDateValue = toInputDate(selectedDay?.date);
+  const minDateValue = toInputDate(data[0]?.date);
+  const maxDateValue = toInputDate(data[data.length - 1]?.date);
+  const handleDateSelect = (value) => {
+    const exactIndex = data.findIndex((day) => toInputDate(day.date) === value);
+    const nextIndex = exactIndex >= 0 ? exactIndex : nearestDateIndex(data, value);
+    if (nextIndex >= 0) {
+      setSelectedIndex(nextIndex);
+    }
+  };
   const detailSeriesMeta = DETAIL_SERIES.find((item) => item.key === detailSeries) || DETAIL_SERIES[0];
   const selectedEvent = eventForSeries(selectedDay, detailSeries) || {
     title: `${detailSeriesMeta.label}：アスペクトなし`,
@@ -184,12 +260,18 @@ function YearlyForecastGraph({ forecast }) {
           </div>
           <div className="w-full rounded-2xl border border-outline-variant/30 bg-white/90 p-3 text-on-surface-variant shadow-sm md:hidden">
             <div className="mb-2 flex items-center gap-2 text-primary">
-              <CalendarDays size={15} />
+              <CalendarDatePicker
+                value={selectedDateValue}
+                min={minDateValue}
+                max={maxDateValue}
+                onChange={handleDateSelect}
+                size={15}
+              />
               <p className="text-xs font-bold">{selectedDay.date}</p>
             </div>
             <div className="grid grid-cols-4 gap-1.5">
               {SERIES.map((item) => (
-                <div key={item.key} className="min-w-0 rounded-xl bg-[#fffdf8] px-2 py-2 text-center">
+                <div key={item.key} className="min-w-0 rounded-xl bg-[#fbf5df] px-2 py-2 text-center">
                   <div className="flex items-center justify-center gap-1.5">
                     <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: item.color }} />
                     <span className="truncate text-[11px] font-bold">{item.label}</span>
@@ -255,12 +337,18 @@ function YearlyForecastGraph({ forecast }) {
       <div className="mt-4 grid grid-cols-1 gap-3 md:mt-5 md:gap-4 lg:grid-cols-[0.7fr_1.3fr]">
         <div className="hidden rounded-2xl border border-outline-variant/30 bg-surface-container-low px-5 py-4 md:block">
           <div className="mb-3 flex items-center gap-2 text-primary">
-            <CalendarDays size={17} />
+            <CalendarDatePicker
+              value={selectedDateValue}
+              min={minDateValue}
+              max={maxDateValue}
+              onChange={handleDateSelect}
+              size={17}
+            />
             <p className="text-sm font-bold">{selectedDay.date}</p>
           </div>
           <div className="grid grid-cols-2 gap-3 text-sm">
             {SERIES.map((item) => (
-              <div key={item.key} className="rounded-xl bg-white px-3 py-3">
+              <div key={item.key} className="rounded-xl bg-[#fbf5df] px-3 py-3">
                 <p className="text-[10px] uppercase tracking-[0.18em] text-on-surface-variant">{item.label}</p>
                 <p className="mt-1 text-xl font-bold" style={{ color: item.color }}>
                   {scoreFor(selectedDay, item.key)}
