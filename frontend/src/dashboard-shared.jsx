@@ -2551,7 +2551,8 @@ export function Dashboard({ data = dashboardData, embedded = false, developerMod
           retrogradeCalendar={data.retrogradeCalendar}
         />
         <main className={cx(
-          "hidden min-w-0 max-w-full flex-col gap-6 overflow-x-hidden md:flex",
+          "min-w-0 max-w-full flex-col gap-6 overflow-x-hidden",
+          mobileLayoutMode === "old" ? "flex" : "hidden md:flex",
           embedded ? "px-0 py-4 md:px-0 md:py-5" : "px-0 py-4 md:px-0 md:py-5"
         )}>
           <TypographicHero
@@ -2583,13 +2584,15 @@ export function Dashboard({ data = dashboardData, embedded = false, developerMod
             developerMeta={data.developerMeta || dashboardData.developerMeta}
           />
         </main>
-        <MobileDashboardWidgets
-          data={data}
-          displayDate={displayDate}
-          developerMode={developerMode}
-          developerMeta={data.developerMeta || dashboardData.developerMeta}
-          layoutMode={mobileLayoutMode}
-        />
+        {mobileLayoutMode === "new" ? (
+          <MobileDashboardWidgets
+            data={data}
+            displayDate={displayDate}
+            developerMode={developerMode}
+            developerMeta={data.developerMeta || dashboardData.developerMeta}
+            layoutMode={mobileLayoutMode}
+          />
+        ) : null}
       </div>
     </>
   );
