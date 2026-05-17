@@ -197,43 +197,32 @@ function aspectDisplayLabel(event) {
   return `ネイタル${natalPlanet} × トランジット${transitPlanet} ${angleLabel}°${state ? `（${state}）` : ""}`;
 }
 
-function eventForSeries(day, key) {
+function eventForSeries(day, key, themeMode = "short") {
+  const mode = themeMode === "long" ? "long" : "short";
+  const durationTypesForMode = mode === "long" ? ["LONG"] : ["SHORT", "MID"];
+  const themeHighlights = day?.category_theme_highlights || day?.categoryThemeHighlights || {};
+  if (Object.prototype.hasOwnProperty.call(themeHighlights?.[mode] || {}, key)) {
+    return themeHighlights[mode][key] || null;
+  }
   const highlights = day?.category_highlights || day?.categoryHighlights || {};
   const highlightedEvent = Object.prototype.hasOwnProperty.call(highlights, key) ? highlights[key] : null;
   const events = Array.isArray(day?.events) ? day.events : [];
   const normalizedPlanet = (value) => String(value || "").trim().toUpperCase().replace(/^TRANSIT_/, "");
-  const displayAspectBucket = (event) => {
-    if (normalizedPlanet(event?.t_planet || event?.transit_planet) === "MOON") return 99;
-    const durationType = String(event?.duration_type || event?.durationType || "").trim().toUpperCase();
-    if (durationType === "SHORT") return 0;
-    if (durationType === "LONG") return 1;
-    if (durationType === "MID") return 2;
-    return 3;
-  };
-  if (
-    highlightedEvent?.aspect_angle !== null &&
-    highlightedEvent?.aspect_angle !== undefined &&
-    normalizedPlanet(highlightedEvent?.t_planet || highlightedEvent?.transit_planet) !== "MOON" &&
-    displayAspectBucket(highlightedEvent) === 0
-  ) {
-    return highlightedEvent;
-  }
   const aspectEvents = [
     highlightedEvent,
     ...events,
   ].filter((event) =>
     event?.aspect_angle !== null &&
     event?.aspect_angle !== undefined &&
-    normalizedPlanet(event?.t_planet || event?.transit_planet) !== "MOON"
+    normalizedPlanet(event?.t_planet || event?.transit_planet) !== "MOON" &&
+    durationTypesForMode.includes(String(event?.duration_type || event?.durationType || "").trim().toUpperCase())
   );
-  if (!aspectEvents.length) return highlightedEvent || null;
-  let candidates =
+  if (!aspectEvents.length) return null;
+  const candidates =
     key === "total"
       ? aspectEvents
       : aspectEvents.filter((event) => String(event?.category || "").trim().toLowerCase() === key);
-  if (!candidates.length) return highlightedEvent || null;
-  const bestBucket = Math.min(...candidates.map(displayAspectBucket));
-  candidates = candidates.filter((event) => displayAspectBucket(event) === bestBucket);
+  if (!candidates.length) return null;
   return [...candidates].sort(
     (a, b) =>
       Number(b.priority || 0) - Number(a.priority || 0) ||
@@ -278,6 +267,7 @@ export function YearlyForecastGraph({ forecast, developerMode = false, hideHeade
   const [selectedIndex, setSelectedIndex] = useState(initialIndex);
   const [rangeMonths, setRangeMonths] = useState(1);
   const [detailSeries, setDetailSeries] = useState("general");
+  const [themeMode, setThemeMode] = useState("short");
 
   if (!data.length) {
     return null;
@@ -298,7 +288,7 @@ export function YearlyForecastGraph({ forecast, developerMode = false, hideHeade
     }
   };
   const detailSeriesMeta = DETAIL_SERIES.find((item) => item.key === detailSeries) || DETAIL_SERIES[0];
-  const selectedEvent = eventForSeries(selectedDay, detailSeries) || {
+  const selectedEvent = eventForSeries(selectedDay, detailSeries, themeMode) || {
     title: `${detailSeriesMeta.label}：アスペクトなし`,
     description: "アスペクトなし",
     advised_task: "アスペクトなし",
@@ -422,12 +412,30 @@ export function YearlyForecastGraph({ forecast, developerMode = false, hideHeade
           </div>
         </div>
 
-        <div className="relative rounded-2xl border border-outline-variant/30 bg-white px-5 py-4 pt-16 sm:pt-4">
-          <div className="mb-3 flex items-center gap-2 pr-0 text-primary sm:pr-72">
+        <div className="relative rounded-2xl border border-outline-variant/30 bg-white px-5 py-4 pt-28 sm:pt-4">
+          <div className="mb-3 flex items-center gap-2 pr-0 text-primary sm:pr-[29rem]">
             <Target size={17} />
             <p className="truncate text-sm font-bold">{selectedEvent?.title || "穏やかな調整日"}</p>
           </div>
-          <div className="absolute right-5 top-4">
+          <div className="absolute inset-x-5 top-4 flex flex-wrap items-center justify-between gap-2">
+            <div className="grid grid-cols-2 gap-1 rounded-full border border-outline-variant/30 bg-white/85 p-1 text-[11px] text-on-surface-variant shadow-sm">
+              {[
+                ["short", "短期テーマ"],
+                ["long", "長期テーマ"],
+              ].map(([value, label]) => (
+                <button
+                  key={value}
+                  type="button"
+                  className={cx(
+                    "whitespace-nowrap rounded-full px-2.5 py-1.5 font-bold transition-colors",
+                    themeMode === value ? "bg-[#fbf5df] text-primary shadow-sm" : "hover:bg-[#fbf5df]/70"
+                  )}
+                  onClick={() => setThemeMode(value)}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
             <div className="grid grid-cols-4 gap-1 rounded-full border border-outline-variant/30 bg-white/85 p-1 text-[11px] text-on-surface-variant shadow-sm">
               {DETAIL_SERIES.map((item) => (
                 <button

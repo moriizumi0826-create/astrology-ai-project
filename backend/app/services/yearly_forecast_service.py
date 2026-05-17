@@ -310,6 +310,42 @@ def _category_highlights(events: list[dict[str, Any]]) -> dict[str, dict[str, An
     }
 
 
+def _strongest_yearly_aspect_for_duration(
+    events: list[dict[str, Any]],
+    category: str,
+    duration_type: str,
+) -> dict[str, Any] | None:
+    category_normalized = str(category or "total").strip().lower()
+    duration_normalized = str(duration_type or "").strip().upper()
+    aspect_events = [
+        event
+        for event in events
+        if event.get("aspect_angle") is not None
+        and (category_normalized == "total" or _category_key(event.get("category")) == category_normalized)
+        and reading_service._normalize_planet(event.get("t_planet")) != "MOON"
+        and str(event.get("duration_type") or "").strip().upper() == duration_normalized
+    ]
+    if not aspect_events:
+        return None
+    return sorted(
+        aspect_events,
+        key=lambda event: (
+            reading_service._safe_number(event, "priority"),
+            abs(reading_service._safe_number(event, "weighted_score")),
+        ),
+        reverse=True,
+    )[0]
+
+
+def _category_highlights_for_duration(events: list[dict[str, Any]], duration_type: str) -> dict[str, dict[str, Any] | None]:
+    return {
+        "general": _strongest_yearly_aspect_for_duration(events, "general", duration_type),
+        "work": _strongest_yearly_aspect_for_duration(events, "work", duration_type),
+        "love": _strongest_yearly_aspect_for_duration(events, "love", duration_type),
+        "money": _strongest_yearly_aspect_for_duration(events, "money", duration_type),
+    }
+
+
 def _sample_local_datetime(day: date) -> datetime:
     return datetime.combine(day, dt_time(hour=12))
 
@@ -587,6 +623,10 @@ def _build_day_forecast(
         "scores": scores,
         "events": top_events,
         "category_highlights": _category_highlights(events),
+        "category_theme_highlights": {
+            "short": _category_highlights_for_duration(events, "SHORT"),
+            "long": _category_highlights_for_duration(events, "LONG"),
+        },
     }
 
 

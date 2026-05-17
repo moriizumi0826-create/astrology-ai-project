@@ -124,6 +124,25 @@ class YearlyForecastTestCase(unittest.TestCase):
         self.assertEqual(highlights["work"]["t_planet"], "MERCURY")
         self.assertEqual(highlights["love"]["t_planet"], "SATURN")
 
+    def test_generate_yearly_forecast_includes_short_and_long_theme_highlights(self):
+        payload = BirthInput(
+            full_name="Test User",
+            birth_date="1990-01-01",
+            birth_time="12:00",
+            birth_time_unknown=False,
+            birthplace="Tokyo",
+            latitude=35.6895,
+            longitude=139.6917,
+            timezone_offset=9,
+        )
+
+        forecast = generate_yearly_forecast(payload, 2026)
+        first_day = forecast["yearly_data"][0]
+
+        self.assertIn("category_theme_highlights", first_day)
+        self.assertIn("short", first_day["category_theme_highlights"])
+        self.assertIn("long", first_day["category_theme_highlights"])
+
     def test_calendar_trigger_text_falls_back_to_placeholder(self):
         events = _calendar_trigger_events(
             day=date(2026, 1, 1),

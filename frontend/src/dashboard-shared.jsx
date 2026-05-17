@@ -930,17 +930,17 @@ function PersonalAspectHighlights({ positive = [], negative = [] }) {
   const groups = [
     {
       key: "positive",
-      title: "ポジティブ",
+      title: "",
       label: "追い風",
       items: positive,
-      borderClass: "border-amber-300/25",
-      badgeClass: "bg-amber-300/12 text-amber-200",
-      scoreClass: "text-amber-200",
+      borderClass: "border-sky-300/35",
+      badgeClass: "bg-sky-300/14 text-sky-200",
+      scoreClass: "text-sky-200",
     },
     {
       key: "negative",
-      title: "ネガティブ",
-      label: "負荷",
+      title: "",
+      label: "負荷・消耗注意",
       items: negative,
       borderClass: "border-rose-300/25",
       badgeClass: "bg-rose-300/12 text-rose-200",
@@ -965,7 +965,7 @@ function PersonalAspectHighlights({ positive = [], negative = [] }) {
                   <span className="transition-transform duration-150 group-open:rotate-90">▶</span>
                   <span>{group.label}</span>
                 </span>
-                <span className="truncate text-sm font-bold">{group.title}</span>
+                {group.title ? <span className="truncate text-sm font-bold">{group.title}</span> : null}
               </div>
               <span className="shrink-0 text-[11px] font-semibold text-slate-500">
                 {group.items.length}件
@@ -1020,6 +1020,7 @@ function TypographicHero({
   displayDate = "",
   developerMode = false,
   developerMeta = {},
+  showDiagnostic = true,
 }) {
   const [personalReadingTab, setPersonalReadingTab] = useState("daily");
   const rank = data.rank || "B";
@@ -1064,7 +1065,10 @@ function TypographicHero({
         ) : null}
         bodyClassName="px-0 py-4 md:px-0 md:py-5"
       >
-        <div className="grid w-full min-w-0 max-w-full gap-4 sm:gap-6 lg:grid-cols-[1.2fr_0.8fr]">
+        <div className={cx(
+          "grid w-full min-w-0 max-w-full gap-4 sm:gap-6",
+          showDiagnostic ? "lg:grid-cols-[1.2fr_0.8fr]" : ""
+        )}>
           <div className="min-w-0 space-y-5">
             <div className="min-w-0 overflow-hidden rounded-none border border-[#D4AF37]/20 bg-[#050A17]/70 px-0 py-4 shadow-[0_24px_80px_rgba(3,7,18,0.45)] sm:p-6">
             <div className="mb-5 flex flex-wrap items-center justify-between gap-3 px-4 sm:px-0">
@@ -1084,7 +1088,7 @@ function TypographicHero({
             <div className="mt-5 grid grid-cols-2 gap-1 rounded-2xl border border-white/10 bg-white/[0.04] p-1 text-[11px] font-bold text-slate-400 sm:gap-2 sm:text-xs">
               {[
                 ["daily", "本日の星模様"],
-                ["personal", "あなたの星模様"],
+                ["personal", "あなたの重要ポイント"],
               ].map(([value, label]) => (
                 <button
                   key={value}
@@ -1121,6 +1125,7 @@ function TypographicHero({
               </div>
             </div>
 
+        {showDiagnostic ? (
         <div className="min-w-0 space-y-4">
         <div className="min-w-0 overflow-hidden rounded-none border border-white/10 bg-gradient-to-br from-white/[0.08] to-white/[0.02] p-4 sm:p-6">
           <div className="mb-5 flex items-start gap-3 sm:items-center">
@@ -1185,10 +1190,11 @@ function TypographicHero({
             ))}
           </div>
         </div>
+        ) : null}
         </div>
       </Panel>
-    );
-  }
+  );
+}
 function CountdownDirectionArrow({ percent, direction = 'approach' }) {
   const isDeparting = direction === 'departing';
   const points = isDeparting ? '20 4 4 12 20 20' : '4 4 20 12 4 20';
@@ -1933,7 +1939,7 @@ function MobilePersonalPanel({ data, developerMode, developerMeta }) {
       <div className="mt-5 grid grid-cols-2 gap-1 rounded-2xl border border-white/10 bg-white/[0.04] p-1 text-[11px] font-bold text-slate-400">
         {[
           ["daily", "本日の星模様"],
-          ["personal", "あなたの星模様"],
+          ["personal", "あなたの重要ポイント"],
         ].map(([value, label]) => (
           <button
             key={value}
@@ -2295,7 +2301,7 @@ function MobileDashboardWidgets({ data, displayDate, developerMode, developerMet
             </div>
             <div className="mt-auto grid grid-cols-1 gap-1 text-[10px] font-bold text-slate-300">
               <span className="truncate rounded-full border border-white/10 bg-white/[0.06] px-2 py-1">本日の星模様</span>
-              <span className="truncate rounded-full border border-white/10 bg-white/[0.06] px-2 py-1">あなたの星模様</span>
+              <span className="truncate rounded-full border border-white/10 bg-white/[0.06] px-2 py-1">あなたの重要ポイント</span>
             </div>
           </button>
 
@@ -2397,7 +2403,7 @@ function MobileDashboardWidgets({ data, displayDate, developerMode, developerMet
           </div>
           <div className="mt-auto grid grid-cols-1 gap-1 text-[10px] font-bold text-slate-300">
             <span className="truncate rounded-full border border-white/10 bg-white/[0.06] px-2 py-1">本日の星模様</span>
-            <span className="truncate rounded-full border border-white/10 bg-white/[0.06] px-2 py-1">あなたの星模様</span>
+            <span className="truncate rounded-full border border-white/10 bg-white/[0.06] px-2 py-1">あなたの重要ポイント</span>
           </div>
         </button>
 
@@ -2461,7 +2467,16 @@ function MobileDashboardWidgets({ data, displayDate, developerMode, developerMet
           )
         ) : null}
         {activePanel === "personal" ? (
-          <MobilePersonalPanel data={data.hero || dashboardData.hero} developerMode={developerMode} developerMeta={developerMeta} />
+          <TypographicHero
+            data={data.hero}
+            diagnosticData={data.diagnostic}
+            planetMotion={data.planetMotion}
+            retrogradeCalendar={data.retrogradeCalendar}
+            displayDate={displayDate}
+            developerMode={developerMode}
+            developerMeta={developerMeta}
+            showDiagnostic={false}
+          />
         ) : null}
         {activePanel === "logic" ? (
           <MobileDiagnosticPanel diagnostic={diagnostic} developerMode={developerMode} developerMeta={developerMeta} />
