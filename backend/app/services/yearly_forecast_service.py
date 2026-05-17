@@ -265,6 +265,19 @@ def _score_category_totals(events: list[dict[str, Any]]) -> dict[str, int]:
     }
 
 
+def _display_aspect_bucket(event: dict[str, Any]) -> int:
+    if reading_service._normalize_planet(event.get("t_planet")) == "MOON":
+        return 99
+    duration_type = str(event.get("duration_type") or "").strip().upper()
+    if duration_type == "SHORT":
+        return 0
+    if duration_type == "LONG":
+        return 1
+    if duration_type == "MID":
+        return 2
+    return 3
+
+
 def _strongest_yearly_aspect(events: list[dict[str, Any]], category: str = "total") -> dict[str, Any] | None:
     category_normalized = str(category or "total").strip().lower()
     aspect_events = [
@@ -272,9 +285,12 @@ def _strongest_yearly_aspect(events: list[dict[str, Any]], category: str = "tota
         for event in events
         if event.get("aspect_angle") is not None
         and (category_normalized == "total" or _category_key(event.get("category")) == category_normalized)
+        and reading_service._normalize_planet(event.get("t_planet")) != "MOON"
     ]
     if not aspect_events:
         return None
+    best_bucket = min(_display_aspect_bucket(event) for event in aspect_events)
+    aspect_events = [event for event in aspect_events if _display_aspect_bucket(event) == best_bucket]
     return sorted(
         aspect_events,
         key=lambda event: (

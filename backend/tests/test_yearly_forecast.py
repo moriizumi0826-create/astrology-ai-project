@@ -85,6 +85,45 @@ class YearlyForecastTestCase(unittest.TestCase):
         self.assertEqual(highlights["love"]["aspect_angle"], 60)
         self.assertIsNone(highlights["money"])
 
+    def test_category_highlights_prefer_short_aspects_and_exclude_transit_moon(self):
+        highlights = _category_highlights([
+            {
+                "category": "Work",
+                "aspect_angle": 120,
+                "priority": 10,
+                "weighted_score": 90,
+                "duration_type": "LONG",
+                "t_planet": "JUPITER",
+            },
+            {
+                "category": "Work",
+                "aspect_angle": 60,
+                "priority": 1,
+                "weighted_score": 5,
+                "duration_type": "SHORT",
+                "t_planet": "MERCURY",
+            },
+            {
+                "category": "Love",
+                "aspect_angle": 0,
+                "priority": 10,
+                "weighted_score": 100,
+                "duration_type": "SHORT",
+                "t_planet": "MOON",
+            },
+            {
+                "category": "Love",
+                "aspect_angle": 90,
+                "priority": 3,
+                "weighted_score": -30,
+                "duration_type": "LONG",
+                "t_planet": "SATURN",
+            },
+        ])
+
+        self.assertEqual(highlights["work"]["t_planet"], "MERCURY")
+        self.assertEqual(highlights["love"]["t_planet"], "SATURN")
+
     def test_calendar_trigger_text_falls_back_to_placeholder(self):
         events = _calendar_trigger_events(
             day=date(2026, 1, 1),

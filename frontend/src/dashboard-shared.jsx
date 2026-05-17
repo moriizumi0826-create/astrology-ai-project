@@ -1,5 +1,6 @@
 ﻿import React, { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
+import { YearlyForecastGraph } from "./yearly-forecast.jsx";
 import {
   BatteryMedium,
   BriefcaseBusiness,
@@ -13,6 +14,7 @@ import {
   Shield,
   Sparkles,
   UserCircle2,
+  X,
 } from "lucide-react";
 
 export const dashboardData = {
@@ -533,7 +535,16 @@ function HeaderMotionMenu({ items = [], retrogradeCalendar = [] }) {
   );
 }
 
-function Header({ data: header, embedded = false, developerMode = false, onToggleDeveloperMode, planetMotion = [], retrogradeCalendar = [] }) {
+function Header({
+  data: header,
+  embedded = false,
+  developerMode = false,
+  onToggleDeveloperMode,
+  mobileLayoutMode = "new",
+  onSetMobileLayoutMode,
+  planetMotion = [],
+  retrogradeCalendar = [],
+}) {
   const headerContent = (
     <header
       className={cx(
@@ -542,17 +553,39 @@ function Header({ data: header, embedded = false, developerMode = false, onToggl
       )}
     >
       <div className="flex flex-col items-start gap-3 px-0 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-4 md:px-6">
-        <div className="flex min-w-0 items-center gap-3 sm:gap-4">
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-[#0A192F] text-[#D4AF37] shadow-[0_18px_36px_rgba(10,25,47,0.08)] sm:h-11 sm:w-11">
-            <Sparkles size={20} />
+        <div className="flex w-full min-w-0 items-center justify-between gap-3 sm:w-auto">
+          <div className="flex min-w-0 items-center gap-3 sm:gap-4">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-[#0A192F] text-[#D4AF37] shadow-[0_18px_36px_rgba(10,25,47,0.08)] sm:h-11 sm:w-11">
+              <Sparkles size={20} />
+            </div>
+            <div className="min-w-0">
+              <p className="truncate text-[15px] font-extrabold tracking-tight text-[#0A192F] sm:text-base">
+                {header.brand.name}
+              </p>
+              <p className="truncate text-[10px] uppercase tracking-[0.14em] text-slate-500 sm:text-xs sm:tracking-[0.18em]">
+                {header.brand.sublabel}
+              </p>
+            </div>
           </div>
-          <div className="min-w-0">
-            <p className="truncate text-[15px] font-extrabold tracking-tight text-[#0A192F] sm:text-base">
-              {header.brand.name}
-            </p>
-            <p className="truncate text-[10px] uppercase tracking-[0.14em] text-slate-500 sm:text-xs sm:tracking-[0.18em]">
-              {header.brand.sublabel}
-            </p>
+          <div className="inline-flex shrink-0 overflow-hidden rounded-2xl border border-slate-200 bg-white p-1 text-[11px] font-semibold text-[#0A192F] shadow-sm md:hidden">
+            {[
+              ["old", "旧表記"],
+              ["new", "新表記"],
+            ].map(([mode, label]) => (
+              <button
+                key={mode}
+                className={cx(
+                  "rounded-xl px-2.5 py-1.5 transition",
+                  mobileLayoutMode === mode
+                    ? "bg-[#0A192F] text-white"
+                    : "text-slate-500 hover:text-[#D4AF37]"
+                )}
+                onClick={() => onSetMobileLayoutMode?.(mode)}
+                type="button"
+              >
+                {label}
+              </button>
+            ))}
           </div>
         </div>
 
@@ -1370,9 +1403,18 @@ function CountdownLane({
                 </span>
               </div>
             ) : postPeakLabel ? (
-              <span className="text-xl font-bold tracking-tight text-white sm:text-2xl">
-                {postPeakLabel}
-              </span>
+              <div className="flex basis-full flex-col items-start gap-1">
+                <div className="flex items-baseline gap-x-2">
+                  <span className="text-base text-slate-500 sm:text-lg">あと</span>
+                  <span className="text-4xl font-bold tracking-tighter text-white sm:text-5xl">
+                    0
+                  </span>
+                  <span className="text-base text-slate-500 sm:text-lg">日</span>
+                </div>
+                <span className="text-sm font-semibold leading-5 text-slate-300 sm:text-base">
+                  ピーク通過
+                </span>
+              </div>
             ) : isInfluenceDeparturePrefix ? (
               <div className="flex basis-full flex-col items-start gap-1">
                 <div className="flex items-baseline gap-x-2">
@@ -1803,7 +1845,662 @@ function TopicGrid({ data, developerMode = false, developerMeta = {} }) {
   );
 }
 
+function MobileWidgetCard({ title, eyebrow, value, children, onOpen, tone = "dark" }) {
+  const toneClass =
+    tone === "light"
+      ? "border-slate-200 bg-white text-[#0A192F] shadow-[0_14px_34px_rgba(10,25,47,0.10)]"
+      : "border-white/10 bg-[#050A17] text-slate-100 shadow-[0_18px_44px_rgba(3,7,18,0.28)]";
+  return (
+    <button
+      type="button"
+      onClick={onOpen}
+      className={cx(
+        "flex min-h-0 w-full min-w-0 flex-col overflow-hidden rounded-3xl border p-3 text-left transition active:scale-[0.99]",
+        toneClass
+      )}
+    >
+      <div className="mb-2 flex items-start justify-between gap-2">
+        <div className="min-w-0">
+          <p className="truncate text-[9px] font-black uppercase tracking-[0.18em] opacity-55">{eyebrow}</p>
+          <h3 className="mt-1 line-clamp-2 text-sm font-black leading-5">{title}</h3>
+        </div>
+        {value ? <span className="shrink-0 text-xl font-black leading-none text-[#D4AF37]">{value}</span> : null}
+      </div>
+      <div className="min-h-0 flex-1 overflow-hidden text-xs leading-5 opacity-80">
+        {children}
+      </div>
+    </button>
+  );
+}
+
+function MobileExpandedPanel({ panel, onClose, children }) {
+  useEffect(() => {
+    if (!panel) return;
+    const previous = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = previous;
+    };
+  }, [panel]);
+
+  if (!panel) return null;
+
+  return createPortal(
+    <div className="fixed inset-0 z-[1000] bg-[#f8f5ee] text-[#0A192F] md:hidden">
+      <div className="flex h-full min-h-0 flex-col">
+        <div className="flex shrink-0 items-center justify-between border-b border-slate-200 bg-white/90 px-4 py-4 backdrop-blur">
+          <div className="min-w-0">
+            <p className="text-[10px] font-black uppercase tracking-[0.3em] text-secondary">{panel.eyebrow}</p>
+            <h2 className="mt-2 truncate font-notoSerif text-2xl font-normal text-primary">{panel.title}</h2>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="閉じる"
+            className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-slate-200 bg-white text-[#0A192F] shadow-sm"
+          >
+            <X size={18} />
+          </button>
+        </div>
+        <div className="min-h-0 flex-1 overflow-y-auto px-3 py-4">
+          {children}
+        </div>
+      </div>
+    </div>,
+    document.body
+  );
+}
+
+function MobilePersonalPanel({ data, developerMode, developerMeta }) {
+  const [personalReadingTab, setPersonalReadingTab] = useState("daily");
+  const personalBody = String(data.summary || "").trim();
+  const dailyStarVibe = String(data.dailyStarVibe || data.daily_star_vibe || "").trim();
+  const aspectHighlights = data.aspectHighlights || data.aspect_highlights || {};
+  const positiveHighlights = Array.isArray(aspectHighlights.positive) ? aspectHighlights.positive.slice(0, 2) : [];
+  const negativeHighlights = Array.isArray(aspectHighlights.negative) ? aspectHighlights.negative.slice(0, 2) : [];
+  const hasAspectHighlights = positiveHighlights.length > 0 || negativeHighlights.length > 0;
+
+  return (
+    <div className="rounded-3xl border border-[#D4AF37]/20 bg-[#050A17] p-4 text-slate-100 shadow-[0_18px_44px_rgba(3,7,18,0.28)]">
+      <div className="mb-4 flex items-center justify-between gap-3">
+        <div className="inline-flex min-w-0 items-center gap-2 rounded-full border border-[#D4AF37]/30 bg-[#D4AF37]/10 px-3 py-1 text-[10px] font-bold uppercase tracking-[0.18em] text-[#D4AF37]">
+          <Sparkles size={14} />
+          <span className="truncate">Personal Reading</span>
+        </div>
+        <span className="text-4xl font-black tracking-[-0.08em] text-[#D4AF37]">{data.rank || "B"}</span>
+      </div>
+      <h2 className="break-words text-2xl font-black leading-tight text-[#D4AF37]">{data.title}</h2>
+      <div className="mt-5 grid grid-cols-2 gap-1 rounded-2xl border border-white/10 bg-white/[0.04] p-1 text-[11px] font-bold text-slate-400">
+        {[
+          ["daily", "本日の星模様"],
+          ["personal", "あなたの星模様"],
+        ].map(([value, label]) => (
+          <button
+            key={value}
+            type="button"
+            onClick={() => setPersonalReadingTab(value)}
+            className={cx(
+              "rounded-xl px-2 py-2 transition",
+              personalReadingTab === value ? "bg-[#D4AF37] text-[#050A17]" : "hover:bg-white/10 hover:text-slate-100"
+            )}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+      {personalReadingTab === "daily" ? (
+        <div className="mt-4 rounded-2xl border border-white/10 bg-slate-950/35 px-4 py-4 text-sm font-semibold leading-7 text-slate-400">
+          {dailyStarVibe}
+        </div>
+      ) : hasAspectHighlights ? (
+        <PersonalAspectHighlights positive={positiveHighlights} negative={negativeHighlights} />
+      ) : personalBody ? (
+        <p className="mt-4 text-sm font-light leading-7 text-slate-300">{personalBody}</p>
+      ) : null}
+      {developerMode ? (
+        <PersonalReadingDeveloperBlock data={data} meta={developerMeta.personalReading} className="mt-4 bg-white/95" />
+      ) : null}
+    </div>
+  );
+}
+
+function MobileDiagnosticPanel({ diagnostic, developerMode, developerMeta }) {
+  const resolvedDiagnostic = diagnostic || dashboardData.diagnostic;
+  const diagnosticItems =
+    Array.isArray(resolvedDiagnostic?.items) && resolvedDiagnostic.items.length
+      ? resolvedDiagnostic.items
+      : dashboardData.diagnostic.items;
+  const diagnosticEntries = Array.isArray(developerMeta?.diagnostic?.entries)
+    ? developerMeta.diagnostic.entries
+    : [];
+
+  return (
+    <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-[0_14px_34px_rgba(10,25,47,0.10)]">
+      <div className="mb-5 flex items-start gap-3">
+        <div className="shrink-0 rounded-2xl bg-[#D4AF37]/15 p-3 text-[#D4AF37]">
+          <Gauge size={24} />
+        </div>
+        <div className="min-w-0">
+          <p className="text-sm font-bold text-[#0A192F]">Diagnostic</p>
+          <p className="text-xs leading-5 text-slate-500">ロジック安定指標</p>
+        </div>
+      </div>
+      <div className="mb-4 rounded-2xl border border-slate-200 bg-[#fffaf0] p-3">
+        <div className="mb-1 flex items-center justify-between gap-3">
+          <span className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+            {resolvedDiagnostic?.statusLabel || "Diagnostic"}
+          </span>
+          <span className="text-lg font-black text-[#D4AF37]">{Number(resolvedDiagnostic?.score ?? 0)}%</span>
+        </div>
+        {resolvedDiagnostic?.summary ? <p className="text-xs leading-5 text-slate-600">{resolvedDiagnostic.summary}</p> : null}
+        {resolvedDiagnostic?.primaryFactor?.title ? (
+          <p className="mt-2 text-xs leading-5 text-slate-700">主要因: {resolvedDiagnostic.primaryFactor.title}</p>
+        ) : null}
+      </div>
+      {developerMode ? (
+        <DeveloperBlock title="総合判定の根拠" meta={developerMeta.diagnostic} className="mb-4 mt-0 bg-white" />
+      ) : null}
+      {diagnosticItems.map((item) => (
+        <div key={item.label} className="mb-4 min-w-0">
+          <div className="mb-2 flex items-center justify-between gap-3 text-xs text-slate-500">
+            <span className="break-words pr-2 leading-5">{item.label}</span>
+            <span className="shrink-0 font-semibold text-slate-700">{Number(item.value || 0)}%</span>
+          </div>
+          <div className="h-2 overflow-hidden rounded-full bg-slate-100">
+            <div
+              className="h-full rounded-full bg-gradient-to-r from-[#D4AF37] to-amber-200"
+              style={{ width: `${Number(item.value || 0)}%` }}
+            />
+          </div>
+          {item.description ? <p className="mt-2 text-[11px] leading-5 text-slate-500">{item.description}</p> : null}
+          {developerMode ? (
+            <DeveloperBlock
+              title={`${item.label} の根拠`}
+              meta={diagnosticEntries.find((entry) => entry.label === item.label)}
+              className="mt-3 bg-white"
+            />
+          ) : null}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function mobileForecastSelectedIndex(forecast) {
+  const data = Array.isArray(forecast?.yearly_data) ? forecast.yearly_data : [];
+  if (!data.length) return 0;
+  const preferredDate =
+    forecast?.reading_date ||
+    forecast?.date ||
+    forecast?.meta?.birth_date ||
+    new Date().toISOString().slice(0, 10);
+  const exactIndex = data.findIndex((day) => day.date === preferredDate);
+  if (exactIndex >= 0) return exactIndex;
+  return 0;
+}
+
+function MobileYearlyCompact({ forecast }) {
+  const data = Array.isArray(forecast?.yearly_data) ? forecast.yearly_data : [];
+  const selectedIndex = mobileForecastSelectedIndex(forecast);
+  const selectedDay = data[selectedIndex] || data[0] || {};
+  const score = Number(selectedDay?.scores?.total ?? 0);
+  const windowStart = Math.max(0, selectedIndex - 18);
+  const visibleData = data.slice(windowStart, Math.min(data.length, windowStart + 37));
+  const width = 220;
+  const height = 110;
+  const pad = 18;
+  const scoreColors = {
+    total: "#D4AF37",
+    work: "#2F6FED",
+    love: "#D84C8B",
+    money: "#2F9E68",
+  };
+  const pathFor = (key) => visibleData
+    .map((day, index) => {
+      const x = visibleData.length <= 1 ? pad : pad + (index / (visibleData.length - 1)) * (width - pad * 2);
+      const value = Math.max(-100, Math.min(100, Number(day?.scores?.[key] ?? 0)));
+      const y = pad + ((100 - value) / 200) * (height - pad * 2);
+      return `${index === 0 ? "M" : "L"} ${x.toFixed(1)} ${y.toFixed(1)}`;
+    })
+    .join(" ");
+  const selectedVisibleIndex = Math.max(0, selectedIndex - windowStart);
+  const selectedX =
+    visibleData.length <= 1 ? pad : pad + (selectedVisibleIndex / Math.max(1, visibleData.length - 1)) * (width - pad * 2);
+
+  if (!data.length) {
+    return (
+      <div className="flex h-full items-center justify-center rounded-2xl bg-white/60 text-center text-xs font-bold text-slate-500">
+        年運データなし
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex h-full min-h-0 flex-col justify-between">
+      <div>
+        <p className="text-sm font-black text-[#0A192F]">年間運勢スコア</p>
+      </div>
+      <div>
+        <p className="text-[10px] font-bold text-slate-500">{selectedDay.date}</p>
+        <div className="mt-2 grid grid-cols-2 gap-1.5">
+          {[
+            ["総合", "total"],
+            ["仕事", "work"],
+            ["恋愛", "love"],
+            ["お金", "money"],
+          ].map(([label, key]) => (
+            <div key={key} className="rounded-xl bg-[#fbf5df] px-2 py-2">
+              <p className="truncate text-[9px] font-black text-slate-500">{label}</p>
+              <p className="mt-1 text-xl font-black leading-none" style={{ color: scoreColors[key] }}>
+                {Number(selectedDay?.scores?.[key] ?? 0)}
+              </p>
+            </div>
+          ))}
+        </div>
+      </div>
+      <div className="mt-2 min-h-0 flex-1 rounded-2xl bg-[#fffdf8]">
+        <svg className="h-full w-full overflow-visible" preserveAspectRatio="none" viewBox={`0 0 ${width} ${height}`} aria-label="2026 score chart">
+          <rect x={pad} y={pad} width={width - pad * 2} height={(height - pad * 2) / 2} fill="#e8f5ed" opacity="0.7" />
+          <rect x={pad} y={height / 2} width={width - pad * 2} height={(height - pad * 2) / 2} fill="#fdeceb" opacity="0.7" />
+          <line x1={pad} x2={width - pad} y1={height / 2} y2={height / 2} stroke="#d7d9d2" strokeWidth="1" />
+          {["total", "work", "love", "money"].map((key) => (
+            <path
+              key={key}
+              d={pathFor(key)}
+              fill="none"
+              stroke={scoreColors[key]}
+              strokeWidth={key === "total" ? "2.6" : "2"}
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              opacity={key === "total" ? "1" : "0.85"}
+            />
+          ))}
+          <line x1={selectedX} x2={selectedX} y1={pad} y2={height - pad} stroke="#0A192F" strokeWidth="1.2" />
+        </svg>
+      </div>
+    </div>
+  );
+}
+
+function MobileCountdownCompact({ data, items = [], groups = {} }) {
+  const candidates = [
+    ...(Array.isArray(groups?.short) ? groups.short : []),
+    ...(Array.isArray(groups?.legacy_short) ? groups.legacy_short : []),
+    ...(data ? [data] : []),
+    ...(Array.isArray(items) ? items : []),
+  ].filter(Boolean);
+  const hasFutureCountdown = (candidate) => {
+    const candidateScanStatus = String(candidate?.scan_status || candidate?.scan?.scan_status || "").trim();
+    const candidateIsNegative = String(candidate?.countdown_mode || "").trim().toLowerCase() === "departure";
+    const candidateIsAfterPeak =
+      !candidateIsNegative &&
+      (candidateScanStatus === "turning_away" || candidateScanStatus === "retrograde_turning_away");
+    const candidateDays = Number(candidate?.days_remaining ?? candidate?.daysLeft ?? candidate?.exit_days_remaining ?? candidate?.departure_days_remaining);
+    return Number.isFinite(candidateDays) && candidateDays > 0 && !candidateIsAfterPeak;
+  };
+  const slide =
+    candidates.find(hasFutureCountdown) ||
+    candidates.find((candidate) => Number(candidate?.days_remaining ?? candidate?.daysLeft ?? candidate?.exit_days_remaining ?? candidate?.departure_days_remaining) > 0) ||
+    candidates[0] ||
+    null;
+  const daysRemaining = Number(slide?.days_remaining ?? slide?.daysLeft ?? 0);
+  const totalDays = Number(slide?.total_days ?? slide?.totalDays ?? 0);
+  const rawOrbPercent = slide?.orb_percent ?? slide?.orbPercent ?? slide?.scan?.orb_percent;
+  const currentOrbValue = Number(
+    slide?.current_orb ??
+    slide?.currentOrb ??
+    slide?.scan?.current_orb ??
+    slide?.target?._input?.orb ??
+    slide?.target?._input?.orb_diff ??
+    slide?.target?.orb ??
+    slide?.target?.Orb
+  );
+  const thresholdOrbValue = Number(slide?.threshold_orb ?? slide?.thresholdOrb ?? slide?.target?.threshold_orb ?? 5);
+  const calculatedOrbPercent =
+    Number.isFinite(currentOrbValue) && Number.isFinite(thresholdOrbValue) && thresholdOrbValue > 0
+      ? 100 - ((currentOrbValue / thresholdOrbValue) * 100)
+      : NaN;
+  const orbPercentValue = Number(rawOrbPercent ?? calculatedOrbPercent);
+  const isNegativeCountdown = String(slide?.countdown_mode || "").trim().toLowerCase() === "departure";
+  const clampedOrbPercent = Number.isFinite(orbPercentValue)
+    ? Math.max(0, Math.min(100, Math.round(orbPercentValue)))
+    : NaN;
+  const basePercent = Math.max(0, Math.min(100, Math.round(totalDays > 0 ? ((totalDays - daysRemaining) / totalDays) * 100 : 0)));
+  const departureFallbackPercent = isNegativeCountdown && daysRemaining > 0
+    ? Math.max(8, Math.min(100, Math.round((daysRemaining / Math.max(totalDays, daysRemaining, 1)) * 100)))
+    : NaN;
+  const barPercent = Number.isFinite(clampedOrbPercent) && clampedOrbPercent > 0
+    ? clampedOrbPercent
+    : Number.isFinite(departureFallbackPercent)
+      ? departureFallbackPercent
+      : Number(slide?.progress ?? basePercent ?? 48) || 48;
+  const scanStatus = String(slide?.scan_status || slide?.scan?.scan_status || "").trim();
+  const isRetrogradeTurnaway =
+    scanStatus === "retrograde_turning_away" ||
+    (scanStatus === "turning_away" && slide?.scan?.peak_retrograde === true);
+  const isPositiveAfterPeak =
+    !isNegativeCountdown &&
+    (scanStatus === "turning_away" || scanStatus === "retrograde_turning_away");
+  const postPeakLabel =
+    isPositiveAfterPeak && barPercent >= 67
+      ? "ピーク通過"
+      : isPositiveAfterPeak && barPercent >= 34
+        ? "ピーク通過"
+        : "";
+  const exitDaysRemaining = Number(slide?.exit_days_remaining ?? slide?.departure_days_remaining ?? slide?.exitDaysRemaining ?? daysRemaining);
+  const displayedDays =
+    postPeakLabel
+      ? 0
+      : isPositiveAfterPeak && Number.isFinite(exitDaysRemaining)
+        ? Math.max(0, Math.round(exitDaysRemaining))
+        : Math.max(0, Math.round(daysRemaining));
+  return (
+    <div className="flex h-full min-h-0 flex-col justify-between">
+      <div>
+        <p className="line-clamp-2 text-base font-semibold leading-6 text-slate-300">{slide?.title || slide?.fallback_label || "カウントダウン"}</p>
+      </div>
+      <div>
+        <p className="mt-1 flex items-baseline gap-1 leading-none">
+          <span className="text-sm font-bold text-slate-500">あと</span>
+          <span className="text-4xl font-bold tracking-tighter text-white">
+            {Number.isFinite(displayedDays) ? displayedDays : "--"}
+          </span>
+          <span className="text-sm font-bold text-slate-500">日</span>
+        </p>
+        {postPeakLabel ? (
+          <p className="mt-1 text-xs font-semibold leading-4 text-slate-300">
+            ピーク通過
+          </p>
+        ) : null}
+      </div>
+      <div className="h-2 overflow-hidden rounded-full bg-slate-800">
+        <div
+          className="h-full rounded-full bg-gradient-to-r from-amber-700 via-amber-500 to-yellow-300 shadow-[0_0_15px_rgba(245,158,11,0.5)]"
+          style={{ width: `${Math.max(0, Math.min(100, Math.round(barPercent)))}%` }}
+        />
+      </div>
+    </div>
+  );
+}
+
+function MobileTimelineCompact({ data, days = [], date }) {
+  const activeDay = Array.isArray(days) && days.length ? days[0] : { date, timeline: data };
+  const slot = Array.isArray(activeDay?.timeline) && activeDay.timeline.length
+    ? activeDay.timeline[0]
+    : Array.isArray(data) && data.length
+      ? data[0]
+      : null;
+  return (
+    <div className="flex h-full min-h-0 flex-col justify-between">
+      <div>
+        <p className="text-[9px] font-black uppercase tracking-[0.14em] text-slate-500">Timeline</p>
+        <p className="mt-1 line-clamp-2 text-[11px] font-black leading-4 text-[#0A192F]">リソース最適化</p>
+      </div>
+      <div>
+        <p className="truncate text-[9px] font-bold text-slate-500">{activeDay?.date || date || ""}</p>
+        <p className="mt-1 line-clamp-4 text-[11px] font-bold leading-4 text-slate-700">
+          {slot?.text || slot?.recommendedAction || slot?.label || "タイムライン"}
+        </p>
+      </div>
+    </div>
+  );
+}
+
+function MobileTopicCompact({ data = [] }) {
+  const topic = Array.isArray(data) && data.length ? data[0] : null;
+  return (
+    <div className="flex h-full min-h-0 flex-col justify-between">
+      <div>
+        <p className="text-[9px] font-black uppercase tracking-[0.14em] text-slate-500">Topics</p>
+        <p className="mt-1 line-clamp-2 text-[11px] font-black leading-4 text-[#0A192F]">トピック強化カード</p>
+      </div>
+      <div>
+        <p className="line-clamp-3 text-[11px] font-bold leading-4 text-slate-700">{topic?.title || "他のコンテンツ"}</p>
+        {topic?.value ? <p className="mt-2 text-2xl font-black leading-none text-[#D4AF37]">{topic.value}</p> : null}
+      </div>
+    </div>
+  );
+}
+
+function MobileDashboardWidgets({ data, displayDate, developerMode, developerMeta, layoutMode = "new" }) {
+  const [activePanel, setActivePanel] = useState(null);
+  const diagnostic = data.diagnostic || data.hero?.diagnostic || dashboardData.diagnostic;
+  const forecast = data.yearly_forecast || data.yearlyForecast || null;
+  const diagnosticItems =
+    Array.isArray(diagnostic?.items) && diagnostic.items.length
+      ? diagnostic.items.slice(0, 3)
+      : dashboardData.diagnostic.items.slice(0, 3);
+  const panels = {
+    yearly: { title: "2026運勢シミュレーション", eyebrow: "Yearly Forecast" },
+    personal: { title: "Personal Reading", eyebrow: displayDate || "Today Overview" },
+    logic: { title: "ロジック安定指標", eyebrow: "Diagnostic" },
+    countdown: { title: "カウントダウン", eyebrow: "Countdown" },
+    timeline: { title: "リソース最適化・タイムライン", eyebrow: "Timeline" },
+    topics: { title: "トピック強化カード", eyebrow: "Topics" },
+  };
+
+  if (layoutMode === "old") {
+    return (
+      <div className="md:hidden">
+        <div className="grid min-h-[calc(100svh-116px)] grid-cols-2 grid-rows-2 gap-3 px-3 py-3">
+          <button
+            type="button"
+            onClick={() => setActivePanel("personal")}
+            className="flex min-h-0 min-w-0 flex-col overflow-hidden rounded-3xl border border-white/10 bg-[#050A17] p-3 text-left text-slate-100 shadow-[0_18px_44px_rgba(3,7,18,0.28)] transition active:scale-[0.99]"
+          >
+            <p className="truncate text-[9px] font-black uppercase tracking-[0.16em] text-[#D4AF37]/70">Personal Reading</p>
+            <div className="mt-2 flex items-start justify-between gap-2">
+              <p className="line-clamp-2 text-sm font-black leading-5 text-[#D4AF37]">{data.hero?.title}</p>
+              <span className="shrink-0 text-3xl font-black leading-none text-[#D4AF37]">{data.hero?.rank || "B"}</span>
+            </div>
+            <div className="mt-auto grid grid-cols-1 gap-1 text-[10px] font-bold text-slate-300">
+              <span className="truncate rounded-full border border-white/10 bg-white/[0.06] px-2 py-1">本日の星模様</span>
+              <span className="truncate rounded-full border border-white/10 bg-white/[0.06] px-2 py-1">あなたの星模様</span>
+            </div>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActivePanel("logic")}
+            className="flex min-h-0 min-w-0 flex-col overflow-hidden rounded-3xl border border-slate-200 bg-white p-3 text-left text-[#0A192F] shadow-[0_14px_34px_rgba(10,25,47,0.10)] transition active:scale-[0.99]"
+          >
+            <div className="mb-2 flex items-start justify-between gap-2">
+              <p className="line-clamp-2 text-sm font-black leading-5">ロジック安定指標</p>
+              <span className="shrink-0 text-2xl font-black leading-none text-[#D4AF37]">{Number(diagnostic?.score ?? 0)}%</span>
+            </div>
+            <div className="mt-auto space-y-2">
+              {diagnosticItems.map((item) => (
+                <div key={item.label}>
+                  <div className="mb-1 flex items-center justify-between gap-1 text-[9px] font-bold text-slate-500">
+                    <span className="truncate">{item.label}</span>
+                    <span>{Number(item.value || 0)}%</span>
+                  </div>
+                  <div className="h-1.5 overflow-hidden rounded-full bg-slate-100">
+                    <div className="h-full rounded-full bg-[#D4AF37]" style={{ width: `${Number(item.value || 0)}%` }} />
+                  </div>
+                </div>
+              ))}
+            </div>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActivePanel("timeline")}
+            className="flex min-h-0 min-w-0 flex-col overflow-hidden rounded-3xl border border-slate-200 bg-white p-3 text-left text-[#0A192F] shadow-[0_14px_34px_rgba(10,25,47,0.10)] transition active:scale-[0.99]"
+          >
+            <MobileTimelineCompact data={data.timeline} date={data.timelineDate} days={data.timelineDays} />
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActivePanel("topics")}
+            className="flex min-h-0 min-w-0 flex-col overflow-hidden rounded-3xl border border-slate-200 bg-white p-3 text-left text-[#0A192F] shadow-[0_14px_34px_rgba(10,25,47,0.10)] transition active:scale-[0.99]"
+          >
+            <MobileTopicCompact data={data.topics} />
+          </button>
+        </div>
+
+        <MobileExpandedPanel panel={activePanel ? panels[activePanel] : null} onClose={() => setActivePanel(null)}>
+          {activePanel === "personal" ? (
+            <TypographicHero
+              data={data.hero}
+              diagnosticData={data.diagnostic}
+              planetMotion={data.planetMotion}
+              retrogradeCalendar={data.retrogradeCalendar}
+              displayDate={displayDate}
+              developerMode={developerMode}
+              developerMeta={developerMeta}
+            />
+          ) : null}
+          {activePanel === "logic" ? <DiagnosticPanel data={diagnostic} /> : null}
+          {activePanel === "timeline" ? (
+            <Timeline
+              data={data.timeline}
+              date={data.timelineDate}
+              days={data.timelineDays}
+              developerMode={developerMode}
+              developerMeta={developerMeta.timeline || {}}
+            />
+          ) : null}
+          {activePanel === "topics" ? (
+            <TopicGrid
+              data={data.topics}
+              developerMode={developerMode}
+              developerMeta={developerMeta.topics || {}}
+            />
+          ) : null}
+        </MobileExpandedPanel>
+      </div>
+    );
+  }
+
+  return (
+    <div className="md:hidden">
+      <div className="grid min-h-[calc(100svh-116px)] grid-cols-4 grid-rows-4 gap-3 px-3 py-3">
+        <button
+          type="button"
+          onClick={() => setActivePanel("yearly")}
+          className="col-span-2 row-span-2 flex min-h-0 min-w-0 flex-col overflow-hidden rounded-3xl border border-slate-200 bg-white p-3 text-left text-[#0A192F] shadow-[0_14px_34px_rgba(10,25,47,0.10)] transition active:scale-[0.99]"
+        >
+          <MobileYearlyCompact forecast={forecast} />
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActivePanel("personal")}
+          className="col-span-2 col-start-3 row-span-1 flex min-h-0 min-w-0 flex-col overflow-hidden rounded-3xl border border-white/10 bg-[#050A17] p-3 text-left text-slate-100 shadow-[0_18px_44px_rgba(3,7,18,0.28)] transition active:scale-[0.99]"
+        >
+          <p className="truncate text-[9px] font-black uppercase tracking-[0.16em] text-[#D4AF37]/70">Personal Reading</p>
+          <div className="mt-2 flex items-start justify-between gap-2">
+            <p className="line-clamp-2 text-sm font-black leading-5 text-[#D4AF37]">{data.hero?.title}</p>
+            <span className="shrink-0 text-3xl font-black leading-none text-[#D4AF37]">{data.hero?.rank || "B"}</span>
+          </div>
+          <div className="mt-auto grid grid-cols-1 gap-1 text-[10px] font-bold text-slate-300">
+            <span className="truncate rounded-full border border-white/10 bg-white/[0.06] px-2 py-1">本日の星模様</span>
+            <span className="truncate rounded-full border border-white/10 bg-white/[0.06] px-2 py-1">あなたの星模様</span>
+          </div>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActivePanel("logic")}
+          className="col-span-2 col-start-3 row-start-2 flex min-h-0 min-w-0 flex-col overflow-hidden rounded-3xl border border-slate-200 bg-white p-3 text-left text-[#0A192F] shadow-[0_14px_34px_rgba(10,25,47,0.10)] transition active:scale-[0.99]"
+        >
+          <div className="mb-2 flex items-start justify-between gap-2">
+            <p className="line-clamp-2 text-sm font-black leading-5">ロジック安定指標</p>
+            <span className="shrink-0 text-2xl font-black leading-none text-[#D4AF37]">{Number(diagnostic?.score ?? 0)}%</span>
+          </div>
+          <div className="mt-auto space-y-2">
+            {diagnosticItems.map((item) => (
+              <div key={item.label}>
+                <div className="mb-1 flex items-center justify-between gap-1 text-[9px] font-bold text-slate-500">
+                  <span className="truncate">{item.label}</span>
+                  <span>{Number(item.value || 0)}%</span>
+                </div>
+                <div className="h-1.5 overflow-hidden rounded-full bg-slate-100">
+                  <div className="h-full rounded-full bg-[#D4AF37]" style={{ width: `${Number(item.value || 0)}%` }} />
+                </div>
+              </div>
+            ))}
+          </div>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActivePanel("countdown")}
+          className="col-span-4 row-start-4 flex min-h-0 min-w-0 flex-col overflow-hidden rounded-3xl border border-slate-800 bg-slate-900 p-3 text-left text-slate-100 shadow-xl transition active:scale-[0.99]"
+        >
+          <MobileCountdownCompact data={data.countdown} items={data.countdown_items} groups={data.countdown_groups} />
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActivePanel("timeline")}
+          className="col-span-2 row-start-3 flex min-h-0 min-w-0 flex-col overflow-hidden rounded-3xl border border-slate-200 bg-white p-3 text-left text-[#0A192F] shadow-[0_14px_34px_rgba(10,25,47,0.10)] transition active:scale-[0.99]"
+        >
+          <MobileTimelineCompact data={data.timeline} date={data.timelineDate} days={data.timelineDays} />
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActivePanel("topics")}
+          className="col-span-2 col-start-3 row-start-3 flex min-h-0 min-w-0 flex-col overflow-hidden rounded-3xl border border-slate-200 bg-white p-3 text-left text-[#0A192F] shadow-[0_14px_34px_rgba(10,25,47,0.10)] transition active:scale-[0.99]"
+        >
+          <MobileTopicCompact data={data.topics} />
+        </button>
+      </div>
+
+      <MobileExpandedPanel panel={activePanel ? panels[activePanel] : null} onClose={() => setActivePanel(null)}>
+        {activePanel === "yearly" ? (
+          forecast ? (
+            <YearlyForecastGraph forecast={forecast} developerMode={developerMode} hideHeader />
+          ) : (
+            <div className="rounded-3xl border border-slate-200 bg-white p-6 text-sm font-bold text-slate-500">
+              年運データがありません
+            </div>
+          )
+        ) : null}
+        {activePanel === "personal" ? (
+          <MobilePersonalPanel data={data.hero || dashboardData.hero} developerMode={developerMode} developerMeta={developerMeta} />
+        ) : null}
+        {activePanel === "logic" ? (
+          <MobileDiagnosticPanel diagnostic={diagnostic} developerMode={developerMode} developerMeta={developerMeta} />
+        ) : null}
+        {activePanel === "countdown" ? (
+          <LunarCountdownWidget
+            data={data.countdown}
+            items={data.countdown_items}
+            groups={data.countdown_groups}
+            developerMode={developerMode}
+            developerMeta={developerMeta}
+          />
+        ) : null}
+        {activePanel === "timeline" ? (
+          <Timeline
+            data={data.timeline}
+            date={data.timelineDate}
+            days={data.timelineDays}
+            developerMode={developerMode}
+            developerMeta={developerMeta.timeline || {}}
+          />
+        ) : null}
+        {activePanel === "topics" ? (
+          <TopicGrid
+            data={data.topics || dashboardData.topics}
+            developerMode={developerMode}
+            developerMeta={developerMeta.topics || {}}
+          />
+        ) : null}
+      </MobileExpandedPanel>
+    </div>
+  );
+}
+
 export function Dashboard({ data = dashboardData, embedded = false, developerMode = false }) {
+  const [mobileLayoutMode, setMobileLayoutMode] = useState(() => {
+    if (typeof window === "undefined") return "new";
+    return window.localStorage.getItem("celestial-atelier:mobile-layout-mode") === "old" ? "old" : "new";
+  });
   const displayDate = formatIsoDate(
     data.readingDate ||
       data.reading_date ||
@@ -1824,6 +2521,15 @@ export function Dashboard({ data = dashboardData, embedded = false, developerMod
     }
     window.location.href = url.toString();
   };
+  const handleSetMobileLayoutMode = (mode) => {
+    const nextMode = mode === "old" ? "old" : "new";
+    setMobileLayoutMode(nextMode);
+    try {
+      window.localStorage.setItem("celestial-atelier:mobile-layout-mode", nextMode);
+    } catch {
+      // Storage is best-effort; layout switching still works for the current session.
+    }
+  };
 
   return (
     <>
@@ -1839,11 +2545,13 @@ export function Dashboard({ data = dashboardData, embedded = false, developerMod
           embedded={embedded}
           developerMode={developerMode}
           onToggleDeveloperMode={handleToggleDeveloperMode}
+          mobileLayoutMode={mobileLayoutMode}
+          onSetMobileLayoutMode={handleSetMobileLayoutMode}
           planetMotion={data.planetMotion}
           retrogradeCalendar={data.retrogradeCalendar}
         />
         <main className={cx(
-          "flex min-w-0 max-w-full flex-col gap-6 overflow-x-hidden",
+          "hidden min-w-0 max-w-full flex-col gap-6 overflow-x-hidden md:flex",
           embedded ? "px-0 py-4 md:px-0 md:py-5" : "px-0 py-4 md:px-0 md:py-5"
         )}>
           <TypographicHero
@@ -1875,6 +2583,13 @@ export function Dashboard({ data = dashboardData, embedded = false, developerMod
             developerMeta={data.developerMeta || dashboardData.developerMeta}
           />
         </main>
+        <MobileDashboardWidgets
+          data={data}
+          displayDate={displayDate}
+          developerMode={developerMode}
+          developerMeta={data.developerMeta || dashboardData.developerMeta}
+          layoutMode={mobileLayoutMode}
+        />
       </div>
     </>
   );

@@ -6,7 +6,6 @@ import { getStoredReadingResult } from "./reading-storage.js";
 const WIDTH = 1200;
 const HEIGHT = 380;
 const PAD = { top: 52, right: 12, bottom: 46, left: 44 };
-const CHART_TITLE = "運勢スコア推移";
 const Y_AXIS_LABEL = "運勢スコア";
 const X_AXIS_LABEL = "日付";
 const SERIES = [
@@ -200,17 +199,41 @@ function aspectDisplayLabel(event) {
 
 function eventForSeries(day, key) {
   const highlights = day?.category_highlights || day?.categoryHighlights || {};
-  if (Object.prototype.hasOwnProperty.call(highlights, key)) {
-    return highlights[key] || null;
-  }
+  const highlightedEvent = Object.prototype.hasOwnProperty.call(highlights, key) ? highlights[key] : null;
   const events = Array.isArray(day?.events) ? day.events : [];
-  const aspectEvents = events.filter((event) => event?.aspect_angle !== null && event?.aspect_angle !== undefined);
-  if (!aspectEvents.length) return null;
-  const candidates =
+  const normalizedPlanet = (value) => String(value || "").trim().toUpperCase().replace(/^TRANSIT_/, "");
+  const displayAspectBucket = (event) => {
+    if (normalizedPlanet(event?.t_planet || event?.transit_planet) === "MOON") return 99;
+    const durationType = String(event?.duration_type || event?.durationType || "").trim().toUpperCase();
+    if (durationType === "SHORT") return 0;
+    if (durationType === "LONG") return 1;
+    if (durationType === "MID") return 2;
+    return 3;
+  };
+  if (
+    highlightedEvent?.aspect_angle !== null &&
+    highlightedEvent?.aspect_angle !== undefined &&
+    normalizedPlanet(highlightedEvent?.t_planet || highlightedEvent?.transit_planet) !== "MOON" &&
+    displayAspectBucket(highlightedEvent) === 0
+  ) {
+    return highlightedEvent;
+  }
+  const aspectEvents = [
+    highlightedEvent,
+    ...events,
+  ].filter((event) =>
+    event?.aspect_angle !== null &&
+    event?.aspect_angle !== undefined &&
+    normalizedPlanet(event?.t_planet || event?.transit_planet) !== "MOON"
+  );
+  if (!aspectEvents.length) return highlightedEvent || null;
+  let candidates =
     key === "total"
       ? aspectEvents
       : aspectEvents.filter((event) => String(event?.category || "").trim().toLowerCase() === key);
-  if (!candidates.length) return null;
+  if (!candidates.length) return highlightedEvent || null;
+  const bestBucket = Math.min(...candidates.map(displayAspectBucket));
+  candidates = candidates.filter((event) => displayAspectBucket(event) === bestBucket);
   return [...candidates].sort(
     (a, b) =>
       Number(b.priority || 0) - Number(a.priority || 0) ||
@@ -248,7 +271,7 @@ function tickIndexes(count) {
   ).filter((value, index, values) => values.indexOf(value) === index);
 }
 
-function YearlyForecastGraph({ forecast, developerMode = false }) {
+export function YearlyForecastGraph({ forecast, developerMode = false, hideHeader = false }) {
   const data = Array.isArray(forecast?.yearly_data) ? forecast.yearly_data : [];
   const milestones = Array.isArray(forecast?.milestones) ? forecast.milestones : [];
   const initialIndex = useMemo(() => (data.length ? selectedDayFromReadingDate(data, forecast) : 0), [data, forecast]);
@@ -285,7 +308,7 @@ function YearlyForecastGraph({ forecast, developerMode = false }) {
 
   return (
     <section className="rounded-[28px] border border-outline-variant/30 bg-white px-0 py-3 shadow-[0_18px_36px_rgba(46,52,45,0.08)] md:p-4">
-      <div className="mb-4 flex flex-col gap-2 px-3 md:mb-5 md:flex-row md:items-end md:justify-between md:gap-3 md:px-0">
+      <div className={hideHeader ? "hidden" : "mb-4 flex flex-col gap-2 px-3 md:mb-5 md:flex-row md:items-end md:justify-between md:gap-3 md:px-0"}>
         <div>
           <p className="mb-1.5 text-[10px] font-bold uppercase tracking-[0.3em] text-secondary md:mb-2">Yearly Forecast</p>
           <h2 className="font-notoSerif text-2xl text-primary md:text-3xl">2026 運勢シミュレーション</h2>
@@ -345,28 +368,23 @@ function YearlyForecastGraph({ forecast, developerMode = false }) {
           </div>
         </div>
         <svg
-          className="block h-[285px] w-full cursor-crosshair sm:h-[340px] md:h-[430px]"
+          className="block h-[190px] w-full cursor-crosshair sm:h-[340px] md:h-[430px]"
           viewBox={`0 0 ${WIDTH} ${HEIGHT}`}
+          preserveAspectRatio="none"
           role="img"
           aria-label="2026 yearly forecast line chart"
           onClick={(event) => setSelectedIndex(visibleStart + nearestIndexFromPointer(event, visibleData.length))}
         >
-          <text x={WIDTH / 2} y="34" textAnchor="middle" fontSize="28" fontWeight="400" fontFamily="'Noto Sans JP', sans-serif" fill="#0A192F">
-            {CHART_TITLE}
-          </text>
           <rect x={PAD.left} y={PAD.top} width={WIDTH - PAD.left - PAD.right} height={zeroY - PAD.top} fill="#e8f5ed" opacity="0.78" />
           <rect x={PAD.left} y={zeroY} width={WIDTH - PAD.left - PAD.right} height={HEIGHT - PAD.bottom - zeroY} fill="#fdeceb" opacity="0.78" />
+          <line x1={PAD.left} x2={WIDTH - PAD.right} y1={zeroY} y2={zeroY} stroke="#d7d9d2" />
           {[-100, -50, 0, 50, 100].map((tick) => (
-            <g key={tick}>
-              <line x1={PAD.left} x2={WIDTH - PAD.right} y1={chartY(tick)} y2={chartY(tick)} stroke="#d7d9d2" strokeDasharray={tick === 0 ? "0" : "5 7"} />
-              <text x={PAD.left - 10} y={chartY(tick) + 5} textAnchor="end" fontSize="17" fontWeight="700" fill="#687066">
-                {tick}
-              </text>
-            </g>
+            <text key={tick} x={PAD.left - 10} y={chartY(tick) + 5} textAnchor="end" fontSize="17" fontWeight="700" fill="#687066">
+              {tick}
+            </text>
           ))}
           {tickIndexes(visibleData.length).map((index) => (
             <g key={index}>
-              <line x1={chartX(index, visibleData.length)} x2={chartX(index, visibleData.length)} y1={PAD.top} y2={HEIGHT - PAD.bottom} stroke="#e5e2d8" />
               <text x={chartX(index, visibleData.length)} y={HEIGHT - 31} textAnchor="middle" fontSize="17" fontWeight="700" fill="#687066">
                 {formatDate(visibleData[index]?.date)}
               </text>

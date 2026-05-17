@@ -21,6 +21,7 @@ function getDashboardData() {
   }
   return {
     ...payload.dashboard_data,
+    yearly_forecast: payload.yearly_forecast || payload.yearlyForecast || null,
     reading_date:
       payload.dashboard_data.reading_date ||
       payload.dashboard_data.readingDate ||
