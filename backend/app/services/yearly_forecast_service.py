@@ -313,17 +313,21 @@ def _category_highlights(events: list[dict[str, Any]]) -> dict[str, dict[str, An
 def _strongest_yearly_aspect_for_duration(
     events: list[dict[str, Any]],
     category: str,
-    duration_type: str,
+    duration_types: str | tuple[str, ...],
 ) -> dict[str, Any] | None:
     category_normalized = str(category or "total").strip().lower()
-    duration_normalized = str(duration_type or "").strip().upper()
+    duration_normalized = (
+        {str(duration_types or "").strip().upper()}
+        if isinstance(duration_types, str)
+        else {str(duration_type or "").strip().upper() for duration_type in duration_types}
+    )
     aspect_events = [
         event
         for event in events
         if event.get("aspect_angle") is not None
         and (category_normalized == "total" or _category_key(event.get("category")) == category_normalized)
         and reading_service._normalize_planet(event.get("t_planet")) != "MOON"
-        and str(event.get("duration_type") or "").strip().upper() == duration_normalized
+        and str(event.get("duration_type") or "").strip().upper() in duration_normalized
     ]
     if not aspect_events:
         return None
@@ -337,12 +341,12 @@ def _strongest_yearly_aspect_for_duration(
     )[0]
 
 
-def _category_highlights_for_duration(events: list[dict[str, Any]], duration_type: str) -> dict[str, dict[str, Any] | None]:
+def _category_highlights_for_duration(events: list[dict[str, Any]], duration_types: str | tuple[str, ...]) -> dict[str, dict[str, Any] | None]:
     return {
-        "general": _strongest_yearly_aspect_for_duration(events, "general", duration_type),
-        "work": _strongest_yearly_aspect_for_duration(events, "work", duration_type),
-        "love": _strongest_yearly_aspect_for_duration(events, "love", duration_type),
-        "money": _strongest_yearly_aspect_for_duration(events, "money", duration_type),
+        "general": _strongest_yearly_aspect_for_duration(events, "general", duration_types),
+        "work": _strongest_yearly_aspect_for_duration(events, "work", duration_types),
+        "love": _strongest_yearly_aspect_for_duration(events, "love", duration_types),
+        "money": _strongest_yearly_aspect_for_duration(events, "money", duration_types),
     }
 
 
@@ -624,7 +628,7 @@ def _build_day_forecast(
         "events": top_events,
         "category_highlights": _category_highlights(events),
         "category_theme_highlights": {
-            "short": _category_highlights_for_duration(events, "SHORT"),
+            "short": _category_highlights_for_duration(events, ("SHORT", "MID")),
             "long": _category_highlights_for_duration(events, "LONG"),
         },
     }

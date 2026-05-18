@@ -716,29 +716,29 @@ class ApiTestCase(unittest.TestCase):
             }
             dashboard = build_dashboard_data_from_interpretations(rows, {"modifier": 0, "items": []})
 
-        self.assertEqual(len(dashboard["countdown_groups"]["short"]), 6)
+        self.assertEqual(len(dashboard["countdown_groups"]["short"]), 4)
         self.assertEqual(len(dashboard["countdown_groups"]["long"]), 6)
         self.assertEqual(
-            [item["target"]["_orb_status"] for item in dashboard["countdown_groups"]["short"][:3]],
-            ["Applying", "Separating", "Applying"],
+            [item["target"]["_orb_status"] for item in dashboard["countdown_groups"]["short"][:2]],
+            ["Applying", "Separating"],
         )
         self.assertTrue(
-            all(item["target"]["Score_Impact"] > 0 for item in dashboard["countdown_groups"]["short"][:3])
+            all(item["target"]["Score_Impact"] > 0 for item in dashboard["countdown_groups"]["short"][:2])
         )
         self.assertEqual(
-            [item["countdown_mode"] for item in dashboard["countdown_groups"]["short"][3:]],
-            ["departure", "departure", "departure"],
+            [item["countdown_mode"] for item in dashboard["countdown_groups"]["short"][2:]],
+            ["departure", "departure"],
         )
         self.assertEqual(
-            [item["scan_status"] for item in dashboard["countdown_groups"]["short"][3:]],
-            ["departing", "departing", "departing"],
+            [item["scan_status"] for item in dashboard["countdown_groups"]["short"][2:]],
+            ["departing", "departing"],
         )
         self.assertEqual(
-            [item["target"]["_orb_status"] for item in dashboard["countdown_groups"]["short"][3:]],
-            ["Separating", "Applying", "Separating"],
+            [item["target"]["_orb_status"] for item in dashboard["countdown_groups"]["short"][2:]],
+            ["Separating", "Applying"],
         )
         self.assertTrue(
-            all(item["target"]["Score_Impact"] < 0 for item in dashboard["countdown_groups"]["short"][3:])
+            all(item["target"]["Score_Impact"] < 0 for item in dashboard["countdown_groups"]["short"][2:])
         )
         self.assertEqual(
             [item["target"]["_orb_status"] for item in dashboard["countdown_groups"]["long"][:3]],
@@ -762,7 +762,7 @@ class ApiTestCase(unittest.TestCase):
         self.assertTrue(
             all(item["target"]["Score_Impact"] < 0 for item in dashboard["countdown_groups"]["long"][3:])
         )
-        self.assertEqual(len(dashboard["countdown_groups"]["legacy_short"]), 3)
+        self.assertEqual(len(dashboard["countdown_groups"]["legacy_short"]), 2)
         self.assertEqual(len(dashboard["countdown_groups"]["legacy_long"]), 3)
         self.assertEqual(len(dashboard["countdown_groups"]["long_by_priority"]["high"]), 2)
         self.assertEqual(len(dashboard["countdown_groups"]["long_by_priority"]["middle"]), 2)

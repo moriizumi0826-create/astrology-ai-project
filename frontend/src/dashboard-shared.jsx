@@ -1074,7 +1074,7 @@ function TypographicHero({
             <div className="mb-5 flex flex-wrap items-center justify-between gap-3 px-4 sm:px-0">
               <div className="inline-flex max-w-full items-center gap-2 rounded-full border border-[#D4AF37]/30 bg-[#D4AF37]/10 px-3 py-1 text-[10px] font-bold uppercase tracking-[0.18em] text-[#D4AF37] sm:text-[11px] sm:tracking-[0.24em]">
                 <Sparkles size={14} />
-                <span className="truncate">Personal Reading</span>
+                <span className="truncate">今日はどんな日？</span>
               </div>
               <span className={cx("text-4xl font-black tracking-[-0.08em] sm:text-5xl", rankClass)}>
                 {rank}
@@ -1088,7 +1088,7 @@ function TypographicHero({
             <div className="mt-5 grid grid-cols-2 gap-1 rounded-2xl border border-white/10 bg-white/[0.04] p-1 text-[11px] font-bold text-slate-400 sm:gap-2 sm:text-xs">
               {[
                 ["daily", "本日の星模様"],
-                ["personal", "あなたの重要ポイント"],
+                    ["personal", "本日の重要ポイント"],
               ].map(([value, label]) => (
                 <button
                   key={value}
@@ -1536,6 +1536,12 @@ function countdownSlideKey(slide) {
   ].join("|");
 }
 
+function isTransitMoonCountdown(slide) {
+  const target = slide?.target || {};
+  const planet = String(target.T_Planet || slide?.t_planet || slide?.transit_planet || "").trim().toUpperCase();
+  return planet.replace(/^TRANSIT_/, "") === "MOON";
+}
+
 function LunarCountdownWidget({ data, items = [], groups = {}, developerMode = false, developerMeta = {} }) {
   const [shortIndex, setShortIndex] = useState(0);
   const [longIndex, setLongIndex] = useState(0);
@@ -1548,21 +1554,21 @@ function LunarCountdownWidget({ data, items = [], groups = {}, developerMode = f
 
   const shortSlides =
     Array.isArray(groups?.short) && groups.short.length
-      ? groups.short
+      ? groups.short.filter((slide) => !isTransitMoonCountdown(slide))
       : Array.isArray(groups?.legacy_short) && groups.legacy_short.length
-        ? groups.legacy_short
-        : data
+        ? groups.legacy_short.filter((slide) => !isTransitMoonCountdown(slide))
+        : data && !isTransitMoonCountdown(data)
           ? [data]
           : Array.isArray(items) && items.length
-            ? items.slice(0, 1)
+            ? items.filter((slide) => !isTransitMoonCountdown(slide)).slice(0, 1)
             : [];
   const longSlides =
     groups?.long_by_priority && Array.isArray(groups.long_by_priority[longPriority])
-      ? groups.long_by_priority[longPriority]
+      ? groups.long_by_priority[longPriority].filter((slide) => !isTransitMoonCountdown(slide))
       : Array.isArray(groups?.long) && groups.long.length
-      ? groups.long
+      ? groups.long.filter((slide) => !isTransitMoonCountdown(slide))
       : Array.isArray(groups?.legacy_long) && groups.legacy_long.length
-        ? groups.legacy_long
+        ? groups.legacy_long.filter((slide) => !isTransitMoonCountdown(slide))
         : [];
 
   useEffect(() => {
@@ -1879,7 +1885,7 @@ function MobileWidgetCard({ title, eyebrow, value, children, onOpen, tone = "dar
   );
 }
 
-function MobileExpandedPanel({ panel, onClose, children }) {
+function MobileExpandedPanel({ panel, onClose, children, flush = false }) {
   useEffect(() => {
     if (!panel) return;
     const previous = document.body.style.overflow;
@@ -1892,7 +1898,7 @@ function MobileExpandedPanel({ panel, onClose, children }) {
   if (!panel) return null;
 
   return createPortal(
-    <div className="fixed inset-0 z-[1000] bg-[#f8f5ee] text-[#0A192F] md:hidden">
+    <div className="fixed inset-0 z-[1000] bg-white text-[#0A192F] md:hidden">
       <div className="flex h-full min-h-0 flex-col">
         <div className="flex shrink-0 items-center justify-between border-b border-slate-200 bg-white/90 px-4 py-4 backdrop-blur">
           <div className="min-w-0">
@@ -1908,7 +1914,7 @@ function MobileExpandedPanel({ panel, onClose, children }) {
             <X size={18} />
           </button>
         </div>
-        <div className="min-h-0 flex-1 overflow-y-auto px-3 py-4">
+        <div className={cx("min-h-0 flex-1 overflow-y-auto", flush ? "px-0 py-0" : "px-3 py-4")}>
           {children}
         </div>
       </div>
@@ -1931,7 +1937,7 @@ function MobilePersonalPanel({ data, developerMode, developerMeta }) {
       <div className="mb-4 flex items-center justify-between gap-3">
         <div className="inline-flex min-w-0 items-center gap-2 rounded-full border border-[#D4AF37]/30 bg-[#D4AF37]/10 px-3 py-1 text-[10px] font-bold uppercase tracking-[0.18em] text-[#D4AF37]">
           <Sparkles size={14} />
-          <span className="truncate">Personal Reading</span>
+          <span className="truncate">今日はどんな日？</span>
         </div>
         <span className="text-4xl font-black tracking-[-0.08em] text-[#D4AF37]">{data.rank || "B"}</span>
       </div>
@@ -1939,7 +1945,7 @@ function MobilePersonalPanel({ data, developerMode, developerMeta }) {
       <div className="mt-5 grid grid-cols-2 gap-1 rounded-2xl border border-white/10 bg-white/[0.04] p-1 text-[11px] font-bold text-slate-400">
         {[
           ["daily", "本日の星模様"],
-          ["personal", "あなたの重要ポイント"],
+                    ["personal", "本日の重要ポイント"],
         ].map(([value, label]) => (
           <button
             key={value}
@@ -2045,6 +2051,13 @@ function mobileForecastSelectedIndex(forecast) {
   return 0;
 }
 
+function formatYearlyScore(value) {
+  const score = Number(value) || 0;
+  if (score > 0) return `+${score}`;
+  if (score === 0) return "±0";
+  return String(score);
+}
+
 function MobileYearlyCompact({ forecast }) {
   const data = Array.isArray(forecast?.yearly_data) ? forecast.yearly_data : [];
   const selectedIndex = mobileForecastSelectedIndex(forecast);
@@ -2056,10 +2069,11 @@ function MobileYearlyCompact({ forecast }) {
   const height = 110;
   const pad = 18;
   const scoreColors = {
-    total: "#D4AF37",
+    total: "#4F53B8",
+    general: "#2F9E68",
     work: "#2F6FED",
     love: "#D84C8B",
-    money: "#2F9E68",
+    money: "#D4AF37",
   };
   const pathFor = (key) => visibleData
     .map((day, index) => {
@@ -2083,22 +2097,25 @@ function MobileYearlyCompact({ forecast }) {
 
   return (
     <div className="flex h-full min-h-0 flex-col justify-between">
-      <div>
-        <p className="text-sm font-black text-[#0A192F]">年間運勢スコア</p>
+      <div className="flex items-start justify-between gap-2">
+        <p className="text-sm font-black text-[#0A192F]">運勢スコア</p>
+        <p className="text-2xl font-black leading-none text-[#4F53B8]">
+          {formatYearlyScore(score)}
+        </p>
       </div>
       <div>
         <p className="text-[10px] font-bold text-slate-500">{selectedDay.date}</p>
         <div className="mt-2 grid grid-cols-2 gap-1.5">
           {[
-            ["総合", "total"],
+            ["全般・健康", "general"],
             ["仕事", "work"],
-            ["恋愛", "love"],
+            ["恋愛・対人", "love"],
             ["お金", "money"],
           ].map(([label, key]) => (
             <div key={key} className="rounded-xl bg-[#fbf5df] px-2 py-2">
               <p className="truncate text-[9px] font-black text-slate-500">{label}</p>
-              <p className="mt-1 text-xl font-black leading-none" style={{ color: scoreColors[key] }}>
-                {Number(selectedDay?.scores?.[key] ?? 0)}
+                <p className="mt-1 text-xl font-black leading-none" style={{ color: scoreColors[key] }}>
+                {formatYearlyScore(selectedDay?.scores?.[key])}
               </p>
             </div>
           ))}
@@ -2109,13 +2126,14 @@ function MobileYearlyCompact({ forecast }) {
           <rect x={pad} y={pad} width={width - pad * 2} height={(height - pad * 2) / 2} fill="#e8f5ed" opacity="0.7" />
           <rect x={pad} y={height / 2} width={width - pad * 2} height={(height - pad * 2) / 2} fill="#fdeceb" opacity="0.7" />
           <line x1={pad} x2={width - pad} y1={height / 2} y2={height / 2} stroke="#d7d9d2" strokeWidth="1" />
-          {["total", "work", "love", "money"].map((key) => (
+          {["total", "general", "work", "love", "money"].map((key) => (
             <path
               key={key}
               d={pathFor(key)}
               fill="none"
               stroke={scoreColors[key]}
-              strokeWidth={key === "total" ? "2.6" : "2"}
+              strokeWidth={key === "total" ? "2.8" : "2"}
+              strokeDasharray={key === "total" ? "8 6" : undefined}
               strokeLinecap="round"
               strokeLinejoin="round"
               opacity={key === "total" ? "1" : "0.85"}
@@ -2134,7 +2152,7 @@ function MobileCountdownCompact({ data, items = [], groups = {} }) {
     ...(Array.isArray(groups?.legacy_short) ? groups.legacy_short : []),
     ...(data ? [data] : []),
     ...(Array.isArray(items) ? items : []),
-  ].filter(Boolean);
+  ].filter((item) => item && !isTransitMoonCountdown(item));
   const hasFutureCountdown = (candidate) => {
     const candidateScanStatus = String(candidate?.scan_status || candidate?.scan?.scan_status || "").trim();
     const candidateIsNegative = String(candidate?.countdown_mode || "").trim().toLowerCase() === "departure";
@@ -2294,14 +2312,14 @@ function MobileDashboardWidgets({ data, displayDate, developerMode, developerMet
             onClick={() => setActivePanel("personal")}
             className="flex min-h-0 min-w-0 flex-col overflow-hidden rounded-3xl border border-white/10 bg-[#050A17] p-3 text-left text-slate-100 shadow-[0_18px_44px_rgba(3,7,18,0.28)] transition active:scale-[0.99]"
           >
-            <p className="truncate text-[9px] font-black uppercase tracking-[0.16em] text-[#D4AF37]/70">Personal Reading</p>
+            <p className="truncate text-[9px] font-black uppercase tracking-[0.16em] text-white">今日はどんな日？</p>
             <div className="mt-2 flex items-start justify-between gap-2">
               <p className="line-clamp-2 text-sm font-black leading-5 text-[#D4AF37]">{data.hero?.title}</p>
               <span className="shrink-0 text-3xl font-black leading-none text-[#D4AF37]">{data.hero?.rank || "B"}</span>
             </div>
             <div className="mt-auto grid grid-cols-1 gap-1 text-[10px] font-bold text-slate-300">
               <span className="truncate rounded-full border border-white/10 bg-white/[0.06] px-2 py-1">本日の星模様</span>
-              <span className="truncate rounded-full border border-white/10 bg-white/[0.06] px-2 py-1">あなたの重要ポイント</span>
+              <span className="truncate rounded-full border border-white/10 bg-white/[0.06] px-2 py-1">本日の重要ポイント</span>
             </div>
           </button>
 
@@ -2396,14 +2414,14 @@ function MobileDashboardWidgets({ data, displayDate, developerMode, developerMet
           onClick={() => setActivePanel("personal")}
           className="col-span-2 col-start-3 row-span-1 flex min-h-0 min-w-0 flex-col overflow-hidden rounded-3xl border border-white/10 bg-[#050A17] p-3 text-left text-slate-100 shadow-[0_18px_44px_rgba(3,7,18,0.28)] transition active:scale-[0.99]"
         >
-          <p className="truncate text-[9px] font-black uppercase tracking-[0.16em] text-[#D4AF37]/70">Personal Reading</p>
+          <p className="truncate text-[9px] font-black uppercase tracking-[0.16em] text-white">今日はどんな日？</p>
           <div className="mt-2 flex items-start justify-between gap-2">
             <p className="line-clamp-2 text-sm font-black leading-5 text-[#D4AF37]">{data.hero?.title}</p>
             <span className="shrink-0 text-3xl font-black leading-none text-[#D4AF37]">{data.hero?.rank || "B"}</span>
           </div>
           <div className="mt-auto grid grid-cols-1 gap-1 text-[10px] font-bold text-slate-300">
             <span className="truncate rounded-full border border-white/10 bg-white/[0.06] px-2 py-1">本日の星模様</span>
-            <span className="truncate rounded-full border border-white/10 bg-white/[0.06] px-2 py-1">あなたの重要ポイント</span>
+            <span className="truncate rounded-full border border-white/10 bg-white/[0.06] px-2 py-1">本日の重要ポイント</span>
           </div>
         </button>
 
@@ -2456,7 +2474,11 @@ function MobileDashboardWidgets({ data, displayDate, developerMode, developerMet
         </button>
       </div>
 
-      <MobileExpandedPanel panel={activePanel ? panels[activePanel] : null} onClose={() => setActivePanel(null)}>
+      <MobileExpandedPanel
+        panel={activePanel ? panels[activePanel] : null}
+        onClose={() => setActivePanel(null)}
+        flush
+      >
         {activePanel === "yearly" ? (
           forecast ? (
             <YearlyForecastGraph forecast={forecast} developerMode={developerMode} hideHeader />
@@ -2527,6 +2549,7 @@ export function Dashboard({ data = dashboardData, embedded = false, developerMod
       data.meta?.reading_date ||
       data.meta?.date
   );
+  const forecast = data.yearly_forecast || data.yearlyForecast || null;
   const handleToggleDeveloperMode = () => {
     const url = new URL(window.location.href);
     if (developerMode) {
@@ -2579,6 +2602,11 @@ export function Dashboard({ data = dashboardData, embedded = false, developerMod
             developerMode={developerMode}
             developerMeta={data.developerMeta || dashboardData.developerMeta}
           />
+          {mobileLayoutMode === "old" && forecast ? (
+            <div className="md:hidden">
+              <YearlyForecastGraph forecast={forecast} developerMode={developerMode} />
+            </div>
+          ) : null}
           <Timeline
             data={data.timeline}
             date={data.timelineDate}

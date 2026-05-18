@@ -9,16 +9,17 @@ const PAD = { top: 52, right: 12, bottom: 46, left: 44 };
 const Y_AXIS_LABEL = "運勢スコア";
 const X_AXIS_LABEL = "日付";
 const SERIES = [
-  { key: "total", label: "総合", color: "#D4AF37" },
+  { key: "total", label: "総合", color: "#4F53B8" },
+  { key: "general", label: "全般・健康", color: "#2F9E68" },
   { key: "work", label: "仕事", color: "#2F6FED" },
-  { key: "love", label: "恋愛", color: "#D84C8B" },
-  { key: "money", label: "金運", color: "#2F9E68" },
+  { key: "love", label: "恋愛・対人", color: "#D84C8B" },
+  { key: "money", label: "お金", color: "#D4AF37" },
 ];
 const DETAIL_SERIES = [
-  { key: "general", label: "一般", color: "#D4AF37" },
+  { key: "general", label: "全般・健康", color: "#2F9E68" },
   { key: "work", label: "仕事", color: "#2F6FED" },
-  { key: "love", label: "恋愛", color: "#D84C8B" },
-  { key: "money", label: "金運", color: "#2F9E68" },
+  { key: "love", label: "恋愛・対人", color: "#D84C8B" },
+  { key: "money", label: "お金", color: "#D4AF37" },
 ];
 const RANGE_OPTIONS = [
   { months: 0.25, label: "1週間", days: 7 },
@@ -61,6 +62,13 @@ function isDeveloperMode() {
 
 function scoreFor(day, key) {
   return Number(day?.scores?.[key] ?? 0);
+}
+
+function formatScore(value) {
+  const score = Number(value) || 0;
+  if (score > 0) return `+${score}`;
+  if (score === 0) return "±0";
+  return String(score);
 }
 
 function chartX(index, count) {
@@ -297,7 +305,10 @@ export function YearlyForecastGraph({ forecast, developerMode = false, hideHeade
   const zeroY = chartY(0);
 
   return (
-    <section className="rounded-[28px] border border-outline-variant/30 bg-white px-0 py-3 shadow-[0_18px_36px_rgba(46,52,45,0.08)] md:p-4">
+    <section className={cx(
+      "bg-white px-0 shadow-[0_18px_36px_rgba(46,52,45,0.08)]",
+      hideHeader ? "min-h-full rounded-none border-0 py-0" : "rounded-[28px] border border-outline-variant/30 py-3 md:p-4"
+    )}>
       <div className={hideHeader ? "hidden" : "mb-4 flex flex-col gap-2 px-3 md:mb-5 md:flex-row md:items-end md:justify-between md:gap-3 md:px-0"}>
         <div>
           <p className="mb-1.5 text-[10px] font-bold uppercase tracking-[0.3em] text-secondary md:mb-2">Yearly Forecast</p>
@@ -323,7 +334,7 @@ export function YearlyForecastGraph({ forecast, developerMode = false, hideHeade
               </button>
             ))}
           </div>
-          <div className="hidden grid-cols-4 gap-1 rounded-full border border-outline-variant/30 bg-white/85 p-1 text-xs text-on-surface-variant shadow-sm md:grid">
+          <div className="hidden grid-cols-5 gap-1 rounded-full border border-outline-variant/30 bg-white/85 p-1 text-xs text-on-surface-variant shadow-sm md:grid">
             {SERIES.map((item) => (
               <span key={item.key} className="inline-flex items-center justify-center gap-2 rounded-full px-3 py-2">
                 <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: item.color }} />
@@ -331,8 +342,14 @@ export function YearlyForecastGraph({ forecast, developerMode = false, hideHeade
               </span>
             ))}
           </div>
-          <div className="w-full rounded-2xl border border-outline-variant/30 bg-white/90 p-3 text-on-surface-variant shadow-sm md:hidden">
-            <div className="mb-2 flex items-center gap-2 text-primary">
+          <div className="relative w-full rounded-2xl border border-outline-variant/30 bg-white/90 p-3 text-on-surface-variant shadow-sm md:hidden">
+            <div className="absolute right-4 top-3 flex items-center gap-2">
+              <span className="text-[10px] font-black text-on-surface-variant">総合スコア</span>
+              <span className="text-2xl font-black leading-none text-[#4F53B8]">
+                {formatScore(scoreFor(selectedDay, "total"))}
+              </span>
+            </div>
+            <div className="mb-3 flex items-center gap-2 pr-28 text-primary">
               <CalendarDatePicker
                 value={selectedDateValue}
                 min={minDateValue}
@@ -342,15 +359,15 @@ export function YearlyForecastGraph({ forecast, developerMode = false, hideHeade
               />
               <p className="text-xs font-bold">{selectedDay.date}</p>
             </div>
-            <div className="grid grid-cols-4 gap-1.5">
-              {SERIES.map((item) => (
-                <div key={item.key} className="min-w-0 rounded-xl bg-[#fbf5df] px-2 py-2 text-center">
-                  <div className="flex items-center justify-center gap-1.5">
-                    <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: item.color }} />
-                    <span className="truncate text-[11px] font-bold">{item.label}</span>
+            <div className="grid grid-cols-2 gap-1.5">
+              {DETAIL_SERIES.map((item) => (
+                <div key={item.key} className="min-w-0 rounded-xl bg-[#fbf5df] px-2 py-1.5 text-center">
+                  <div className="flex items-center justify-center gap-1">
+                    <span className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: item.color }} />
+                    <span className="truncate text-[10px] font-bold">{item.label}</span>
                   </div>
-                  <p className="mt-1 text-lg font-black leading-none" style={{ color: item.color }}>
-                    {scoreFor(selectedDay, item.key)}
+                  <p className="mt-0.5 text-base font-black leading-none" style={{ color: item.color }}>
+                    {formatScore(scoreFor(selectedDay, item.key))}
                   </p>
                 </div>
               ))}
@@ -381,16 +398,32 @@ export function YearlyForecastGraph({ forecast, developerMode = false, hideHeade
             </g>
           ))}
           {SERIES.map((item) => (
-            <path key={item.key} d={buildPath(visibleData, item.key)} fill="none" stroke={item.color} strokeWidth={item.key === "total" ? 3.2 : 2.2} strokeLinecap="round" strokeLinejoin="round" opacity={item.key === "total" ? 1 : 0.82} />
+            <path
+              key={item.key}
+              d={buildPath(visibleData, item.key)}
+              fill="none"
+              stroke={item.color}
+              strokeWidth={item.key === "total" ? 3.4 : 2.2}
+              strokeDasharray={item.key === "total" ? "10 8" : undefined}
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              opacity={item.key === "total" ? 1 : 0.82}
+            />
           ))}
           <line x1={chartX(visibleSelectedIndex, visibleData.length)} x2={chartX(visibleSelectedIndex, visibleData.length)} y1={PAD.top} y2={HEIGHT - PAD.bottom} stroke="#0A192F" strokeWidth="1.5" />
-          <circle cx={chartX(visibleSelectedIndex, visibleData.length)} cy={chartY(scoreFor(selectedDay, "total"))} r="7" fill="#0A192F" />
+          <circle cx={chartX(visibleSelectedIndex, visibleData.length)} cy={chartY(scoreFor(selectedDay, "total"))} r="7" fill="#4F53B8" />
         </svg>
       </div>
 
       <div className="mt-4 grid grid-cols-1 gap-3 md:mt-5 md:gap-4 lg:grid-cols-[0.7fr_1.3fr]">
-        <div className="hidden rounded-2xl border border-outline-variant/30 bg-surface-container-low px-5 py-4 md:block">
-          <div className="mb-3 flex items-center gap-2 text-primary">
+        <div className="relative hidden rounded-2xl border border-outline-variant/30 bg-surface-container-low px-5 py-4 md:block">
+          <div className="absolute right-5 top-4 flex items-center gap-2">
+            <span className="text-[10px] font-black text-on-surface-variant">総合スコア</span>
+            <span className="text-2xl font-black leading-none text-[#4F53B8]">
+              {formatScore(scoreFor(selectedDay, "total"))}
+            </span>
+          </div>
+          <div className="mb-3 flex items-center gap-2 pr-32 text-primary">
             <CalendarDatePicker
               value={selectedDateValue}
               min={minDateValue}
@@ -400,24 +433,20 @@ export function YearlyForecastGraph({ forecast, developerMode = false, hideHeade
             />
             <p className="text-sm font-bold">{selectedDay.date}</p>
           </div>
-          <div className="grid grid-cols-2 gap-3 text-sm">
-            {SERIES.map((item) => (
+          <div className="grid grid-cols-2 gap-2 text-sm">
+            {DETAIL_SERIES.map((item) => (
               <div key={item.key} className="rounded-xl bg-white px-3 py-3">
-                <p className="text-[10px] uppercase tracking-[0.18em] text-on-surface-variant">{item.label}</p>
+                <p className="text-[10px] uppercase tracking-[0.12em] text-on-surface-variant">{item.label}</p>
                 <p className="mt-1 text-xl font-bold" style={{ color: item.color }}>
-                  {scoreFor(selectedDay, item.key)}
+                  {formatScore(scoreFor(selectedDay, item.key))}
                 </p>
               </div>
             ))}
           </div>
         </div>
 
-        <div className="relative rounded-2xl border border-outline-variant/30 bg-white px-5 py-4 pt-28 sm:pt-4">
-          <div className="mb-3 flex items-center gap-2 pr-0 text-primary sm:pr-[29rem]">
-            <Target size={17} />
-            <p className="truncate text-sm font-bold">{selectedEvent?.title || "穏やかな調整日"}</p>
-          </div>
-          <div className="absolute inset-x-5 top-4 flex flex-wrap items-center justify-between gap-2">
+        <div className="relative rounded-2xl border border-outline-variant/30 bg-white px-5 py-4">
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
             <div className="grid grid-cols-2 gap-1 rounded-full border border-outline-variant/30 bg-white/85 p-1 text-[11px] text-on-surface-variant shadow-sm">
               {[
                 ["short", "短期テーマ"],
@@ -436,23 +465,27 @@ export function YearlyForecastGraph({ forecast, developerMode = false, hideHeade
                 </button>
               ))}
             </div>
-            <div className="grid grid-cols-4 gap-1 rounded-full border border-outline-variant/30 bg-white/85 p-1 text-[11px] text-on-surface-variant shadow-sm">
+            <div className="grid grid-cols-4 gap-0.5 rounded-full border border-outline-variant/30 bg-white/85 p-1 text-[10px] text-on-surface-variant shadow-sm sm:gap-1 sm:text-[11px]">
               {DETAIL_SERIES.map((item) => (
                 <button
                   key={item.key}
                   type="button"
                   className={cx(
-                    "inline-flex items-center justify-center gap-1.5 rounded-full px-2.5 py-1.5 font-bold transition-colors",
+                    "inline-flex min-w-0 items-center justify-center gap-1 rounded-full px-1.5 py-1.5 font-bold transition-colors sm:gap-1.5 sm:px-2.5",
                     detailSeries === item.key ? "bg-[#fbf5df] text-primary shadow-sm" : "hover:bg-[#fbf5df]/70"
                   )}
                   onClick={() => setDetailSeries(item.key)}
                   title={`${item.label}の最強アスペクトを表示`}
                 >
                   <span className="h-2 w-2 rounded-full" style={{ backgroundColor: item.color }} />
-                  <span>{item.label}</span>
+                  <span className="whitespace-nowrap">{item.label}</span>
                 </button>
               ))}
             </div>
+          </div>
+          <div className="mb-3 flex items-center gap-2 text-primary">
+            <Target size={17} />
+            <p className="truncate text-sm font-bold">{selectedEvent?.title || "穏やかな調整日"}</p>
           </div>
           {developerMode && selectedAspectLabel ? (
             <p className="mb-2 rounded-xl border border-outline-variant/30 bg-surface-container-low px-3 py-2 text-xs font-bold leading-5 text-primary">
