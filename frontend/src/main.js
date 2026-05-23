@@ -1,4 +1,4 @@
-import { storeReadingResult } from "./reading-storage.js";
+import { FORM_STORAGE_KEY, storeReadingResult } from "./reading-storage.js";
 
 function resolveApiBaseUrl() {
   const configured = String(__APP_API_BASE_URL__ || "").trim();
@@ -38,7 +38,6 @@ const latitudeInput = form.querySelector('input[name="latitude"]');
 const longitudeInput = form.querySelector('input[name="longitude"]');
 const timezoneOffsetInput = form.querySelector('input[name="timezone_offset"]');
 const numericInputs = [latitudeInput, longitudeInput, timezoneOffsetInput];
-const FORM_STORAGE_KEY = "celestial-atelier:last-reading-form";
 
 function roundCoordinate(value) {
   return Number(value).toFixed(4);
@@ -125,13 +124,6 @@ function collectFormSnapshot() {
     timezone_offset: timezoneOffsetInput.value || "",
     timezone_name: form.dataset.timezoneName || "",
   };
-}
-
-function localIsoDate(value = new Date()) {
-  const year = value.getFullYear();
-  const month = String(value.getMonth() + 1).padStart(2, "0");
-  const day = String(value.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
 }
 
 function normalizeBirthDateInput(value) {
@@ -555,7 +547,6 @@ form.addEventListener("submit", async (event) => {
       postJson("/api/readings", payload),
       postJson("/api/yearly-forecast", payload),
     ]);
-    yearlyForecast.reading_date = localIsoDate();
     data.yearly_forecast = yearlyForecast;
 
     storeReadingResult(data);

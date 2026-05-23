@@ -1,5 +1,6 @@
 ﻿import React, { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
+import { YearlyForecastGraph } from "./yearly-forecast.jsx";
 import {
   BatteryMedium,
   BriefcaseBusiness,
@@ -3291,7 +3292,7 @@ function DashboardV2YearlyCard({ forecast, developerMode }) {
   ];
 
   return (
-    <DashboardV2Card className="h-[784px]" bodyClassName="p-5">
+    <DashboardV2Card className="min-h-[784px] md:h-[784px]" bodyClassName="p-5">
       {chartData.length ? (
         <div className="space-y-4">
           <div className="grid items-start gap-4 md:grid-cols-[1fr_auto]">
@@ -3495,7 +3496,7 @@ function DashboardLegacy({ data = dashboardData, embedded = false, developerMode
           />
           {mobileLayoutMode === "old" && forecast ? (
             <div className="md:hidden">
-              <DashboardV2YearlyCard forecast={forecast} developerMode={developerMode} />
+              <YearlyForecastGraph forecast={forecast} developerMode={developerMode} />
             </div>
           ) : null}
           <Timeline
