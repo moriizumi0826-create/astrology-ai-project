@@ -221,7 +221,7 @@ function OraclePanel({ stats, forecast }) {
   ];
   return (
     <div className="h-full">
-      <GlassPanel className="h-full min-h-[760px] overflow-hidden p-7">
+      <GlassPanel className="flex h-full max-h-[calc(100svh-120px)] min-h-[760px] flex-col overflow-hidden p-7 lg:max-h-none">
         <div className="flex items-center justify-between gap-4">
           <h2 className="font-serif text-3xl font-semibold text-starlight">
             {analysisMode === "theme" ? "Theme" : "Deep Analysis"}
@@ -247,7 +247,7 @@ function OraclePanel({ stats, forecast }) {
         </div>
         <div className="mt-5 h-px bg-white/10" />
         {analysisMode === "theme" ? (
-          <div className="mt-8 grid gap-8">
+          <div className="mt-8 grid min-h-0 flex-1 gap-8 overflow-y-auto pr-2 [scrollbar-color:#e9c349_rgba(255,255,255,0.08)] [scrollbar-width:thin] lg:overflow-visible lg:pr-0">
             {(themeItems.length ? themeItems : fallbackThemeItems).map((item) => (
               <article key={item.label} className="relative pl-8">
                 <span className="absolute left-0 top-1.5 h-3 w-3 rounded-full shadow-[0_0_18px_currentColor]" style={{ color: item.color, backgroundColor: item.color }} />
