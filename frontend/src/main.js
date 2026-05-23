@@ -549,7 +549,7 @@ form.addEventListener("submit", async (event) => {
     ]);
     data.yearly_forecast = yearlyForecast;
 
-    storeReadingResult(data);
+    await storeReadingResult(data);
     persistFormData(collectFormSnapshot());
     window.location.href = "/results.html";
   } catch (error) {

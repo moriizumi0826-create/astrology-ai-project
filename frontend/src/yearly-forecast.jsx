@@ -1,7 +1,7 @@
-import React, { useMemo, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { CalendarDays, CircleDot, Target } from "lucide-react";
-import { getStoredReadingResult } from "./reading-storage.js";
+import { getStoredReadingResult, getStoredReadingResultAsync } from "./reading-storage.js";
 
 const WIDTH = 1200;
 const HEIGHT = 380;
@@ -50,6 +50,23 @@ function cx(...values) {
 
 function getYearlyForecast() {
   return getStoredReadingResult()?.yearly_forecast || null;
+}
+
+function StoredYearlyForecast({ developerMode = false }) {
+  const [forecast, setForecast] = useState(() => getYearlyForecast());
+  useEffect(() => {
+    let active = true;
+    getStoredReadingResultAsync({ allowStale: true }).then((payload) => {
+      const indexedForecast = payload?.yearly_forecast || payload?.yearlyForecast || null;
+      if (active && indexedForecast) {
+        setForecast(indexedForecast);
+      }
+    });
+    return () => {
+      active = false;
+    };
+  }, []);
+  return <YearlyForecastGraph forecast={forecast} developerMode={developerMode} />;
 }
 
 function isDeveloperMode() {
@@ -519,7 +536,7 @@ const mountNode = document.getElementById("yearly-forecast");
 if (mountNode) {
   createRoot(mountNode).render(
     <React.StrictMode>
-      <YearlyForecastGraph forecast={getYearlyForecast()} developerMode={isDeveloperMode()} />
+      <StoredYearlyForecast developerMode={isDeveloperMode()} />
     </React.StrictMode>
   );
 }

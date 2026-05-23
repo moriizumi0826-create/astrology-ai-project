@@ -4,6 +4,7 @@ import { Dashboard } from "./dashboard-shared.jsx";
 import {
   getStoredReadingForm,
   getStoredReadingResult,
+  getStoredReadingResultAsync,
   isStoredResultFresh,
   storeReadingResult,
 } from "./reading-storage.js";
@@ -60,7 +61,7 @@ function getDashboardData() {
 }
 
 async function refreshDailyDashboardIfNeeded() {
-  const payload = getStoredReadingResult({ allowStale: true });
+  const payload = await getStoredReadingResultAsync({ allowStale: true });
   if (!payload || isStoredResultFresh(payload)) {
     return payload;
   }
@@ -75,7 +76,7 @@ async function refreshDailyDashboardIfNeeded() {
     ...refreshed,
     yearly_forecast: payload.yearly_forecast || payload.yearlyForecast || refreshed.yearly_forecast || null,
   };
-  storeReadingResult(merged);
+  await storeReadingResult(merged);
   return merged;
 }
 
@@ -109,7 +110,14 @@ function renderDashboard(data) {
 
 renderDashboard(getDashboardData());
 
-refreshDailyDashboardIfNeeded()
+getStoredReadingResultAsync({ allowStale: true })
+  .then((payload) => {
+    const data = dashboardDataFromPayload(payload);
+    if (data) {
+      renderDashboard(data);
+    }
+    return refreshDailyDashboardIfNeeded();
+  })
   .then((payload) => {
     const data = dashboardDataFromPayload(payload);
     if (data) {

@@ -136,7 +136,7 @@ function renderReadings(payload) {
 }
 
 function restoreLatestResult() {
-  const payload = getStoredReadingResult();
+  const payload = getStoredReadingResult({ allowStale: true });
   if (!payload) {
     setError("表示できる鑑定結果がありません。入力ページからもう一度お試しください。");
     return;

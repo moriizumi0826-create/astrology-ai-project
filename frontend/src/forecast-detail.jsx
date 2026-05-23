@@ -1,7 +1,7 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { Bell, CircleDot, Shield, Sparkles, Star } from "lucide-react";
-import { getStoredReadingResult } from "./reading-storage.js";
+import { getStoredReadingResult, getStoredReadingResultAsync } from "./reading-storage.js";
 
 const MONTHS = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"];
 const SCORE_KEYS = [
@@ -469,7 +469,19 @@ function FooterStats({ stats }) {
 }
 
 function ForecastDetailPage() {
-  const forecast = getForecast() || demoForecast();
+  const [forecast, setForecast] = useState(() => getForecast() || demoForecast());
+  useEffect(() => {
+    let active = true;
+    getStoredReadingResultAsync({ allowStale: true }).then((payload) => {
+      const indexedForecast = payload?.yearly_forecast || payload?.yearlyForecast || null;
+      if (active && indexedForecast) {
+        setForecast(indexedForecast);
+      }
+    });
+    return () => {
+      active = false;
+    };
+  }, []);
   const data = useMemo(() => monthlyData(forecast), [forecast]);
   const stats = useMemo(() => aggregateStats(data), [data]);
   const [selectedSeriesKey, setSelectedSeriesKey] = useState("general");
