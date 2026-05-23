@@ -22,6 +22,7 @@ export default defineConfig(({ mode }) => {
           main: path.resolve(__dirname, "index.html"),
           results: path.resolve(__dirname, "results.html"),
           dashboard: path.resolve(__dirname, "dashboard.html"),
+          forecastDetail: path.resolve(__dirname, "forecast-detail.html"),
         },
       },
     },

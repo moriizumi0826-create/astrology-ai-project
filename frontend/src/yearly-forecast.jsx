@@ -416,28 +416,33 @@ export function YearlyForecastGraph({ forecast, developerMode = false, hideHeade
       </div>
 
       <div className="mt-4 grid grid-cols-1 gap-3 md:mt-5 md:gap-4 lg:grid-cols-[0.7fr_1.3fr]">
-        <div className="relative hidden rounded-2xl border border-outline-variant/30 bg-surface-container-low px-5 py-4 md:block">
-          <div className="absolute right-5 top-4 flex items-center gap-2">
-            <span className="text-[10px] font-black text-on-surface-variant">総合スコア</span>
-            <span className="text-2xl font-black leading-none text-[#4F53B8]">
-              {formatScore(scoreFor(selectedDay, "total"))}
-            </span>
-          </div>
-          <div className="mb-3 flex items-center gap-2 pr-32 text-primary">
-            <CalendarDatePicker
-              value={selectedDateValue}
-              min={minDateValue}
-              max={maxDateValue}
-              onChange={handleDateSelect}
-              size={17}
-            />
-            <p className="text-sm font-bold">{selectedDay.date}</p>
+        <div className="hidden rounded-2xl border border-outline-variant/30 bg-surface-container-low px-5 py-4 md:block">
+          <div className="mb-4 flex items-center justify-between gap-4">
+            <div className="flex min-w-0 items-center gap-2 text-primary">
+              <CalendarDatePicker
+                value={selectedDateValue}
+                min={minDateValue}
+                max={maxDateValue}
+                onChange={handleDateSelect}
+                size={17}
+              />
+              <p className="truncate text-sm font-bold">{selectedDay.date}</p>
+            </div>
+            <div className="flex shrink-0 items-baseline gap-2">
+              <span className="text-[10px] font-black text-on-surface-variant">総合スコア</span>
+              <span className="text-2xl font-black leading-none text-[#4F53B8]">
+                {formatScore(scoreFor(selectedDay, "total"))}
+              </span>
+            </div>
           </div>
           <div className="grid grid-cols-2 gap-2 text-sm">
             {DETAIL_SERIES.map((item) => (
-              <div key={item.key} className="rounded-xl bg-white px-3 py-3">
-                <p className="text-[10px] uppercase tracking-[0.12em] text-on-surface-variant">{item.label}</p>
-                <p className="mt-1 text-xl font-bold" style={{ color: item.color }}>
+              <div key={item.key} className="min-h-[82px] rounded-xl bg-white px-3 py-3">
+                <div className="flex items-center gap-1.5">
+                  <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: item.color }} />
+                  <p className="truncate text-[10px] font-black text-on-surface-variant">{item.label}</p>
+                </div>
+                <p className="mt-2 text-2xl font-black leading-none" style={{ color: item.color }}>
                   {formatScore(scoreFor(selectedDay, item.key))}
                 </p>
               </div>

@@ -1,6 +1,5 @@
 ﻿import React, { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
-import { YearlyForecastGraph } from "./yearly-forecast.jsx";
 import {
   BatteryMedium,
   BriefcaseBusiness,
@@ -11,8 +10,10 @@ import {
   Code2,
   Gauge,
   History,
+  Moon,
   Shield,
   Sparkles,
+  Settings,
   UserCircle2,
   X,
 } from "lucide-react";
@@ -2295,7 +2296,7 @@ function MobileDashboardWidgets({ data, displayDate, developerMode, developerMet
       ? diagnostic.items.slice(0, 3)
       : dashboardData.diagnostic.items.slice(0, 3);
   const panels = {
-    yearly: { title: "2026運勢シミュレーション", eyebrow: "Yearly Forecast" },
+    yearly: { title: "2026運勢シミュレーション", eyebrow: "Annual Score" },
     personal: { title: "Personal Reading", eyebrow: displayDate || "Today Overview" },
     logic: { title: "ロジック安定指標", eyebrow: "Diagnostic" },
     countdown: { title: "カウントダウン", eyebrow: "Countdown" },
@@ -2481,7 +2482,7 @@ function MobileDashboardWidgets({ data, displayDate, developerMode, developerMet
       >
         {activePanel === "yearly" ? (
           forecast ? (
-            <YearlyForecastGraph forecast={forecast} developerMode={developerMode} hideHeader />
+            <DashboardV2YearlyCard forecast={forecast} developerMode={developerMode} />
           ) : (
             <div className="rounded-3xl border border-slate-200 bg-white p-6 text-sm font-bold text-slate-500">
               年運データがありません
@@ -2533,7 +2534,897 @@ function MobileDashboardWidgets({ data, displayDate, developerMode, developerMet
   );
 }
 
-export function Dashboard({ data = dashboardData, embedded = false, developerMode = false }) {
+function isDashboardLegacyRequested() {
+  if (typeof window === "undefined") return false;
+  try {
+    const dashboardMode = new URL(window.location.href).searchParams.get("dashboard");
+    return dashboardMode === "legacy" || dashboardMode === "old";
+  } catch {
+    return false;
+  }
+}
+
+function DashboardV2Card({ title, eyebrow, children, className = "", bodyClassName = "" }) {
+  return (
+    <section className={cx(
+      "overflow-hidden rounded-2xl border border-[#e9c349]/22 bg-[#1a1c1c]/54 shadow-[0_0_34px_rgba(0,0,0,0.28)] backdrop-blur-xl transition hover:border-[#e9c349]/45 hover:shadow-[0_0_18px_rgba(233,195,73,0.12)]",
+      className
+    )}>
+      {(eyebrow || title) ? (
+        <div className="px-5 pb-2 pt-5">
+          {eyebrow ? <p className="font-mono text-[11px] font-black uppercase tracking-[0.28em] text-[#e9c349]">{eyebrow}</p> : null}
+          {title ? <h2 className="mt-2 font-notoSerif text-2xl font-semibold leading-tight text-[#f3f3f0]">{title}</h2> : null}
+        </div>
+      ) : null}
+      <div className={cx("p-5", bodyClassName)}>
+        {children}
+      </div>
+    </section>
+  );
+}
+
+function DashboardV2Header({ data, displayDate, score }) {
+  const navItems = ["Dashboard", "Horoscope"];
+  const utilityItems = ["詳細レポート", "History", "My Page", "Plan", "逆行カレンダー"];
+  const handleOpenLegacy = () => {
+    const url = new URL(window.location.href);
+    url.searchParams.set("dashboard", "legacy");
+    window.location.href = url.toString();
+  };
+  return (
+    <header className="sticky top-0 z-40 border-b border-slate-200/90 bg-[#f8fafc]/95 backdrop-blur-xl">
+      <div className="mx-auto flex max-w-[1440px] flex-col gap-2 px-5 py-2 lg:flex-row lg:items-center lg:justify-between lg:px-14">
+        <div className="flex min-w-0 flex-wrap items-center gap-6 lg:gap-10">
+          <div className="flex min-w-0 items-center gap-3">
+            <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl text-[#123A63]">
+              <Sparkles size={20} />
+            </span>
+            <p className="font-notoSerif text-2xl font-black tracking-tight text-[#123A63]">
+              The Celestial Atelier
+            </p>
+          </div>
+          <nav className="flex items-center gap-6 overflow-x-auto font-mono text-xs font-black text-slate-500">
+            {navItems.map((item, index) => (
+              <button
+                key={item}
+                type="button"
+                className={cx(
+                  "shrink-0 border-b-2 pb-1 transition",
+                  index === 0 ? "border-[#D4AF37] text-[#0A192F]" : "border-transparent hover:border-[#D4AF37]/60 hover:text-[#D4AF37]"
+                )}
+              >
+                {item}
+              </button>
+            ))}
+          </nav>
+        </div>
+        <div className="flex flex-wrap items-center gap-3">
+          <button
+            type="button"
+            className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 bg-white text-[#0A192F] transition hover:border-[#D4AF37] hover:text-[#D4AF37]"
+            aria-label="Settings"
+          >
+            <Settings size={18} />
+          </button>
+          <div className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-2 font-mono text-xs font-black text-[#0A192F]">
+            <Clock3 size={15} />
+            <span>{displayDate}</span>
+          </div>
+          <div className="inline-flex items-center gap-2 rounded-full border border-[#D4AF37]/30 bg-[#fff7df] px-3 py-2">
+            <span className="font-mono text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">Score</span>
+            <span className="text-base font-black leading-none text-[#0A192F]">{formatYearlyScore(score)}</span>
+          </div>
+          <nav className="hidden items-center gap-2 2xl:flex">
+            {utilityItems.map((item) => (
+              <button
+                key={item}
+                type="button"
+                className="rounded-full border border-slate-200 bg-white px-3 py-2 font-mono text-xs font-bold text-[#0A192F] transition hover:border-[#D4AF37] hover:text-[#D4AF37]"
+              >
+                {item}
+              </button>
+            ))}
+          </nav>
+          <button
+            type="button"
+            className="rounded-full border border-slate-200 bg-white px-3 py-2 font-mono text-xs font-bold text-[#0A192F] 2xl:hidden"
+          >
+            Menu
+          </button>
+          <div className="hidden items-center gap-3 pl-1 font-mono text-xs font-black uppercase tracking-[0.18em] text-[#0A192F] sm:flex">
+            <span>Profile</span>
+            <span className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 bg-white text-[#0A192F]">
+              <UserCircle2 size={20} />
+            </span>
+          </div>
+          <button
+            type="button"
+            onClick={handleOpenLegacy}
+            className="rounded-full border border-[#D4AF37]/30 bg-[#fff7df] px-3 py-2 font-mono text-xs font-bold text-[#0A192F] transition hover:border-[#D4AF37] hover:text-[#D4AF37]"
+          >
+            旧UI
+          </button>
+        </div>
+      </div>
+    </header>
+  );
+}
+
+function DashboardV2PersonalCard({ data }) {
+  const [personalReadingTab, setPersonalReadingTab] = useState("daily");
+  const [selectedHighlightKey, setSelectedHighlightKey] = useState("positive");
+  const summaryScrollerRef = React.useRef(null);
+  const summaryTrackRef = React.useRef(null);
+  const [isSummaryDragging, setIsSummaryDragging] = useState(false);
+  const [summaryScrollRatio, setSummaryScrollRatio] = useState(0);
+  const displayDate = data.meta?.date || data.readingDate || "2026.05.20";
+  const dailyStarVibe = String(data.hero?.dailyStarVibe || data.hero?.daily_star_vibe || "").trim();
+  const summaryText = dailyStarVibe || "本日の星模様を表示できません。";
+  const aspectHighlights =
+    data.hero?.aspectHighlights ||
+    data.hero?.aspect_highlights ||
+    data.aspectHighlights ||
+    data.aspect_highlights ||
+    {};
+  const positiveHighlights = Array.isArray(aspectHighlights.positive) ? aspectHighlights.positive.slice(0, 2) : [];
+  const negativeHighlights = Array.isArray(aspectHighlights.negative) ? aspectHighlights.negative.slice(0, 2) : [];
+  const highlightGroups = [
+    {
+      key: "positive",
+      label: "追い風",
+      items: positiveHighlights,
+      className: "border-sky-300/35 bg-sky-300/10 text-sky-200",
+      scoreClass: "text-sky-200",
+    },
+    {
+      key: "negative",
+      label: "負荷・消耗注意",
+      items: negativeHighlights,
+      className: "border-rose-300/30 bg-rose-300/10 text-rose-200",
+      scoreClass: "text-rose-200",
+    },
+  ];
+  const selectedHighlightGroup = highlightGroups.find((group) => group.key === selectedHighlightKey) || highlightGroups[0];
+  const handleSummaryScroll = () => {
+    const scroller = summaryScrollerRef.current;
+    if (!scroller) return;
+    const maxScroll = scroller.scrollHeight - scroller.clientHeight;
+    setSummaryScrollRatio(maxScroll > 0 ? scroller.scrollTop / maxScroll : 0);
+  };
+  const handleSummaryTrackClick = (event) => {
+    const scroller = summaryScrollerRef.current;
+    if (!scroller) return;
+    const maxScroll = scroller.scrollHeight - scroller.clientHeight;
+    if (maxScroll <= 0) return;
+    const rect = (summaryTrackRef.current || event.currentTarget).getBoundingClientRect();
+    const ratio = Math.max(0, Math.min(1, (event.clientY - rect.top) / rect.height));
+    scroller.scrollTop = ratio * maxScroll;
+    setSummaryScrollRatio(ratio);
+  };
+  const handleSummaryTrackPointerMove = (event) => {
+    if (!isSummaryDragging) return;
+    handleSummaryTrackClick(event);
+  };
+  const handleSummaryTrackPointerUp = (event) => {
+    if (!isSummaryDragging) return;
+    handleSummaryTrackClick(event);
+    setIsSummaryDragging(false);
+    event.currentTarget.releasePointerCapture?.(event.pointerId);
+  };
+  return (
+    <DashboardV2Card className="h-[330px]" bodyClassName="p-5">
+      <div className="flex items-start justify-between gap-6">
+        <div className="min-w-0 flex-1">
+          <div>
+            <div>
+              <h2 className="font-notoSerif text-xl font-semibold text-[#e9c349]">今日の洞察</h2>
+            </div>
+            <div className="mt-2 flex items-center gap-3 font-mono text-[10px] font-black uppercase leading-4 tracking-[0.14em] text-[#909096]">
+              <p>Today's Insight</p>
+              <div className="flex items-center gap-1.5">
+                <button type="button" className="inline-flex h-4 w-4 items-center justify-center rounded-full border border-[#e9c349]/35 text-[#e9c349]">
+                  <ChevronLeft size={9} />
+                </button>
+                <p>{displayDate}</p>
+                <button type="button" className="inline-flex h-4 w-4 items-center justify-center rounded-full border border-[#e9c349]/35 text-[#e9c349]">
+                  <ChevronRight size={9} />
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div className="text-right text-[#e9c349]">
+          <Moon size={34} strokeWidth={1.8} className="ml-auto" />
+          <p className="mt-2 font-mono text-xs font-black">Waxing Gibbous</p>
+        </div>
+      </div>
+
+      <div className="mt-2 flex border-b border-white/10 font-mono text-[11px] font-black">
+        {[
+          ["daily", "本日の空模様"],
+          ["personal", "重要ポイント"],
+        ].map(([value, label]) => (
+          <button
+            key={value}
+            type="button"
+            onClick={() => {
+              setPersonalReadingTab(value);
+              if (value === "personal") setSelectedHighlightKey("positive");
+            }}
+            className={cx(
+              "px-0 pb-2 pr-6 transition",
+              personalReadingTab === value ? "border-b-2 border-[#e9c349] text-[#e9c349]" : "text-[#909096] hover:text-[#e2e2e2]"
+            )}
+          >
+            {label}
+          </button>
+        ))}
+        {personalReadingTab === "personal" ? (
+          <div className="flex items-start gap-2 pb-2">
+            {highlightGroups.map((group) => (
+              <button
+                key={group.key}
+                type="button"
+                onClick={() => setSelectedHighlightKey(group.key)}
+                className={cx(
+                  "rounded-full border px-2.5 py-1 transition",
+                  selectedHighlightKey === group.key ? group.className : "border-white/10 bg-white/[0.03] text-[#909096] hover:text-[#e2e2e2]"
+                )}
+              >
+                ▶{group.label}
+              </button>
+            ))}
+          </div>
+        ) : null}
+      </div>
+
+      {personalReadingTab === "daily" ? (
+        <div className="flex min-h-[204px] flex-col">
+          <div className="mt-4 flex max-h-[122px]">
+            <div
+              ref={summaryTrackRef}
+              className="relative w-1 shrink-0 cursor-pointer overflow-hidden rounded-full bg-[#3c3420]"
+              onClick={handleSummaryTrackClick}
+              onPointerDown={(event) => {
+                setIsSummaryDragging(true);
+                event.currentTarget.setPointerCapture?.(event.pointerId);
+                handleSummaryTrackClick(event);
+              }}
+              onPointerMove={handleSummaryTrackPointerMove}
+              onPointerUp={handleSummaryTrackPointerUp}
+              onPointerCancel={() => setIsSummaryDragging(false)}
+              onWheel={(event) => {
+                const scroller = summaryScrollerRef.current;
+                if (scroller) scroller.scrollTop += event.deltaY;
+              }}
+              role="presentation"
+            >
+              <span
+                className="absolute left-0 top-0 block w-full rounded-full bg-[#e9c349]/70"
+                style={{
+                  height: "38%",
+                  transform: `translateY(${summaryScrollRatio * 164}%)`,
+                }}
+              />
+            </div>
+            <blockquote
+              ref={summaryScrollerRef}
+              onScroll={handleSummaryScroll}
+              className="max-h-[122px] overflow-y-auto pl-5 pr-2 font-notoSerif text-sm font-semibold leading-[1.55] text-[#f3f3f0] [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden md:text-base"
+            >
+              {summaryText}
+            </blockquote>
+          </div>
+
+          <div className="mt-auto grid gap-2 pt-3 text-[11px] font-bold leading-5 text-[#e2e2e2]">
+            <div className="flex items-start gap-4">
+              <Sparkles size={17} className="mt-1 shrink-0 text-[#e9c349]" />
+              <span className="line-clamp-1">-</span>
+            </div>
+            <div className="flex items-start gap-4">
+              <Sparkles size={17} className="mt-1 shrink-0 text-[#e9c349]" />
+              <span className="line-clamp-1">-</span>
+            </div>
+          </div>
+        </div>
+      ) : (
+        <div className="mt-4 grid gap-2 overflow-y-auto pr-1 text-[11px] font-bold leading-5 text-[#e2e2e2]" style={{ maxHeight: 160 }}>
+          {selectedHighlightGroup.items.length ? (
+            selectedHighlightGroup.items.map((item, index) => {
+              const score = Number(item.score || 0);
+              return (
+                <article key={`${selectedHighlightGroup.key}-${item.label || index}`} className="rounded-lg border border-white/10 bg-[#0d0e0f]/55 p-2">
+                  <div className="flex items-start justify-between gap-2">
+                    <p className="min-w-0 text-[11px] font-bold leading-5 text-[#e2e2e2]">
+                      {index + 1}. {item.label || "アスペクト"}
+                    </p>
+                    <span className={cx("shrink-0 text-xs font-black", selectedHighlightGroup.scoreClass)}>
+                      {score > 0 ? "+" : ""}
+                      {score}
+                    </span>
+                  </div>
+                  {item.description ? <p className="mt-1 line-clamp-2 text-[11px] font-medium leading-5 text-[#c7c6cc]">{item.description}</p> : null}
+                  {item.advisedTask ? <p className="mt-1 line-clamp-1 border-l border-white/10 pl-2 text-[10px] leading-5 text-[#909096]">{item.advisedTask}</p> : null}
+                </article>
+              );
+            })
+          ) : (
+            <p className="rounded-lg border border-white/10 bg-[#0d0e0f]/55 p-2 text-[11px] leading-5 text-[#909096]">
+              {selectedHighlightGroup.key === "positive" ? "追い風に該当するアスペクトなし" : "負荷・消耗注意に該当するアスペクトなし"}
+            </p>
+          )}
+        </div>
+      )}
+    </DashboardV2Card>
+  );
+}
+
+function DashboardV2CountdownCard({ data }) {
+  const groups = data.countdown_groups || {};
+  const candidates = [
+    ...(Array.isArray(groups.short) ? groups.short : []),
+    ...(Array.isArray(groups.long) ? groups.long : []),
+    ...(data.countdown ? [data.countdown] : []),
+    ...(Array.isArray(data.countdown_items) ? data.countdown_items : []),
+  ].filter((item) => item && !isTransitMoonCountdown(item));
+  const slide = candidates[0] || {};
+  const days = Number(slide.days_remaining ?? slide.daysLeft ?? 0);
+  const title = slide.title || slide.countdown_label || "カウントダウン";
+  return (
+    <DashboardV2Card className="h-[185px]" bodyClassName="p-5">
+      <div className="flex h-full flex-col justify-between">
+        <div>
+          <p className="font-mono text-xs font-black uppercase tracking-[0.28em] text-[#e9c349]">Next Stellar Event</p>
+          <div className="mt-3 grid grid-cols-[1fr_auto] items-end gap-4">
+            <div>
+              <p className="line-clamp-2 font-notoSerif text-lg font-black leading-tight text-[#f3f3f0]">{title}</p>
+              <p className="mt-1 text-xs text-[#c7c6cc]">Current transit focus</p>
+            </div>
+            <p className="font-mono text-xl font-black leading-none text-[#e9c349]">{Number.isFinite(days) ? days : 0}日</p>
+          </div>
+        </div>
+        <div className="mt-4 h-px bg-[#e9c349]/25" />
+        <p className="mt-2 line-clamp-1 text-[11px] font-bold leading-5 text-[#e2e2e2]">
+          {slide.note || data.countdown?.note || "次の流れに備えて、いま整えるべき行動を絞り込みます。"}
+        </p>
+        <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-white/10">
+          <div className="h-full rounded-full bg-[#e9c349]" style={{ width: `${Math.max(8, Math.min(100, 100 - Math.max(0, days) * 8))}%` }} />
+        </div>
+      </div>
+    </DashboardV2Card>
+  );
+}
+
+function DashboardV2DailyFlowCard({ data }) {
+  const [hoveredPerformanceIndex, setHoveredPerformanceIndex] = useState(null);
+  const performanceData = Array.isArray(data.dailyPerformance)
+    ? data.dailyPerformance
+    : Array.isArray(data.daily_performance)
+      ? data.daily_performance
+      : [];
+  const dailyPerformanceHourOrder = [6, 9, 12, 15, 18, 21, 0, 3];
+  const dailyPerformanceOrderIndex = new Map(dailyPerformanceHourOrder.map((hour, index) => [hour, index]));
+  const fallbackPerformance = [
+    { time: "06:00", drive: 40, flow: 47, inspiration: 38, friction: 28, marsActivity: 14 },
+    { time: "09:00", drive: 58, flow: 62, inspiration: 45, friction: 46, marsActivity: 36 },
+    { time: "12:00", drive: 63, flow: 58, inspiration: 52, friction: 31, marsActivity: 24 },
+    { time: "15:00", drive: 56, flow: 66, inspiration: 61, friction: 54, marsActivity: 42 },
+    { time: "18:00", drive: 70, flow: 60, inspiration: 57, friction: 36, marsActivity: 30 },
+    { time: "21:00", drive: 64, flow: 68, inspiration: 49, friction: 42, marsActivity: 34 },
+    { time: "00:00", drive: 34, flow: 44, inspiration: 55, friction: 22, marsActivity: 12 },
+    { time: "03:00", drive: 45, flow: 51, inspiration: 48, friction: 34, marsActivity: 18 },
+  ];
+  const chartPerformance = (performanceData.length ? performanceData : fallbackPerformance)
+    .slice()
+    .sort((a, b) => {
+      const aHour = Number(a.hour ?? String(a.time || "00:00").slice(0, 2));
+      const bHour = Number(b.hour ?? String(b.time || "00:00").slice(0, 2));
+      return (dailyPerformanceOrderIndex.get(aHour) ?? 99) - (dailyPerformanceOrderIndex.get(bHour) ?? 99);
+    });
+  const focusPoints = chartPerformance.map((point) => Number(point.drive ?? 0));
+  const flowPoints = chartPerformance.map((point) => Number(point.flow ?? 0));
+  const inspirationPoints = chartPerformance.map((point) => Number(point.inspiration ?? 0));
+  const hazardPoints = chartPerformance.map((point) => Number(point.friction ?? 0));
+  const marsActivityPoints = chartPerformance.map((point) => Number(point.marsActivity ?? 0));
+  const width = 720;
+  const height = 160;
+  const pad = 8;
+  const currentDate = new Date();
+  const currentHour = currentDate.getHours() + currentDate.getMinutes() / 60;
+  const shiftedCurrentHour = currentHour < 6 ? currentHour + 24 : currentHour;
+  const currentX = pad + (Math.max(0, Math.min(24, shiftedCurrentHour - 6)) / 24) * (width - pad * 2);
+  const pointsFor = (values, direction = "positive") => values
+    .map((value, index) => {
+      const x = pad + (index / Math.max(1, values.length - 1)) * (width - pad * 2);
+      const range = height - pad * 2;
+      const normalized = Math.max(0, Math.min(100, Number(value || 0))) / 100;
+      const y = direction === "negative"
+        ? height - pad - normalized * range
+        : height - pad - normalized * range;
+      return { x, y };
+    });
+  const smoothPathFor = (values, direction = "positive") => {
+    const curvePoints = pointsFor(values, direction);
+    if (!curvePoints.length) return "";
+    if (curvePoints.length === 1) return `M ${curvePoints[0].x.toFixed(1)} ${curvePoints[0].y.toFixed(1)}`;
+    const commands = [`M ${curvePoints[0].x.toFixed(1)} ${curvePoints[0].y.toFixed(1)}`];
+    for (let index = 0; index < curvePoints.length - 1; index += 1) {
+      const current = curvePoints[index];
+      const next = curvePoints[index + 1];
+      const controlX = (current.x + next.x) / 2;
+      commands.push(
+        `C ${controlX.toFixed(1)} ${current.y.toFixed(1)}, ${controlX.toFixed(1)} ${next.y.toFixed(1)}, ${next.x.toFixed(1)} ${next.y.toFixed(1)}`
+      );
+    }
+    return commands.join(" ");
+  };
+  const marsAreaPoints = pointsFor(marsActivityPoints);
+  const marsAreaPath = marsAreaPoints.length
+    ? `${smoothPathFor(marsActivityPoints)} L ${width - pad} ${height - pad} L ${pad} ${height - pad} Z`
+    : "";
+  const focusPath = smoothPathFor(focusPoints);
+  const flowPath = smoothPathFor(flowPoints);
+  const inspirationPath = smoothPathFor(inspirationPoints);
+  const hazardPath = smoothPathFor(hazardPoints);
+  const hoveredPerformance = Number.isInteger(hoveredPerformanceIndex)
+    ? chartPerformance[hoveredPerformanceIndex]
+    : null;
+  const hoveredX = Number.isInteger(hoveredPerformanceIndex)
+    ? pad + (hoveredPerformanceIndex / Math.max(1, chartPerformance.length - 1)) * (width - pad * 2)
+    : null;
+  const hoveredTooltipLeft = hoveredX === null ? 0 : `${(hoveredX / width) * 100}%`;
+  const handlePerformancePointerMove = (event) => {
+    const bounds = event.currentTarget.getBoundingClientRect();
+    const svgX = ((event.clientX - bounds.left) / bounds.width) * width;
+    const ratio = Math.max(0, Math.min(1, (svgX - pad) / Math.max(1, width - pad * 2)));
+    const index = Math.round(ratio * Math.max(0, chartPerformance.length - 1));
+    setHoveredPerformanceIndex(index);
+  };
+  return (
+    <DashboardV2Card className="h-[245px]" bodyClassName="!px-3 !pb-1 !pt-2">
+      <div className="mb-1 flex items-center justify-between gap-3">
+        <div className="group relative flex items-center gap-2">
+          <h2 className="font-sans text-base font-black tracking-tight text-[#f3f3f0]">デイリーパフォーマンス</h2>
+          <span className="inline-flex h-4 w-4 items-center justify-center rounded-full border border-[#e9c349]/35 font-mono text-[10px] text-[#e9c349]">i</span>
+          <span className="pointer-events-none absolute left-0 top-7 z-20 w-[280px] rounded-xl border border-[#e9c349]/25 bg-[#0d0e0f]/95 px-3 py-2 text-[11px] font-bold leading-5 text-[#e2e2e2] opacity-0 shadow-xl transition group-hover:opacity-100">
+            <span className="block text-[#e9c349]">今日の行動を最適化するための計器です</span>
+            <span className="mt-2 block"><span className="text-[#fb923c]">Mars</span> 行動量と熱量の強さ</span>
+            <span className="block"><span className="text-[#38bdf8]">Drive</span> 集中力と突破力</span>
+            <span className="block"><span className="text-[#34d399]">Flow</span> 同調性と対人協調</span>
+            <span className="block"><span className="text-[#a78bfa]">Inspiration</span> 直感と発想の広がり</span>
+            <span className="block"><span className="text-[#ff5c68]">Friction</span> 摩擦と焦燥の警戒度</span>
+          </span>
+        </div>
+        <div className="hidden items-center gap-5 font-sans text-[11px] font-bold text-[#c7c6cc] sm:flex">
+          <span className="inline-flex items-center gap-2"><span className="h-2.5 w-2.5 rounded-full bg-[#fb923c] shadow-[0_0_14px_rgba(251,146,60,0.5)]" />Mars</span>
+          <span className="inline-flex items-center gap-2"><span className="h-2.5 w-2.5 rounded-full bg-[#38bdf8] shadow-[0_0_14px_rgba(56,189,248,0.65)]" />Drive</span>
+          <span className="inline-flex items-center gap-2"><span className="h-2.5 w-2.5 rounded-full bg-[#34d399] shadow-[0_0_14px_rgba(52,211,153,0.55)]" />Flow</span>
+          <span className="inline-flex items-center gap-2"><span className="h-2.5 w-2.5 rounded-full bg-[#a78bfa] shadow-[0_0_14px_rgba(167,139,250,0.45)]" />Inspiration</span>
+          <span className="inline-flex items-center gap-2"><span className="h-2.5 w-2.5 rounded-full bg-[#ff5c68] shadow-[0_0_14px_rgba(255,92,104,0.5)]" />Friction</span>
+        </div>
+      </div>
+      <div className="grid gap-1">
+        <div className="relative">
+          {hoveredPerformance ? (
+            <div
+              className="pointer-events-none absolute top-2 z-20 min-w-[156px] -translate-x-1/2 rounded-xl border border-white/10 bg-[#0d0e0f]/95 px-3 py-2 font-mono text-[10px] font-bold text-[#e2e2e2] shadow-[0_18px_50px_rgba(0,0,0,0.42)]"
+              style={{ left: hoveredTooltipLeft }}
+            >
+              <p className="mb-1 text-[#e9c349]">{hoveredPerformance.time || "--:--"}</p>
+              <div className="grid gap-1">
+                <span className="flex items-center justify-between gap-4"><span className="text-[#fb923c]">Mars</span><span>{Math.round(Number(hoveredPerformance.marsActivity ?? 0))}</span></span>
+                <span className="flex items-center justify-between gap-4"><span className="text-[#38bdf8]">Drive</span><span>{Math.round(Number(hoveredPerformance.drive ?? 0))}</span></span>
+                <span className="flex items-center justify-between gap-4"><span className="text-[#34d399]">Flow</span><span>{Math.round(Number(hoveredPerformance.flow ?? 0))}</span></span>
+                <span className="flex items-center justify-between gap-4"><span className="text-[#a78bfa]">Inspiration</span><span>{Math.round(Number(hoveredPerformance.inspiration ?? 0))}</span></span>
+                <span className="flex items-center justify-between gap-4"><span className="text-[#ff5c68]">Friction</span><span>{Math.round(Number(hoveredPerformance.friction ?? 0))}</span></span>
+              </div>
+            </div>
+          ) : null}
+          <svg
+            className="h-[168px] w-full"
+            viewBox={`0 0 ${width} ${height}`}
+            preserveAspectRatio="none"
+            role="img"
+            aria-label="デイリーパフォーマンスグラフ"
+            onMouseMove={handlePerformancePointerMove}
+            onMouseLeave={() => setHoveredPerformanceIndex(null)}
+          >
+          <defs>
+            <linearGradient id="dailyMarsArea" x1="0" x2="0" y1="0" y2="1">
+              <stop offset="0%" stopColor="#fb923c" stopOpacity="0.28" />
+              <stop offset="55%" stopColor="#ef4444" stopOpacity="0.18" />
+              <stop offset="100%" stopColor="#7f1d1d" stopOpacity="0.05" />
+            </linearGradient>
+          </defs>
+          {marsAreaPath ? <path d={marsAreaPath} fill="url(#dailyMarsArea)" opacity="0.95" /> : null}
+          <line x1={currentX} x2={currentX} y1={pad} y2={height - pad} stroke="#e9c349" strokeWidth="1.5" opacity="0.85" filter="drop-shadow(0 0 8px rgba(233,195,73,0.8))" />
+          <path d={focusPath} fill="none" stroke="#38bdf8" strokeWidth="3.4" strokeLinecap="round" strokeLinejoin="round" filter="drop-shadow(0 0 8px rgba(56,189,248,0.35))" />
+          <path d={flowPath} fill="none" stroke="#34d399" strokeWidth="3.2" strokeLinecap="round" strokeLinejoin="round" filter="drop-shadow(0 0 8px rgba(52,211,153,0.3))" />
+          <path d={inspirationPath} fill="none" stroke="#a78bfa" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" filter="drop-shadow(0 0 8px rgba(167,139,250,0.28))" />
+          <path d={hazardPath} fill="none" stroke="#ff5c68" strokeWidth="2.8" strokeDasharray="8 8" strokeLinecap="round" strokeLinejoin="round" opacity="0.95" filter="drop-shadow(0 0 8px rgba(255,92,104,0.28))" />
+          {hoveredX !== null ? (
+            <>
+              <line x1={hoveredX} x2={hoveredX} y1={pad} y2={height - pad} stroke="rgba(255,255,255,0.35)" strokeWidth="1" strokeDasharray="3 5" />
+              {[
+                { values: marsActivityPoints, direction: "positive", color: "#fb923c" },
+                { values: focusPoints, direction: "positive", color: "#38bdf8" },
+                { values: flowPoints, direction: "positive", color: "#34d399" },
+                { values: inspirationPoints, direction: "positive", color: "#a78bfa" },
+                { values: hazardPoints, direction: "positive", color: "#ff5c68" },
+              ].map((series, index) => {
+                const point = pointsFor(series.values, series.direction)[hoveredPerformanceIndex];
+                return point ? (
+                  <circle
+                    key={`daily-tooltip-point-${index}`}
+                    cx={point.x}
+                    cy={point.y}
+                    r="4"
+                    fill={series.color}
+                    stroke="#0d0e0f"
+                    strokeWidth="2"
+                  />
+                ) : null;
+              })}
+            </>
+          ) : null}
+          <rect x={pad} y={pad} width={width - pad * 2} height={height - pad * 2} fill="transparent" pointerEvents="all" />
+        </svg>
+        </div>
+        <div className="grid grid-cols-4 gap-3 font-mono text-xs leading-none text-[#909096]">
+          {["06:00", "12:00", "18:00", "00:00"].map((time) => <span key={time}>{time}</span>)}
+        </div>
+      </div>
+    </DashboardV2Card>
+  );
+}
+
+function DailyPerformanceDeveloperView({ data = dashboardData }) {
+  const [selectedIndex, setSelectedIndex] = useState(0);
+  const performanceData = Array.isArray(data.dailyPerformance)
+    ? data.dailyPerformance
+    : Array.isArray(data.daily_performance)
+      ? data.daily_performance
+      : [];
+  const dailyPerformanceHourOrder = [6, 9, 12, 15, 18, 21, 0, 3];
+  const orderIndex = new Map(dailyPerformanceHourOrder.map((hour, index) => [hour, index]));
+  const rows = performanceData
+    .slice()
+    .sort((a, b) => {
+      const aHour = Number(a.hour ?? String(a.time || "00:00").slice(0, 2));
+      const bHour = Number(b.hour ?? String(b.time || "00:00").slice(0, 2));
+      return (orderIndex.get(aHour) ?? 99) - (orderIndex.get(bHour) ?? 99);
+    });
+  const selected = rows[selectedIndex] || rows[0] || {};
+  const metricGroups = [
+    { key: "mars", label: "Mars", color: "#fb923c", value: selected.marsActivity },
+    { key: "drive", label: "Drive", color: "#38bdf8", value: selected.drive },
+    { key: "flow", label: "Flow", color: "#34d399", value: selected.flow },
+    { key: "inspiration", label: "Inspiration", color: "#a78bfa", value: selected.inspiration },
+    { key: "friction", label: "Friction", color: "#ff5c68", value: selected.friction },
+  ];
+  return (
+    <div className="min-h-screen bg-[#111313] p-5 text-[#e2e2e2]">
+      <div className="mx-auto grid max-w-[1500px] gap-4 lg:grid-cols-[0.92fr_1.08fr]">
+        <section className="rounded-2xl border border-white/15 bg-[#181a1a] p-4">
+          <div className="mb-4 flex items-center justify-between gap-4">
+            <div>
+              <p className="font-mono text-[11px] font-black uppercase tracking-[0.22em] text-[#e9c349]">Developer View</p>
+              <h1 className="mt-1 font-notoSerif text-2xl font-semibold">デイリーパフォーマンス検証</h1>
+            </div>
+            <p className="font-mono text-xs text-[#909096]">{data.reading_date || data.readingDate || data.timelineDate || ""}</p>
+          </div>
+          <DashboardV2DailyFlowCard data={data} />
+          <div className="mt-4 grid grid-cols-4 gap-2">
+            {rows.map((item, index) => (
+              <button
+                key={item.time || index}
+                type="button"
+                onClick={() => setSelectedIndex(index)}
+                className={cx(
+                  "rounded-xl border px-3 py-2 text-left font-mono text-xs transition",
+                  selectedIndex === index
+                    ? "border-[#e9c349] bg-[#e9c349]/12 text-[#e9c349]"
+                    : "border-white/10 bg-white/[0.03] text-[#c7c6cc] hover:border-white/25"
+                )}
+              >
+                <span className="block font-black">{item.time || "--:--"}</span>
+                <span className="mt-1 block text-[10px] text-[#909096]">
+                  D {Math.round(Number(item.drive ?? 0))} / I {Math.round(Number(item.inspiration ?? 0))}
+                </span>
+              </button>
+            ))}
+          </div>
+        </section>
+
+        <section className="min-h-[calc(100vh-40px)] rounded-2xl border border-white/15 bg-[#181a1a] p-4">
+          <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
+            <div>
+              <p className="font-mono text-[11px] font-black uppercase tracking-[0.22em] text-[#e9c349]">Aspect Breakdown</p>
+              <h2 className="mt-1 font-notoSerif text-2xl font-semibold">{selected.time || "--:--"}</h2>
+            </div>
+            <div className="grid grid-cols-5 gap-2">
+              {metricGroups.map((metric) => (
+                <div key={metric.key} className="rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2 text-right">
+                  <p className="font-mono text-[10px] font-black" style={{ color: metric.color }}>{metric.label}</p>
+                  <p className="font-mono text-lg font-black text-[#f3f3f0]">{Math.round(Number(metric.value ?? 0))}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="grid gap-3 overflow-y-auto pr-1" style={{ maxHeight: "calc(100vh - 158px)" }}>
+            {metricGroups.map((metric) => {
+              const items = Array.isArray(selected.breakdown?.[metric.key]) ? selected.breakdown[metric.key] : [];
+              return (
+                <details key={metric.key} open className="rounded-xl border border-white/10 bg-[#0d0e0f]/55">
+                  <summary className="cursor-pointer list-none px-3 py-2">
+                    <div className="flex items-center justify-between gap-3">
+                      <p className="font-mono text-xs font-black" style={{ color: metric.color }}>{metric.label}</p>
+                      <span className="font-mono text-[11px] text-[#909096]">{items.length} aspects</span>
+                    </div>
+                  </summary>
+                  <div className="grid gap-2 border-t border-white/10 p-3">
+                    {items.length ? items.map((item, index) => (
+                      <article key={`${metric.key}-${item.source?.rowKey || item.label || index}`} className="rounded-lg border border-white/10 bg-white/[0.035] p-3">
+                        <div className="flex flex-wrap items-start justify-between gap-2">
+                          <div className="min-w-0">
+                            <p className="break-words text-sm font-bold leading-5 text-[#f3f3f0]">{item.label || "Aspect"}</p>
+                            <p className="mt-1 font-mono text-[10px] uppercase tracking-[0.12em] text-[#909096]">
+                              {item.note} / orb {item.orb} / priority {item.priority}
+                            </p>
+                          </div>
+                          <div className="shrink-0 text-right font-mono">
+                            <p className="text-xs text-[#909096]">score impact</p>
+                            <p className="text-lg font-black" style={{ color: metric.color }}>{item.scoreContribution ?? item.contribution}</p>
+                            <p className="text-[10px] text-[#909096]">raw {item.rawContribution ?? item.contribution}</p>
+                          </div>
+                        </div>
+                        <div className="mt-2 grid grid-cols-4 gap-2 font-mono text-[10px] text-[#c7c6cc]">
+                          <span>Score {item.scoreImpact}</span>
+                          <span>Dignity {item.essentialDignityScore}</span>
+                          <span>Decision {item.decisionFlag}</span>
+                          <span>Sync {item.syncFlag}</span>
+                        </div>
+                        {item.description ? (
+                          <p className="mt-2 line-clamp-2 text-xs leading-5 text-[#c7c6cc]">{item.description}</p>
+                        ) : null}
+                      </article>
+                    )) : (
+                      <p className="rounded-lg border border-white/10 bg-white/[0.03] p-3 text-xs text-[#909096]">該当アスペクトなし</p>
+                    )}
+                  </div>
+                </details>
+              );
+            })}
+          </div>
+        </section>
+      </div>
+    </div>
+  );
+}
+
+function DashboardV2YearlyCard({ forecast, developerMode }) {
+  const data = Array.isArray(forecast?.yearly_data) ? forecast.yearly_data : [];
+  const selectedIndex = mobileForecastSelectedIndex(forecast);
+  const demoData = Array.from({ length: 12 }, (_, index) => {
+    const total = [40, 50, 55, 50, 52, 60, 65, 75, 85, 88, 70, 75][index];
+    return {
+      date: `2026-${String(index + 1).padStart(2, "0")}-01`,
+      scores: {
+        total,
+        general: [60, 65, 55, 75, 85, 90, 88, 82, 70, 75, 80, 85][index],
+        work: [80, 85, 90, 88, 92, 95, 85, 78, 75, 70, 85, 90][index],
+        love: [60, 65, 55, 75, 85, 90, 88, 82, 70, 75, 80, 85][index],
+        money: [40, 50, 55, 50, 52, 60, 65, 75, 85, 88, 70, 75][index],
+      },
+      text_description: "年運の流れを確認し、強まるテーマに合わせて行動の優先順位を整えます。",
+    };
+  });
+  const chartData = data.length ? data : demoData;
+  const selectedDay = data[selectedIndex] || chartData[0] || {};
+  const width = 900;
+  const height = 420;
+  const padX = 68;
+  const padY = 34;
+  const scoreKeys = ["general", "work", "love", "money"];
+  const monthLabels = ["1月", "2月", "3月", "4月", "5月", "6月", "7月", "8月", "9月", "10月", "11月", "12月"];
+  const monthlyData = Array.from({ length: 12 }, (_, monthIndex) => {
+    const monthItems = chartData.filter((day) => {
+      const month = Number(String(day?.date || "").slice(5, 7));
+      return month === monthIndex + 1;
+    });
+    if (!monthItems.length) {
+      return {
+        date: `2026-${String(monthIndex + 1).padStart(2, "0")}-01`,
+        scores: Object.fromEntries(scoreKeys.map((key) => [key, 0])),
+      };
+    }
+    const scores = {};
+    scoreKeys.forEach((key) => {
+      const values = monthItems
+        .map((day) => Number(day?.scores?.[key]))
+        .filter((value) => Number.isFinite(value));
+      scores[key] = values.length
+        ? Math.round(values.reduce((sum, value) => sum + value, 0) / values.length)
+        : 0;
+    });
+    return {
+      ...monthItems[Math.floor(monthItems.length / 2)],
+      scores,
+    };
+  });
+  const visibleData = monthlyData;
+  const scoreColors = {
+    total: "#6d5bd7",
+    general: "#2F9E68",
+    work: "#2F6FED",
+    love: "#D84C8B",
+    money: "#D4AF37",
+  };
+  const pointsFor = (key) => visibleData
+    .map((day, index) => {
+      const x = visibleData.length <= 1 ? padX : padX + (index / (visibleData.length - 1)) * (width - padX * 2);
+      const value = Math.max(-100, Math.min(100, Number(day?.scores?.[key] ?? 0)));
+      const y = padY + ((100 - value) / 200) * (height - padY * 2);
+      return { x, y };
+    });
+  const smoothPathFor = (key) => {
+    const points = pointsFor(key);
+    if (!points.length) return "";
+    if (points.length === 1) return `M ${points[0].x.toFixed(1)} ${points[0].y.toFixed(1)}`;
+    const commands = [`M ${points[0].x.toFixed(1)} ${points[0].y.toFixed(1)}`];
+    for (let index = 0; index < points.length - 1; index += 1) {
+      const current = points[index];
+      const next = points[index + 1];
+      const controlX = (current.x + next.x) / 2;
+      commands.push(
+        `C ${controlX.toFixed(1)} ${current.y.toFixed(1)}, ${controlX.toFixed(1)} ${next.y.toFixed(1)}, ${next.x.toFixed(1)} ${next.y.toFixed(1)}`
+      );
+    }
+    return commands.join(" ");
+  };
+  const metricCards = [
+    { label: "全般・健康", key: "general" },
+    { label: "仕事", key: "work" },
+    { label: "恋愛・対人", key: "love" },
+    { label: "お金", key: "money" },
+  ];
+
+  return (
+    <DashboardV2Card className="h-[784px]" bodyClassName="p-5">
+      {chartData.length ? (
+        <div className="space-y-4">
+          <div className="grid items-start gap-4 md:grid-cols-[1fr_auto]">
+            <div className="min-w-0">
+              <p className="font-mono text-xs font-black uppercase tracking-[0.28em] text-[#e9c349]">Long-Term Vision</p>
+            </div>
+            <h2 className="max-w-[500px] justify-self-end text-right font-notoSerif text-lg font-semibold leading-snug tracking-[0.04em] text-[#e2e2e2] md:text-[22px]">
+              2026年 運勢シミュレーション
+            </h2>
+          </div>
+          <svg className="h-[270px] w-full" viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="none" role="img" aria-label="2026年運勢スコアグラフ">
+            <defs>
+              <filter id="v2ChartGlow">
+                <feGaussianBlur stdDeviation="3" result="coloredBlur" />
+                <feMerge>
+                  <feMergeNode in="coloredBlur" />
+                  <feMergeNode in="SourceGraphic" />
+                </feMerge>
+              </filter>
+            </defs>
+            {[100, 50, 0, -50, -100].map((score) => {
+              const y = padY + ((100 - score) / 200) * (height - padY * 2);
+              return (
+                <g key={score}>
+                  <line x1={padX} x2={width - padX} y1={y} y2={y} stroke="rgba(255,255,255,0.08)" strokeWidth="1" />
+                  <text x={padX - 14} y={y + 4} textAnchor="end" fill="#909096" fontSize="13" fontFamily="monospace">
+                    {score}
+                  </text>
+                </g>
+              );
+            })}
+            {["love", "money", "work", "general"].map((key) => (
+              <path
+                key={key}
+                d={smoothPathFor(key)}
+                fill="none"
+                stroke={scoreColors[key]}
+                strokeWidth="4"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                opacity="0.95"
+                filter="url(#v2ChartGlow)"
+              />
+            ))}
+            {visibleData.map((day, index) => {
+              const x = visibleData.length <= 1 ? padX : padX + (index / Math.max(1, visibleData.length - 1)) * (width - padX * 2);
+              return (
+                <text key={`${day.date}-${index}`} x={x} y={height - 4} textAnchor="middle" fill="#909096" fontSize="15" fontFamily="monospace">
+                  {monthLabels[index] || ""}
+                </text>
+              );
+            })}
+          </svg>
+          <div className="grid gap-3 md:grid-cols-4">
+            {metricCards.map((item) => (
+              <div key={item.key} className="rounded-xl border border-white/10 bg-white/[0.045] p-3">
+                <p className="flex items-center gap-2 font-mono text-[11px] font-black uppercase tracking-[0.08em] text-[#e2e2e2]">
+                  <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: scoreColors[item.key] }} />
+                  {item.label}
+                </p>
+                <p className="mt-2 font-notoSerif text-2xl text-[#f3f3f0]">{formatYearlyScore(selectedDay?.scores?.[item.key])}</p>
+              </div>
+            ))}
+          </div>
+          <div className="rounded-2xl border border-[#e9c349]/25 bg-[#140e00]/25 p-3">
+            <p className="font-mono text-[11px] font-black uppercase tracking-[0.24em] text-[#e9c349]">Detailed Insight</p>
+            <p className="mt-3 line-clamp-2 text-xs font-bold leading-6 text-[#e2e2e2]">
+              {selectedDay?.text_description || "選択日の主要テーマをここに表示します。"}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              window.location.href = "./forecast-detail.html";
+            }}
+            className="h-10 w-full rounded-full bg-[#e9c349] font-mono text-xs font-black tracking-[0.12em] text-[#241a00] shadow-[0_0_24px_rgba(233,195,73,0.18)]"
+          >
+            全てのチャートを計算する
+          </button>
+        </div>
+      ) : (
+        <div className="flex min-h-[640px] items-center justify-center rounded-2xl border border-white/10 bg-[#0d0e0f]/60 p-6 font-mono text-sm font-bold uppercase tracking-[0.18em] text-[#c7c6cc]">
+          年運データがありません
+        </div>
+      )}
+    </DashboardV2Card>
+  );
+}
+
+function DashboardV2({ data = dashboardData, embedded = false, developerMode = false }) {
+  const displayDate = formatIsoDate(
+    data.readingDate ||
+      data.reading_date ||
+      data.date ||
+      data.timelineDate ||
+      data.timelineDays?.[0]?.date ||
+      data.yearlyForecast?.reading_date ||
+      data.yearly_forecast?.reading_date ||
+      data.meta?.reading_date ||
+      data.meta?.date
+  );
+  const forecast = data.yearly_forecast || data.yearlyForecast || null;
+  const selectedDay = Array.isArray(forecast?.yearly_data) ? forecast.yearly_data[0] : null;
+  const totalScore = Number(selectedDay?.scores?.total ?? 0);
+
+  return (
+    <div className={cx(
+      "min-h-screen bg-[#171919] text-[#e2e2e2]",
+      "bg-[radial-gradient(circle_at_50%_0%,rgba(211,188,249,0.12),transparent_34%),radial-gradient(circle_at_15%_24%,rgba(233,195,73,0.08),transparent_26%)]",
+      embedded ? "" : ""
+    )}>
+      <DashboardV2Header data={data} displayDate={displayDate} score={totalScore} />
+      <main className="mx-auto grid max-w-[1440px] gap-5 px-5 py-5 md:px-8 lg:grid-cols-[0.78fr_1.18fr] lg:px-14">
+        <div className="grid gap-3">
+          <DashboardV2PersonalCard data={data} />
+          <DashboardV2DailyFlowCard data={data} />
+          <DashboardV2CountdownCard data={data} />
+        </div>
+        <div className="grid gap-3">
+          <DashboardV2YearlyCard forecast={forecast} developerMode={developerMode} />
+        </div>
+      </main>
+      <footer className="border-t border-white/10 px-5 py-8">
+        <div className="mx-auto flex max-w-[1440px] flex-wrap items-center justify-between gap-4 font-mono text-xs uppercase tracking-[0.28em] text-[#909096] md:px-11">
+          <span>ASTRAEA Celestial Insights</span>
+          <span>Stellar API</span>
+        </div>
+      </footer>
+    </div>
+  );
+}
+
+function DashboardLegacy({ data = dashboardData, embedded = false, developerMode = false }) {
   const [mobileLayoutMode, setMobileLayoutMode] = useState(() => {
     if (typeof window === "undefined") return "new";
     return window.localStorage.getItem("celestial-atelier:mobile-layout-mode") === "old" ? "old" : "new";
@@ -2604,7 +3495,7 @@ export function Dashboard({ data = dashboardData, embedded = false, developerMod
           />
           {mobileLayoutMode === "old" && forecast ? (
             <div className="md:hidden">
-              <YearlyForecastGraph forecast={forecast} developerMode={developerMode} />
+              <DashboardV2YearlyCard forecast={forecast} developerMode={developerMode} />
             </div>
           ) : null}
           <Timeline
@@ -2638,6 +3529,24 @@ export function Dashboard({ data = dashboardData, embedded = false, developerMod
         ) : null}
       </div>
     </>
+  );
+}
+
+export function Dashboard({ data = dashboardData, embedded = false, developerMode = false }) {
+  if (typeof window !== "undefined") {
+    try {
+      const view = new URL(window.location.href).searchParams.get("view");
+      if (view === "daily-performance-dev") {
+        return <DailyPerformanceDeveloperView data={data} />;
+      }
+    } catch {
+      // Fall through to the standard dashboard.
+    }
+  }
+  return isDashboardLegacyRequested() ? (
+    <DashboardLegacy data={data} embedded={embedded} developerMode={developerMode} />
+  ) : (
+    <DashboardV2 data={data} embedded={embedded} developerMode={developerMode} />
   );
 }
 

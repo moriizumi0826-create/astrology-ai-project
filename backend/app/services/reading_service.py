@@ -333,6 +333,8 @@ def load_master_dataframes() -> dict[str, pd.DataFrame]:
 
 
 MASTER_DATAFRAMES = load_master_dataframes()
+_ASPECT_CANDIDATES_BY_KEY: dict[tuple[str, str, int], list[dict[str, Any]]] | None = None
+_ASPECT_INTERPRETATION_CACHE: dict[tuple[str, str, int, int, bool, str], dict[str, Any]] = {}
 
 
 def _normalize_planet(value: Any) -> str:
@@ -690,6 +692,7 @@ def get_aspect_interpretation(
     is_retrograde: bool,
     orb_status: str,
 ) -> dict[str, Any]:
+    global _ASPECT_CANDIDATES_BY_KEY
     aspect_df = MASTER_DATAFRAMES.get("aspect", pd.DataFrame())
     if aspect_df.empty:
         LOGGER.error("Aspect interpretation master is empty or failed to load.")
@@ -701,13 +704,34 @@ def get_aspect_interpretation(
 
     transit_planet = _normalize_planet(t_planet)
     natal_planet = _normalize_planet(n_planet)
-    mask = (
-        _series_planet_equals(aspect_df["T_Planet"], transit_planet)
-        & _series_planet_equals(aspect_df["N_Planet"], natal_planet)
-        & _series_int_equals(aspect_df["Aspect_Angle"], angle)
+    normalized_angle = _normalize_int(angle)
+    cache_key = (
+        transit_planet,
+        natal_planet,
+        normalized_angle or 0,
+        _normalize_int(house) or 1,
+        bool(is_retrograde),
+        _normalize_orb_status(orb_status),
     )
-    base_candidates = aspect_df[mask]
-    if base_candidates.empty:
+    if cache_key in _ASPECT_INTERPRETATION_CACHE:
+        return dict(_ASPECT_INTERPRETATION_CACHE[cache_key])
+
+    if _ASPECT_CANDIDATES_BY_KEY is None:
+        candidates_by_key: dict[tuple[str, str, int], list[dict[str, Any]]] = {}
+        for row in aspect_df.to_dict(orient="records"):
+            row_angle = _normalize_int(row.get("Aspect_Angle"))
+            if row_angle is None:
+                continue
+            key = (
+                _normalize_planet(row.get("T_Planet")),
+                _normalize_planet(row.get("N_Planet")),
+                row_angle,
+            )
+            candidates_by_key.setdefault(key, []).append(row)
+        _ASPECT_CANDIDATES_BY_KEY = candidates_by_key
+
+    base_candidate_rows = _ASPECT_CANDIDATES_BY_KEY.get((transit_planet, natal_planet, normalized_angle or 0), [])
+    if not base_candidate_rows:
         LOGGER.info(
             "No aspect interpretation found for required conditions: %s/%s/%s",
             transit_planet,
@@ -715,6 +739,7 @@ def get_aspect_interpretation(
             angle,
         )
         return {}
+    base_candidates = pd.DataFrame(base_candidate_rows)
 
     optional_filters = [
         ("N_House", lambda df: _series_int_equals(df["N_House"], house)),
@@ -740,7 +765,9 @@ def get_aspect_interpretation(
                 candidates = candidates[available_filters[filter_name](candidates)]
         selected = _pick_highest_priority(candidates)
         if selected is not None:
-            return _hydrate_aspect_interpretation_row(selected)
+            hydrated = _hydrate_aspect_interpretation_row(selected)
+            _ASPECT_INTERPRETATION_CACHE[cache_key] = dict(hydrated)
+            return hydrated
     return {}
 
 
@@ -2005,6 +2032,41 @@ TIMELINE_SLOT_DEFS = [
     {"id": "NIGHT", "label": "00:00 - 06:00 (Night)", "time_range": "00:00-06:00", "sample_hour": 3, "day_offset": 1},
 ]
 
+DAILY_PERFORMANCE_SAMPLE_HOURS = (6, 9, 12, 15, 18, 21, 0, 3)
+DAILY_PERFORMANCE_DRIVE_ANGLES = {0, 60, 120}
+DAILY_PERFORMANCE_FRICTION_ANGLES = {90, 150, 180}
+DAILY_PERFORMANCE_DECISION_PLANETS = {"SUN", "MERCURY", "SATURN"}
+DAILY_PERFORMANCE_FLOW_PLANETS = {"MOON", "VENUS", "JUPITER"}
+DAILY_PERFORMANCE_NOISE_PLANETS = {"URANUS", "NEPTUNE", "PLUTO"}
+DAILY_PERFORMANCE_FAST_PLANETS = {"MOON", "MERCURY", "MARS"}
+DAILY_PERFORMANCE_INSPIRATION_ANGLES = {0, 60, 120}
+DAILY_PERFORMANCE_INSPIRATION_PLANETS = {"MOON", "MERCURY", "VENUS", "JUPITER", "NEPTUNE"}
+DAILY_PERFORMANCE_OUTER_PLANETS = {"URANUS", "NEPTUNE", "PLUTO"}
+DAILY_PERFORMANCE_TRANSIT_WEIGHTS = {
+    "MOON": 1.35,
+    "MERCURY": 1.20,
+    "MARS": 1.15,
+    "SUN": 0.75,
+    "VENUS": 0.75,
+    "JUPITER": 0.45,
+    "SATURN": 0.45,
+    "URANUS": 0.25,
+    "NEPTUNE": 0.22,
+    "PLUTO": 0.20,
+}
+DAILY_PERFORMANCE_ENVIRONMENT_RATIO = 0.20
+DAILY_PERFORMANCE_ENVIRONMENT_PLANETS = (
+    "MERCURY",
+    "VENUS",
+    "MARS",
+    "JUPITER",
+    "SATURN",
+    "URANUS",
+    "NEPTUNE",
+    "PLUTO",
+)
+DAILY_PERFORMANCE_MARS_HARD_ENVIRONMENT_PLANETS = ("SATURN", "URANUS", "NEPTUNE", "PLUTO")
+
 
 def _timeline_advice_rows() -> pd.DataFrame:
     return MASTER_DATAFRAMES.get("timeline_advice", pd.DataFrame())
@@ -2372,8 +2434,9 @@ def _build_slot_interpretations(
     slot_def: dict[str, Any],
     target_date: date,
     transit_planets: tuple[str, ...] = TRANSIT_PLANET_ORDER,
+    natal_rows: list[dict[str, Any]] | None = None,
 ) -> list[dict[str, Any]]:
-    natal_rows = _build_natal_planet_rows(birth_input)
+    natal_rows = natal_rows if natal_rows is not None else _build_natal_planet_rows(birth_input)
     sample_local_dt = _local_sample_datetime(target_date, slot_def["sample_hour"], slot_def.get("day_offset", 0))
     slot_rows: list[dict[str, Any]] = []
     for transit_planet in transit_planets:
@@ -2417,6 +2480,509 @@ def _build_slot_interpretations(
             interpretation["_orb_status"] = orb_status
             slot_rows.append(interpretation)
     return slot_rows
+
+
+def _daily_performance_dignity(row: dict[str, Any]) -> float:
+    return _normalize_float(row.get("Essential_Dignity_Score")) or 0.0
+
+
+def _daily_performance_angle(row: dict[str, Any]) -> int:
+    return _safe_number(row, "Aspect_Angle")
+
+
+def _daily_performance_mars_bonus(daily_vibe: dict[str, Any]) -> int:
+    bonus = 0
+    for item in daily_vibe.get("items", []):
+        planet = _normalize_planet(item.get("Target_Planet") or item.get("Planet"))
+        if planet != "MARS":
+            continue
+        event_type = _safe_text(item, "Event_Type").strip().upper()
+        condition = _safe_text(item, "Condition").strip().upper()
+        if event_type == "OUT_OF_BOUNDS":
+            bonus += 50
+        elif event_type == "RETROGRADE" and condition in {"", "START"}:
+            bonus += 35
+    return bonus
+
+
+def _daily_performance_transit_weight(planet: Any) -> float:
+    return DAILY_PERFORMANCE_TRANSIT_WEIGHTS.get(_normalize_planet(planet), 1.0)
+
+
+def _daily_performance_aspect_breakdown(row: dict[str, Any], contribution: float, note: str) -> dict[str, Any]:
+    return {
+        "label": _hero_aspect_label(row),
+        "contribution": round(contribution, 2),
+        "rawContribution": round(contribution, 2),
+        "scoreContribution": round(contribution, 2),
+        "note": note,
+        "t_planet": _normalize_planet(row.get("T_Planet")),
+        "n_planet": _normalize_planet(row.get("N_Planet")),
+        "angle": _safe_number(row, "Aspect_Angle"),
+        "category": _safe_text(row, "Category", "General"),
+        "scoreImpact": _safe_number(row, "Score_Impact"),
+        "essentialDignityScore": _daily_performance_dignity(row),
+        "priority": _safe_number(row, "Priority"),
+        "decisionFlag": _safe_number(row, "Decision_Flag"),
+        "syncFlag": _safe_number(row, "Sync_Flag"),
+        "noiseFlag": _safe_number(row, "Noise_Flag"),
+        "orb": round(_extract_current_orb(row), 2),
+        "orbStatus": _safe_text(row, "_orb_status", _safe_text(row, "Orb_Status")),
+        "description": _safe_text(row, "Text_Description"),
+        "advisedTask": _safe_text(row, "Advised_Task"),
+        "source": _source_reference(
+            row,
+            columns=[
+                "Aspect_Logic_ID",
+                "T_Planet",
+                "N_Planet",
+                "Aspect_Angle",
+                "Essential_Dignity_Score",
+                "Score_Impact",
+                "Priority",
+                "Decision_Flag",
+                "Sync_Flag",
+                "Noise_Flag",
+            ],
+        ),
+    }
+
+
+def _daily_performance_environment_breakdown(
+    *,
+    source_planet: str,
+    target_planet: str,
+    angle: int,
+    orb: float,
+    contribution: float,
+    note: str,
+) -> dict[str, Any]:
+    source_label = _planet_label(source_planet)
+    target_label = _planet_label(target_planet)
+    return {
+        "label": f"トランジット{source_label} × トランジット{target_label} {angle}°",
+        "contribution": round(contribution, 2),
+        "rawContribution": round(contribution, 2),
+        "scoreContribution": round(contribution, 2),
+        "note": note,
+        "t_planet": _normalize_planet(source_planet),
+        "n_planet": _normalize_planet(target_planet),
+        "angle": angle,
+        "category": "Environment",
+        "scoreImpact": 0,
+        "essentialDignityScore": 0,
+        "priority": 0,
+        "decisionFlag": 0,
+        "syncFlag": 0,
+        "noiseFlag": 0,
+        "orb": round(orb, 2),
+        "orbStatus": "Environment",
+        "description": "",
+        "advisedTask": "",
+        "source": {
+            "rowKey": f"TRANSIT_{_normalize_planet(source_planet)}_TRANSIT_{_normalize_planet(target_planet)}_{angle}",
+            "columns": {
+                "T_Planet": f"TRANSIT_{_normalize_planet(source_planet)}",
+                "N_Planet": f"TRANSIT_{_normalize_planet(target_planet)}",
+                "Aspect_Angle": angle,
+            },
+        },
+    }
+
+
+def _daily_performance_environment_layer(
+    birth_input: BirthInput,
+    sample_local_dt: datetime,
+) -> dict[str, Any]:
+    moon_longitude, _ = _calc_transit_planet_state("MOON", sample_local_dt, birth_input.timezone_offset)
+    totals = {
+        "drive": 0.0,
+        "flow": 0.0,
+        "inspiration": 0.0,
+        "friction": 0.0,
+        "mars": 0.0,
+    }
+    breakdown = {key: [] for key in totals}
+
+    for target_planet in DAILY_PERFORMANCE_ENVIRONMENT_PLANETS:
+        target_longitude, _ = _calc_transit_planet_state(target_planet, sample_local_dt, birth_input.timezone_offset)
+        angle_diff = get_angle_diff(moon_longitude, target_longitude)
+        _, exact_angle, orb_diff = get_aspect(angle_diff)
+        if exact_angle is None:
+            continue
+        closeness = max(0.0, 5.0 - abs(orb_diff))
+        if closeness <= 0:
+            continue
+
+        is_harmony = exact_angle in DAILY_PERFORMANCE_DRIVE_ANGLES
+        is_hard = exact_angle in DAILY_PERFORMANCE_FRICTION_ANGLES
+        planet = _normalize_planet(target_planet)
+
+        def add(metric: str, weight: float, note: str) -> None:
+            contribution = closeness * weight * DAILY_PERFORMANCE_ENVIRONMENT_RATIO
+            if contribution <= 0:
+                return
+            totals[metric] += contribution
+            breakdown[metric].append(
+                _daily_performance_environment_breakdown(
+                    source_planet="MOON",
+                    target_planet=planet,
+                    angle=exact_angle,
+                    orb=abs(orb_diff),
+                    contribution=contribution,
+                    note=note,
+                )
+            )
+
+        if is_harmony:
+            if planet == "MERCURY":
+                add("drive", 2.2, "Transit environment drive")
+            elif planet == "VENUS":
+                add("flow", 2.4, "Transit environment flow")
+                add("inspiration", 0.9, "Transit environment inspiration")
+            elif planet == "MARS":
+                add("drive", 2.0, "Transit environment drive")
+                add("mars", 1.8, "Transit environment Mars")
+            elif planet == "JUPITER":
+                add("flow", 2.0, "Transit environment flow")
+                add("inspiration", 1.0, "Transit environment inspiration")
+            elif planet == "SATURN":
+                add("drive", 1.2, "Transit environment structure")
+            elif planet == "NEPTUNE":
+                add("inspiration", 2.8, "Transit environment inspiration")
+        elif is_hard:
+            if planet in {"MERCURY", "MARS", "SATURN", "URANUS", "NEPTUNE", "PLUTO"}:
+                add("friction", 2.8 if planet in {"MARS", "PLUTO"} else 2.2, "Transit environment friction")
+            if planet == "MARS":
+                add("mars", 1.5, "Transit environment Mars")
+            if planet == "NEPTUNE":
+                add("inspiration", -0.8, "Transit environment inspiration drag")
+
+    mars_longitude, _ = _calc_transit_planet_state("MARS", sample_local_dt, birth_input.timezone_offset)
+    for target_planet in DAILY_PERFORMANCE_MARS_HARD_ENVIRONMENT_PLANETS:
+        target_longitude, _ = _calc_transit_planet_state(target_planet, sample_local_dt, birth_input.timezone_offset)
+        angle_diff = get_angle_diff(mars_longitude, target_longitude)
+        _, exact_angle, orb_diff = get_aspect(angle_diff)
+        if exact_angle not in DAILY_PERFORMANCE_FRICTION_ANGLES:
+            continue
+        closeness = max(0.0, 5.0 - abs(orb_diff))
+        if closeness <= 0:
+            continue
+        planet = _normalize_planet(target_planet)
+        friction_weight = 2.4 if planet in {"URANUS", "PLUTO"} else 1.9
+        mars_weight = 1.1 if planet in {"URANUS", "PLUTO"} else 0.7
+        friction_contribution = closeness * friction_weight * DAILY_PERFORMANCE_ENVIRONMENT_RATIO
+        mars_contribution = closeness * mars_weight * DAILY_PERFORMANCE_ENVIRONMENT_RATIO
+        totals["friction"] += friction_contribution
+        totals["mars"] += mars_contribution
+        breakdown["friction"].append(
+            _daily_performance_environment_breakdown(
+                source_planet="MARS",
+                target_planet=planet,
+                angle=exact_angle,
+                orb=abs(orb_diff),
+                contribution=friction_contribution,
+                note="Transit Mars hard environment friction",
+            )
+        )
+        breakdown["mars"].append(
+            _daily_performance_environment_breakdown(
+                source_planet="MARS",
+                target_planet=planet,
+                angle=exact_angle,
+                orb=abs(orb_diff),
+                contribution=mars_contribution,
+                note="Transit Mars hard environment Mars",
+            )
+        )
+        if planet == "SATURN":
+            totals["drive"] -= closeness * 0.5 * DAILY_PERFORMANCE_ENVIRONMENT_RATIO
+            breakdown["drive"].append(
+                _daily_performance_environment_breakdown(
+                    source_planet="MARS",
+                    target_planet=planet,
+                    angle=exact_angle,
+                    orb=abs(orb_diff),
+                    contribution=-(closeness * 0.5 * DAILY_PERFORMANCE_ENVIRONMENT_RATIO),
+                    note="Transit Mars Saturn drive drag",
+                )
+            )
+        if planet == "NEPTUNE":
+            totals["inspiration"] -= closeness * 0.5 * DAILY_PERFORMANCE_ENVIRONMENT_RATIO
+            breakdown["inspiration"].append(
+                _daily_performance_environment_breakdown(
+                    source_planet="MARS",
+                    target_planet=planet,
+                    angle=exact_angle,
+                    orb=abs(orb_diff),
+                    contribution=-(closeness * 0.5 * DAILY_PERFORMANCE_ENVIRONMENT_RATIO),
+                    note="Transit Mars Neptune inspiration drag",
+                )
+            )
+
+    return {
+        "totals": totals,
+        "breakdown": breakdown,
+    }
+
+
+def _allocate_daily_performance_score_contributions(
+    breakdown: dict[str, list[dict[str, Any]]],
+    *,
+    mars_activity_raw: float,
+    noise_sum: float,
+    mars_friction: float,
+) -> dict[str, list[dict[str, Any]]]:
+    mars_final_total = _damp(mars_activity_raw, 35) * 2.2 if mars_activity_raw else 0
+    noise_final_total = _damp(noise_sum, 90) * 0.08 if noise_sum else 0
+    mars_friction_final_total = _damp(mars_friction, 60) * 0.12 if mars_friction else 0
+
+    for item in breakdown.get("mars", []):
+        raw = _normalize_float(item.get("rawContribution")) or 0.0
+        final = (raw / mars_activity_raw * mars_final_total) if mars_activity_raw else 0.0
+        item["scoreContribution"] = round(final, 2)
+        item["contribution"] = round(final, 2)
+
+    for item in breakdown.get("friction", []):
+        raw = _normalize_float(item.get("rawContribution")) or 0.0
+        note = _safe_text(item, "note")
+        final = raw
+        if note == "Outer planet noise":
+            final = (raw / noise_sum * noise_final_total) if noise_sum else 0.0
+        elif note == "Mars hard aspect":
+            final = (raw / mars_friction * mars_friction_final_total) if mars_friction else 0.0
+        item["scoreContribution"] = round(final, 2)
+        item["contribution"] = round(final, 2)
+
+    return breakdown
+
+
+def _build_daily_performance(
+    birth_input: BirthInput | None,
+    current_dt: datetime | date | None,
+    daily_vibe: dict[str, Any],
+) -> list[dict[str, Any]]:
+    target_date = _dashboard_target_date(current_dt)
+    points: list[dict[str, Any]] = []
+    mars_vibe_bonus = _daily_performance_mars_bonus(daily_vibe)
+
+    if not birth_input:
+        return [
+            {
+                "time": f"{hour:02d}:00",
+                "hour": hour,
+                "drive": 50,
+                "flow": 50,
+                "inspiration": 50,
+                "friction": _clamp(15 + mars_vibe_bonus, 0, 100),
+                "marsActivity": _clamp(mars_vibe_bonus, 0, 100),
+                "breakdown": {"mars": [], "drive": [], "flow": [], "inspiration": [], "friction": []},
+                "sourceAspects": [],
+            }
+            for hour in DAILY_PERFORMANCE_SAMPLE_HOURS
+        ]
+
+    natal_rows = _build_natal_planet_rows(birth_input)
+    for hour in DAILY_PERFORMANCE_SAMPLE_HOURS:
+        slot_def = {
+            "id": f"DAILY_PERFORMANCE_{hour:02d}",
+            "label": f"{hour:02d}:00",
+            "sample_hour": hour,
+        }
+        slot_date = target_date
+        if hour < 6:
+            slot_date = target_date + timedelta(days=1)
+        rows = _build_slot_interpretations(
+            birth_input,
+            slot_def,
+            slot_date,
+            transit_planets=TRANSIT_PLANET_ORDER,
+            natal_rows=natal_rows,
+        )
+        sample_local_dt = _local_sample_datetime(slot_date, slot_def["sample_hour"], slot_def.get("day_offset", 0))
+        environment_layer = _daily_performance_environment_layer(birth_input, sample_local_dt)
+
+        decision_sum = 0.0
+        flow_sum = 0.0
+        noise_sum = 0.0
+        fast_drive = 0.0
+        fast_flow = 0.0
+        inspiration_raw = 0.0
+        fast_friction = 0.0
+        mars_drive = 0.0
+        mars_friction = 0.0
+        mars_activity_raw = 0.0
+        source_rows: list[dict[str, Any]] = []
+        breakdown: dict[str, list[dict[str, Any]]] = {
+            "drive": [],
+            "flow": [],
+            "inspiration": [],
+            "friction": [],
+            "mars": [],
+        }
+        for metric, items in environment_layer["breakdown"].items():
+            breakdown[metric].extend(items)
+
+        for row in rows:
+            transit_planet = _normalize_planet(row.get("T_Planet"))
+            angle = _daily_performance_angle(row)
+            impact = _safe_number(row, "Score_Impact")
+            dignity = _daily_performance_dignity(row)
+            current_orb = _extract_current_orb(row)
+            closeness = max(0.0, 5.0 - current_orb)
+            is_hard_angle = angle in DAILY_PERFORMANCE_FRICTION_ANGLES
+            has_neptune = transit_planet == "NEPTUNE" or _normalize_planet(row.get("N_Planet")) == "NEPTUNE"
+            transit_weight = _daily_performance_transit_weight(transit_planet)
+
+            if transit_planet in DAILY_PERFORMANCE_DECISION_PLANETS:
+                decision_flag = _safe_number(row, "Decision_Flag")
+                decision_contribution = decision_flag * transit_weight
+                decision_sum += decision_contribution
+                if decision_flag:
+                    breakdown["drive"].append(
+                        _daily_performance_aspect_breakdown(row, decision_contribution * 0.9, "Decision_Flag")
+                    )
+            if transit_planet in DAILY_PERFORMANCE_FLOW_PLANETS:
+                sync_flag = _safe_number(row, "Sync_Flag")
+                flow_contribution = sync_flag * transit_weight if sync_flag and not is_hard_angle else 0
+                flow_sum += flow_contribution
+                if flow_contribution:
+                    breakdown["flow"].append(
+                        _daily_performance_aspect_breakdown(row, flow_contribution * 2.1, "Sync_Flag")
+                    )
+            if transit_planet in DAILY_PERFORMANCE_NOISE_PLANETS:
+                noise_contribution = (max(0, _safe_number(row, "Noise_Flag")) + max(0, -impact)) * transit_weight
+                noise_sum += noise_contribution
+                if noise_contribution:
+                    breakdown["friction"].append(
+                        _daily_performance_aspect_breakdown(row, noise_contribution, "Outer planet noise")
+                    )
+
+            if angle in DAILY_PERFORMANCE_INSPIRATION_ANGLES and (
+                has_neptune
+                or (
+                    transit_planet in {"MOON", "MERCURY", "VENUS", "JUPITER"}
+                    and _normalize_planet(row.get("N_Planet")) in {"MOON", "MERCURY", "VENUS", "JUPITER", "NEPTUNE"}
+                )
+            ):
+                inspiration_weight = 1.0 if has_neptune else 0.42
+                if transit_planet in DAILY_PERFORMANCE_OUTER_PLANETS:
+                    inspiration_weight *= transit_weight
+                contribution = closeness * (1 + min(abs(impact), 80) / 100) * inspiration_weight
+                inspiration_raw += contribution
+                if contribution:
+                    breakdown["inspiration"].append(
+                        _daily_performance_aspect_breakdown(row, contribution * 4.0, "Inspiration aspect")
+                    )
+
+            if transit_planet in DAILY_PERFORMANCE_FAST_PLANETS:
+                if angle in DAILY_PERFORMANCE_DRIVE_ANGLES and impact > 0 and not has_neptune:
+                    contribution = closeness * (1 + min(abs(impact), 80) / 80) * transit_weight
+                    fast_drive += contribution
+                    breakdown["drive"].append(
+                        _daily_performance_aspect_breakdown(row, contribution * 1.55, "Fast planet drive")
+                    )
+                if transit_planet == "MOON" and _safe_number(row, "Sync_Flag") > 0 and not is_hard_angle:
+                    contribution = closeness * 1.35 * transit_weight
+                    fast_flow += contribution
+                    breakdown["flow"].append(
+                        _daily_performance_aspect_breakdown(row, contribution * 4.2, "Moon flow")
+                    )
+                if angle in DAILY_PERFORMANCE_FRICTION_ANGLES or impact < 0:
+                    contribution = closeness * (1 + min(abs(impact), 80) / 80) * transit_weight
+                    fast_friction += contribution
+                    breakdown["friction"].append(
+                        _daily_performance_aspect_breakdown(row, contribution * 2.0, "Fast planet friction")
+                    )
+
+            if transit_planet == "MARS":
+                mars_activity_contribution = max(0.0, 5.0 - current_orb) + abs(dignity)
+                mars_activity_raw += mars_activity_contribution
+                if mars_activity_contribution:
+                    breakdown["mars"].append(
+                        _daily_performance_aspect_breakdown(row, mars_activity_contribution, "Mars total activity")
+                    )
+                if angle in DAILY_PERFORMANCE_FRICTION_ANGLES:
+                    contribution = max(0, -impact) + abs(min(0.0, dignity))
+                    mars_friction += contribution
+                    if contribution:
+                        breakdown["friction"].append(
+                            _daily_performance_aspect_breakdown(row, contribution, "Mars hard aspect")
+                        )
+                source_rows.append(row)
+            elif transit_planet in {"SUN", "MERCURY", "SATURN", "MOON", "VENUS", "JUPITER", "URANUS", "NEPTUNE", "PLUTO"}:
+                source_rows.append(row)
+
+        env_totals = environment_layer["totals"]
+        mars_activity = _clamp((_damp(mars_activity_raw, 35) * 2.2) + env_totals["mars"] + mars_vibe_bonus, 0, 100)
+        drive = _clamp(
+            34
+            + (decision_sum * 0.9)
+            + (_damp(mars_drive, 60) * 0.14)
+            + (fast_drive * 1.55)
+            + env_totals["drive"],
+            0,
+            100,
+        )
+        flow = _clamp(
+            40
+            + (flow_sum * 2.1)
+            + (fast_flow * 4.2)
+            + env_totals["flow"],
+            0,
+            100,
+        )
+        inspiration = _clamp(
+            34
+            + (inspiration_raw * 4.0)
+            + env_totals["inspiration"],
+            0,
+            100,
+        )
+        friction = _clamp(
+            10
+            + (_damp(noise_sum, 90) * 0.08)
+            + (_damp(mars_friction, 60) * 0.12)
+            + (fast_friction * 2.0)
+            + (mars_activity * 0.04)
+            + env_totals["friction"],
+            0,
+            100,
+        )
+        breakdown = _allocate_daily_performance_score_contributions(
+            breakdown,
+            mars_activity_raw=mars_activity_raw,
+            noise_sum=noise_sum,
+            mars_friction=mars_friction,
+        )
+        ranked_sources = _rank_timeline_rows(source_rows)[:5]
+
+        points.append({
+            "time": f"{hour:02d}:00",
+            "hour": hour,
+            "drive": drive,
+            "flow": flow,
+            "inspiration": inspiration,
+            "friction": friction,
+            "marsActivity": mars_activity,
+            "breakdown": {
+                key: sorted(items, key=lambda item: abs(item["contribution"]), reverse=True)
+                for key, items in breakdown.items()
+            },
+            "sourceAspects": [
+                {
+                    "t_planet": _normalize_planet(row.get("T_Planet")),
+                    "n_planet": _normalize_planet(row.get("N_Planet")),
+                    "angle": _safe_number(row, "Aspect_Angle"),
+                    "scoreImpact": _safe_number(row, "Score_Impact"),
+                    "essentialDignityScore": _daily_performance_dignity(row),
+                    "orb": _extract_current_orb(row),
+                }
+                for row in ranked_sources
+            ],
+        })
+
+    return points
 
 
 def _build_timeline_slot_from_rows(
@@ -2843,6 +3409,7 @@ def build_dashboard_data_from_interpretations(
         is_noise_heavy = any(str(item.get("Safety_Level", "")).strip().upper() == "LOW" for item in daily_vibe.get("items", []))
         timeline = _build_timeline_from_interpretations([], final_score, birth_input=birth_input, current_dt=current_dt, daily_modifier=daily_modifier, is_noise_heavy=is_noise_heavy)
         timeline_days = _build_timeline_days([], final_score, birth_input=birth_input, current_dt=current_dt, daily_modifier=daily_modifier, is_noise_heavy=is_noise_heavy)
+        daily_performance = _build_daily_performance(birth_input, current_dt, daily_vibe)
         topics = _build_topics_from_interpretations([], final_score)
         return _to_json_compatible({
             "header": _dashboard_header(),
@@ -2852,6 +3419,7 @@ def build_dashboard_data_from_interpretations(
             "timeline": timeline,
             "timelineDate": _dashboard_date(current_dt),
             "timelineDays": timeline_days,
+            "dailyPerformance": daily_performance,
             "planetMotion": _dashboard_planet_motion(birth_input, current_dt),
             "retrogradeCalendar": _dashboard_retrograde_calendar(current_dt),
             "topics": topics,
@@ -2927,6 +3495,7 @@ def build_dashboard_data_from_interpretations(
     is_noise_heavy = any(str(item.get("Safety_Level", "")).strip().upper() == "LOW" for item in daily_vibe.get("items", []))
     timeline = _build_timeline_from_interpretations(interpretations, final_score, birth_input=birth_input, current_dt=current_dt, daily_modifier=daily_modifier, is_noise_heavy=is_noise_heavy)
     timeline_days = _build_timeline_days(interpretations, final_score, birth_input=birth_input, current_dt=current_dt, daily_modifier=daily_modifier, is_noise_heavy=is_noise_heavy)
+    daily_performance = _build_daily_performance(birth_input, current_dt, daily_vibe)
     topics = _build_topics_from_interpretations(interpretations, final_score)
     hero = {
         "rank": _score_to_rank(final_score),
@@ -2958,6 +3527,7 @@ def build_dashboard_data_from_interpretations(
         "timeline": timeline,
         "timelineDate": _dashboard_date(current_dt),
         "timelineDays": timeline_days,
+        "dailyPerformance": daily_performance,
         "planetMotion": _dashboard_planet_motion(birth_input, current_dt),
         "retrogradeCalendar": _dashboard_retrograde_calendar(current_dt),
         "topics": topics,

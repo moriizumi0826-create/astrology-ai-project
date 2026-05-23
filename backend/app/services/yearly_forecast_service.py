@@ -9,7 +9,7 @@ from typing import Any
 import pandas as pd
 
 from backend.app.services import reading_service
-from backend.app.services.chart_calculator import ASPECT_DEFS, BirthInput, get_angle_diff, get_aspect
+from backend.app.services.chart_calculator import ASPECT_DEFS, BirthInput, get_angle_diff, get_aspect, get_house
 
 try:
     import swisseph as swe
@@ -92,6 +92,21 @@ def _base_logic_rows() -> dict[tuple[str, str, int], dict[str, Any]]:
             reading_service._normalize_int(row.get("Transit_House")) or 0,
         )
         rows[key] = row
+    return rows
+
+
+@lru_cache(maxsize=1)
+def _long_term_house_rows() -> dict[tuple[str, int, int], dict[str, Any]]:
+    path = DATABASE_DIR / "M_Long_Term_House_Interpretation.csv"
+    rows: dict[tuple[str, int, int], dict[str, Any]] = {}
+    if not path.exists():
+        return rows
+    for row in _read_csv_dicts(path):
+        planet = reading_service._normalize_planet(row.get("トランジット天体"))
+        natal_house = reading_service._normalize_int(row.get("ネイタルハウス"))
+        solar_house = reading_service._normalize_int(row.get("ソーラーハウス"))
+        if planet and natal_house and solar_house:
+            rows[(planet, natal_house, solar_house)] = row
     return rows
 
 
@@ -730,6 +745,60 @@ def build_yearly_summary(yearly_data: list[dict[str, Any]]) -> str:
     return f"2026年は後半に向けて{trend_labels[trend_key]}が{direction}"
 
 
+def build_annual_themes(
+    *,
+    year: int,
+    birth_input: BirthInput,
+    house_cusps: list[float],
+    natal_sun_sign: str,
+    planet: str = "JUPITER",
+) -> list[dict[str, Any]]:
+    if not house_cusps:
+        return []
+
+    rows = _long_term_house_rows()
+    themes: list[dict[str, Any]] = []
+    current_theme: dict[str, Any] | None = None
+    current = date(year, 1, 1)
+    end = date(year, 12, 31)
+
+    while current <= end:
+        transit_longitude, _is_retrograde, calendar_row = _calendar_transit_state(current, planet)
+        natal_house = get_house(transit_longitude, house_cusps)
+        solar_house = _solar_house(calendar_row["Sign_ID"], natal_sun_sign)
+        key = (planet, natal_house, solar_house)
+        master_row = rows.get(key, {})
+        summary = _yearly_text(master_row, "annual概要", "作成中")
+        interpretation = _yearly_text(master_row, "annual解釈文", "作成中")
+
+        if current_theme and current_theme["key"] == key:
+            current_theme["end_date"] = current.isoformat()
+        else:
+            if current_theme:
+                themes.append(current_theme)
+            current_theme = {
+                "key": key,
+                "planet": planet,
+                "planet_label": reading_service.PLANET_LABELS.get(planet, planet),
+                "start_date": current.isoformat(),
+                "end_date": current.isoformat(),
+                "natal_house": natal_house,
+                "solar_house": solar_house,
+                "annual_summary": summary,
+                "annual_interpretation": interpretation,
+                "monthly_summary": _yearly_text(master_row, "monthly概要", "作成中"),
+                "monthly_interpretation": _yearly_text(master_row, "monthly解釈文", "作成中"),
+            }
+        current += timedelta(days=1)
+
+    if current_theme:
+        themes.append(current_theme)
+    for index, theme in enumerate(themes, start=1):
+        theme["id"] = f"{planet}_THEME_{index:02d}"
+        theme["label"] = f"THEME {index:02d}"
+    return themes
+
+
 def generate_yearly_forecast(
     birth_input: BirthInput,
     year: int = FORECAST_YEAR,
@@ -745,11 +814,19 @@ def generate_yearly_forecast(
     while current <= end:
         yearly_data.append(_build_day_forecast(current, birth_input, natal_points, house_cusps, natal_sun_sign))
         current += timedelta(days=1)
+    annual_themes = build_annual_themes(
+        year=year,
+        birth_input=birth_input,
+        house_cusps=house_cusps,
+        natal_sun_sign=natal_sun_sign,
+        planet="JUPITER",
+    )
 
     return {
         "summary": build_yearly_summary(yearly_data),
         "yearly_data": yearly_data,
         "milestones": extract_milestones(yearly_data),
+        "annual_themes": annual_themes,
         "cache": build_yearly_forecast_cache_payload(birth_input, year),
     }
 
