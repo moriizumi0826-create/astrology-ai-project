@@ -1,7 +1,12 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { Bell, CircleDot, Shield, Sparkles, Star } from "lucide-react";
-import { getStoredReadingResult, getStoredReadingResultAsync } from "./reading-storage.js";
+import {
+  getStoredReadingForm,
+  getStoredReadingResult,
+  getStoredReadingResultAsync,
+  storeReadingResult,
+} from "./reading-storage.js";
 
 const MONTHS = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"];
 const SCORE_KEYS = [
@@ -16,9 +21,40 @@ function cx(...values) {
   return values.filter(Boolean).join(" ");
 }
 
+function resolveApiBaseUrl() {
+  const configured = String(__APP_API_BASE_URL__ || "").trim();
+  if (configured) {
+    return configured.replace(/\/$/, "");
+  }
+  return window.location.origin.replace(/\/$/, "");
+}
+
+async function postJson(path, payload) {
+  const response = await fetch(`${resolveApiBaseUrl()}${path}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  if (!response.ok) {
+    const errorPayload = await response.json().catch(() => ({}));
+    throw new Error(errorPayload.detail || `Request failed: ${response.status}`);
+  }
+  return response.json();
+}
+
 function getForecast() {
   const payload = getStoredReadingResult();
   return payload?.yearly_forecast || payload?.yearlyForecast || null;
+}
+
+function forecastYear(forecast) {
+  const fromCache = Number(forecast?.cache?.year);
+  if (Number.isFinite(fromCache)) {
+    return fromCache;
+  }
+  const firstDate = String(forecast?.yearly_data?.[0]?.date || forecast?.reading_date || "");
+  const parsed = Number(firstDate.slice(0, 4));
+  return Number.isFinite(parsed) ? parsed : 2026;
 }
 
 function demoForecast() {
@@ -186,11 +222,11 @@ function GlassPanel({ children, className = "" }) {
 function Header() {
   return (
     <header className="border-b border-white/10 bg-[#0d0e0f]/82 backdrop-blur-xl">
-      <div className="mx-auto flex max-w-[1540px] items-center justify-between gap-6 px-8 py-6">
-        <div className="flex min-w-0 items-center gap-8">
-          <a href="/results.html" className="font-serif text-4xl font-bold leading-none text-gold">The Celestial Atelier</a>
+      <div className="mx-auto flex max-w-[1540px] items-start justify-between gap-4 px-4 py-4 sm:items-center md:px-8 md:py-6">
+        <div className="flex min-w-0 flex-1 flex-col gap-2 sm:flex-row sm:items-center sm:gap-8">
+          <a href="/results.html" className="max-w-full truncate font-serif text-2xl font-bold leading-none text-gold sm:text-3xl lg:text-4xl">The Celestial Atelier</a>
           <span className="hidden h-10 w-px bg-white/20 md:block" />
-          <h1 className="truncate font-serif text-2xl font-semibold tracking-[0.04em] text-starlight md:text-3xl">
+          <h1 className="max-w-full truncate font-serif text-base font-semibold tracking-[0.04em] text-starlight sm:text-xl md:text-3xl">
             2026年 運勢年間予測
           </h1>
         </div>
@@ -199,11 +235,11 @@ function Header() {
           <span>Monthly Matrix</span>
           <span>Daily Detail</span>
         </nav>
-        <div className="flex items-center gap-4 text-gold">
-          <Bell size={20} />
-          <Sparkles size={22} />
-          <div className="flex h-11 w-11 items-center justify-center rounded-full border border-gold/35 bg-gold/10">
-            <Star size={19} />
+        <div className="flex shrink-0 items-center gap-2 text-gold sm:gap-4">
+          <Bell className="hidden sm:block" size={20} />
+          <Sparkles size={20} />
+          <div className="flex h-9 w-9 items-center justify-center rounded-full border border-gold/35 bg-gold/10 sm:h-11 sm:w-11">
+            <Star size={17} />
           </div>
         </div>
       </div>
@@ -220,13 +256,13 @@ function OraclePanel({ stats, forecast }) {
     { color: "#ffb4ab", label: "THEME 03", body: "作成中" },
   ];
   return (
-    <div className="h-full">
-      <GlassPanel className="flex h-full max-h-[calc(100svh-120px)] min-h-[760px] flex-col overflow-hidden p-7 lg:max-h-none">
-        <div className="flex items-center justify-between gap-4">
+    <div className="h-full min-w-0">
+      <GlassPanel className="flex h-[calc(100svh-104px)] min-h-0 flex-col overflow-hidden p-5 sm:p-7 lg:h-full lg:min-h-[760px]">
+        <div className="flex items-center justify-between gap-3">
           <h2 className="font-serif text-3xl font-semibold text-starlight">
             {analysisMode === "theme" ? "Theme" : "Deep Analysis"}
           </h2>
-          <div className="flex rounded-full border border-white/10 bg-white/[0.04] p-1 font-mono text-[11px] font-bold text-mist">
+          <div className="flex shrink-0 rounded-full border border-white/10 bg-white/[0.04] p-1 font-mono text-[10px] font-bold text-mist sm:text-[11px]">
             {[
               ["deep", "Deep Analysis"],
               ["theme", "Theme"],
@@ -236,7 +272,7 @@ function OraclePanel({ stats, forecast }) {
                 type="button"
                 onClick={() => setAnalysisMode(value)}
                 className={cx(
-                  "rounded-full px-3 py-1.5 transition",
+                  "rounded-full px-2.5 py-1.5 transition sm:px-3",
                   analysisMode === value ? "bg-gold text-[#241a00]" : "hover:bg-white/10 hover:text-starlight"
                 )}
               >
@@ -247,7 +283,7 @@ function OraclePanel({ stats, forecast }) {
         </div>
         <div className="mt-5 h-px bg-white/10" />
         {analysisMode === "theme" ? (
-          <div className="mt-8 grid min-h-0 flex-1 gap-8 overflow-y-auto pr-2 [scrollbar-color:#e9c349_rgba(255,255,255,0.08)] [scrollbar-width:thin] lg:overflow-visible lg:pr-0">
+          <div className="mt-6 grid min-h-0 flex-1 gap-7 overflow-y-auto pr-2 [scrollbar-color:#e9c349_rgba(255,255,255,0.08)] [scrollbar-width:thin] lg:mt-8 lg:overflow-visible lg:pr-0">
             {(themeItems.length ? themeItems : fallbackThemeItems).map((item) => (
               <article key={item.label} className="relative pl-8">
                 <span className="absolute left-0 top-1.5 h-3 w-3 rounded-full shadow-[0_0_18px_currentColor]" style={{ color: item.color, backgroundColor: item.color }} />
@@ -255,7 +291,7 @@ function OraclePanel({ stats, forecast }) {
                 <p className="font-mono text-xs font-bold uppercase tracking-[0.12em]" style={{ color: item.color }}>
                   {item.label}
                 </p>
-                <p className="mt-3 text-base leading-8 text-mist">{item.body}</p>
+                <p className="mt-3 break-words text-sm leading-7 text-mist sm:text-base sm:leading-8">{item.body}</p>
               </article>
             ))}
           </div>
@@ -265,7 +301,7 @@ function OraclePanel({ stats, forecast }) {
             {
               color: "#e9c349",
               label: `${MONTHS[monthIndex(stats.peak?.date)]}: ANNUAL PEAK`,
-              body: `年間で最もスコアが高い月です。${stats.strongest?.label || "主要テーマ"}を軸に、重要な予定を前倒しで集約しやすいタイミングです。`,
+              body: `年間で最もスコアが高い月です。${stats.strongest?.label || "主要テーマ"}を軸に、重要な予定を前倒しで集中しやすいタイミングです。`,
             },
             {
               color: "#d3bcf9",
@@ -293,7 +329,16 @@ function OraclePanel({ stats, forecast }) {
   );
 }
 
-function AnnualChart({ data, stats, selectedSeriesKey, setSelectedSeriesKey, selectedMonthIndex, setSelectedMonthIndex }) {
+function AnnualChart({
+  data,
+  stats,
+  selectedSeriesKey,
+  setSelectedSeriesKey,
+  selectedMonthIndex,
+  setSelectedMonthIndex,
+  activeYear,
+  onOpenYearDialog,
+}) {
   const selectedSeries = SCORE_KEYS.find((item) => item.key === selectedSeriesKey) || SCORE_KEYS[0];
   const selectedMonth = clamp(selectedMonthIndex, 0, data.length - 1);
   const selectedDay = data[selectedMonth] || data[0];
@@ -309,13 +354,22 @@ function AnnualChart({ data, stats, selectedSeriesKey, setSelectedSeriesKey, sel
     setSelectedMonthIndex(nearestMonthIndexFromPointer(event, data.length));
   };
   return (
-    <GlassPanel className="p-8">
+    <GlassPanel className="min-w-0 p-4 sm:p-6 lg:p-8">
       <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
-        <div>
-          <h2 className="font-serif text-5xl font-bold leading-tight text-starlight">Annual Biorhythm 2026</h2>
-          <p className="mt-3 text-lg text-mist">Visualization of celestial influences across all major life sectors.</p>
+        <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-center sm:gap-4">
+          <h2 className="font-serif text-3xl font-bold leading-tight text-starlight sm:text-4xl lg:text-5xl">Annual Biorhythm {activeYear}</h2>
+          <button
+            type="button"
+            onClick={onOpenYearDialog}
+            className="inline-flex w-fit shrink-0 items-center justify-center rounded-full border border-gold/35 bg-gold/10 px-4 py-2 font-mono text-[10px] font-bold uppercase tracking-[0.12em] text-gold transition hover:border-gold/70 hover:bg-gold/20"
+          >
+            他の年で計算する
+          </button>
         </div>
-        <div className="flex flex-wrap gap-5 font-mono text-xs font-bold tracking-[0.08em] text-mist">
+        <div className="min-w-0">
+          <p className="mt-3 text-sm leading-6 text-mist sm:text-base lg:text-lg">Visualization of celestial influences across all major life sectors.</p>
+        </div>
+        <div className="flex flex-wrap gap-2 font-mono text-[10px] font-bold tracking-[0.08em] text-mist sm:gap-4 sm:text-xs lg:gap-5">
           {SCORE_KEYS.map((item) => (
             <button
               key={item.key}
@@ -333,7 +387,7 @@ function AnnualChart({ data, stats, selectedSeriesKey, setSelectedSeriesKey, sel
         </div>
       </div>
 
-      <svg className="mt-8 h-[360px] w-full" viewBox={`0 0 ${CHART.width} ${CHART.height}`} preserveAspectRatio="none" role="img" aria-label="年間運勢スコア折れ線グラフ">
+      <svg className="mt-6 h-[260px] w-full sm:h-[320px] lg:mt-8 lg:h-[360px]" viewBox={`0 0 ${CHART.width} ${CHART.height}`} preserveAspectRatio="none" role="img" aria-label="年間運勢スコアグラフ">
         <defs>
           <linearGradient id="forecastGoldArea" x1="0" x2="0" y1="0" y2="1">
             <stop offset="0%" stopColor={selectedSeries.color} stopOpacity="0.18" />
@@ -402,8 +456,8 @@ function AnnualChart({ data, stats, selectedSeriesKey, setSelectedSeriesKey, sel
 
 function Matrix({ data, selectedSeriesKey, selectedMonthIndex }) {
   return (
-    <GlassPanel className="border-gold/25 p-8">
-      <h2 className="font-serif text-3xl font-semibold text-gold">Monthly Forecast Matrix</h2>
+    <GlassPanel className="min-w-0 border-gold/25 p-4 sm:p-6 lg:p-8">
+      <h2 className="font-serif text-2xl font-semibold text-gold sm:text-3xl">Monthly Forecast Matrix</h2>
       <div className="mt-6 overflow-x-auto">
         <table className="w-full min-w-[860px] table-fixed border-collapse font-mono text-sm">
           <thead>
@@ -456,10 +510,10 @@ function FooterStats({ stats }) {
   return (
     <div className="grid gap-6 md:grid-cols-3">
       {items.map((item) => (
-        <GlassPanel key={item.label} className="flex items-end justify-between gap-5 p-7">
+        <GlassPanel key={item.label} className="flex items-end justify-between gap-5 p-5 sm:p-7">
           <div>
             <p className="font-mono text-xs font-bold uppercase tracking-[0.15em] text-mist">{item.label}</p>
-            <p className="mt-4 font-serif text-4xl font-semibold text-starlight">{item.value}</p>
+            <p className="mt-3 font-serif text-3xl font-semibold text-starlight sm:mt-4 sm:text-4xl">{item.value}</p>
           </div>
           <span className="text-gold">{item.icon}</span>
         </GlassPanel>
@@ -468,8 +522,73 @@ function FooterStats({ stats }) {
   );
 }
 
+function YearCalculationDialog({
+  open,
+  year,
+  onYearChange,
+  onClose,
+  onCalculate,
+  calculating,
+  error,
+}) {
+  if (!open) return null;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4 backdrop-blur-sm">
+      <div className="w-full max-w-[420px] rounded-2xl border border-white/12 bg-[#151717] p-5 shadow-[0_24px_80px_rgba(0,0,0,0.48)] sm:p-6">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <p className="font-mono text-[10px] font-bold uppercase tracking-[0.22em] text-gold">Annual Forecast</p>
+            <h2 className="mt-2 font-serif text-3xl font-semibold text-starlight">他の年で計算する</h2>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={calculating}
+            className="rounded-full border border-white/12 px-3 py-1.5 font-mono text-xs font-bold text-mist transition hover:bg-white/8 disabled:opacity-40"
+          >
+            Close
+          </button>
+        </div>
+
+        <label className="mt-7 block">
+          <span className="font-mono text-xs font-bold uppercase tracking-[0.14em] text-mist">任意の年</span>
+          <input
+            type="number"
+            min="2020"
+            max="2028"
+            step="1"
+            value={year}
+            onChange={(event) => onYearChange(event.target.value)}
+            disabled={calculating}
+            className="mt-3 h-12 w-full rounded-xl border border-white/12 bg-[#0d0e0f] px-4 font-mono text-lg font-bold text-starlight outline-none transition focus:border-gold/70 disabled:opacity-50"
+          />
+        </label>
+
+        {error ? (
+          <p className="mt-4 rounded-xl border border-[#ffb4ab]/30 bg-[#3a1d1d]/40 px-4 py-3 text-sm leading-6 text-[#ffb4ab]">{error}</p>
+        ) : null}
+
+        <button
+          type="button"
+          onClick={onCalculate}
+          disabled={calculating}
+          className="mt-6 h-12 w-full rounded-full bg-gold font-mono text-xs font-black uppercase tracking-[0.18em] text-[#241a00] shadow-[0_0_24px_rgba(233,195,73,0.18)] transition hover:bg-[#f2d56d] disabled:cursor-wait disabled:opacity-70"
+        >
+          {calculating ? "計算中..." : "計算する"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function ForecastDetailPage() {
   const [forecast, setForecast] = useState(() => getForecast() || demoForecast());
+  const activeYear = forecastYear(forecast);
+  const [yearDialogOpen, setYearDialogOpen] = useState(false);
+  const [targetYear, setTargetYear] = useState(String(activeYear));
+  const [calculatingYear, setCalculatingYear] = useState(false);
+  const [yearCalculationError, setYearCalculationError] = useState("");
   useEffect(() => {
     let active = true;
     getStoredReadingResultAsync({ allowStale: true }).then((payload) => {
@@ -482,17 +601,57 @@ function ForecastDetailPage() {
       active = false;
     };
   }, []);
+  useEffect(() => {
+    if (!yearDialogOpen) {
+      setTargetYear(String(activeYear));
+      setYearCalculationError("");
+    }
+  }, [activeYear, yearDialogOpen]);
   const data = useMemo(() => monthlyData(forecast), [forecast]);
   const stats = useMemo(() => aggregateStats(data), [data]);
   const [selectedSeriesKey, setSelectedSeriesKey] = useState("general");
   const [selectedMonthIndex, setSelectedMonthIndex] = useState(monthIndex(stats.peak?.date));
+  const handleCalculateYear = async () => {
+    const normalizedYear = Number(targetYear);
+    if (!Number.isInteger(normalizedYear) || normalizedYear < 2020 || normalizedYear > 2028) {
+      setYearCalculationError("2020年から2028年の範囲で年を入力してください。");
+      return;
+    }
+
+    const formPayload = getStoredReadingForm();
+    if (!formPayload) {
+      setYearCalculationError("出生データが見つかりません。入力画面から再計算してください。");
+      return;
+    }
+
+    setCalculatingYear(true);
+    setYearCalculationError("");
+    try {
+      const nextForecast = await postJson(`/api/yearly-forecast?year=${normalizedYear}`, formPayload);
+      setForecast(nextForecast);
+      setSelectedMonthIndex(monthIndex(nextForecast?.summary?.peak?.date || nextForecast?.yearly_data?.[0]?.date));
+
+      const storedPayload = await getStoredReadingResultAsync({ allowStale: true });
+      if (storedPayload) {
+        await storeReadingResult({
+          ...storedPayload,
+          yearly_forecast: nextForecast,
+        });
+      }
+      setYearDialogOpen(false);
+    } catch (error) {
+      setYearCalculationError(error.message || "年間予測の計算に失敗しました。");
+    } finally {
+      setCalculatingYear(false);
+    }
+  };
 
   return (
-    <div className="relative min-h-screen text-starlight">
+    <div className="relative min-h-screen overflow-x-hidden text-starlight">
       <Header />
-      <main className="mx-auto grid max-w-[1540px] gap-7 px-8 py-24 lg:grid-cols-[380px_1fr]">
+      <main className="mx-auto grid max-w-[1540px] gap-5 px-3 py-5 sm:px-5 sm:py-8 lg:grid-cols-[380px_1fr] lg:gap-7 lg:px-8 lg:py-24">
         <OraclePanel stats={stats} forecast={forecast} />
-        <div className="grid gap-7">
+        <div className="grid min-w-0 gap-5 lg:gap-7">
           <AnnualChart
             data={data}
             stats={stats}
@@ -500,18 +659,29 @@ function ForecastDetailPage() {
             setSelectedSeriesKey={setSelectedSeriesKey}
             selectedMonthIndex={selectedMonthIndex}
             setSelectedMonthIndex={setSelectedMonthIndex}
+            activeYear={activeYear}
+            onOpenYearDialog={() => setYearDialogOpen(true)}
           />
           <Matrix data={data} selectedSeriesKey={selectedSeriesKey} selectedMonthIndex={selectedMonthIndex} />
           <FooterStats stats={stats} />
         </div>
       </main>
-      <footer className="border-t border-white/10 bg-[#0d0e0f]/80 px-8 py-10">
+      <footer className="border-t border-white/10 bg-[#0d0e0f]/80 px-4 py-8 sm:px-8 sm:py-10">
         <div className="mx-auto flex max-w-[1540px] flex-col gap-4 text-mist md:flex-row md:items-center md:justify-between">
           <p className="font-serif text-2xl font-semibold text-gold">The Celestial Atelier</p>
           <p className="text-sm">Annual forecast detail. Dashboard remains independent.</p>
           <a href="/results.html" className="font-mono text-xs uppercase tracking-[0.18em] text-mist hover:text-gold">Back to Results</a>
         </div>
       </footer>
+      <YearCalculationDialog
+        open={yearDialogOpen}
+        year={targetYear}
+        onYearChange={setTargetYear}
+        onClose={() => setYearDialogOpen(false)}
+        onCalculate={handleCalculateYear}
+        calculating={calculatingYear}
+        error={yearCalculationError}
+      />
     </div>
   );
 }
