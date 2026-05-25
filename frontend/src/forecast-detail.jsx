@@ -288,7 +288,7 @@ function OraclePanel({ stats, forecast }) {
           <h2 className="font-serif text-2xl font-semibold text-starlight sm:text-3xl">
             {analysisMode === "theme" ? "Theme" : "Deep Analysis"}
           </h2>
-          <div className="flex shrink-0 rounded-full border border-white/10 bg-white/[0.04] p-1 font-mono text-[10px] font-bold text-mist sm:text-[11px]">
+          <div className="flex shrink-0 rounded-full border border-white/10 bg-white/[0.04] p-1 font-mono text-[8px] font-bold text-mist sm:text-[10px]">
             {[
               ["deep", "Deep Analysis"],
               ["theme", "Theme"],
@@ -299,7 +299,7 @@ function OraclePanel({ stats, forecast }) {
                 type="button"
                 onClick={() => setAnalysisMode(value)}
                 className={cx(
-                  "rounded-full px-2.5 py-1.5 transition sm:px-3",
+                  "rounded-full px-2 py-1.5 transition sm:px-3",
                   analysisMode === value ? "bg-gold text-[#241a00]" : "hover:bg-white/10 hover:text-starlight"
                 )}
               >
@@ -395,37 +395,37 @@ function AnnualChart({
     setSelectedMonthIndex(nearestMonthIndexFromPointer(event, data.length));
   };
   return (
-    <GlassPanel className="p-4 sm:p-8">
-      <div className="flex flex-col gap-3 sm:gap-4 lg:flex-row lg:items-start lg:justify-between">
-        <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-center sm:gap-4">
-          <h2 className="font-serif text-3xl font-bold leading-tight text-starlight sm:text-5xl">Annual Biorhythm {activeYear}</h2>
+    <GlassPanel className="p-3 sm:p-8">
+      <div className="flex flex-col gap-2 sm:gap-4 lg:flex-row lg:items-start lg:justify-between">
+        <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-center sm:gap-4">
+          <h2 className="font-serif text-[26px] font-bold leading-tight text-starlight sm:text-5xl">Annual Biorhythm {activeYear}</h2>
           <button
             type="button"
             onClick={onOpenYearDialog}
-            className="inline-flex w-fit shrink-0 items-center justify-center rounded-full border border-gold/35 bg-gold/10 px-4 py-2 font-mono text-[10px] font-bold uppercase tracking-[0.12em] text-gold transition hover:border-gold/70 hover:bg-gold/20"
+            className="inline-flex w-fit shrink-0 items-center justify-center rounded-full border border-gold/35 bg-gold/10 px-3 py-1.5 font-mono text-[9px] font-bold uppercase tracking-[0.1em] text-gold transition hover:border-gold/70 hover:bg-gold/20 sm:px-4 sm:py-2 sm:text-[10px] sm:tracking-[0.12em]"
           >
             他の年で計算する
           </button>
         </div>
-        <div className="flex flex-wrap gap-2 font-mono text-[11px] font-bold tracking-[0.08em] text-mist sm:gap-5 sm:text-xs">
+        <div className="flex flex-wrap gap-1.5 font-mono text-[9px] font-bold tracking-[0.04em] text-mist sm:gap-5 sm:text-xs sm:tracking-[0.08em]">
           {SCORE_KEYS.map((item) => (
             <button
               key={item.key}
               type="button"
               onClick={() => setSelectedSeriesKey(item.key)}
               className={cx(
-                "inline-flex items-center gap-2 rounded-full border px-2.5 py-1 transition",
+                "inline-flex items-center gap-1 rounded-full border px-1.5 py-0.5 transition sm:gap-2 sm:px-2.5 sm:py-1",
                 selectedSeries.key === item.key ? "border-white/20 bg-white/10 text-starlight" : "border-transparent hover:border-white/15 hover:bg-white/5"
               )}
             >
-              <span className="h-3 w-3 rounded-full" style={{ backgroundColor: item.color }} />
+              <span className="h-2 w-2 rounded-full sm:h-3 sm:w-3" style={{ backgroundColor: item.color }} />
               {item.label}
             </button>
           ))}
         </div>
       </div>
 
-      <svg className="mt-2 h-[284px] w-full sm:mt-3 sm:h-[405px]" viewBox={`0 0 ${CHART.width} ${CHART.height}`} preserveAspectRatio="none" role="img" aria-label="年間運勢スコアグラフ">
+      <svg className="mt-2 h-[250px] w-full sm:mt-3 sm:h-[405px]" viewBox={`0 0 ${CHART.width} ${CHART.height}`} preserveAspectRatio="none" role="img" aria-label="年間運勢スコアグラフ">
         <defs>
           <linearGradient id="forecastGoldArea" x1="0" x2="0" y1="0" y2="1">
             <stop offset="0%" stopColor={selectedSeries.color} stopOpacity="0.18" />
@@ -494,35 +494,35 @@ function AnnualChart({
 
 function Matrix({ data, selectedSeriesKey, selectedMonthIndex }) {
   return (
-    <GlassPanel className="border-gold/25 p-4 sm:p-8">
-      <h2 className="font-serif text-2xl font-semibold text-gold sm:text-3xl">Monthly Forecast Matrix</h2>
-      <div className="mt-6 overflow-x-auto">
-        <table className="w-full min-w-[720px] table-fixed border-collapse font-mono text-xs sm:min-w-[860px] sm:text-sm">
+    <GlassPanel className="border-gold/25 p-3 sm:p-8">
+      <h2 className="font-serif text-xl font-semibold text-gold sm:text-3xl">Monthly Forecast Matrix</h2>
+      <div className="mt-4 overflow-hidden sm:mt-6 sm:overflow-x-auto">
+        <table className="w-full table-fixed border-collapse font-mono text-[7px] sm:min-w-[860px] sm:text-sm">
           <thead>
-            <tr className="border-b border-white/15 text-xs uppercase tracking-[0.12em] text-mist">
-              <th className="w-[120px] py-3 pr-4 text-left sm:w-[150px] sm:pr-5">Sector</th>
+            <tr className="border-b border-white/15 text-[7px] uppercase tracking-[0.04em] text-mist sm:text-xs sm:tracking-[0.12em]">
+              <th className="w-[58px] py-2 pr-1 text-left sm:w-[150px] sm:py-3 sm:pr-5">Sector</th>
               {MONTHS.map((month) => (
-                <th key={month} className="px-2 py-3 text-right sm:px-3">{month}</th>
+                <th key={month} className="px-0.5 py-2 text-center sm:px-3 sm:py-3 sm:text-right">{month}</th>
               ))}
             </tr>
           </thead>
           <tbody>
             {SCORE_KEYS.map((item) => (
               <tr key={item.key} className="border-b border-white/10 last:border-0">
-                <th className="py-4 pr-4 text-left font-sans text-sm text-starlight sm:py-5 sm:pr-5 sm:text-base">{item.label}</th>
+                <th className="py-2 pr-1 text-left font-sans text-[8px] leading-3 text-starlight sm:py-5 sm:pr-5 sm:text-base sm:leading-normal">{item.label}</th>
                 {data.map((day, index) => {
                   const score = scoreFor(day, item.key);
                   const isSelectedCell = item.key === selectedSeriesKey && index === selectedMonthIndex;
                   return (
                     <td
                       key={`${item.key}-${index}`}
-                      className="px-1.5 py-2.5 text-right sm:px-2 sm:py-3"
+                      className="px-0.5 py-1 text-center sm:px-2 sm:py-3 sm:text-right"
                     >
                       <span
                         className={cx(
-                          "inline-flex h-10 w-full items-center justify-end rounded-lg px-2 transition",
+                          "inline-flex h-6 w-full items-center justify-center rounded-md px-0.5 transition sm:h-10 sm:justify-end sm:rounded-lg sm:px-2",
                           score >= 0 ? "text-gold" : "text-outline",
-                          isSelectedCell && "border border-[#8b7cf6]/70 bg-[#4f3d71]/38 text-base font-black text-[#ebdcff] shadow-[0_0_24px_rgba(139,124,246,0.34)]"
+                          isSelectedCell && "border border-[#8b7cf6]/70 bg-[#4f3d71]/38 text-[8px] font-black text-[#ebdcff] shadow-[0_0_14px_rgba(139,124,246,0.28)] sm:text-base sm:shadow-[0_0_24px_rgba(139,124,246,0.34)]"
                         )}
                       >
                         {formatScore(score)}
@@ -687,7 +687,7 @@ function ForecastDetailPage() {
   return (
     <div className="relative min-h-screen overflow-x-hidden text-starlight">
       <Header />
-      <main className="mx-auto grid max-w-[1540px] gap-4 px-4 py-6 sm:gap-7 sm:px-8 sm:py-12 lg:py-24">
+      <main className="mx-auto grid max-w-[1540px] gap-4 px-1 py-6 sm:gap-7 sm:px-8 sm:py-12 lg:py-24">
         <OraclePanel stats={stats} forecast={forecast} />
         <div className="grid gap-4 sm:gap-7">
           <AnnualChart
