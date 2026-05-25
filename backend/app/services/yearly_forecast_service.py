@@ -821,12 +821,20 @@ def generate_yearly_forecast(
         natal_sun_sign=natal_sun_sign,
         planet="JUPITER",
     )
+    annual_lessons = build_annual_themes(
+        year=year,
+        birth_input=birth_input,
+        house_cusps=house_cusps,
+        natal_sun_sign=natal_sun_sign,
+        planet="SATURN",
+    )
 
     return {
         "summary": build_yearly_summary(yearly_data),
         "yearly_data": yearly_data,
         "milestones": extract_milestones(yearly_data),
         "annual_themes": annual_themes,
+        "annual_lessons": annual_lessons,
         "cache": build_yearly_forecast_cache_payload(birth_input, year),
     }
 

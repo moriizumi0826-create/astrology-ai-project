@@ -106,6 +106,13 @@ function formatThemeDate(value) {
   return `${date.getMonth() + 1}/${date.getDate()}`;
 }
 
+function preserveThemeLineBreaks(value) {
+  return String(value || "")
+    .replaceAll("\\r\\n", "\n")
+    .replaceAll("\\n", "\n")
+    .replace(/\r\n?/g, "\n");
+}
+
 function themeItemsFromForecast(forecast) {
   const themes = Array.isArray(forecast?.annual_themes)
     ? forecast.annual_themes
@@ -115,11 +122,29 @@ function themeItemsFromForecast(forecast) {
   const colors = ["#e9c349", "#d3bcf9", "#ffb4ab", "#c3c6d7"];
   return themes.map((theme, index) => {
     const period = `${formatThemeDate(theme.start_date || theme.startDate)}-${formatThemeDate(theme.end_date || theme.endDate)}`;
-    const summary = theme.annual_summary || theme.annualSummary || "作成中";
+    const summary = preserveThemeLineBreaks(theme.annual_summary || theme.annualSummary || "作成中");
     return {
       color: colors[index % colors.length],
       label: `${period}: ${summary}`,
-      body: theme.annual_interpretation || theme.annualInterpretation || "作成中",
+      body: preserveThemeLineBreaks(theme.annual_interpretation || theme.annualInterpretation || "作成中"),
+    };
+  });
+}
+
+function lessonItemsFromForecast(forecast) {
+  const lessons = Array.isArray(forecast?.annual_lessons)
+    ? forecast.annual_lessons
+    : Array.isArray(forecast?.annualLessons)
+      ? forecast.annualLessons
+      : [];
+  const colors = ["#e9c349", "#d3bcf9", "#ffb4ab", "#c3c6d7"];
+  return lessons.map((lesson, index) => {
+    const period = `${formatThemeDate(lesson.start_date || lesson.startDate)}-${formatThemeDate(lesson.end_date || lesson.endDate)}`;
+    const summary = preserveThemeLineBreaks(lesson.annual_summary || lesson.annualSummary || "作成中");
+    return {
+      color: colors[index % colors.length],
+      label: `${period}: ${summary}`,
+      body: preserveThemeLineBreaks(lesson.annual_interpretation || lesson.annualInterpretation || "作成中"),
     };
   });
 }
@@ -221,12 +246,12 @@ function GlassPanel({ children, className = "" }) {
 
 function Header() {
   return (
-    <header className="border-b border-white/10 bg-[#0d0e0f]/82 backdrop-blur-xl">
-      <div className="mx-auto flex max-w-[1760px] items-center justify-between gap-6 px-8 py-6">
-        <div className="flex min-w-0 items-center gap-8">
-          <a href="/results.html" className="font-serif text-4xl font-bold leading-none text-gold">The Celestial Atelier</a>
+    <header className="w-full border-b border-white/10 bg-[#0d0e0f]/82 backdrop-blur-xl">
+      <div className="flex w-full max-w-none items-center justify-between gap-3 px-4 py-4 sm:gap-6 sm:px-8 sm:py-6 lg:mx-auto lg:max-w-[1760px]">
+        <div className="flex min-w-0 items-center gap-4 sm:gap-8">
+          <a href="/results.html" className="max-w-[150px] font-serif text-[22px] font-bold leading-[0.98] text-gold sm:max-w-none sm:text-4xl sm:leading-none">The Celestial Atelier</a>
           <span className="hidden h-10 w-px bg-white/20 md:block" />
-          <h1 className="truncate font-serif text-2xl font-semibold tracking-[0.04em] text-starlight md:text-3xl">
+          <h1 className="hidden truncate font-serif text-2xl font-semibold tracking-[0.04em] text-starlight md:block md:text-3xl">
             2026年 運勢年間予測
           </h1>
         </div>
@@ -235,11 +260,11 @@ function Header() {
           <span>Monthly Matrix</span>
           <span>Daily Detail</span>
         </nav>
-        <div className="flex items-center gap-4 text-gold">
-          <Bell size={20} />
-          <Sparkles size={22} />
-          <div className="flex h-11 w-11 items-center justify-center rounded-full border border-gold/35 bg-gold/10">
-            <Star size={19} />
+        <div className="flex shrink-0 items-center gap-3 text-gold sm:gap-4">
+          <Bell size={18} />
+          <Sparkles size={20} />
+          <div className="flex h-10 w-10 items-center justify-center rounded-full border border-gold/35 bg-gold/10 sm:h-11 sm:w-11">
+            <Star size={18} />
           </div>
         </div>
       </div>
@@ -248,8 +273,9 @@ function Header() {
 }
 
 function OraclePanel({ stats, forecast }) {
-  const [analysisMode, setAnalysisMode] = useState("deep");
+  const [analysisMode, setAnalysisMode] = useState("theme");
   const themeItems = themeItemsFromForecast(forecast);
+  const lessonItems = lessonItemsFromForecast(forecast);
   const fallbackThemeItems = [
     { color: "#e9c349", label: "THEME 01", body: "作成中" },
     { color: "#d3bcf9", label: "THEME 02", body: "作成中" },
@@ -257,22 +283,23 @@ function OraclePanel({ stats, forecast }) {
   ];
   return (
     <div className="h-full">
-      <GlassPanel className="flex h-full max-h-[calc(100svh-120px)] min-h-[760px] flex-col overflow-hidden p-7 lg:max-h-none">
-        <div className="flex items-center justify-between gap-4">
-          <h2 className="font-serif text-3xl font-semibold text-starlight">
+      <GlassPanel className="flex h-[520px] flex-col overflow-hidden p-4 sm:h-[560px] sm:p-7 lg:h-[620px]">
+        <div className="flex items-center justify-between gap-3">
+          <h2 className="font-serif text-2xl font-semibold text-starlight sm:text-3xl">
             {analysisMode === "theme" ? "Theme" : "Deep Analysis"}
           </h2>
-          <div className="flex rounded-full border border-white/10 bg-white/[0.04] p-1 font-mono text-[11px] font-bold text-mist">
+          <div className="flex shrink-0 rounded-full border border-white/10 bg-white/[0.04] p-1 font-mono text-[10px] font-bold text-mist sm:text-[11px]">
             {[
               ["deep", "Deep Analysis"],
               ["theme", "Theme"],
+              ["lesson", "課題・学び"],
             ].map(([value, label]) => (
               <button
                 key={value}
                 type="button"
                 onClick={() => setAnalysisMode(value)}
                 className={cx(
-                  "rounded-full px-3 py-1.5 transition",
+                  "rounded-full px-2.5 py-1.5 transition sm:px-3",
                   analysisMode === value ? "bg-gold text-[#241a00]" : "hover:bg-white/10 hover:text-starlight"
                 )}
               >
@@ -283,7 +310,7 @@ function OraclePanel({ stats, forecast }) {
         </div>
         <div className="mt-5 h-px bg-white/10" />
         {analysisMode === "theme" ? (
-          <div className="mt-8 grid min-h-0 flex-1 gap-8 overflow-y-auto pr-2 [scrollbar-color:#e9c349_rgba(255,255,255,0.08)] [scrollbar-width:thin] lg:overflow-visible lg:pr-0">
+          <div className="mt-6 grid min-h-0 flex-1 gap-6 overflow-y-auto pr-2 [scrollbar-color:#e9c349_rgba(255,255,255,0.08)] [scrollbar-width:thin] sm:mt-8 sm:gap-8">
             {(themeItems.length ? themeItems : fallbackThemeItems).map((item) => (
               <article key={item.label} className="relative pl-8">
                 <span className="absolute left-0 top-1.5 h-3 w-3 rounded-full shadow-[0_0_18px_currentColor]" style={{ color: item.color, backgroundColor: item.color }} />
@@ -291,12 +318,26 @@ function OraclePanel({ stats, forecast }) {
                 <p className="font-mono text-xs font-bold uppercase tracking-[0.12em]" style={{ color: item.color }}>
                   {item.label}
                 </p>
-                <p className="mt-3 text-base leading-8 text-mist">{item.body}</p>
+                <p className="mt-3 whitespace-pre-line text-sm leading-7 text-mist sm:text-base sm:leading-8">{item.body}</p>
               </article>
             ))}
           </div>
         ) : null}
-        <div className={cx("mt-8 grid gap-8", analysisMode === "theme" && "hidden")}>
+        {analysisMode === "lesson" ? (
+          <div className="mt-6 grid min-h-0 flex-1 gap-6 overflow-y-auto pr-2 [scrollbar-color:#e9c349_rgba(255,255,255,0.08)] [scrollbar-width:thin] sm:mt-8 sm:gap-8">
+            {(lessonItems.length ? lessonItems : fallbackThemeItems).map((item) => (
+              <article key={`lesson-${item.label}`} className="relative pl-8">
+                <span className="absolute left-0 top-1.5 h-3 w-3 rounded-full shadow-[0_0_18px_currentColor]" style={{ color: item.color, backgroundColor: item.color }} />
+                <span className="absolute left-[5px] top-5 h-full w-px bg-white/15" />
+                <p className="font-mono text-xs font-bold uppercase tracking-[0.12em]" style={{ color: item.color }}>
+                  {item.label}
+                </p>
+                <p className="mt-3 whitespace-pre-line text-sm leading-7 text-mist sm:text-base sm:leading-8">{item.body}</p>
+              </article>
+            ))}
+          </div>
+        ) : null}
+        <div className={cx("mt-6 grid min-h-0 flex-1 gap-6 overflow-y-auto pr-2 [scrollbar-color:#e9c349_rgba(255,255,255,0.08)] [scrollbar-width:thin] sm:mt-8 sm:gap-8", analysisMode !== "deep" && "hidden")}>
           {[
             {
               color: "#e9c349",
@@ -320,7 +361,7 @@ function OraclePanel({ stats, forecast }) {
               <p className="font-mono text-xs font-bold uppercase tracking-[0.12em]" style={{ color: item.color }}>
                 {item.label}
               </p>
-              <p className="mt-3 text-base leading-8 text-mist">{item.body}</p>
+              <p className="mt-3 text-sm leading-7 text-mist sm:text-base sm:leading-8">{item.body}</p>
             </article>
           ))}
         </div>
@@ -354,10 +395,10 @@ function AnnualChart({
     setSelectedMonthIndex(nearestMonthIndexFromPointer(event, data.length));
   };
   return (
-    <GlassPanel className="p-8">
-      <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
+    <GlassPanel className="p-4 sm:p-8">
+      <div className="flex flex-col gap-3 sm:gap-4 lg:flex-row lg:items-start lg:justify-between">
         <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-center sm:gap-4">
-          <h2 className="font-serif text-5xl font-bold leading-tight text-starlight">Annual Biorhythm {activeYear}</h2>
+          <h2 className="font-serif text-3xl font-bold leading-tight text-starlight sm:text-5xl">Annual Biorhythm {activeYear}</h2>
           <button
             type="button"
             onClick={onOpenYearDialog}
@@ -366,10 +407,7 @@ function AnnualChart({
             他の年で計算する
           </button>
         </div>
-        <div className="min-w-0">
-          <p className="mt-3 text-lg text-mist">Visualization of celestial influences across all major life sectors.</p>
-        </div>
-        <div className="flex flex-wrap gap-5 font-mono text-xs font-bold tracking-[0.08em] text-mist">
+        <div className="flex flex-wrap gap-2 font-mono text-[11px] font-bold tracking-[0.08em] text-mist sm:gap-5 sm:text-xs">
           {SCORE_KEYS.map((item) => (
             <button
               key={item.key}
@@ -387,7 +425,7 @@ function AnnualChart({
         </div>
       </div>
 
-      <svg className="mt-8 h-[360px] w-full" viewBox={`0 0 ${CHART.width} ${CHART.height}`} preserveAspectRatio="none" role="img" aria-label="年間運勢スコアグラフ">
+      <svg className="mt-2 h-[284px] w-full sm:mt-3 sm:h-[405px]" viewBox={`0 0 ${CHART.width} ${CHART.height}`} preserveAspectRatio="none" role="img" aria-label="年間運勢スコアグラフ">
         <defs>
           <linearGradient id="forecastGoldArea" x1="0" x2="0" y1="0" y2="1">
             <stop offset="0%" stopColor={selectedSeries.color} stopOpacity="0.18" />
@@ -456,29 +494,29 @@ function AnnualChart({
 
 function Matrix({ data, selectedSeriesKey, selectedMonthIndex }) {
   return (
-    <GlassPanel className="border-gold/25 p-8">
-      <h2 className="font-serif text-3xl font-semibold text-gold">Monthly Forecast Matrix</h2>
+    <GlassPanel className="border-gold/25 p-4 sm:p-8">
+      <h2 className="font-serif text-2xl font-semibold text-gold sm:text-3xl">Monthly Forecast Matrix</h2>
       <div className="mt-6 overflow-x-auto">
-        <table className="w-full min-w-[860px] table-fixed border-collapse font-mono text-sm">
+        <table className="w-full min-w-[720px] table-fixed border-collapse font-mono text-xs sm:min-w-[860px] sm:text-sm">
           <thead>
             <tr className="border-b border-white/15 text-xs uppercase tracking-[0.12em] text-mist">
-              <th className="w-[150px] py-3 pr-5 text-left">Sector</th>
+              <th className="w-[120px] py-3 pr-4 text-left sm:w-[150px] sm:pr-5">Sector</th>
               {MONTHS.map((month) => (
-                <th key={month} className="px-3 py-3 text-right">{month}</th>
+                <th key={month} className="px-2 py-3 text-right sm:px-3">{month}</th>
               ))}
             </tr>
           </thead>
           <tbody>
             {SCORE_KEYS.map((item) => (
               <tr key={item.key} className="border-b border-white/10 last:border-0">
-                <th className="py-5 pr-5 text-left font-sans text-base text-starlight">{item.label}</th>
+                <th className="py-4 pr-4 text-left font-sans text-sm text-starlight sm:py-5 sm:pr-5 sm:text-base">{item.label}</th>
                 {data.map((day, index) => {
                   const score = scoreFor(day, item.key);
                   const isSelectedCell = item.key === selectedSeriesKey && index === selectedMonthIndex;
                   return (
                     <td
                       key={`${item.key}-${index}`}
-                      className="px-2 py-3 text-right"
+                      className="px-1.5 py-2.5 text-right sm:px-2 sm:py-3"
                     >
                       <span
                         className={cx(
@@ -508,12 +546,12 @@ function FooterStats({ stats }) {
     { label: "Stability", value: `${stats.stability}%`, icon: <Shield size={30} /> },
   ];
   return (
-    <div className="grid gap-6 md:grid-cols-3">
+    <div className="grid gap-4 md:grid-cols-3 md:gap-6">
       {items.map((item) => (
-        <GlassPanel key={item.label} className="flex items-end justify-between gap-5 p-7">
+        <GlassPanel key={item.label} className="flex items-end justify-between gap-5 p-5 sm:p-7">
           <div>
             <p className="font-mono text-xs font-bold uppercase tracking-[0.15em] text-mist">{item.label}</p>
-            <p className="mt-4 font-serif text-4xl font-semibold text-starlight">{item.value}</p>
+            <p className="mt-3 font-serif text-3xl font-semibold text-starlight sm:mt-4 sm:text-4xl">{item.value}</p>
           </div>
           <span className="text-gold">{item.icon}</span>
         </GlassPanel>
@@ -647,11 +685,11 @@ function ForecastDetailPage() {
   };
 
   return (
-    <div className="relative min-h-screen text-starlight">
+    <div className="relative min-h-screen overflow-x-hidden text-starlight">
       <Header />
-      <main className="mx-auto grid max-w-[1540px] gap-7 px-8 py-24 lg:grid-cols-[380px_1fr]">
+      <main className="mx-auto grid max-w-[1540px] gap-4 px-4 py-6 sm:gap-7 sm:px-8 sm:py-12 lg:py-24">
         <OraclePanel stats={stats} forecast={forecast} />
-        <div className="grid gap-7">
+        <div className="grid gap-4 sm:gap-7">
           <AnnualChart
             data={data}
             stats={stats}
@@ -666,7 +704,7 @@ function ForecastDetailPage() {
           <FooterStats stats={stats} />
         </div>
       </main>
-      <footer className="border-t border-white/10 bg-[#0d0e0f]/80 px-8 py-10">
+      <footer className="border-t border-white/10 bg-[#0d0e0f]/80 px-4 py-8 sm:px-8 sm:py-10">
         <div className="mx-auto flex max-w-[1540px] flex-col gap-4 text-mist md:flex-row md:items-center md:justify-between">
           <p className="font-serif text-2xl font-semibold text-gold">The Celestial Atelier</p>
           <p className="text-sm">Annual forecast detail. Dashboard remains independent.</p>
