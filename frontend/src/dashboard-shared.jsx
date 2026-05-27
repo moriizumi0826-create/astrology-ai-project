@@ -730,6 +730,20 @@ function formatIsoDate(value) {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
 }
 
+function dashboardDisplayDate(data = {}) {
+  return formatIsoDate(
+    data.readingDate ||
+      data.reading_date ||
+      data.date ||
+      data.timelineDate ||
+      data.timelineDays?.[0]?.date ||
+      data.yearlyForecast?.reading_date ||
+      data.yearly_forecast?.reading_date ||
+      data.meta?.reading_date ||
+      data.meta?.date
+  );
+}
+
 function MotionIndicatorGrid({ items = [], compact = false }) {
   const motionItems = Array.isArray(items) ? items : [];
   return (
@@ -2008,7 +2022,7 @@ function DashboardV2PersonalCard({ data }) {
   const summaryTrackRef = React.useRef(null);
   const [isSummaryDragging, setIsSummaryDragging] = useState(false);
   const [summaryScrollRatio, setSummaryScrollRatio] = useState(0);
-  const displayDate = data.meta?.date || data.readingDate || "2026.05.20";
+  const displayDate = dashboardDisplayDate(data);
   const dailyStarVibe = String(data.hero?.dailyStarVibe || data.hero?.daily_star_vibe || "").trim();
   const summaryText = dailyStarVibe || "本日の星模様を表示できません。";
   const aspectHighlights =
@@ -2554,6 +2568,245 @@ function DailyPerformanceDeveloperView({ data = dashboardData }) {
   );
 }
 
+const YEARLY_DEV_SCORE_KEYS = [
+  { key: "general", label: "全般・健康", color: "#2F9E68" },
+  { key: "work", label: "仕事", color: "#2F6FED" },
+  { key: "love", label: "恋愛・対人", color: "#D84C8B" },
+  { key: "money", label: "お金", color: "#D4AF37" },
+];
+
+function monthNumberFromDate(value) {
+  const month = Number(String(value || "").slice(5, 7));
+  return Number.isFinite(month) && month >= 1 && month <= 12 ? month : 0;
+}
+
+function monthlyYearlyDeveloperData(forecast) {
+  const yearlyData = Array.isArray(forecast?.yearly_data) ? forecast.yearly_data : [];
+  const year =
+    Number(forecast?.cache?.year) ||
+    Number(String(forecast?.reading_date || forecast?.date || yearlyData[0]?.date || "2026").slice(0, 4)) ||
+    2026;
+
+  return Array.from({ length: 12 }, (_, index) => {
+    const month = index + 1;
+    const days = yearlyData.filter((day) => monthNumberFromDate(day?.date) === month);
+    const scores = {};
+    ["total", ...YEARLY_DEV_SCORE_KEYS.map((item) => item.key)].forEach((key) => {
+      const values = days
+        .map((day) => Number(day?.scores?.[key]))
+        .filter((value) => Number.isFinite(value));
+      scores[key] = values.length ? Math.round(values.reduce((sum, value) => sum + value, 0) / values.length) : 0;
+    });
+    const events = days
+      .flatMap((day) => (Array.isArray(day?.events) ? day.events.map((event) => ({ ...event, date: day.date })) : []))
+      .sort((a, b) => Number(b.priority || 0) - Number(a.priority || 0) || Math.abs(Number(b.weighted_score || 0)) - Math.abs(Number(a.weighted_score || 0)));
+    const peakDay = days.length
+      ? days.reduce((best, day) => Number(day?.scores?.total ?? -Infinity) > Number(best?.scores?.total ?? -Infinity) ? day : best, days[0])
+      : null;
+    const lowDay = days.length
+      ? days.reduce((best, day) => Number(day?.scores?.total ?? Infinity) < Number(best?.scores?.total ?? Infinity) ? day : best, days[0])
+      : null;
+
+    return {
+      month,
+      label: `${month}月`,
+      date: `${year}-${String(month).padStart(2, "0")}-01`,
+      days,
+      scores,
+      events,
+      peakDay,
+      lowDay,
+    };
+  });
+}
+
+export function AnnualBiorhythmDeveloperView({ data = dashboardData }) {
+  const forecast = data.yearly_forecast || data.yearlyForecast || null;
+  const months = monthlyYearlyDeveloperData(forecast);
+  const initialMonth = Math.max(1, monthNumberFromDate(forecast?.reading_date || data.reading_date || data.readingDate) || 1);
+  const [selectedMonth, setSelectedMonth] = useState(initialMonth);
+  const selected = months[selectedMonth - 1] || months[0];
+  const width = 900;
+  const height = 300;
+  const padX = 54;
+  const padY = 28;
+  const chartX = (index) => padX + (index / Math.max(1, months.length - 1)) * (width - padX * 2);
+  const chartY = (value) => padY + ((100 - Math.max(-100, Math.min(100, Number(value) || 0))) / 200) * (height - padY * 2);
+  const smoothPathFor = (key) => {
+    const points = months.map((month, index) => ({ x: chartX(index), y: chartY(month.scores[key]) }));
+    if (points.length === 1) return `M ${points[0].x.toFixed(1)} ${points[0].y.toFixed(1)}`;
+    const commands = [`M ${points[0].x.toFixed(1)} ${points[0].y.toFixed(1)}`];
+    for (let index = 0; index < points.length - 1; index += 1) {
+      const current = points[index];
+      const next = points[index + 1];
+      const controlX = (current.x + next.x) / 2;
+      commands.push(`C ${controlX.toFixed(1)} ${current.y.toFixed(1)}, ${controlX.toFixed(1)} ${next.y.toFixed(1)}, ${next.x.toFixed(1)} ${next.y.toFixed(1)}`);
+    }
+    return commands.join(" ");
+  };
+  const selectedX = chartX(selected.month - 1);
+  const topEvents = selected.events.slice(0, 30);
+  const strongestCategory = YEARLY_DEV_SCORE_KEYS.reduce((best, item) =>
+    Math.abs(Number(selected.scores[item.key] || 0)) > Math.abs(Number(selected.scores[best.key] || 0)) ? item : best
+  , YEARLY_DEV_SCORE_KEYS[0]);
+
+  return (
+    <div className="min-h-screen bg-[#111313] p-5 text-[#e2e2e2]">
+      <div className="mx-auto grid max-w-[1500px] gap-4 lg:grid-cols-[0.92fr_1.08fr]">
+        <section className="rounded-2xl border border-white/15 bg-[#181a1a] p-4">
+          <div className="mb-4 flex items-center justify-between gap-4">
+            <div>
+              <p className="font-mono text-[11px] font-black uppercase tracking-[0.22em] text-[#e9c349]">Developer View</p>
+              <h1 className="mt-1 font-notoSerif text-2xl font-semibold">Annual Biorhythm 2026 検証</h1>
+            </div>
+            <p className="font-mono text-xs text-[#909096]">{forecast?.reading_date || data.reading_date || data.readingDate || ""}</p>
+          </div>
+
+          <div className="rounded-2xl border border-[#e9c349]/22 bg-[#1a1c1c]/54 p-4">
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+              <h2 className="font-sans text-base font-black tracking-tight text-[#f3f3f0]">Annual Biorhythm 2026</h2>
+              <div className="flex flex-wrap gap-3 font-sans text-[11px] font-bold text-[#c7c6cc]">
+                {YEARLY_DEV_SCORE_KEYS.map((item) => (
+                  <span key={item.key} className="inline-flex items-center gap-2">
+                    <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: item.color }} />
+                    {item.label}
+                  </span>
+                ))}
+              </div>
+            </div>
+            <svg className="h-[245px] w-full" viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="none" role="img" aria-label="Annual Biorhythm developer chart">
+              {[100, 50, 0, -50, -100].map((score) => (
+                <g key={score}>
+                  <line x1={padX} x2={width - padX} y1={chartY(score)} y2={chartY(score)} stroke="rgba(255,255,255,0.08)" />
+                  <text x={padX - 12} y={chartY(score) + 4} textAnchor="end" fill="#909096" fontSize="12" fontFamily="monospace">{score}</text>
+                </g>
+              ))}
+              {YEARLY_DEV_SCORE_KEYS.map((item) => (
+                <path key={item.key} d={smoothPathFor(item.key)} fill="none" stroke={item.color} strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" opacity="0.95" />
+              ))}
+              <line x1={selectedX} x2={selectedX} y1={padY} y2={height - padY} stroke="#e9c349" strokeWidth="2" strokeDasharray="5 5" />
+              {months.map((month, index) => (
+                <g key={month.month} className="cursor-pointer" onClick={() => setSelectedMonth(month.month)}>
+                  <text x={chartX(index)} y={height - 4} textAnchor="middle" fill={month.month === selected.month ? "#e9c349" : "#909096"} fontSize="14" fontFamily="monospace">
+                    {month.month}
+                  </text>
+                </g>
+              ))}
+            </svg>
+          </div>
+
+          <div className="mt-4 grid grid-cols-4 gap-2 sm:grid-cols-6">
+            {months.map((month) => (
+              <button
+                key={month.month}
+                type="button"
+                onClick={() => setSelectedMonth(month.month)}
+                className={cx(
+                  "rounded-xl border px-3 py-2 text-left font-mono text-xs transition",
+                  selectedMonth === month.month
+                    ? "border-[#e9c349] bg-[#e9c349]/12 text-[#e9c349]"
+                    : "border-white/10 bg-white/[0.03] text-[#c7c6cc] hover:border-white/25"
+                )}
+              >
+                <span className="block font-black">{month.label}</span>
+                <span className="mt-1 block text-[10px] text-[#909096]">
+                  Avg {formatYearlyScore(month.scores.total)}
+                </span>
+              </button>
+            ))}
+          </div>
+        </section>
+
+        <section className="min-h-[calc(100vh-40px)] rounded-2xl border border-white/15 bg-[#181a1a] p-4">
+          <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
+            <div>
+              <p className="font-mono text-[11px] font-black uppercase tracking-[0.22em] text-[#e9c349]">Monthly Breakdown</p>
+              <h2 className="mt-1 font-notoSerif text-2xl font-semibold">{selected.label}</h2>
+              <p className="mt-1 text-xs text-[#909096]">
+                {selected.days.length} days / Peak {selected.peakDay?.date || "-"} / Low {selected.lowDay?.date || "-"}
+              </p>
+            </div>
+            <div className="grid grid-cols-5 gap-2">
+              {[{ key: "total", label: "Total", color: "#e9c349" }, ...YEARLY_DEV_SCORE_KEYS].map((metric) => (
+                <div key={metric.key} className="rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2 text-right">
+                  <p className="font-mono text-[10px] font-black" style={{ color: metric.color }}>{metric.label}</p>
+                  <p className="font-mono text-lg font-black text-[#f3f3f0]">{formatYearlyScore(selected.scores[metric.key])}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="mb-4 rounded-xl border border-[#e9c349]/25 bg-[#140e00]/25 p-3">
+            <p className="font-mono text-[11px] font-black uppercase tracking-[0.24em] text-[#e9c349]">Strongest Category</p>
+            <p className="mt-2 text-sm font-bold text-[#f3f3f0]">{strongestCategory.label} / {formatYearlyScore(selected.scores[strongestCategory.key])}</p>
+          </div>
+
+          <div className="grid gap-3 overflow-y-auto pr-1" style={{ maxHeight: "calc(100vh - 220px)" }}>
+            <details open className="rounded-xl border border-white/10 bg-[#0d0e0f]/55">
+              <summary className="cursor-pointer list-none px-3 py-2">
+                <div className="flex items-center justify-between gap-3">
+                  <p className="font-mono text-xs font-black text-[#e9c349]">Top Events</p>
+                  <span className="font-mono text-[11px] text-[#909096]">{topEvents.length} events</span>
+                </div>
+              </summary>
+              <div className="grid gap-2 border-t border-white/10 p-3">
+                {topEvents.length ? topEvents.map((event, index) => (
+                  <article key={`${event.id || event.title || "event"}-${event.date || index}-${index}`} className="rounded-lg border border-white/10 bg-white/[0.035] p-3">
+                    <div className="flex flex-wrap items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <p className="break-words text-sm font-bold leading-5 text-[#f3f3f0]">{event.title || event.id || "Event"}</p>
+                        <p className="mt-1 font-mono text-[10px] uppercase tracking-[0.12em] text-[#909096]">
+                          {event.date} / {event.category || "-"} / {event.duration_type || "-"} / {event.orb_status || "-"}
+                        </p>
+                      </div>
+                      <div className="shrink-0 text-right font-mono">
+                        <p className="text-xs text-[#909096]">weighted</p>
+                        <p className="text-lg font-black text-[#e9c349]">{event.weighted_score ?? 0}</p>
+                        <p className="text-[10px] text-[#909096]">priority {event.priority ?? "-"}</p>
+                      </div>
+                    </div>
+                    <div className="mt-2 grid grid-cols-4 gap-2 font-mono text-[10px] text-[#c7c6cc]">
+                      <span>Impact {event.score_impact ?? "-"}</span>
+                      <span>Weight {event.priority_weight ?? "-"}</span>
+                      <span>Orb {event.orb ?? "-"}</span>
+                      <span>Decay {event.orb_decay ?? "-"}</span>
+                    </div>
+                    {event.description ? (
+                      <p className="mt-2 line-clamp-2 text-xs leading-5 text-[#c7c6cc]">{event.description}</p>
+                    ) : null}
+                  </article>
+                )) : (
+                  <p className="rounded-lg border border-white/10 bg-white/[0.03] p-3 text-xs text-[#909096]">該当イベントなし</p>
+                )}
+              </div>
+            </details>
+
+            <details open className="rounded-xl border border-white/10 bg-[#0d0e0f]/55">
+              <summary className="cursor-pointer list-none px-3 py-2">
+                <div className="flex items-center justify-between gap-3">
+                  <p className="font-mono text-xs font-black text-[#e9c349]">Daily Scores</p>
+                  <span className="font-mono text-[11px] text-[#909096]">{selected.days.length} days</span>
+                </div>
+              </summary>
+              <div className="grid gap-1 border-t border-white/10 p-3 font-mono text-[10px]">
+                {selected.days.map((day) => (
+                  <div key={day.date} className="grid grid-cols-[92px_repeat(5,1fr)] gap-2 rounded-lg bg-white/[0.03] px-2 py-1.5 text-[#c7c6cc]">
+                    <span className="text-[#f3f3f0]">{day.date}</span>
+                    <span>Total {formatYearlyScore(day.scores?.total)}</span>
+                    {YEARLY_DEV_SCORE_KEYS.map((item) => (
+                      <span key={item.key}>{item.label} {formatYearlyScore(day.scores?.[item.key])}</span>
+                    ))}
+                  </div>
+                ))}
+              </div>
+            </details>
+          </div>
+        </section>
+      </div>
+    </div>
+  );
+}
+
 function DashboardV2YearlyCard({ forecast, developerMode }) {
   const data = Array.isArray(forecast?.yearly_data) ? forecast.yearly_data : [];
   const selectedIndex = mobileForecastSelectedIndex(forecast);
@@ -2733,17 +2986,7 @@ function DashboardV2YearlyCard({ forecast, developerMode }) {
 }
 
 function DashboardV2({ data = dashboardData, embedded = false, developerMode = false }) {
-  const displayDate = formatIsoDate(
-    data.readingDate ||
-      data.reading_date ||
-      data.date ||
-      data.timelineDate ||
-      data.timelineDays?.[0]?.date ||
-      data.yearlyForecast?.reading_date ||
-      data.yearly_forecast?.reading_date ||
-      data.meta?.reading_date ||
-      data.meta?.date
-  );
+  const displayDate = dashboardDisplayDate(data);
   const forecast = data.yearly_forecast || data.yearlyForecast || null;
   const selectedDay = Array.isArray(forecast?.yearly_data) ? forecast.yearly_data[0] : null;
   const totalScore = Number(selectedDay?.scores?.total ?? 0);
@@ -2776,17 +3019,7 @@ function DashboardV2({ data = dashboardData, embedded = false, developerMode = f
 }
 
 function DashboardLegacy({ data = dashboardData, embedded = false, developerMode = false }) {
-  const displayDate = formatIsoDate(
-    data.readingDate ||
-      data.reading_date ||
-      data.date ||
-      data.timelineDate ||
-      data.timelineDays?.[0]?.date ||
-      data.yearlyForecast?.reading_date ||
-      data.yearly_forecast?.reading_date ||
-      data.meta?.reading_date ||
-      data.meta?.date
-  );
+  const displayDate = dashboardDisplayDate(data);
   const forecast = data.yearly_forecast || data.yearlyForecast || null;
   const handleToggleDeveloperMode = () => {
     const url = new URL(window.location.href);
@@ -2863,6 +3096,9 @@ export function Dashboard({ data = dashboardData, embedded = false, developerMod
       const view = new URL(window.location.href).searchParams.get("view");
       if (view === "daily-performance-dev") {
         return <DailyPerformanceDeveloperView data={data} />;
+      }
+      if (view === "annual-biorhythm-dev") {
+        return <AnnualBiorhythmDeveloperView data={data} />;
       }
     } catch {
       // Fall through to the standard dashboard.
