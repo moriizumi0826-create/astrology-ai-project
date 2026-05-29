@@ -149,6 +149,24 @@ function lessonItemsFromForecast(forecast) {
   });
 }
 
+function summaryItemsFromForecast(forecast) {
+  const summaries = Array.isArray(forecast?.annual_summaries)
+    ? forecast.annual_summaries
+    : Array.isArray(forecast?.annualSummaries)
+      ? forecast.annualSummaries
+      : [];
+  const colors = ["#e9c349", "#d3bcf9", "#ffb4ab", "#c3c6d7"];
+  return summaries.map((summary, index) => {
+    const period = `${formatThemeDate(summary.start_date || summary.startDate)}-${formatThemeDate(summary.end_date || summary.endDate)}`;
+    const title = preserveThemeLineBreaks(summary.annual_summary || summary.annualSummary || "作成中");
+    return {
+      color: colors[index % colors.length],
+      label: `${period}: ${title}`,
+      body: preserveThemeLineBreaks(summary.annual_interpretation || summary.annualInterpretation || "作成中"),
+    };
+  });
+}
+
 function clamp(value, min, max) {
   return Math.max(min, Math.min(max, value));
 }
@@ -276,30 +294,41 @@ function OraclePanel({ stats, forecast }) {
   const [analysisMode, setAnalysisMode] = useState("theme");
   const themeItems = themeItemsFromForecast(forecast);
   const lessonItems = lessonItemsFromForecast(forecast);
+  const summaryItems = summaryItemsFromForecast(forecast);
+  const analysisTitle = {
+    deep: "Deep Analysis",
+    theme: "Theme",
+    lesson: "課題・学び",
+    summary: "総括",
+  }[analysisMode] || "Deep Analysis";
   const fallbackThemeItems = [
     { color: "#e9c349", label: "THEME 01", body: "作成中" },
     { color: "#d3bcf9", label: "THEME 02", body: "作成中" },
     { color: "#ffb4ab", label: "THEME 03", body: "作成中" },
+  ];
+  const fallbackSummaryItems = [
+    { color: "#e9c349", label: "総括", body: "作成中" },
   ];
   return (
     <div className="h-full">
       <GlassPanel className="flex h-[520px] flex-col overflow-hidden p-4 sm:h-[560px] sm:p-7 lg:h-[620px]">
         <div className="flex items-center justify-between gap-3">
           <h2 className="font-serif text-2xl font-semibold text-starlight sm:text-3xl">
-            {analysisMode === "theme" ? "Theme" : "Deep Analysis"}
+            {analysisTitle}
           </h2>
-          <div className="flex shrink-0 rounded-full border border-white/10 bg-white/[0.04] p-1 font-mono text-[8px] font-bold text-mist sm:text-[10px]">
+          <div className="flex shrink-0 rounded-full border border-white/10 bg-white/[0.04] p-1 font-mono text-[7px] font-bold text-mist sm:text-[10px]">
             {[
               ["deep", "Deep Analysis"],
               ["theme", "Theme"],
               ["lesson", "課題・学び"],
+              ["summary", "総括"],
             ].map(([value, label]) => (
               <button
                 key={value}
                 type="button"
                 onClick={() => setAnalysisMode(value)}
                 className={cx(
-                  "rounded-full px-2 py-1.5 transition sm:px-3",
+                  "rounded-full px-1.5 py-1.5 transition sm:px-3",
                   analysisMode === value ? "bg-gold text-[#241a00]" : "hover:bg-white/10 hover:text-starlight"
                 )}
               >
@@ -327,6 +356,20 @@ function OraclePanel({ stats, forecast }) {
           <div className="mt-6 grid min-h-0 flex-1 gap-6 overflow-y-auto pr-2 [scrollbar-color:#e9c349_rgba(255,255,255,0.08)] [scrollbar-width:thin] sm:mt-8 sm:gap-8">
             {(lessonItems.length ? lessonItems : fallbackThemeItems).map((item) => (
               <article key={`lesson-${item.label}`} className="relative pl-8">
+                <span className="absolute left-0 top-1.5 h-3 w-3 rounded-full shadow-[0_0_18px_currentColor]" style={{ color: item.color, backgroundColor: item.color }} />
+                <span className="absolute left-[5px] top-5 h-full w-px bg-white/15" />
+                <p className="font-mono text-xs font-bold uppercase tracking-[0.12em]" style={{ color: item.color }}>
+                  {item.label}
+                </p>
+                <p className="mt-3 whitespace-pre-line text-sm leading-7 text-mist sm:text-base sm:leading-8">{item.body}</p>
+              </article>
+            ))}
+          </div>
+        ) : null}
+        {analysisMode === "summary" ? (
+          <div className="mt-6 grid min-h-0 flex-1 gap-6 overflow-y-auto pr-2 [scrollbar-color:#e9c349_rgba(255,255,255,0.08)] [scrollbar-width:thin] sm:mt-8 sm:gap-8">
+            {(summaryItems.length ? summaryItems : fallbackSummaryItems).map((item) => (
+              <article key={`summary-${item.label}`} className="relative pl-8">
                 <span className="absolute left-0 top-1.5 h-3 w-3 rounded-full shadow-[0_0_18px_currentColor]" style={{ color: item.color, backgroundColor: item.color }} />
                 <span className="absolute left-[5px] top-5 h-full w-px bg-white/15" />
                 <p className="font-mono text-xs font-bold uppercase tracking-[0.12em]" style={{ color: item.color }}>

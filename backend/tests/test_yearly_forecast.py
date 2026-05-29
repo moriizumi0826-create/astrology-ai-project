@@ -9,6 +9,7 @@ from backend.app.services.yearly_forecast_service import (
     _category_highlights,
     _clamp_score,
     _milestone_from_day,
+    _yearly_summary_rows,
     _solar_house,
     generate_yearly_forecast,
 )
@@ -40,6 +41,28 @@ class YearlyForecastTestCase(unittest.TestCase):
         self.assertGreater(len(yearly_rows), 30000)
         self.assertTrue({"Duration_Type", "Yearly_Weight", "Graph_Visibility"}.issubset(yearly_rows[0]))
 
+    def test_yearly_summary_master_has_solar_and_natal_patterns(self):
+        summary_path = DATABASE_DIR / "M_Yearly_Summary_Interpretation.csv"
+        with summary_path.open("r", encoding="utf-8-sig", newline="") as f:
+            rows = list(csv.DictReader(f))
+
+        solar_rows = [
+            row for row in rows
+            if row["Planet_A_House"].startswith("Solar_") and row["Planet_B_House"].startswith("Solar_")
+        ]
+        natal_rows = [
+            row for row in rows
+            if row["Planet_A_House"].startswith("Natal_") and row["Planet_B_House"].startswith("Natal_")
+        ]
+
+        self.assertEqual(len(rows), 288)
+        self.assertEqual(len(solar_rows), 144)
+        self.assertEqual(len(natal_rows), 144)
+        self.assertEqual(sum(1 for row in rows if row["Summary_Title"].strip()), 288)
+        self.assertEqual(sum(1 for row in rows if row["Summary_Text"].strip()), 288)
+        self.assertIn(("JUPITER", "SATURN", "Solar_1", "Solar_12"), _yearly_summary_rows())
+        self.assertIn(("JUPITER", "SATURN", "Natal_12", "Natal_1"), _yearly_summary_rows())
+
     def test_solar_house_is_calculated_from_natal_sun_sign(self):
         self.assertEqual(_solar_house("CANCER", "ARIES"), 4)
         self.assertEqual(_solar_house("CANCER", "CANCER"), 1)
@@ -69,6 +92,9 @@ class YearlyForecastTestCase(unittest.TestCase):
         self.assertIn("events", first_day)
         self.assertTrue({"general", "work", "love", "money"}.issubset(first_day["category_highlights"]))
         self.assertTrue(forecast["milestones"])
+        self.assertTrue(forecast["annual_summaries"])
+        self.assertIn("annual_summary", forecast["annual_summaries"][0])
+        self.assertIn("annual_interpretation", forecast["annual_summaries"][0])
         self.assertEqual(forecast["cache"]["table"], "yearly_forecast_cache")
 
     def test_category_highlights_pick_strongest_aspect_per_category(self):

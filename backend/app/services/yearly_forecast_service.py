@@ -111,6 +111,22 @@ def _long_term_house_rows() -> dict[tuple[str, int, int], dict[str, Any]]:
 
 
 @lru_cache(maxsize=1)
+def _yearly_summary_rows() -> dict[tuple[str, str, str, str], dict[str, Any]]:
+    path = DATABASE_DIR / "M_Yearly_Summary_Interpretation.csv"
+    rows: dict[tuple[str, str, str, str], dict[str, Any]] = {}
+    if not path.exists():
+        return rows
+    for row in _read_csv_dicts(path):
+        planet_a = reading_service._normalize_planet(row.get("Planet_A"))
+        planet_b = reading_service._normalize_planet(row.get("Planet_B"))
+        house_a = str(row.get("Planet_A_House") or "").strip()
+        house_b = str(row.get("Planet_B_House") or "").strip()
+        if planet_a and planet_b and house_a and house_b:
+            rows[(planet_a, planet_b, house_a, house_b)] = row
+    return rows
+
+
+@lru_cache(maxsize=1)
 def _aspect_yearly_rows() -> dict[str, dict[str, Any]]:
     path = DATABASE_DIR / "M_Aspect_Interpretation_Yearly.csv"
     return {
@@ -799,6 +815,89 @@ def build_annual_themes(
     return themes
 
 
+def _natal_house_for_planet(natal_points: list[dict[str, Any]], planet: str) -> int:
+    normalized = reading_service._normalize_planet(planet)
+    for point in natal_points:
+        if reading_service._normalize_planet(point.get("planet")) == normalized:
+            return reading_service._normalize_int(point.get("house")) or 1
+    return 1
+
+
+def _summary_master_text(row: dict[str, Any], column: str) -> str:
+    return reading_service._safe_text(row, column, "作成中") or "作成中"
+
+
+def build_annual_summaries(
+    *,
+    year: int,
+    birth_input: BirthInput,
+    house_cusps: list[float],
+    natal_sun_sign: str,
+    natal_points: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    if not house_cusps:
+        return []
+
+    rows = _yearly_summary_rows()
+    summaries: list[dict[str, Any]] = []
+    current_summary: dict[str, Any] | None = None
+    jupiter_natal_house = _natal_house_for_planet(natal_points, "JUPITER")
+    saturn_natal_house = _natal_house_for_planet(natal_points, "SATURN")
+    current = date(year, 1, 1)
+    end = date(year, 12, 31)
+
+    while current <= end:
+        jupiter_longitude, _jupiter_retrograde, jupiter_calendar_row = _calendar_transit_state(current, "JUPITER")
+        saturn_longitude, _saturn_retrograde, saturn_calendar_row = _calendar_transit_state(current, "SATURN")
+        jupiter_solar_house = _solar_house(jupiter_calendar_row["Sign_ID"], natal_sun_sign)
+        saturn_solar_house = _solar_house(saturn_calendar_row["Sign_ID"], natal_sun_sign)
+        jupiter_transit_natal_house = get_house(jupiter_longitude, house_cusps)
+        saturn_transit_natal_house = get_house(saturn_longitude, house_cusps)
+        reality_key = ("JUPITER", "SATURN", f"Solar_{jupiter_solar_house}", f"Solar_{saturn_solar_house}")
+        mental_key = ("JUPITER", "SATURN", f"Natal_{jupiter_transit_natal_house}", f"Natal_{saturn_transit_natal_house}")
+        period_key = (
+            jupiter_solar_house,
+            saturn_solar_house,
+            jupiter_transit_natal_house,
+            saturn_transit_natal_house,
+        )
+        reality_row = rows.get(reality_key, {})
+        mental_row = rows.get(mental_key, {})
+        reality_title = _summary_master_text(reality_row, "Summary_Title")
+        mental_title = _summary_master_text(mental_row, "Summary_Title")
+        reality_text = _summary_master_text(reality_row, "Summary_Text")
+        mental_text = _summary_master_text(mental_row, "Summary_Text")
+
+        if current_summary and current_summary["key"] == period_key:
+            current_summary["end_date"] = current.isoformat()
+        else:
+            if current_summary:
+                summaries.append(current_summary)
+            current_summary = {
+                "key": period_key,
+                "start_date": current.isoformat(),
+                "end_date": current.isoformat(),
+                "jupiter_solar_house": jupiter_solar_house,
+                "saturn_solar_house": saturn_solar_house,
+                "jupiter_natal_house": jupiter_natal_house,
+                "saturn_natal_house": saturn_natal_house,
+                "jupiter_transit_natal_house": jupiter_transit_natal_house,
+                "saturn_transit_natal_house": saturn_transit_natal_house,
+                "reality_key": reality_key,
+                "mental_key": mental_key,
+                "annual_summary": f"{reality_title}と{mental_title}",
+                "annual_interpretation": f"{reality_text}\n{mental_text}",
+            }
+        current += timedelta(days=1)
+
+    if current_summary:
+        summaries.append(current_summary)
+    for index, summary in enumerate(summaries, start=1):
+        summary["id"] = f"SUMMARY_{index:02d}"
+        summary["label"] = f"SUMMARY {index:02d}"
+    return summaries
+
+
 def generate_yearly_forecast(
     birth_input: BirthInput,
     year: int = FORECAST_YEAR,
@@ -828,6 +927,13 @@ def generate_yearly_forecast(
         natal_sun_sign=natal_sun_sign,
         planet="SATURN",
     )
+    annual_summaries = build_annual_summaries(
+        year=year,
+        birth_input=birth_input,
+        house_cusps=house_cusps,
+        natal_sun_sign=natal_sun_sign,
+        natal_points=natal_points,
+    )
 
     return {
         "summary": build_yearly_summary(yearly_data),
@@ -835,6 +941,7 @@ def generate_yearly_forecast(
         "milestones": extract_milestones(yearly_data),
         "annual_themes": annual_themes,
         "annual_lessons": annual_lessons,
+        "annual_summaries": annual_summaries,
         "cache": build_yearly_forecast_cache_payload(birth_input, year),
     }
 
