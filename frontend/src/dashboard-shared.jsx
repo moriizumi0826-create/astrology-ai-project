@@ -2125,18 +2125,18 @@ function DashboardV2PersonalCard({ data }) {
           </button>
         ))}
         {personalReadingTab === "personal" ? (
-          <div className="flex items-start gap-2 pb-2">
+          <div className="flex items-start gap-1.5 pb-2 md:gap-2">
             {highlightGroups.map((group) => (
               <button
                 key={group.key}
                 type="button"
                 onClick={() => setSelectedHighlightKey(group.key)}
                 className={cx(
-                  "rounded-full border px-2.5 py-1 transition",
+                  "shrink-0 whitespace-nowrap rounded-full border px-1.5 py-1 text-[9px] leading-none transition md:px-2.5 md:text-[11px]",
                   selectedHighlightKey === group.key ? group.className : "border-white/10 bg-white/[0.03] text-[#909096] hover:text-[#e2e2e2]"
                 )}
               >
-                ▶{group.label}
+                {group.label}
               </button>
             ))}
           </div>
@@ -2262,22 +2262,30 @@ function DashboardV2CountdownCard({ data }) {
 
 function DashboardV2DailyFlowCard({ data }) {
   const [hoveredPerformanceIndex, setHoveredPerformanceIndex] = useState(null);
+  const [currentTime, setCurrentTime] = useState(() => new Date());
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      setCurrentTime(new Date());
+    }, 1000);
+    return () => window.clearInterval(timer);
+  }, []);
   const performanceData = Array.isArray(data.dailyPerformance)
     ? data.dailyPerformance
     : Array.isArray(data.daily_performance)
       ? data.daily_performance
       : [];
-  const dailyPerformanceHourOrder = [6, 9, 12, 15, 18, 21, 0, 3];
+  const dailyPerformanceHourOrder = [0, 3, 6, 9, 12, 15, 18, 21, 24];
   const dailyPerformanceOrderIndex = new Map(dailyPerformanceHourOrder.map((hour, index) => [hour, index]));
   const fallbackPerformance = [
-    { time: "06:00", drive: 40, flow: 47, inspiration: 38, friction: 28, marsActivity: 14 },
-    { time: "09:00", drive: 58, flow: 62, inspiration: 45, friction: 46, marsActivity: 36 },
-    { time: "12:00", drive: 63, flow: 58, inspiration: 52, friction: 31, marsActivity: 24 },
-    { time: "15:00", drive: 56, flow: 66, inspiration: 61, friction: 54, marsActivity: 42 },
-    { time: "18:00", drive: 70, flow: 60, inspiration: 57, friction: 36, marsActivity: 30 },
-    { time: "21:00", drive: 64, flow: 68, inspiration: 49, friction: 42, marsActivity: 34 },
-    { time: "00:00", drive: 34, flow: 44, inspiration: 55, friction: 22, marsActivity: 12 },
-    { time: "03:00", drive: 45, flow: 51, inspiration: 48, friction: 34, marsActivity: 18 },
+    { time: "00:00", hour: 0, drive: 34, flow: 44, inspiration: 55, friction: 22, marsActivity: 12 },
+    { time: "03:00", hour: 3, drive: 45, flow: 51, inspiration: 48, friction: 34, marsActivity: 18 },
+    { time: "06:00", hour: 6, drive: 40, flow: 47, inspiration: 38, friction: 28, marsActivity: 14 },
+    { time: "09:00", hour: 9, drive: 58, flow: 62, inspiration: 45, friction: 46, marsActivity: 36 },
+    { time: "12:00", hour: 12, drive: 63, flow: 58, inspiration: 52, friction: 31, marsActivity: 24 },
+    { time: "15:00", hour: 15, drive: 56, flow: 66, inspiration: 61, friction: 54, marsActivity: 42 },
+    { time: "18:00", hour: 18, drive: 70, flow: 60, inspiration: 57, friction: 36, marsActivity: 30 },
+    { time: "21:00", hour: 21, drive: 64, flow: 68, inspiration: 49, friction: 42, marsActivity: 34 },
+    { time: "00:00", hour: 24, drive: 34, flow: 44, inspiration: 55, friction: 22, marsActivity: 12 },
   ];
   const chartPerformance = (performanceData.length ? performanceData : fallbackPerformance)
     .slice()
@@ -2294,10 +2302,8 @@ function DashboardV2DailyFlowCard({ data }) {
   const width = 720;
   const height = 160;
   const pad = 8;
-  const currentDate = new Date();
-  const currentHour = currentDate.getHours() + currentDate.getMinutes() / 60;
-  const shiftedCurrentHour = currentHour < 6 ? currentHour + 24 : currentHour;
-  const currentX = pad + (Math.max(0, Math.min(24, shiftedCurrentHour - 6)) / 24) * (width - pad * 2);
+  const currentHour = currentTime.getHours() + currentTime.getMinutes() / 60 + currentTime.getSeconds() / 3600;
+  const currentX = pad + (Math.max(0, Math.min(24, currentHour)) / 24) * (width - pad * 2);
   const pointsFor = (values, direction = "positive") => values
     .map((value, index) => {
       const x = pad + (index / Math.max(1, values.length - 1)) * (width - pad * 2);
@@ -2435,8 +2441,8 @@ function DashboardV2DailyFlowCard({ data }) {
           <rect x={pad} y={pad} width={width - pad * 2} height={height - pad * 2} fill="transparent" pointerEvents="all" />
         </svg>
         </div>
-        <div className="grid grid-cols-4 gap-3 font-mono text-xs leading-none text-[#909096]">
-          {["06:00", "12:00", "18:00", "00:00"].map((time) => <span key={time}>{time}</span>)}
+        <div className="flex justify-between font-mono text-xs leading-none text-[#909096]">
+          {["00:00", "06:00", "12:00", "18:00", "00:00"].map((time, index) => <span key={`${time}-${index}`}>{time}</span>)}
         </div>
       </div>
     </DashboardV2Card>
@@ -2450,7 +2456,7 @@ function DailyPerformanceDeveloperView({ data = dashboardData }) {
     : Array.isArray(data.daily_performance)
       ? data.daily_performance
       : [];
-  const dailyPerformanceHourOrder = [6, 9, 12, 15, 18, 21, 0, 3];
+  const dailyPerformanceHourOrder = [0, 3, 6, 9, 12, 15, 18, 21, 24];
   const orderIndex = new Map(dailyPerformanceHourOrder.map((hour, index) => [hour, index]));
   const rows = performanceData
     .slice()

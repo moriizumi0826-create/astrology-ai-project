@@ -224,6 +224,93 @@ class ApiTestCase(unittest.TestCase):
         self.assertTrue(dashboard_data["developerMeta"]["diagnostic"]["sources"])
         self.assertTrue(dashboard_data["developerMeta"]["countdown"]["sources"])
 
+    def test_important_points_only_include_mars_at_exact_peak(self):
+        base_rows = [
+            {
+                "T_Planet": "TRANSIT_MARS",
+                "N_Planet": "NATAL_SUN",
+                "Aspect_Angle": 120,
+                "Category": "Work",
+                "Text_Description": "mars text",
+                "Advised_Task": "mars task",
+                "Score_Impact": 99,
+                "Priority": 10,
+                "_input": {"orb": 0.01},
+            },
+            {
+                "T_Planet": "TRANSIT_VENUS",
+                "N_Planet": "NATAL_MOON",
+                "Aspect_Angle": 120,
+                "Category": "Love",
+                "Text_Description": "venus text",
+                "Advised_Task": "venus task",
+                "Score_Impact": 50,
+                "Priority": 5,
+                "_input": {"orb": 3.0},
+            },
+        ]
+
+        dashboard_data = build_dashboard_data_from_interpretations(base_rows, {"modifier": 0, "items": []})
+        positive_descriptions = [item["description"] for item in dashboard_data["hero"]["aspectHighlights"]["positive"]]
+
+        self.assertEqual(positive_descriptions, ["venus text"])
+
+        peak_rows = [dict(row) for row in base_rows]
+        peak_rows[0]["_input"] = {"orb": 0.0}
+        dashboard_data = build_dashboard_data_from_interpretations(peak_rows, {"modifier": 0, "items": []})
+        positive_descriptions = [item["description"] for item in dashboard_data["hero"]["aspectHighlights"]["positive"]]
+
+        self.assertEqual(positive_descriptions, ["mars text", "venus text"])
+
+    def test_important_points_include_mars_on_peak_day(self):
+        peak_dt = datetime(2026, 5, 20, 15, 0)
+
+        def fake_orb_at(_transit_planet, sample_dt, _timezone_offset, _natal_longitude, _exact_angle):
+            days_from_peak = abs((sample_dt - peak_dt).total_seconds()) / 86400
+            return days_from_peak * 0.5, False
+
+        rows = [
+            {
+                "T_Planet": "TRANSIT_MARS",
+                "N_Planet": "NATAL_SUN",
+                "Aspect_Angle": 120,
+                "Category": "Work",
+                "Text_Description": "mars peak day text",
+                "Advised_Task": "mars task",
+                "Score_Impact": 99,
+                "Priority": 10,
+                "_input": {"orb": 0.2, "natal_longitude": 10.0, "timezone_offset": 9.0},
+            },
+            {
+                "T_Planet": "TRANSIT_VENUS",
+                "N_Planet": "NATAL_MOON",
+                "Aspect_Angle": 120,
+                "Category": "Love",
+                "Text_Description": "venus text",
+                "Advised_Task": "venus task",
+                "Score_Impact": 50,
+                "Priority": 5,
+                "_input": {"orb": 3.0},
+            },
+        ]
+
+        with patch.object(reading_service, "swe", object()), patch.object(reading_service, "_aspect_orb_at", side_effect=fake_orb_at):
+            dashboard_data = build_dashboard_data_from_interpretations(
+                rows,
+                {"modifier": 0, "items": []},
+                current_dt=date(2026, 5, 20),
+            )
+            positive_descriptions = [item["description"] for item in dashboard_data["hero"]["aspectHighlights"]["positive"]]
+            self.assertEqual(positive_descriptions, ["mars peak day text", "venus text"])
+
+            dashboard_data = build_dashboard_data_from_interpretations(
+                rows,
+                {"modifier": 0, "items": []},
+                current_dt=date(2026, 5, 19),
+            )
+            positive_descriptions = [item["description"] for item in dashboard_data["hero"]["aspectHighlights"]["positive"]]
+            self.assertEqual(positive_descriptions, ["venus text"])
+
     def test_dashboard_data_is_json_serializable(self):
         dashboard_data = build_dashboard_data_from_aspects(
             aspects=[
@@ -1233,6 +1320,7 @@ class ApiTestCase(unittest.TestCase):
                 "transit_longitude": 180.0,
                 "natal_longitude": 0.0,
                 "angle_diff": 180.0,
+                "timezone_offset": 9,
             },
             inputs,
         )

@@ -120,6 +120,32 @@ function summaryTimelineHeight(item) {
   return { minHeight: `${Math.min(560, Math.max(112, days * 3))}px` };
 }
 
+function parseLocalDate(value) {
+  const date = new Date(`${value || ""}T00:00:00`);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function summaryTimelineDayOffset(item, year) {
+  const start = parseLocalDate(item?.startRaw);
+  if (!start) return 0;
+  const yearStart = new Date(`${year}-01-01T00:00:00`);
+  return clamp(Math.round((start.getTime() - yearStart.getTime()) / 86400000), 0, 365);
+}
+
+function summaryTimelineItemStyle(item, year) {
+  const pxPerDay = 3;
+  const top = summaryTimelineDayOffset(item, year) * pxPerDay;
+  const height = Math.min(560, Math.max(112, summaryDurationDays(item) * pxPerDay));
+  return {
+    top: `${top}px`,
+    minHeight: `${height}px`,
+  };
+}
+
+function summaryTimelineColumnStyle() {
+  return { height: `${366 * 3}px` };
+}
+
 function preserveThemeLineBreaks(value) {
   return String(value || "")
     .replaceAll("\\r\\n", "\n")
@@ -411,6 +437,7 @@ function OraclePanel({ stats, forecast }) {
     environment: [{ color: "#e9c349", label: "1/1-12/31", startRaw: "2026-01-01", endRaw: "2026-12-31", title: "環境変化", body: "作成中" }],
     mental: [{ color: "#e9c349", label: "1/1-12/31", startRaw: "2026-01-01", endRaw: "2026-12-31", title: "精神的変化", body: "作成中" }],
   };
+  const activeYear = forecastYear(forecast);
   const summaryEnvironmentItems = summaryColumns.environment.length ? summaryColumns.environment : fallbackSummaryColumns.environment;
   const summaryMentalItems = summaryColumns.mental.length ? summaryColumns.mental : fallbackSummaryColumns.mental;
   return (
@@ -486,9 +513,13 @@ function OraclePanel({ stats, forecast }) {
                 ["environment", summaryEnvironmentItems],
                 ["mental", summaryMentalItems],
               ].map(([columnKey, items]) => (
-                <div key={columnKey} className="grid content-start gap-4 sm:gap-8">
+                <div key={columnKey} className="relative" style={summaryTimelineColumnStyle()}>
                   {items.map((item) => (
-                    <article key={`${columnKey}-${item.label}-${item.title}`} className="relative pl-4 sm:pl-8" style={summaryTimelineHeight(item)}>
+                    <article
+                      key={`${columnKey}-${item.label}-${item.title}`}
+                      className="absolute left-0 right-0 pl-4 sm:pl-8"
+                      style={summaryTimelineItemStyle(item, activeYear)}
+                    >
                       <span className="absolute left-0 top-1 h-2.5 w-2.5 rounded-full shadow-[0_0_18px_currentColor] sm:top-1.5 sm:h-3 sm:w-3" style={{ color: item.color, backgroundColor: item.color }} />
                       <span className="absolute bottom-0 left-[4px] top-4 w-px bg-white/15 sm:left-[5px] sm:top-5" />
                       <p className="font-mono text-[10px] font-bold uppercase leading-4 tracking-[0.06em] sm:text-xs sm:leading-normal sm:tracking-[0.12em]" style={{ color: item.color }}>

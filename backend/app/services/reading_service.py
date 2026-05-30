@@ -1089,11 +1089,66 @@ def _hero_aspect_highlight(row: dict[str, Any], polarity: str) -> dict[str, Any]
     }
 
 
-def _top_hero_aspect_highlights(rows: list[dict[str, Any]], limit: int = 2) -> dict[str, list[dict[str, Any]]]:
+def _aspect_input_orb(row: dict[str, Any]) -> float | None:
+    source = row.get("_input")
+    if isinstance(source, dict):
+        return _normalize_float(source.get("orb"))
+    return None
+
+
+def _mars_aspect_peaks_on_target_date(row: dict[str, Any], current_dt: datetime | date | None) -> bool:
+    if swe is None:
+        orb = _aspect_input_orb(row)
+        return orb is not None and orb == 0
+    natal_longitude = _countdown_target_longitude(row)
+    if natal_longitude is None:
+        orb = _aspect_input_orb(row)
+        return orb is not None and orb == 0
+
+    source = row.get("_input") if isinstance(row.get("_input"), dict) else {}
+    timezone_offset = _normalize_float(source.get("timezone_offset")) or 9.0
+    target_date = _dashboard_target_date(current_dt)
+    scan_start = datetime.combine(target_date - timedelta(days=1), dt_time(hour=0))
+    scan_end = datetime.combine(target_date + timedelta(days=2), dt_time(hour=0))
+    exact_angle = _safe_number(row, "Aspect_Angle")
+
+    best_dt: datetime | None = None
+    best_orb = float("inf")
+    sample_dt = scan_start
+    while sample_dt <= scan_end:
+        orb, _is_retrograde = _aspect_orb_at(
+            "MARS",
+            sample_dt,
+            timezone_offset,
+            natal_longitude,
+            exact_angle,
+        )
+        if orb < best_orb:
+            best_orb = orb
+            best_dt = sample_dt
+        sample_dt += timedelta(minutes=10)
+
+    return best_dt is not None and best_dt.date() == target_date and best_orb <= 0.01
+
+
+def _is_hero_aspect_highlight_candidate(row: dict[str, Any], current_dt: datetime | date | None = None) -> bool:
+    transit_planet = _normalize_planet(row.get("T_Planet"))
+    if transit_planet not in PERSONAL_READING_TRANSIT_PLANETS:
+        return False
+    if transit_planet == "MARS":
+        return _mars_aspect_peaks_on_target_date(row, current_dt)
+    return True
+
+
+def _top_hero_aspect_highlights(
+    rows: list[dict[str, Any]],
+    limit: int = 2,
+    current_dt: datetime | date | None = None,
+) -> dict[str, list[dict[str, Any]]]:
     eligible_rows = [
         row
         for row in rows
-        if _normalize_planet(row.get("T_Planet")) in PERSONAL_READING_TRANSIT_PLANETS
+        if _is_hero_aspect_highlight_candidate(row, current_dt)
     ]
     positive_rows = [row for row in eligible_rows if _safe_number(row, "Score_Impact") > 0]
     negative_rows = [row for row in eligible_rows if _safe_number(row, "Score_Impact") < 0]
@@ -2032,7 +2087,7 @@ TIMELINE_SLOT_DEFS = [
     {"id": "NIGHT", "label": "00:00 - 06:00 (Night)", "time_range": "00:00-06:00", "sample_hour": 3, "day_offset": 1},
 ]
 
-DAILY_PERFORMANCE_SAMPLE_HOURS = (6, 9, 12, 15, 18, 21, 0, 3)
+DAILY_PERFORMANCE_SAMPLE_HOURS = (0, 3, 6, 9, 12, 15, 18, 21, 24)
 DAILY_PERFORMANCE_DRIVE_ANGLES = {0, 60, 120}
 DAILY_PERFORMANCE_FRICTION_ANGLES = {90, 150, 180}
 DAILY_PERFORMANCE_DECISION_PLANETS = {"SUN", "MERCURY", "SATURN"}
@@ -2769,7 +2824,7 @@ def _build_daily_performance(
     if not birth_input:
         return [
             {
-                "time": f"{hour:02d}:00",
+                "time": f"{0 if hour == 24 else hour:02d}:00",
                 "hour": hour,
                 "drive": 50,
                 "flow": 50,
@@ -2784,13 +2839,14 @@ def _build_daily_performance(
 
     natal_rows = _build_natal_planet_rows(birth_input)
     for hour in DAILY_PERFORMANCE_SAMPLE_HOURS:
+        sample_hour = 0 if hour == 24 else hour
         slot_def = {
             "id": f"DAILY_PERFORMANCE_{hour:02d}",
-            "label": f"{hour:02d}:00",
-            "sample_hour": hour,
+            "label": f"{sample_hour:02d}:00",
+            "sample_hour": sample_hour,
         }
         slot_date = target_date
-        if hour < 6:
+        if hour == 24:
             slot_date = target_date + timedelta(days=1)
         rows = _build_slot_interpretations(
             birth_input,
@@ -2958,7 +3014,7 @@ def _build_daily_performance(
         ranked_sources = _rank_timeline_rows(source_rows)[:5]
 
         points.append({
-            "time": f"{hour:02d}:00",
+            "time": f"{sample_hour:02d}:00",
             "hour": hour,
             "drive": drive,
             "flow": flow,
@@ -3503,7 +3559,7 @@ def build_dashboard_data_from_interpretations(
         "title": "Today Overview",
         "guidance": _safe_text(hero_row, "Advised_Task"),
         "summary": _safe_text(hero_row, "Text_Description"),
-        "aspectHighlights": _top_hero_aspect_highlights(interpretations),
+            "aspectHighlights": _top_hero_aspect_highlights(interpretations, current_dt=current_dt),
         "dailyStarVibe": daily_star_vibe,
     }
     hero = _apply_basic_to_hero(hero, basic_interpretations, hero_row, interpretations)
@@ -3633,6 +3689,7 @@ def build_transit_aspect_inputs(
                 "transit_longitude": round(transit_longitude, 2),
                 "natal_longitude": round(natal_point["longitude"], 2),
                 "angle_diff": round(angle_diff, 2),
+                "timezone_offset": birth_input.timezone_offset,
             })
     return inputs
 
