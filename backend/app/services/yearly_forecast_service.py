@@ -827,6 +827,91 @@ def _summary_master_text(row: dict[str, Any], column: str) -> str:
     return reading_service._safe_text(row, column, "作成中") or "作成中"
 
 
+def build_annual_summary_columns(
+    *,
+    year: int,
+    birth_input: BirthInput,
+    house_cusps: list[float],
+    natal_sun_sign: str,
+) -> dict[str, list[dict[str, Any]]]:
+    if not house_cusps:
+        return {"environment": [], "mental": []}
+
+    rows = _yearly_summary_rows()
+    environment: list[dict[str, Any]] = []
+    mental: list[dict[str, Any]] = []
+    current_environment: dict[str, Any] | None = None
+    current_mental: dict[str, Any] | None = None
+    current = date(year, 1, 1)
+    end = date(year, 12, 31)
+
+    while current <= end:
+        jupiter_longitude, _jupiter_retrograde, jupiter_calendar_row = _calendar_transit_state(current, "JUPITER")
+        saturn_longitude, _saturn_retrograde, saturn_calendar_row = _calendar_transit_state(current, "SATURN")
+        jupiter_solar_house = _solar_house(jupiter_calendar_row["Sign_ID"], natal_sun_sign)
+        saturn_solar_house = _solar_house(saturn_calendar_row["Sign_ID"], natal_sun_sign)
+        jupiter_transit_natal_house = get_house(jupiter_longitude, house_cusps)
+        saturn_transit_natal_house = get_house(saturn_longitude, house_cusps)
+
+        environment_key = (jupiter_solar_house, saturn_solar_house)
+        environment_lookup_key = ("JUPITER", "SATURN", f"Solar_{jupiter_solar_house}", f"Solar_{saturn_solar_house}")
+        environment_row = rows.get(environment_lookup_key, {})
+        environment_title = _summary_master_text(environment_row, "Summary_Title")
+        environment_text = _summary_master_text(environment_row, "Summary_Text")
+        if (
+            current_environment
+            and current_environment["title"] == environment_title
+            and current_environment["text"] == environment_text
+        ):
+            current_environment["end_date"] = current.isoformat()
+        else:
+            if current_environment:
+                environment.append(current_environment)
+            current_environment = {
+                "key": environment_key,
+                "start_date": current.isoformat(),
+                "end_date": current.isoformat(),
+                "jupiter_solar_house": jupiter_solar_house,
+                "saturn_solar_house": saturn_solar_house,
+                "title": environment_title,
+                "text": environment_text,
+            }
+
+        mental_key = (jupiter_transit_natal_house, saturn_transit_natal_house)
+        mental_lookup_key = ("JUPITER", "SATURN", f"Natal_{jupiter_transit_natal_house}", f"Natal_{saturn_transit_natal_house}")
+        mental_row = rows.get(mental_lookup_key, {})
+        mental_title = _summary_master_text(mental_row, "Summary_Title")
+        mental_text = _summary_master_text(mental_row, "Summary_Text")
+        if current_mental and current_mental["title"] == mental_title and current_mental["text"] == mental_text:
+            current_mental["end_date"] = current.isoformat()
+        else:
+            if current_mental:
+                mental.append(current_mental)
+            current_mental = {
+                "key": mental_key,
+                "start_date": current.isoformat(),
+                "end_date": current.isoformat(),
+                "jupiter_transit_natal_house": jupiter_transit_natal_house,
+                "saturn_transit_natal_house": saturn_transit_natal_house,
+                "title": mental_title,
+                "text": mental_text,
+            }
+
+        current += timedelta(days=1)
+
+    if current_environment:
+        environment.append(current_environment)
+    if current_mental:
+        mental.append(current_mental)
+    for index, item in enumerate(environment, start=1):
+        item["id"] = f"ENVIRONMENT_{index:02d}"
+        item["label"] = f"ENVIRONMENT {index:02d}"
+    for index, item in enumerate(mental, start=1):
+        item["id"] = f"MENTAL_{index:02d}"
+        item["label"] = f"MENTAL {index:02d}"
+    return {"environment": environment, "mental": mental}
+
+
 def build_annual_summaries(
     *,
     year: int,
@@ -885,6 +970,14 @@ def build_annual_summaries(
                 "saturn_transit_natal_house": saturn_transit_natal_house,
                 "reality_key": reality_key,
                 "mental_key": mental_key,
+                "environment_change": {
+                    "title": reality_title,
+                    "text": reality_text,
+                },
+                "mental_change": {
+                    "title": mental_title,
+                    "text": mental_text,
+                },
                 "annual_summary": f"{reality_title}と{mental_title}",
                 "annual_interpretation": f"{reality_text}\n{mental_text}",
             }
@@ -927,6 +1020,12 @@ def generate_yearly_forecast(
         natal_sun_sign=natal_sun_sign,
         planet="SATURN",
     )
+    annual_summary_columns = build_annual_summary_columns(
+        year=year,
+        birth_input=birth_input,
+        house_cusps=house_cusps,
+        natal_sun_sign=natal_sun_sign,
+    )
     annual_summaries = build_annual_summaries(
         year=year,
         birth_input=birth_input,
@@ -941,6 +1040,7 @@ def generate_yearly_forecast(
         "milestones": extract_milestones(yearly_data),
         "annual_themes": annual_themes,
         "annual_lessons": annual_lessons,
+        "annual_summary_columns": annual_summary_columns,
         "annual_summaries": annual_summaries,
         "cache": build_yearly_forecast_cache_payload(birth_input, year),
     }

@@ -93,9 +93,40 @@ class YearlyForecastTestCase(unittest.TestCase):
         self.assertTrue({"general", "work", "love", "money"}.issubset(first_day["category_highlights"]))
         self.assertTrue(forecast["milestones"])
         self.assertTrue(forecast["annual_summaries"])
+        self.assertIn("annual_summary_columns", forecast)
+        self.assertTrue(forecast["annual_summary_columns"]["environment"])
+        self.assertTrue(forecast["annual_summary_columns"]["mental"])
         self.assertIn("annual_summary", forecast["annual_summaries"][0])
         self.assertIn("annual_interpretation", forecast["annual_summaries"][0])
+        self.assertIn("environment_change", forecast["annual_summaries"][0])
+        self.assertIn("mental_change", forecast["annual_summaries"][0])
+        self.assertTrue(forecast["annual_summaries"][0]["environment_change"]["title"])
+        self.assertTrue(forecast["annual_summaries"][0]["mental_change"]["title"])
         self.assertEqual(forecast["cache"]["table"], "yearly_forecast_cache")
+
+    def test_annual_summary_columns_merge_environment_and_mental_independently(self):
+        payload = BirthInput(
+            full_name="Test User",
+            birth_date="1984-08-26",
+            birth_time="19:20",
+            birth_time_unknown=False,
+            birthplace="Tokyo",
+            latitude=35.6812,
+            longitude=139.7671,
+            timezone_offset=9,
+        )
+        forecast = generate_yearly_forecast(payload, 2026)
+        columns = forecast["annual_summary_columns"]
+
+        for key in ("environment", "mental"):
+            self.assertTrue(columns[key])
+            for previous, current in zip(columns[key], columns[key][1:]):
+                self.assertNotEqual(
+                    (previous["title"], previous["text"]),
+                    (current["title"], current["text"]),
+                )
+            self.assertTrue(columns[key][0]["title"])
+            self.assertTrue(columns[key][0]["text"])
 
     def test_category_highlights_pick_strongest_aspect_per_category(self):
         highlights = _category_highlights([

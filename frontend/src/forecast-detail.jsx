@@ -106,11 +106,43 @@ function formatThemeDate(value) {
   return `${date.getMonth() + 1}/${date.getDate()}`;
 }
 
+function summaryDurationDays(item) {
+  const start = new Date(`${item?.startRaw || ""}T00:00:00`);
+  const end = new Date(`${item?.endRaw || ""}T00:00:00`);
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
+    return 30;
+  }
+  return Math.max(1, Math.round((end.getTime() - start.getTime()) / 86400000) + 1);
+}
+
+function summaryTimelineHeight(item) {
+  const days = summaryDurationDays(item);
+  return { minHeight: `${Math.min(560, Math.max(112, days * 3))}px` };
+}
+
 function preserveThemeLineBreaks(value) {
   return String(value || "")
     .replaceAll("\\r\\n", "\n")
     .replaceAll("\\n", "\n")
     .replace(/\r\n?/g, "\n");
+}
+
+function splitCombinedSummaryTitle(value) {
+  const text = preserveThemeLineBreaks(value || "作成中");
+  const separatorIndex = text.indexOf("と");
+  if (separatorIndex < 0) {
+    return [text, "作成中"];
+  }
+  return [text.slice(0, separatorIndex), text.slice(separatorIndex + 1)];
+}
+
+function splitCombinedSummaryText(value) {
+  const text = preserveThemeLineBreaks(value || "作成中");
+  const separatorIndex = text.indexOf("\n");
+  if (separatorIndex < 0) {
+    return [text, "作成中"];
+  }
+  return [text.slice(0, separatorIndex), text.slice(separatorIndex + 1)];
 }
 
 function themeItemsFromForecast(forecast) {
@@ -149,22 +181,91 @@ function lessonItemsFromForecast(forecast) {
   });
 }
 
+function mergeConsecutiveSummaryItems(items) {
+  return items.reduce((merged, item) => {
+    const previous = merged[merged.length - 1];
+    if (previous && previous.title === item.title && previous.body === item.body) {
+      previous.endDate = item.endDate;
+      previous.endRaw = item.endRaw;
+      previous.label = `${previous.startDate}-${item.endDate}`;
+      return merged;
+    }
+    merged.push({ ...item });
+    return merged;
+  }, []);
+}
+
 function summaryItemsFromForecast(forecast) {
+  const columns = forecast?.annual_summary_columns || forecast?.annualSummaryColumns || null;
+  const columnColors = ["#e9c349", "#d3bcf9", "#ffb4ab", "#c3c6d7"];
+  if (columns) {
+    const formatColumnItem = (item, index) => {
+      const startRaw = item.start_date || item.startDate;
+      const endRaw = item.end_date || item.endDate;
+      const startDate = formatThemeDate(startRaw);
+      const endDate = formatThemeDate(endRaw);
+      return {
+        color: columnColors[index % columnColors.length],
+        label: `${startDate}-${endDate}`,
+        startDate,
+        endDate,
+        startRaw,
+        endRaw,
+        title: preserveThemeLineBreaks(item.title || "作成中"),
+        body: preserveThemeLineBreaks(item.text || item.body || "作成中"),
+      };
+    };
+    const environment = Array.isArray(columns.environment) ? columns.environment : [];
+    const mental = Array.isArray(columns.mental) ? columns.mental : [];
+    return {
+      environment: mergeConsecutiveSummaryItems(environment.map(formatColumnItem)),
+      mental: mergeConsecutiveSummaryItems(mental.map(formatColumnItem)),
+    };
+  }
+
   const summaries = Array.isArray(forecast?.annual_summaries)
     ? forecast.annual_summaries
     : Array.isArray(forecast?.annualSummaries)
       ? forecast.annualSummaries
       : [];
   const colors = ["#e9c349", "#d3bcf9", "#ffb4ab", "#c3c6d7"];
-  return summaries.map((summary, index) => {
-    const period = `${formatThemeDate(summary.start_date || summary.startDate)}-${formatThemeDate(summary.end_date || summary.endDate)}`;
-    const title = preserveThemeLineBreaks(summary.annual_summary || summary.annualSummary || "作成中");
-    return {
+  const environment = [];
+  const mental = [];
+  summaries.forEach((summary, index) => {
+    const startRaw = summary.start_date || summary.startDate;
+    const endRaw = summary.end_date || summary.endDate;
+    const startDate = formatThemeDate(startRaw);
+    const endDate = formatThemeDate(endRaw);
+    const period = `${startDate}-${endDate}`;
+    const environmentChange = summary.environment_change || summary.environmentChange || {};
+    const mentalChange = summary.mental_change || summary.mentalChange || {};
+    const fallbackBodyParts = splitCombinedSummaryText(summary.annual_interpretation || summary.annualInterpretation);
+    const fallbackTitleParts = splitCombinedSummaryTitle(summary.annual_summary || summary.annualSummary);
+    environment.push({
       color: colors[index % colors.length],
-      label: `${period}: ${title}`,
-      body: preserveThemeLineBreaks(summary.annual_interpretation || summary.annualInterpretation || "作成中"),
-    };
+      label: period,
+      startDate,
+      endDate,
+      startRaw,
+      endRaw,
+      title: preserveThemeLineBreaks(environmentChange.title || fallbackTitleParts[0] || "作成中"),
+      body: preserveThemeLineBreaks(environmentChange.text || environmentChange.body || fallbackBodyParts[0] || "作成中"),
+    });
+    mental.push({
+      color: colors[index % colors.length],
+      label: period,
+      startDate,
+      endDate,
+      startRaw,
+      endRaw,
+      title: preserveThemeLineBreaks(mentalChange.title || fallbackTitleParts[1] || "作成中"),
+      body: preserveThemeLineBreaks(mentalChange.text || mentalChange.body || fallbackBodyParts[1] || "作成中"),
+    });
   });
+  return {
+    environment: mergeConsecutiveSummaryItems(environment),
+    mental: mergeConsecutiveSummaryItems(mental),
+  };
 }
 
 function clamp(value, min, max) {
@@ -262,7 +363,7 @@ function GlassPanel({ children, className = "" }) {
   );
 }
 
-function Header() {
+function Header({ activeYear }) {
   return (
     <header className="w-full border-b border-white/10 bg-[#0d0e0f]/82 backdrop-blur-xl">
       <div className="flex w-full max-w-none items-center justify-between gap-3 px-4 py-4 sm:gap-6 sm:px-8 sm:py-6 lg:mx-auto lg:max-w-[1760px]">
@@ -270,7 +371,7 @@ function Header() {
           <a href="/results.html" className="max-w-[150px] font-serif text-[22px] font-bold leading-[0.98] text-gold sm:max-w-none sm:text-4xl sm:leading-none">The Celestial Atelier</a>
           <span className="hidden h-10 w-px bg-white/20 md:block" />
           <h1 className="hidden truncate font-serif text-2xl font-semibold tracking-[0.04em] text-starlight md:block md:text-3xl">
-            2026年 運勢年間予測
+            {activeYear}年 年間予測
           </h1>
         </div>
         <nav className="hidden items-center gap-10 font-mono text-xs font-bold tracking-[0.12em] text-mist lg:flex">
@@ -294,11 +395,11 @@ function OraclePanel({ stats, forecast }) {
   const [analysisMode, setAnalysisMode] = useState("theme");
   const themeItems = themeItemsFromForecast(forecast);
   const lessonItems = lessonItemsFromForecast(forecast);
-  const summaryItems = summaryItemsFromForecast(forecast);
+  const summaryColumns = summaryItemsFromForecast(forecast);
   const analysisTitle = {
     deep: "Deep Analysis",
-    theme: "Theme",
-    lesson: "課題・学び",
+    theme: "幸運・拡大",
+    lesson: "成長課題",
     summary: "総括",
   }[analysisMode] || "Deep Analysis";
   const fallbackThemeItems = [
@@ -306,21 +407,29 @@ function OraclePanel({ stats, forecast }) {
     { color: "#d3bcf9", label: "THEME 02", body: "作成中" },
     { color: "#ffb4ab", label: "THEME 03", body: "作成中" },
   ];
-  const fallbackSummaryItems = [
-    { color: "#e9c349", label: "総括", body: "作成中" },
-  ];
+  const fallbackSummaryColumns = {
+    environment: [{ color: "#e9c349", label: "1/1-12/31", startRaw: "2026-01-01", endRaw: "2026-12-31", title: "環境変化", body: "作成中" }],
+    mental: [{ color: "#e9c349", label: "1/1-12/31", startRaw: "2026-01-01", endRaw: "2026-12-31", title: "精神的変化", body: "作成中" }],
+  };
+  const summaryEnvironmentItems = summaryColumns.environment.length ? summaryColumns.environment : fallbackSummaryColumns.environment;
+  const summaryMentalItems = summaryColumns.mental.length ? summaryColumns.mental : fallbackSummaryColumns.mental;
   return (
     <div className="h-full">
       <GlassPanel className="flex h-[520px] flex-col overflow-hidden p-4 sm:h-[560px] sm:p-7 lg:h-[620px]">
         <div className="flex items-center justify-between gap-3">
-          <h2 className="font-serif text-2xl font-semibold text-starlight sm:text-3xl">
-            {analysisTitle}
-          </h2>
+          <div>
+            <p className="font-mono text-[8px] font-bold uppercase tracking-[0.18em] text-gold/75 sm:text-[9px]">
+              Main Theme
+            </p>
+            <h2 className="mt-1 font-serif text-2xl font-semibold text-starlight sm:text-3xl">
+              {analysisTitle}
+            </h2>
+          </div>
           <div className="flex shrink-0 rounded-full border border-white/10 bg-white/[0.04] p-1 font-mono text-[7px] font-bold text-mist sm:text-[10px]">
             {[
               ["deep", "Deep Analysis"],
-              ["theme", "Theme"],
-              ["lesson", "課題・学び"],
+              ["theme", "幸運・拡大"],
+              ["lesson", "成長課題"],
               ["summary", "総括"],
             ].map(([value, label]) => (
               <button
@@ -367,17 +476,30 @@ function OraclePanel({ stats, forecast }) {
           </div>
         ) : null}
         {analysisMode === "summary" ? (
-          <div className="mt-6 grid min-h-0 flex-1 gap-6 overflow-y-auto pr-2 [scrollbar-color:#e9c349_rgba(255,255,255,0.08)] [scrollbar-width:thin] sm:mt-8 sm:gap-8">
-            {(summaryItems.length ? summaryItems : fallbackSummaryItems).map((item) => (
-              <article key={`summary-${item.label}`} className="relative pl-8">
-                <span className="absolute left-0 top-1.5 h-3 w-3 rounded-full shadow-[0_0_18px_currentColor]" style={{ color: item.color, backgroundColor: item.color }} />
-                <span className="absolute left-[5px] top-5 h-full w-px bg-white/15" />
-                <p className="font-mono text-xs font-bold uppercase tracking-[0.12em]" style={{ color: item.color }}>
-                  {item.label}
-                </p>
-                <p className="mt-3 whitespace-pre-line text-sm leading-7 text-mist sm:text-base sm:leading-8">{item.body}</p>
-              </article>
-            ))}
+          <div className="mt-5 grid min-h-0 flex-1 gap-4 overflow-y-auto [scrollbar-color:#e9c349_rgba(255,255,255,0.08)] [scrollbar-width:thin] sm:mt-8 sm:gap-8 sm:pr-2">
+            <div className="grid grid-cols-2 gap-2 pl-4 font-mono text-[10px] font-bold uppercase tracking-[0.08em] text-gold sm:gap-8 sm:pl-8 sm:text-xs sm:tracking-[0.12em]">
+              <p>環境変化</p>
+              <p>精神的変化</p>
+            </div>
+            <div className="grid grid-cols-2 gap-2 sm:gap-8">
+              {[
+                ["environment", summaryEnvironmentItems],
+                ["mental", summaryMentalItems],
+              ].map(([columnKey, items]) => (
+                <div key={columnKey} className="grid content-start gap-4 sm:gap-8">
+                  {items.map((item) => (
+                    <article key={`${columnKey}-${item.label}-${item.title}`} className="relative pl-4 sm:pl-8" style={summaryTimelineHeight(item)}>
+                      <span className="absolute left-0 top-1 h-2.5 w-2.5 rounded-full shadow-[0_0_18px_currentColor] sm:top-1.5 sm:h-3 sm:w-3" style={{ color: item.color, backgroundColor: item.color }} />
+                      <span className="absolute bottom-0 left-[4px] top-4 w-px bg-white/15 sm:left-[5px] sm:top-5" />
+                      <p className="font-mono text-[10px] font-bold uppercase leading-4 tracking-[0.06em] sm:text-xs sm:leading-normal sm:tracking-[0.12em]" style={{ color: item.color }}>
+                        {item.label}: {item.title || "作成中"}
+                      </p>
+                      <p className="mt-2 whitespace-pre-line text-xs leading-6 text-mist sm:mt-3 sm:text-base sm:leading-8">{item.body || "作成中"}</p>
+                    </article>
+                  ))}
+                </div>
+              ))}
+            </div>
           </div>
         ) : null}
         <div className={cx("mt-6 grid min-h-0 flex-1 gap-6 overflow-y-auto pr-2 [scrollbar-color:#e9c349_rgba(255,255,255,0.08)] [scrollbar-width:thin] sm:mt-8 sm:gap-8", analysisMode !== "deep" && "hidden")}>
@@ -729,7 +851,7 @@ function ForecastDetailPage() {
 
   return (
     <div className="relative min-h-screen overflow-x-hidden text-starlight">
-      <Header />
+      <Header activeYear={activeYear} />
       <main className="mx-auto grid max-w-[1540px] gap-4 px-1 py-6 sm:gap-7 sm:px-8 sm:py-12 lg:py-24">
         <OraclePanel stats={stats} forecast={forecast} />
         <div className="grid gap-4 sm:gap-7">
