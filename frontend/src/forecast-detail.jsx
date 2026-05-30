@@ -758,7 +758,7 @@ function YearCalculationDialog({
           <span className="font-mono text-xs font-bold uppercase tracking-[0.14em] text-mist">任意の年</span>
           <input
             type="number"
-            min="2020"
+            min="2015"
             max="2028"
             step="1"
             value={year}
@@ -816,8 +816,8 @@ function ForecastDetailPage() {
   const [selectedMonthIndex, setSelectedMonthIndex] = useState(monthIndex(stats.peak?.date));
   const handleCalculateYear = async () => {
     const normalizedYear = Number(targetYear);
-    if (!Number.isInteger(normalizedYear) || normalizedYear < 2020 || normalizedYear > 2028) {
-      setYearCalculationError("2020年から2028年の範囲で年を入力してください。");
+    if (!Number.isInteger(normalizedYear) || normalizedYear < 2015 || normalizedYear > 2028) {
+      setYearCalculationError("2015年から2028年の範囲で年を入力してください。");
       return;
     }
 

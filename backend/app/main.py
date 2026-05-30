@@ -81,7 +81,7 @@ def create_reading(payload: ReadingRequest):
 
 
 @app.post("/api/yearly-forecast")
-def create_yearly_forecast(payload: ReadingRequest, year: int = Query(default=2026, ge=2020, le=2028)):
+def create_yearly_forecast(payload: ReadingRequest, year: int = Query(default=2026, ge=2015, le=2028)):
     try:
         timezone_offset = payload.timezone_offset
         if timezone_offset is None:
