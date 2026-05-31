@@ -332,9 +332,39 @@ def load_master_dataframes() -> dict[str, pd.DataFrame]:
     return masters
 
 
+def _master_csv_paths() -> list[Path]:
+    paths = [DATABASE_DIR / filename for filename in MASTER_CSV_FILES.values()]
+    paths.extend(DATABASE_DIR / filename for filename in ASPECT_MASTER_CSV_FILES)
+    return paths
+
+
+def _csv_file_signature(paths: list[Path]) -> tuple[tuple[str, int | None, int | None], ...]:
+    signature = []
+    for path in paths:
+        if path.exists():
+            stat = path.stat()
+            signature.append((str(path), stat.st_mtime_ns, stat.st_size))
+        else:
+            signature.append((str(path), None, None))
+    return tuple(signature)
+
+
 MASTER_DATAFRAMES = load_master_dataframes()
+_MASTER_CSV_SIGNATURE = _csv_file_signature(_master_csv_paths())
 _ASPECT_CANDIDATES_BY_KEY: dict[tuple[str, str, int], list[dict[str, Any]]] | None = None
 _ASPECT_INTERPRETATION_CACHE: dict[tuple[str, str, int, int, bool, str], dict[str, Any]] = {}
+
+
+def reload_master_dataframes_if_changed(force: bool = False) -> bool:
+    global MASTER_DATAFRAMES, _MASTER_CSV_SIGNATURE, _ASPECT_CANDIDATES_BY_KEY
+    current_signature = _csv_file_signature(_master_csv_paths())
+    if not force and current_signature == _MASTER_CSV_SIGNATURE:
+        return False
+    MASTER_DATAFRAMES = load_master_dataframes()
+    _MASTER_CSV_SIGNATURE = current_signature
+    _ASPECT_CANDIDATES_BY_KEY = None
+    _ASPECT_INTERPRETATION_CACHE.clear()
+    return True
 
 
 def _normalize_planet(value: Any) -> str:
@@ -3743,6 +3773,7 @@ def get_aspect_dashboard_data(
 
 
 def generate_readings(payload: ReadingRequest) -> ReadingResponse:
+    reload_master_dataframes_if_changed()
     timezone_offset = payload.timezone_offset
     if timezone_offset is None:
         if not payload.timezone_name:

@@ -22,9 +22,12 @@ function cx(...values) {
 }
 
 function resolveApiBaseUrl() {
-  const configured = String(__APP_API_BASE_URL__ || "").trim();
+  const configured = String(typeof __APP_API_BASE_URL__ === "undefined" ? "" : __APP_API_BASE_URL__ || "").trim();
   if (configured) {
     return configured.replace(/\/$/, "");
+  }
+  if (["localhost", "127.0.0.1"].includes(window.location.hostname) && /^517\d$/.test(window.location.port)) {
+    return "http://127.0.0.1:8000";
   }
   return window.location.origin.replace(/\/$/, "");
 }
@@ -42,7 +45,56 @@ async function postJson(path, payload) {
   return response.json();
 }
 
+async function reloadCsvMasters() {
+  const response = await fetch(`${resolveApiBaseUrl()}/api/dev/reload-csv`, {
+    method: "POST",
+  });
+  if (!response.ok) {
+    const errorPayload = await response.json().catch(() => ({}));
+    throw new Error(errorPayload.detail || `CSV reload failed: ${response.status}`);
+  }
+  return response.json();
+}
+
+function shouldForceRefresh() {
+  try {
+    const url = new URL(window.location.href);
+    return url.searchParams.get("refresh") === "1";
+  } catch {
+    return false;
+  }
+}
+
+function getQueryReadingForm() {
+  try {
+    const params = new URL(window.location.href).searchParams;
+    const birthDate = params.get("birth_date");
+    const birthTime = params.get("birth_time");
+    const latitude = Number(params.get("latitude"));
+    const longitude = Number(params.get("longitude"));
+    if (!birthDate || !birthTime || !Number.isFinite(latitude) || !Number.isFinite(longitude)) {
+      return null;
+    }
+    return {
+      full_name: params.get("full_name") || "Test User",
+      birth_date: birthDate,
+      birth_time: birthTime,
+      birth_time_unknown: false,
+      birthplace: params.get("birthplace") || "指定地点",
+      latitude,
+      longitude,
+      timezone_offset: Number(params.get("timezone_offset") || 9),
+      timezone_name: params.get("timezone_name") || "Asia/Tokyo",
+    };
+  } catch {
+    return null;
+  }
+}
+
 function getForecast() {
+  if (shouldForceRefresh()) {
+    return null;
+  }
   const payload = getStoredReadingResult();
   return payload?.yearly_forecast || payload?.yearlyForecast || null;
 }
@@ -132,18 +184,106 @@ function summaryTimelineDayOffset(item, year) {
   return clamp(Math.round((start.getTime() - yearStart.getTime()) / 86400000), 0, 365);
 }
 
-function summaryTimelineItemStyle(item, year) {
-  const pxPerDay = 3;
-  const top = summaryTimelineDayOffset(item, year) * pxPerDay;
-  const height = Math.min(560, Math.max(112, summaryDurationDays(item) * pxPerDay));
+function summaryTextHeightEstimate(item, viewportWidth = 1024) {
+  const textLength = String(`${item?.label || ""}${item?.title || ""}${item?.body || ""}`).length;
+  if (viewportWidth < 640) {
+    return 48 + Math.ceil(textLength / 15) * 20;
+  }
+  const columnWidth = Math.max(240, (viewportWidth - 100) / 2);
+  const charsPerLine = Math.max(28, Math.floor(columnWidth / 13));
+  return 52 + Math.ceil(textLength / charsPerLine) * 28;
+}
+
+function summaryTimelineScale(items, viewportWidth) {
+  return Math.max(
+    10,
+    ...items.map((item) => Math.ceil(summaryTextHeightEstimate(item, viewportWidth) / summaryDurationDays(item)))
+  );
+}
+
+function summaryTimelineLayout(items, year, pxPerDay, viewportWidth) {
+  let previousBottom = 0;
+  const gap = viewportWidth < 640 ? 18 : 24;
+  const maxGap = viewportWidth < 640 ? 34 : 56;
+  const laidOutItems = items.map((item, index) => {
+    const startOffset = summaryTimelineDayOffset(item, year);
+    const textHeight = summaryTextHeightEstimate(item, viewportWidth);
+    const rawTop = startOffset * pxPerDay;
+    const top = index === 0
+      ? rawTop
+      : Math.max(previousBottom + gap, Math.min(rawTop, previousBottom + maxGap));
+    previousBottom = top + textHeight;
+    return {
+      item,
+      startOffset,
+      textHeight,
+      top,
+      style: {
+        top: `${top}px`,
+      },
+    };
+  });
   return {
-    top: `${top}px`,
-    minHeight: `${height}px`,
+    items: laidOutItems,
+    style: { minHeight: `${Math.max(366 * pxPerDay, previousBottom)}px` },
   };
 }
 
-function summaryTimelineColumnStyle() {
-  return { height: `${366 * 3}px` };
+function summaryTimelineLayoutsByColumn(columns, year, pxPerDay, viewportWidth) {
+  const gap = viewportWidth < 640 ? 18 : 24;
+  const dateStep = viewportWidth < 640 ? 16 : 28;
+  const layouts = Object.fromEntries(
+    Object.entries(columns).map(([key, items]) => [key, summaryTimelineLayout(items, year, pxPerDay, viewportWidth)])
+  );
+  const entries = Object.entries(layouts).flatMap(([columnKey, layout]) =>
+    layout.items.map((entry) => ({ ...entry, columnKey }))
+  ).sort((a, b) => a.startOffset - b.startOffset || a.columnKey.localeCompare(b.columnKey));
+  const previousBottomByColumn = {};
+  let previousStartOffset = null;
+  let previousStartTop = 0;
+
+  entries.forEach((entry) => {
+    if (previousStartOffset === null) {
+      previousStartOffset = entry.startOffset;
+      previousStartTop = entry.top;
+    } else if (entry.startOffset > previousStartOffset) {
+      previousStartOffset = entry.startOffset;
+      previousStartTop += dateStep;
+    }
+    const columnBottom = previousBottomByColumn[entry.columnKey] ?? -gap;
+    const top = Math.max(entry.top, previousStartTop, columnBottom + gap);
+    entry.top = top;
+    previousStartTop = Math.max(previousStartTop, top);
+    previousBottomByColumn[entry.columnKey] = top + entry.textHeight;
+  });
+
+  Object.entries(layouts).forEach(([columnKey, layout]) => {
+    let columnBottom = 0;
+    layout.items = layout.items.map((entry) => {
+      const aligned = entries.find((candidate) => candidate.columnKey === columnKey && candidate.item === entry.item) || entry;
+      columnBottom = Math.max(columnBottom, aligned.top + aligned.textHeight);
+      return {
+        item: aligned.item,
+        style: {
+          top: `${aligned.top}px`,
+        },
+      };
+    });
+    layout.style = { minHeight: `${Math.max(366 * pxPerDay, columnBottom)}px` };
+  });
+
+  return layouts;
+}
+
+function useViewportWidth() {
+  const [width, setWidth] = useState(() => (typeof window === "undefined" ? 1024 : window.innerWidth));
+  useEffect(() => {
+    const updateWidth = () => setWidth(window.innerWidth);
+    updateWidth();
+    window.addEventListener("resize", updateWidth);
+    return () => window.removeEventListener("resize", updateWidth);
+  }, []);
+  return width;
 }
 
 function preserveThemeLineBreaks(value) {
@@ -437,12 +577,18 @@ function OraclePanel({ stats, forecast }) {
     environment: [{ color: "#e9c349", label: "1/1-12/31", startRaw: "2026-01-01", endRaw: "2026-12-31", title: "環境変化", body: "作成中" }],
     mental: [{ color: "#e9c349", label: "1/1-12/31", startRaw: "2026-01-01", endRaw: "2026-12-31", title: "精神的変化", body: "作成中" }],
   };
+  const viewportWidth = useViewportWidth();
   const activeYear = forecastYear(forecast);
   const summaryEnvironmentItems = summaryColumns.environment.length ? summaryColumns.environment : fallbackSummaryColumns.environment;
   const summaryMentalItems = summaryColumns.mental.length ? summaryColumns.mental : fallbackSummaryColumns.mental;
+  const summaryScale = summaryTimelineScale([...summaryEnvironmentItems, ...summaryMentalItems], viewportWidth);
+  const summaryLayouts = summaryTimelineLayoutsByColumn({
+    environment: summaryEnvironmentItems,
+    mental: summaryMentalItems,
+  }, activeYear, summaryScale, viewportWidth);
   return (
     <div className="h-full">
-      <GlassPanel className="flex h-[520px] flex-col overflow-hidden p-4 sm:h-[560px] sm:p-7 lg:h-[620px]">
+      <GlassPanel className="flex h-[520px] flex-col overflow-hidden p-2 sm:h-[560px] sm:p-5 lg:h-[620px] lg:p-6">
         <div className="flex items-center justify-between gap-3">
           <div>
             <p className="font-mono text-[8px] font-bold uppercase tracking-[0.18em] text-gold/75 sm:text-[9px]">
@@ -473,7 +619,7 @@ function OraclePanel({ stats, forecast }) {
             ))}
           </div>
         </div>
-        <div className="mt-5 h-px bg-white/10" />
+        <div className="mt-3 h-px bg-white/10 sm:mt-5" />
         {analysisMode === "theme" ? (
           <div className="mt-6 grid min-h-0 flex-1 gap-6 overflow-y-auto pr-2 [scrollbar-color:#e9c349_rgba(255,255,255,0.08)] [scrollbar-width:thin] sm:mt-8 sm:gap-8">
             {(themeItems.length ? themeItems : fallbackThemeItems).map((item) => (
@@ -503,29 +649,29 @@ function OraclePanel({ stats, forecast }) {
           </div>
         ) : null}
         {analysisMode === "summary" ? (
-          <div className="mt-5 grid min-h-0 flex-1 gap-4 overflow-y-auto [scrollbar-color:#e9c349_rgba(255,255,255,0.08)] [scrollbar-width:thin] sm:mt-8 sm:gap-8 sm:pr-2">
-            <div className="grid grid-cols-2 gap-2 pl-4 font-mono text-[10px] font-bold uppercase tracking-[0.08em] text-gold sm:gap-8 sm:pl-8 sm:text-xs sm:tracking-[0.12em]">
+          <div className="mt-3 grid min-h-0 flex-1 gap-2 overflow-y-auto [scrollbar-color:#e9c349_rgba(255,255,255,0.08)] [scrollbar-width:thin] sm:mt-6 sm:gap-5 sm:pr-1 lg:gap-6">
+            <div className="grid grid-cols-2 gap-1 pl-3 font-mono text-[10px] font-bold uppercase tracking-[0.05em] text-gold sm:gap-5 sm:pl-6 sm:text-xs sm:tracking-[0.1em] lg:gap-6">
               <p>環境変化</p>
               <p>精神的変化</p>
             </div>
-            <div className="grid grid-cols-2 gap-2 sm:gap-8">
+            <div className="grid grid-cols-2 gap-1 sm:gap-5 lg:gap-6">
               {[
-                ["environment", summaryEnvironmentItems],
-                ["mental", summaryMentalItems],
-              ].map(([columnKey, items]) => (
-                <div key={columnKey} className="relative" style={summaryTimelineColumnStyle()}>
-                  {items.map((item) => (
+                ["environment", summaryLayouts.environment],
+                ["mental", summaryLayouts.mental],
+              ].map(([columnKey, layout]) => (
+                <div key={columnKey} className="relative" style={layout.style}>
+                  {layout.items.map(({ item, style }) => (
                     <article
                       key={`${columnKey}-${item.label}-${item.title}`}
-                      className="absolute left-0 right-0 pl-4 sm:pl-8"
-                      style={summaryTimelineItemStyle(item, activeYear)}
+                      className="absolute left-0 right-0 pl-3 sm:pl-6"
+                      style={style}
                     >
-                      <span className="absolute left-0 top-1 h-2.5 w-2.5 rounded-full shadow-[0_0_18px_currentColor] sm:top-1.5 sm:h-3 sm:w-3" style={{ color: item.color, backgroundColor: item.color }} />
-                      <span className="absolute bottom-0 left-[4px] top-4 w-px bg-white/15 sm:left-[5px] sm:top-5" />
-                      <p className="font-mono text-[10px] font-bold uppercase leading-4 tracking-[0.06em] sm:text-xs sm:leading-normal sm:tracking-[0.12em]" style={{ color: item.color }}>
+                      <span className="absolute left-0 top-1 h-2 w-2 rounded-full shadow-[0_0_18px_currentColor] sm:top-1.5 sm:h-3 sm:w-3" style={{ color: item.color, backgroundColor: item.color }} />
+                      <span className="absolute bottom-0 left-[3px] top-3.5 w-px bg-white/15 sm:left-[5px] sm:top-5" />
+                      <p className="font-mono text-[9px] font-bold uppercase leading-4 tracking-[0.03em] sm:text-xs sm:leading-normal sm:tracking-[0.12em]" style={{ color: item.color }}>
                         {item.label}: {item.title || "作成中"}
                       </p>
-                      <p className="mt-2 whitespace-pre-line text-xs leading-6 text-mist sm:mt-3 sm:text-base sm:leading-8">{item.body || "作成中"}</p>
+                      <p className="mt-2 whitespace-pre-line text-[10px] leading-5 text-mist sm:mt-3 sm:text-sm sm:leading-7">{item.body || "作成中"}</p>
                     </article>
                   ))}
                 </div>
@@ -824,6 +970,9 @@ function ForecastDetailPage() {
   const [calculatingYear, setCalculatingYear] = useState(false);
   const [yearCalculationError, setYearCalculationError] = useState("");
   useEffect(() => {
+    if (shouldForceRefresh()) {
+      return () => {};
+    }
     let active = true;
     getStoredReadingResultAsync({ allowStale: true }).then((payload) => {
       const indexedForecast = payload?.yearly_forecast || payload?.yearlyForecast || null;
@@ -841,6 +990,44 @@ function ForecastDetailPage() {
       setYearCalculationError("");
     }
   }, [activeYear, yearDialogOpen]);
+  useEffect(() => {
+    if (!shouldForceRefresh()) {
+      return;
+    }
+    const formPayload = getQueryReadingForm() || getStoredReadingForm();
+    if (!formPayload) {
+      return;
+    }
+    let active = true;
+    setCalculatingYear(true);
+    reloadCsvMasters()
+      .then(() => postJson(`/api/yearly-forecast?year=${activeYear}`, formPayload))
+      .then(async (nextForecast) => {
+        if (!active) return;
+        setForecast(nextForecast);
+        setSelectedMonthIndex(monthIndex(nextForecast?.summary?.peak?.date || nextForecast?.yearly_data?.[0]?.date));
+        const storedPayload = await getStoredReadingResultAsync({ allowStale: true });
+        if (storedPayload) {
+          await storeReadingResult({
+            ...storedPayload,
+            yearly_forecast: nextForecast,
+          });
+        }
+      })
+      .catch((error) => {
+        if (active) {
+          setYearCalculationError(error.message || "年間予測の再計算に失敗しました。");
+        }
+      })
+      .finally(() => {
+        if (active) {
+          setCalculatingYear(false);
+        }
+      });
+    return () => {
+      active = false;
+    };
+  }, [activeYear]);
   const data = useMemo(() => monthlyData(forecast), [forecast]);
   const stats = useMemo(() => aggregateStats(data), [data]);
   const [selectedSeriesKey, setSelectedSeriesKey] = useState("general");
@@ -883,7 +1070,7 @@ function ForecastDetailPage() {
   return (
     <div className="relative min-h-screen overflow-x-hidden text-starlight">
       <Header activeYear={activeYear} />
-      <main className="mx-auto grid max-w-[1540px] gap-4 px-1 py-6 sm:gap-7 sm:px-8 sm:py-12 lg:py-24">
+      <main className="mx-auto grid max-w-none gap-3 px-0.5 py-4 sm:gap-6 sm:px-4 sm:py-10 lg:px-6 lg:py-20">
         <OraclePanel stats={stats} forecast={forecast} />
         <div className="grid gap-4 sm:gap-7">
           <AnnualChart

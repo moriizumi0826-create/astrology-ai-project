@@ -29,6 +29,13 @@ def health_check() -> dict:
     return {"status": "ok"}
 
 
+@app.post("/api/dev/reload-csv")
+def reload_csv_masters() -> dict:
+    reading_reloaded = reading_service.reload_master_dataframes_if_changed(force=True)
+    yearly_reloaded = yearly_forecast_service.reload_yearly_master_caches_if_changed(force=True)
+    return {"status": "ok", "reading_reloaded": reading_reloaded, "yearly_reloaded": yearly_reloaded}
+
+
 @app.get("/api/location-search", response_model=LocationSearchResponse)
 def location_search(
     q: str = Query(min_length=1, max_length=100),

@@ -1,9 +1,12 @@
 import csv
+import tempfile
 import unittest
 from datetime import date
 from pathlib import Path
+from unittest.mock import patch
 
 from backend.app.services.chart_calculator import BirthInput
+from backend.app.services import yearly_forecast_service
 from backend.app.services.yearly_forecast_service import (
     _calendar_trigger_events,
     _category_highlights,
@@ -11,6 +14,7 @@ from backend.app.services.yearly_forecast_service import (
     _milestone_from_day,
     _yearly_summary_rows,
     _solar_house,
+    reload_yearly_master_caches_if_changed,
     generate_yearly_forecast,
 )
 
@@ -20,6 +24,32 @@ DATABASE_DIR = PROJECT_ROOT / "database"
 
 
 class YearlyForecastTestCase(unittest.TestCase):
+    def test_yearly_summary_csv_reload_reflects_updated_file(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = Path(temp_dir)
+            summary_path = temp_path / "M_Yearly_Summary_Interpretation.csv"
+            summary_path.write_text(
+                "Planet_A,Planet_B,Planet_A_House,Planet_B_House,Summary_Title,Summary_Text\n"
+                "Jupiter,Saturn,Solar_1,Solar_1,Before,Before text\n",
+                encoding="utf-8-sig",
+            )
+
+            with patch.object(yearly_forecast_service, "DATABASE_DIR", temp_path):
+                reload_yearly_master_caches_if_changed(force=True)
+                rows = _yearly_summary_rows()
+                self.assertEqual(rows[("JUPITER", "SATURN", "Solar_1", "Solar_1")]["Summary_Title"], "Before")
+
+                summary_path.write_text(
+                    "Planet_A,Planet_B,Planet_A_House,Planet_B_House,Summary_Title,Summary_Text\n"
+                    "Jupiter,Saturn,Solar_1,Solar_1,After,After text\n",
+                    encoding="utf-8-sig",
+                )
+
+                reload_yearly_master_caches_if_changed(force=True)
+                rows = _yearly_summary_rows()
+                self.assertEqual(rows[("JUPITER", "SATURN", "Solar_1", "Solar_1")]["Summary_Title"], "After")
+            reload_yearly_master_caches_if_changed(force=True)
+
     def test_transit_calendar_has_one_row_per_day_and_planet(self):
         path = DATABASE_DIR / "M_Transit_Calendar_2026.csv"
         with path.open("r", encoding="utf-8-sig", newline="") as f:

@@ -33,10 +33,30 @@ async function postJson(path, payload) {
   return response.json();
 }
 
+async function reloadCsvMasters() {
+  const response = await fetch(`${resolveApiBaseUrl()}/api/dev/reload-csv`, {
+    method: "POST",
+  });
+  if (!response.ok) {
+    const errorPayload = await response.json().catch(() => ({}));
+    throw new Error(errorPayload.detail || `CSV reload failed: ${response.status}`);
+  }
+  return response.json();
+}
+
 function isDeveloperMode() {
   try {
     const url = new URL(window.location.href);
     return url.searchParams.get("mode") === "developer";
+  } catch {
+    return false;
+  }
+}
+
+function shouldForceRefresh() {
+  try {
+    const url = new URL(window.location.href);
+    return url.searchParams.get("refresh") === "1";
   } catch {
     return false;
   }
@@ -62,7 +82,7 @@ function getDashboardData() {
 
 async function refreshDailyDashboardIfNeeded() {
   const payload = await getStoredReadingResultAsync({ allowStale: true });
-  if (!payload || isStoredResultFresh(payload)) {
+  if (!payload || (isStoredResultFresh(payload) && !shouldForceRefresh())) {
     return payload;
   }
 
@@ -71,6 +91,9 @@ async function refreshDailyDashboardIfNeeded() {
     return payload;
   }
 
+  if (shouldForceRefresh()) {
+    await reloadCsvMasters();
+  }
   const refreshed = await postJson("/api/readings", formPayload);
   const merged = {
     ...refreshed,

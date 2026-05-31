@@ -75,6 +75,51 @@ def _read_csv_dicts(path: Path) -> list[dict[str, Any]]:
         return list(csv.DictReader(f))
 
 
+def _yearly_csv_paths() -> list[Path]:
+    paths = [
+        DATABASE_DIR / "M_Yearly_Base_Logic.csv",
+        DATABASE_DIR / "M_Long_Term_House_Interpretation.csv",
+        DATABASE_DIR / "M_Yearly_Summary_Interpretation.csv",
+        DATABASE_DIR / "M_Aspect_Interpretation_Yearly.csv",
+    ]
+    paths.extend(sorted(DATABASE_DIR.glob("M_Transit_Calendar_*.csv")))
+    return paths
+
+
+def _csv_file_signature(paths: list[Path]) -> tuple[tuple[str, int | None, int | None], ...]:
+    signature = []
+    for path in paths:
+        if path.exists():
+            stat = path.stat()
+            signature.append((str(path), stat.st_mtime_ns, stat.st_size))
+        else:
+            signature.append((str(path), None, None))
+    return tuple(signature)
+
+
+_YEARLY_CSV_SIGNATURE = _csv_file_signature(_yearly_csv_paths())
+
+
+def _clear_yearly_master_caches() -> None:
+    _transit_calendar.cache_clear()
+    _base_logic_rows.cache_clear()
+    _long_term_house_rows.cache_clear()
+    _yearly_summary_rows.cache_clear()
+    _aspect_yearly_rows.cache_clear()
+    _cached_aspect_interpretation.cache_clear()
+    _aspect_master_index.cache_clear()
+
+
+def reload_yearly_master_caches_if_changed(force: bool = False) -> bool:
+    global _YEARLY_CSV_SIGNATURE
+    current_signature = _csv_file_signature(_yearly_csv_paths())
+    if not force and current_signature == _YEARLY_CSV_SIGNATURE:
+        return False
+    _YEARLY_CSV_SIGNATURE = current_signature
+    _clear_yearly_master_caches()
+    return True
+
+
 @lru_cache(maxsize=4)
 def _transit_calendar(year: int = FORECAST_YEAR) -> dict[tuple[str, str], dict[str, Any]]:
     path = DATABASE_DIR / f"M_Transit_Calendar_{year}.csv"
@@ -995,6 +1040,8 @@ def generate_yearly_forecast(
     birth_input: BirthInput,
     year: int = FORECAST_YEAR,
 ) -> dict[str, Any]:
+    reading_service.reload_master_dataframes_if_changed()
+    reload_yearly_master_caches_if_changed()
     if swe is None:
         raise RuntimeError("swisseph is not installed")
 

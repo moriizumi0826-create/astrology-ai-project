@@ -19,7 +19,10 @@ class Settings:
     api_cors_origins: list[str] = None
 
     def __post_init__(self) -> None:
-        origins = os.getenv("API_CORS_ORIGINS", "http://localhost:5173,http://127.0.0.1:5173")
+        origins = os.getenv(
+            "API_CORS_ORIGINS",
+            "http://localhost:5173,http://127.0.0.1:5173,http://localhost:5174,http://127.0.0.1:5174",
+        )
         self.api_cors_origins = [item.strip() for item in origins.split(",") if item.strip()]
 
 
