@@ -480,6 +480,11 @@ function monthIndex(dateValue) {
   return Number.isFinite(month) && month >= 1 && month <= 12 ? month - 1 : 0;
 }
 
+function workdayMonthIndex() {
+  const month = new Date().getMonth();
+  return Number.isFinite(month) ? clamp(month, 0, 11) : 0;
+}
+
 function monthBounds(year, index) {
   const start = new Date(`${year}-${String(index + 1).padStart(2, "0")}-01T00:00:00`);
   const end = new Date(year, index + 1, 0);
@@ -641,10 +646,10 @@ function OraclePanel({ stats, forecast }) {
   const lessonItems = lessonItemsFromForecast(forecast);
   const summaryColumns = summaryItemsFromForecast(forecast);
   const analysisTitle = {
-    theme: "幸運・拡大",
+    theme: "幸運拡大",
     lesson: "成長課題",
     summary: "総括",
-  }[analysisMode] || "幸運・拡大";
+  }[analysisMode] || "幸運拡大";
   const fallbackThemeItems = [
     { color: "#e9c349", label: "THEME 01", body: "作成中" },
     { color: "#d3bcf9", label: "THEME 02", body: "作成中" },
@@ -676,8 +681,8 @@ function OraclePanel({ stats, forecast }) {
             </h2>
           </div>
           <div className="flex shrink-0 rounded-full border border-white/10 bg-white/[0.04] p-1 font-mono text-[7px] font-bold text-mist sm:text-[10px]">
-            {[
-              ["theme", "幸運・拡大"],
+            {[ 
+              ["theme", "幸運拡大"],
               ["lesson", "成長課題"],
               ["summary", "総括"],
             ].map(([value, label]) => (
@@ -1105,10 +1110,10 @@ function Matrix({ data, selectedSeriesKey, setSelectedSeriesKey, selectedMonthIn
   const marsThemeItems = monthlyItems(monthlyThemeItemsFromForecast(forecast, "monthly_mars_themes"), activeYear, selectedMonth);
   const emptySummaryItems = [];
   const modeTitle = {
-    theme: "太陽テーマ",
-    lesson: "火星テーマ",
-    summary: "総括",
-  }[analysisMode] || "太陽テーマ";
+    theme: "今月の主軸",
+    lesson: "今月の熱量",
+    summary: "今月の総括",
+  }[analysisMode] || "今月の主軸";
   const fallbackItems = [{ color: "#e9c349", label: `${MONTHS[selectedMonth]}: 作成中`, body: "作成中" }];
   return (
     <div className="grid gap-4 sm:gap-7">
@@ -1139,8 +1144,8 @@ function Matrix({ data, selectedSeriesKey, setSelectedSeriesKey, selectedMonthIn
           </div>
           <div className="ml-auto flex w-fit max-w-full shrink-0 rounded-full border border-white/10 bg-white/[0.04] p-1 font-mono text-[7px] font-bold text-mist sm:text-[10px]">
             {[
-              ["theme", "太陽テーマ"],
-              ["lesson", "火星テーマ"],
+              ["theme", "主軸"],
+              ["lesson", "熱量"],
               ["summary", "総括"],
             ].map(([value, label]) => (
               <button
@@ -1364,6 +1369,7 @@ function ForecastDetailPage() {
         if (!active) return;
         setForecast(nextForecast);
         setSelectedMonthIndex(monthIndex(nextForecast?.summary?.peak?.date || nextForecast?.yearly_data?.[0]?.date));
+        setSelectedMonthlyMonthIndex(workdayMonthIndex());
         const storedPayload = await getStoredReadingResultAsync({ allowStale: true });
         if (storedPayload) {
           await storeReadingResult({
@@ -1390,6 +1396,7 @@ function ForecastDetailPage() {
   const stats = useMemo(() => aggregateStats(data), [data]);
   const [selectedSeriesKey, setSelectedSeriesKey] = useState("general");
   const [selectedMonthIndex, setSelectedMonthIndex] = useState(monthIndex(stats.peak?.date));
+  const [selectedMonthlyMonthIndex, setSelectedMonthlyMonthIndex] = useState(workdayMonthIndex);
   const [activeView, setActiveView] = useState("annual");
   const handleCalculateYear = async () => {
     const normalizedYear = Number(targetYear);
@@ -1410,6 +1417,7 @@ function ForecastDetailPage() {
       const nextForecast = await postJson(`/api/yearly-forecast?year=${normalizedYear}`, formPayload);
       setForecast(nextForecast);
       setSelectedMonthIndex(monthIndex(nextForecast?.summary?.peak?.date || nextForecast?.yearly_data?.[0]?.date));
+      setSelectedMonthlyMonthIndex(workdayMonthIndex());
 
       const storedPayload = await getStoredReadingResultAsync({ allowStale: true });
       if (storedPayload) {
@@ -1454,8 +1462,8 @@ function ForecastDetailPage() {
             data={data}
             selectedSeriesKey={selectedSeriesKey}
             setSelectedSeriesKey={setSelectedSeriesKey}
-            selectedMonthIndex={selectedMonthIndex}
-            setSelectedMonthIndex={setSelectedMonthIndex}
+            selectedMonthIndex={selectedMonthlyMonthIndex}
+            setSelectedMonthIndex={setSelectedMonthlyMonthIndex}
             forecast={forecast}
             activeYear={activeYear}
           />
