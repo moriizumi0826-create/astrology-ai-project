@@ -1,6 +1,6 @@
 ﻿import React, { useEffect, useMemo, useState } from "react";
 import { createRoot } from "react-dom/client";
-import { Bell, CircleDot, Shield, Sparkles, Star } from "lucide-react";
+import { CircleDot, Shield, Sparkles } from "lucide-react";
 import {
   getStoredReadingForm,
   getStoredReadingResult,
@@ -589,6 +589,7 @@ function GlassPanel({ children, className = "" }) {
   return (
     <section className={cx(
       "rounded-2xl border border-white/10 bg-[#1a1c1c]/62 shadow-[0_24px_80px_rgba(0,0,0,0.32)] backdrop-blur-xl",
+      "min-w-0",
       className
     )}>
       {children}
@@ -629,13 +630,6 @@ function Header({ activeYear, activeView, setActiveView }) {
             </button>
           ))}
         </nav>
-        <div className="flex shrink-0 items-center gap-3 text-gold sm:gap-4">
-          <Bell size={18} />
-          <Sparkles size={20} />
-          <div className="flex h-10 w-10 items-center justify-center rounded-full border border-gold/35 bg-gold/10 sm:h-11 sm:w-11">
-            <Star size={18} />
-          </div>
-        </div>
       </div>
     </header>
   );
@@ -1118,17 +1112,32 @@ function Matrix({ data, selectedSeriesKey, setSelectedSeriesKey, selectedMonthIn
   const fallbackItems = [{ color: "#e9c349", label: `${MONTHS[selectedMonth]}: 作成中`, body: "作成中" }];
   return (
     <div className="grid gap-4 sm:gap-7">
+      <div className="grid grid-cols-12 gap-0.5 pb-1 font-mono text-[7px] font-bold tracking-0 text-mist sm:flex sm:gap-2 sm:overflow-x-auto sm:text-xs sm:tracking-[0.06em] sm:[scrollbar-width:none]">
+        {MONTHS.map((month, index) => (
+          <button
+            key={month}
+            type="button"
+            onClick={() => setSelectedMonthIndex(index)}
+            className={cx(
+              "min-w-0 rounded-full border px-0.5 py-1 transition sm:shrink-0 sm:px-3 sm:py-1.5",
+              selectedMonth === index ? "border-gold bg-gold text-[#241a00]" : "border-white/10 bg-white/[0.04] hover:border-white/20 hover:text-starlight"
+            )}
+          >
+            {index + 1}月
+          </button>
+        ))}
+      </div>
       <GlassPanel className="flex h-[520px] flex-col overflow-hidden border-gold/25 p-2 sm:h-[560px] sm:p-5 lg:h-[620px] lg:p-6">
-        <div className="flex items-center justify-between gap-3">
-          <div>
+        <div className="flex items-start justify-between gap-2 sm:items-center sm:gap-3">
+          <div className="min-w-0">
             <p className="font-mono text-[8px] font-bold uppercase tracking-[0.18em] text-gold/75 sm:text-[9px]">
               Main Theme
             </p>
-            <h2 className="mt-1 font-serif text-2xl font-semibold text-starlight sm:text-3xl">
-              {activeYear} {MONTHS[selectedMonth]} {modeTitle}
+            <h2 className="mt-1 break-words font-serif text-[17px] font-semibold leading-tight text-starlight sm:text-3xl">
+              {modeTitle}
             </h2>
           </div>
-          <div className="flex shrink-0 rounded-full border border-white/10 bg-white/[0.04] p-1 font-mono text-[7px] font-bold text-mist sm:text-[10px]">
+          <div className="ml-auto flex w-fit max-w-full shrink-0 rounded-full border border-white/10 bg-white/[0.04] p-1 font-mono text-[7px] font-bold text-mist sm:text-[10px]">
             {[
               ["theme", "太陽テーマ"],
               ["lesson", "火星テーマ"],
@@ -1149,21 +1158,6 @@ function Matrix({ data, selectedSeriesKey, setSelectedSeriesKey, selectedMonthIn
           </div>
         </div>
         <div className="mt-3 h-px bg-white/10 sm:mt-5" />
-        <div className="mt-3 flex gap-1.5 overflow-x-auto pb-1 font-mono text-[9px] font-bold tracking-[0.06em] text-mist [scrollbar-width:none] sm:mt-4 sm:gap-2 sm:text-xs">
-          {MONTHS.map((month, index) => (
-            <button
-              key={month}
-              type="button"
-              onClick={() => setSelectedMonthIndex(index)}
-              className={cx(
-                "shrink-0 rounded-full border px-2.5 py-1 transition sm:px-3 sm:py-1.5",
-                selectedMonth === index ? "border-gold bg-gold text-[#241a00]" : "border-white/10 bg-white/[0.04] hover:border-white/20 hover:text-starlight"
-              )}
-            >
-              {month}
-            </button>
-          ))}
-        </div>
         {analysisMode === "theme" ? (
           <MonthlyArticleList items={sunThemeItems.length ? sunThemeItems : fallbackItems} />
         ) : null}
