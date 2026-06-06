@@ -79,6 +79,7 @@ def _yearly_csv_paths() -> list[Path]:
     paths = [
         DATABASE_DIR / "M_Yearly_Base_Logic.csv",
         DATABASE_DIR / "M_Long_Term_House_Interpretation.csv",
+        DATABASE_DIR / "M_Short_Term_House_Interpretation.csv",
         DATABASE_DIR / "M_Yearly_Summary_Interpretation.csv",
         DATABASE_DIR / "M_Aspect_Interpretation_Yearly.csv",
     ]
@@ -104,6 +105,7 @@ def _clear_yearly_master_caches() -> None:
     _transit_calendar.cache_clear()
     _base_logic_rows.cache_clear()
     _long_term_house_rows.cache_clear()
+    _short_term_house_rows.cache_clear()
     _yearly_summary_rows.cache_clear()
     _aspect_yearly_rows.cache_clear()
     _cached_aspect_interpretation.cache_clear()
@@ -143,6 +145,21 @@ def _base_logic_rows() -> dict[tuple[str, str, int], dict[str, Any]]:
 @lru_cache(maxsize=1)
 def _long_term_house_rows() -> dict[tuple[str, int, int], dict[str, Any]]:
     path = DATABASE_DIR / "M_Long_Term_House_Interpretation.csv"
+    rows: dict[tuple[str, int, int], dict[str, Any]] = {}
+    if not path.exists():
+        return rows
+    for row in _read_csv_dicts(path):
+        planet = reading_service._normalize_planet(row.get("トランジット天体"))
+        natal_house = reading_service._normalize_int(row.get("ネイタルハウス"))
+        solar_house = reading_service._normalize_int(row.get("ソーラーハウス"))
+        if planet and natal_house and solar_house:
+            rows[(planet, natal_house, solar_house)] = row
+    return rows
+
+
+@lru_cache(maxsize=1)
+def _short_term_house_rows() -> dict[tuple[str, int, int], dict[str, Any]]:
+    path = DATABASE_DIR / "M_Short_Term_House_Interpretation.csv"
     rows: dict[tuple[str, int, int], dict[str, Any]] = {}
     if not path.exists():
         return rows
@@ -860,6 +877,58 @@ def build_annual_themes(
     return themes
 
 
+def build_monthly_themes(
+    *,
+    year: int,
+    birth_input: BirthInput,
+    house_cusps: list[float],
+    natal_sun_sign: str,
+    planet: str,
+) -> list[dict[str, Any]]:
+    if not house_cusps:
+        return []
+
+    rows = _short_term_house_rows()
+    themes: list[dict[str, Any]] = []
+    current_theme: dict[str, Any] | None = None
+    current = date(year, 1, 1)
+    end = date(year, 12, 31)
+
+    while current <= end:
+        transit_longitude, _is_retrograde, calendar_row = _calendar_transit_state(current, planet)
+        natal_house = get_house(transit_longitude, house_cusps)
+        solar_house = _solar_house(calendar_row["Sign_ID"], natal_sun_sign)
+        key = (planet, natal_house, solar_house)
+        master_row = rows.get(key, {})
+        summary = _yearly_text(master_row, "monthly概要", "作成中")
+        interpretation = _yearly_text(master_row, "monthly解釈文", "作成中")
+
+        if current_theme and current_theme["key"] == key:
+            current_theme["end_date"] = current.isoformat()
+        else:
+            if current_theme:
+                themes.append(current_theme)
+            current_theme = {
+                "key": key,
+                "planet": planet,
+                "planet_label": reading_service.PLANET_LABELS.get(planet, planet),
+                "start_date": current.isoformat(),
+                "end_date": current.isoformat(),
+                "natal_house": natal_house,
+                "solar_house": solar_house,
+                "monthly_summary": summary,
+                "monthly_interpretation": interpretation,
+            }
+        current += timedelta(days=1)
+
+    if current_theme:
+        themes.append(current_theme)
+    for index, theme in enumerate(themes, start=1):
+        theme["id"] = f"{planet}_MONTHLY_THEME_{index:02d}"
+        theme["label"] = f"MONTHLY THEME {index:02d}"
+    return themes
+
+
 def _natal_house_for_planet(natal_points: list[dict[str, Any]], planet: str) -> int:
     normalized = reading_service._normalize_planet(planet)
     for point in natal_points:
@@ -1080,6 +1149,20 @@ def generate_yearly_forecast(
         natal_sun_sign=natal_sun_sign,
         natal_points=natal_points,
     )
+    monthly_sun_themes = build_monthly_themes(
+        year=year,
+        birth_input=birth_input,
+        house_cusps=house_cusps,
+        natal_sun_sign=natal_sun_sign,
+        planet="SUN",
+    )
+    monthly_mars_themes = build_monthly_themes(
+        year=year,
+        birth_input=birth_input,
+        house_cusps=house_cusps,
+        natal_sun_sign=natal_sun_sign,
+        planet="MARS",
+    )
 
     return {
         "summary": build_yearly_summary(yearly_data),
@@ -1089,6 +1172,8 @@ def generate_yearly_forecast(
         "annual_lessons": annual_lessons,
         "annual_summary_columns": annual_summary_columns,
         "annual_summaries": annual_summaries,
+        "monthly_sun_themes": monthly_sun_themes,
+        "monthly_mars_themes": monthly_mars_themes,
         "cache": build_yearly_forecast_cache_payload(birth_input, year),
     }
 

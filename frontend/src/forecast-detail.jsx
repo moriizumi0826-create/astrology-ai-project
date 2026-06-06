@@ -311,6 +311,14 @@ function splitCombinedSummaryText(value) {
   return [text.slice(0, separatorIndex), text.slice(separatorIndex + 1)];
 }
 
+function interpretationText(...values) {
+  const value = values.find((item) => {
+    const text = preserveThemeLineBreaks(item || "").trim();
+    return text && text !== "----";
+  });
+  return preserveThemeLineBreaks(value || "作成中");
+}
+
 function themeItemsFromForecast(forecast) {
   const themes = Array.isArray(forecast?.annual_themes)
     ? forecast.annual_themes
@@ -319,12 +327,17 @@ function themeItemsFromForecast(forecast) {
       : [];
   const colors = ["#e9c349", "#d3bcf9", "#ffb4ab", "#c3c6d7"];
   return themes.map((theme, index) => {
+    const startRaw = theme.start_date || theme.startDate;
+    const endRaw = theme.end_date || theme.endDate;
     const period = `${formatThemeDate(theme.start_date || theme.startDate)}-${formatThemeDate(theme.end_date || theme.endDate)}`;
-    const summary = preserveThemeLineBreaks(theme.annual_summary || theme.annualSummary || "作成中");
+    const summary = interpretationText(theme.monthly_summary, theme.monthlySummary, theme.annual_summary, theme.annualSummary);
     return {
       color: colors[index % colors.length],
+      startRaw,
+      endRaw,
+      title: summary,
       label: `${period}: ${summary}`,
-      body: preserveThemeLineBreaks(theme.annual_interpretation || theme.annualInterpretation || "作成中"),
+      body: interpretationText(theme.monthly_interpretation, theme.monthlyInterpretation, theme.annual_interpretation, theme.annualInterpretation),
     };
   });
 }
@@ -337,12 +350,36 @@ function lessonItemsFromForecast(forecast) {
       : [];
   const colors = ["#e9c349", "#d3bcf9", "#ffb4ab", "#c3c6d7"];
   return lessons.map((lesson, index) => {
+    const startRaw = lesson.start_date || lesson.startDate;
+    const endRaw = lesson.end_date || lesson.endDate;
     const period = `${formatThemeDate(lesson.start_date || lesson.startDate)}-${formatThemeDate(lesson.end_date || lesson.endDate)}`;
-    const summary = preserveThemeLineBreaks(lesson.annual_summary || lesson.annualSummary || "作成中");
+    const summary = interpretationText(lesson.monthly_summary, lesson.monthlySummary, lesson.annual_summary, lesson.annualSummary);
     return {
       color: colors[index % colors.length],
+      startRaw,
+      endRaw,
+      title: summary,
       label: `${period}: ${summary}`,
-      body: preserveThemeLineBreaks(lesson.annual_interpretation || lesson.annualInterpretation || "作成中"),
+      body: interpretationText(lesson.monthly_interpretation, lesson.monthlyInterpretation, lesson.annual_interpretation, lesson.annualInterpretation),
+    };
+  });
+}
+
+function monthlyThemeItemsFromForecast(forecast, key) {
+  const source = Array.isArray(forecast?.[key]) ? forecast[key] : [];
+  const colors = ["#e9c349", "#d3bcf9", "#ffb4ab", "#c3c6d7"];
+  return source.map((theme, index) => {
+    const startRaw = theme.start_date || theme.startDate;
+    const endRaw = theme.end_date || theme.endDate;
+    const period = `${formatThemeDate(startRaw)}-${formatThemeDate(endRaw)}`;
+    const summary = interpretationText(theme.monthly_summary, theme.monthlySummary);
+    return {
+      color: colors[index % colors.length],
+      startRaw,
+      endRaw,
+      title: summary,
+      label: `${period}: ${summary}`,
+      body: interpretationText(theme.monthly_interpretation, theme.monthlyInterpretation),
     };
   });
 }
@@ -443,6 +480,24 @@ function monthIndex(dateValue) {
   return Number.isFinite(month) && month >= 1 && month <= 12 ? month - 1 : 0;
 }
 
+function monthBounds(year, index) {
+  const start = new Date(`${year}-${String(index + 1).padStart(2, "0")}-01T00:00:00`);
+  const end = new Date(year, index + 1, 0);
+  return { start, end };
+}
+
+function itemOverlapsMonth(item, year, index) {
+  const start = parseLocalDate(item?.startRaw);
+  const end = parseLocalDate(item?.endRaw);
+  if (!start || !end) return true;
+  const bounds = monthBounds(year, index);
+  return start <= bounds.end && end >= bounds.start;
+}
+
+function monthlyItems(items, year, index) {
+  return items.filter((item) => itemOverlapsMonth(item, year, index));
+}
+
 function monthlyData(forecast) {
   const source = Array.isArray(forecast?.yearly_data) ? forecast.yearly_data : [];
   if (!source.length) return demoForecast().yearly_data;
@@ -465,6 +520,18 @@ function monthlyData(forecast) {
       scores,
     };
   });
+}
+
+function dailyDataForMonth(forecast, year, index) {
+  const source = Array.isArray(forecast?.yearly_data) ? forecast.yearly_data : [];
+  const items = source.filter((day) => monthIndex(day.date) === index);
+  if (items.length) return items;
+  const daysInMonth = new Date(year, index + 1, 0).getDate();
+  return Array.from({ length: daysInMonth }, (_, dayIndex) => ({
+    date: `${year}-${String(index + 1).padStart(2, "0")}-${String(dayIndex + 1).padStart(2, "0")}`,
+    scores: { total: 0, general: 0, work: 0, love: 0, money: 0 },
+    text_description: "",
+  }));
 }
 
 function chartX(index, count) {
@@ -529,21 +596,38 @@ function GlassPanel({ children, className = "" }) {
   );
 }
 
-function Header({ activeYear }) {
+function Header({ activeYear, activeView, setActiveView }) {
+  const navItems = [
+    ["annual", "年間予測"],
+    ["monthly", "月間予測"],
+    ["daily", "日別詳細"],
+  ];
+  const forecastLabel = activeView === "monthly" ? "月間予測" : "年間予測";
   return (
-    <header className="w-full border-b border-white/10 bg-[#0d0e0f]/82 backdrop-blur-xl">
-      <div className="flex w-full max-w-none items-center justify-between gap-3 px-4 py-4 sm:gap-6 sm:px-8 sm:py-6 lg:mx-auto lg:max-w-[1760px]">
+    <header className="fixed left-0 top-0 z-40 w-full border-b border-white/10 bg-[#0d0e0f]/92 backdrop-blur-xl">
+      <div className="flex w-full max-w-none flex-wrap items-center justify-between gap-3 px-4 py-4 sm:gap-6 sm:px-8 sm:py-6 lg:mx-auto lg:max-w-[1760px]">
         <div className="flex min-w-0 items-center gap-4 sm:gap-8">
           <a href="/results.html" className="max-w-[150px] font-serif text-[22px] font-bold leading-[0.98] text-gold sm:max-w-none sm:text-4xl sm:leading-none">The Celestial Atelier</a>
           <span className="hidden h-10 w-px bg-white/20 md:block" />
-          <h1 className="hidden truncate font-serif text-2xl font-semibold tracking-[0.04em] text-starlight md:block md:text-3xl">
-            {activeYear}年 年間予測
+          <h1 className="truncate font-serif text-lg font-semibold tracking-[0.04em] text-starlight sm:text-2xl md:text-3xl">
+            {activeYear}年 {forecastLabel}
           </h1>
         </div>
-        <nav className="hidden items-center gap-10 font-mono text-xs font-bold tracking-[0.12em] text-mist lg:flex">
-          <span className="border-b-2 border-gold pb-3 text-gold">Annual Forecast</span>
-          <span>Monthly Matrix</span>
-          <span>Daily Detail</span>
+        <nav className="order-last flex w-full items-center gap-7 overflow-x-auto border-t border-white/10 pt-3 font-mono text-[10px] font-bold tracking-[0.1em] text-mist [scrollbar-width:none] sm:text-xs lg:order-none lg:w-auto lg:gap-10 lg:border-t-0 lg:pt-0 lg:tracking-[0.12em]">
+          {navItems.map(([value, label]) => (
+            <button
+              key={value}
+              type="button"
+              onClick={() => value !== "daily" && setActiveView(value)}
+              className={cx(
+                "pb-3 transition",
+                activeView === value ? "border-b-2 border-gold text-gold" : "hover:text-starlight",
+                value === "daily" && "cursor-default opacity-45 hover:text-mist"
+              )}
+            >
+              {label}
+            </button>
+          ))}
         </nav>
         <div className="flex shrink-0 items-center gap-3 text-gold sm:gap-4">
           <Bell size={18} />
@@ -563,11 +647,10 @@ function OraclePanel({ stats, forecast }) {
   const lessonItems = lessonItemsFromForecast(forecast);
   const summaryColumns = summaryItemsFromForecast(forecast);
   const analysisTitle = {
-    deep: "Deep Analysis",
     theme: "幸運・拡大",
     lesson: "成長課題",
     summary: "総括",
-  }[analysisMode] || "Deep Analysis";
+  }[analysisMode] || "幸運・拡大";
   const fallbackThemeItems = [
     { color: "#e9c349", label: "THEME 01", body: "作成中" },
     { color: "#d3bcf9", label: "THEME 02", body: "作成中" },
@@ -600,7 +683,6 @@ function OraclePanel({ stats, forecast }) {
           </div>
           <div className="flex shrink-0 rounded-full border border-white/10 bg-white/[0.04] p-1 font-mono text-[7px] font-bold text-mist sm:text-[10px]">
             {[
-              ["deep", "Deep Analysis"],
               ["theme", "幸運・拡大"],
               ["lesson", "成長課題"],
               ["summary", "総括"],
@@ -679,34 +761,6 @@ function OraclePanel({ stats, forecast }) {
             </div>
           </div>
         ) : null}
-        <div className={cx("mt-6 grid min-h-0 flex-1 gap-6 overflow-y-auto pr-2 [scrollbar-color:#e9c349_rgba(255,255,255,0.08)] [scrollbar-width:thin] sm:mt-8 sm:gap-8", analysisMode !== "deep" && "hidden")}>
-          {[
-            {
-              color: "#e9c349",
-              label: `${MONTHS[monthIndex(stats.peak?.date)]}: ANNUAL PEAK`,
-              body: `年間で最もスコアが高い月です。${stats.strongest?.label || "主要テーマ"}を軸に、重要な予定を前倒しで集中しやすいタイミングです。`,
-            },
-            {
-              color: "#d3bcf9",
-              label: `${stats.strongest?.label || "MAIN"}: STRONG SECTOR`,
-              body: "カテゴリ別の平均値から、2026年を通して相対的に伸びやすい領域を抽出しています。",
-            },
-            {
-              color: "#ffb4ab",
-              label: `${MONTHS[monthIndex(stats.low?.date)]}: REVIEW POINT`,
-              body: "年間の谷として扱う月です。無理に拡大するより、調整、見直し、保留判断を優先します。",
-            },
-          ].map((item) => (
-            <article key={item.label} className="relative pl-8">
-              <span className="absolute left-0 top-1.5 h-3 w-3 rounded-full shadow-[0_0_18px_currentColor]" style={{ color: item.color, backgroundColor: item.color }} />
-              <span className="absolute left-[5px] top-5 h-full w-px bg-white/15" />
-              <p className="font-mono text-xs font-bold uppercase tracking-[0.12em]" style={{ color: item.color }}>
-                {item.label}
-              </p>
-              <p className="mt-3 text-sm leading-7 text-mist sm:text-base sm:leading-8">{item.body}</p>
-            </article>
-          ))}
-        </div>
       </GlassPanel>
     </div>
   );
@@ -834,10 +888,171 @@ function AnnualChart({
   );
 }
 
-function Matrix({ data, selectedSeriesKey, selectedMonthIndex }) {
+function MonthlyChart({
+  dailyData,
+  selectedSeriesKey,
+  setSelectedSeriesKey,
+  selectedDayIndex,
+  setSelectedDayIndex,
+  activeYear,
+  selectedMonth,
+}) {
+  const selectedSeries = SCORE_KEYS.find((item) => item.key === selectedSeriesKey) || SCORE_KEYS[0];
+  const selectedDay = dailyData[clamp(selectedDayIndex, 0, dailyData.length - 1)] || dailyData[0];
+  const tooltipX = chartX(selectedDayIndex, dailyData.length);
+  const tooltipY = chartY(scoreFor(selectedDay, selectedSeries.key));
+  const selectedPoints = dailyData.map((day, index) => ({ x: chartX(index, dailyData.length), y: chartY(scoreFor(day, selectedSeries.key)) }));
+  const orderedSeries = [
+    ...SCORE_KEYS.filter((item) => item.key !== selectedSeries.key),
+    selectedSeries,
+  ];
+  const handleSeriesSelect = (event, key) => {
+    setSelectedSeriesKey(key);
+    setSelectedDayIndex(nearestMonthIndexFromPointer(event, dailyData.length));
+  };
+  return (
+    <GlassPanel className="p-3 sm:p-8">
+      <div className="flex flex-col gap-2 sm:gap-4 lg:flex-row lg:items-start lg:justify-between">
+        <h2 className="font-serif text-[26px] font-bold leading-tight text-starlight sm:text-5xl">
+          Monthly Biorhythm {MONTHS[selectedMonth]} {activeYear}
+        </h2>
+        <div className="flex flex-wrap gap-1.5 font-mono text-[9px] font-bold tracking-[0.04em] text-mist sm:gap-5 sm:text-xs sm:tracking-[0.08em]">
+          {SCORE_KEYS.map((item) => (
+            <button
+              key={item.key}
+              type="button"
+              onClick={() => setSelectedSeriesKey(item.key)}
+              className={cx(
+                "inline-flex items-center gap-1 rounded-full border px-1.5 py-0.5 transition sm:gap-2 sm:px-2.5 sm:py-1",
+                selectedSeries.key === item.key ? "border-white/20 bg-white/10 text-starlight" : "border-transparent hover:border-white/15 hover:bg-white/5"
+              )}
+            >
+              <span className="h-2 w-2 rounded-full sm:h-3 sm:w-3" style={{ backgroundColor: item.color }} />
+              {item.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <svg className="mt-2 h-[250px] w-full sm:mt-3 sm:h-[405px]" viewBox={`0 0 ${CHART.width} ${CHART.height}`} preserveAspectRatio="none" role="img" aria-label="月間運勢スコアグラフ">
+        <defs>
+          <linearGradient id="monthlyForecastArea" x1="0" x2="0" y1="0" y2="1">
+            <stop offset="0%" stopColor={selectedSeries.color} stopOpacity="0.18" />
+            <stop offset="100%" stopColor={selectedSeries.color} stopOpacity="0.01" />
+          </linearGradient>
+        </defs>
+        {[75, 25, -25, -75].map((tick) => (
+          <line key={tick} x1={CHART.left} x2={CHART.width - CHART.right} y1={chartY(tick)} y2={chartY(tick)} stroke="rgba(255,255,255,0.07)" />
+        ))}
+        <path
+          d={`${smoothPath(selectedPoints)} L ${CHART.width - CHART.right} ${CHART.height - CHART.bottom} L ${CHART.left} ${CHART.height - CHART.bottom} Z`}
+          fill="url(#monthlyForecastArea)"
+        />
+        {orderedSeries.map((item) => (
+          <path
+            key={item.key}
+            onClick={(event) => handleSeriesSelect(event, item.key)}
+            d={smoothPath(dailyData.map((day, index) => ({ x: chartX(index, dailyData.length), y: chartY(scoreFor(day, item.key)) })))}
+            fill="none"
+            stroke={item.color}
+            strokeWidth={selectedSeries.key === item.key ? 4.6 : 2.1}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            opacity={selectedSeries.key === item.key ? 1 : 0.48}
+            filter={selectedSeries.key === item.key ? "drop-shadow(0 0 12px rgba(233,195,73,0.22))" : "none"}
+            className="cursor-pointer transition-opacity"
+          />
+        ))}
+        {orderedSeries.map((item) => (
+          <path
+            key={`${item.key}-hit`}
+            onClick={(event) => handleSeriesSelect(event, item.key)}
+            d={smoothPath(dailyData.map((day, index) => ({ x: chartX(index, dailyData.length), y: chartY(scoreFor(day, item.key)) })))}
+            fill="none"
+            stroke="transparent"
+            strokeWidth="18"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            className="cursor-pointer"
+          />
+        ))}
+        <line x1={tooltipX} x2={tooltipX} y1={CHART.top} y2={CHART.height - CHART.bottom} stroke={selectedSeries.color} strokeDasharray="4 5" opacity="0.55" />
+        <circle cx={tooltipX} cy={tooltipY} r="6" fill={selectedSeries.color} />
+        <foreignObject x={clamp(tooltipX + 12, CHART.left, CHART.width - 170)} y={clamp(tooltipY - 62, 20, CHART.height - 130)} width="150" height="96">
+          <div
+            className="rounded-lg bg-[#1a1c1c]/80 p-3 backdrop-blur"
+            style={{
+              border: `1px solid ${selectedSeries.color}66`,
+              boxShadow: `0 0 22px ${selectedSeries.color}1f`,
+            }}
+          >
+            <p className="font-mono text-[10px] font-bold uppercase tracking-[0.12em]" style={{ color: selectedSeries.color }}>{formatThemeDate(selectedDay?.date)}</p>
+            <p className="mt-1 font-serif text-xl font-semibold text-starlight">{selectedSeries.label}</p>
+            <p className="font-serif text-2xl text-starlight">{formatScore(scoreFor(selectedDay, selectedSeries.key))}</p>
+          </div>
+        </foreignObject>
+        {dailyData.map((day, index) => {
+          const dayNumber = Number(String(day.date || "").slice(8, 10));
+          const shouldShow = index === 0 || index === dailyData.length - 1 || dayNumber % 5 === 0;
+          return shouldShow ? (
+            <text key={day.date} x={chartX(index, dailyData.length)} y={CHART.height - 8} textAnchor="middle" fill="#c7c6cc" fontSize="12" fontFamily="JetBrains Mono">
+              {dayNumber}
+            </text>
+          ) : null;
+        })}
+      </svg>
+    </GlassPanel>
+  );
+}
+
+function MonthlyScoreMatrix({ dailyData, selectedSeriesKey, selectedDayIndex }) {
   return (
     <GlassPanel className="border-gold/25 p-3 sm:p-8">
-      <h2 className="font-serif text-xl font-semibold text-gold sm:text-3xl">Monthly Forecast Matrix</h2>
+      <h2 className="font-serif text-xl font-semibold text-gold sm:text-3xl">Monthly Score Matrix</h2>
+      <div className="mt-4 overflow-x-auto sm:mt-6">
+        <table className="w-full min-w-[980px] table-fixed border-collapse font-mono text-[10px] sm:text-sm">
+          <thead>
+            <tr className="border-b border-white/15 text-[10px] uppercase tracking-[0.08em] text-mist sm:text-xs sm:tracking-[0.12em]">
+              <th className="w-[130px] py-3 pr-4 text-left">Sector</th>
+              {dailyData.map((day, index) => (
+                <th key={day.date || index} className="px-1 py-3 text-right">{Number(String(day.date || "").slice(8, 10)) || index + 1}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {SCORE_KEYS.map((item) => (
+              <tr key={item.key} className="border-b border-white/10 last:border-0">
+                <th className="py-4 pr-4 text-left font-sans text-sm text-starlight sm:text-base">{item.label}</th>
+                {dailyData.map((day, index) => {
+                  const score = scoreFor(day, item.key);
+                  const isSelectedCell = item.key === selectedSeriesKey && index === selectedDayIndex;
+                  return (
+                    <td key={`${item.key}-${day.date || index}`} className="px-1 py-2 text-right">
+                      <span
+                        className={cx(
+                          "inline-flex h-8 w-full min-w-[34px] items-center justify-end rounded-md px-1 transition sm:h-10 sm:rounded-lg sm:px-2",
+                          score >= 0 ? "text-gold" : "text-outline",
+                          isSelectedCell && "border border-[#8b7cf6]/70 bg-[#4f3d71]/38 font-black text-[#ebdcff] shadow-[0_0_18px_rgba(139,124,246,0.3)]"
+                        )}
+                      >
+                        {formatScore(score)}
+                      </span>
+                    </td>
+                  );
+                })}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </GlassPanel>
+  );
+}
+
+function AnnualScoreMatrix({ data, selectedSeriesKey, selectedMonthIndex }) {
+  return (
+    <GlassPanel className="border-gold/25 p-3 sm:p-8">
+      <h2 className="font-serif text-xl font-semibold text-gold sm:text-3xl">Annual Forecast Matrix</h2>
       <div className="mt-4 overflow-hidden sm:mt-6 sm:overflow-x-auto">
         <table className="w-full table-fixed border-collapse font-mono text-[7px] sm:min-w-[860px] sm:text-sm">
           <thead>
@@ -881,21 +1096,170 @@ function Matrix({ data, selectedSeriesKey, selectedMonthIndex }) {
   );
 }
 
+function Matrix({ data, selectedSeriesKey, setSelectedSeriesKey, selectedMonthIndex, setSelectedMonthIndex, forecast, activeYear }) {
+  const [analysisMode, setAnalysisMode] = useState("theme");
+  const selectedMonth = clamp(selectedMonthIndex, 0, data.length - 1);
+  const [selectedDayIndex, setSelectedDayIndex] = useState(0);
+  useEffect(() => {
+    setSelectedDayIndex(0);
+  }, [selectedMonth]);
+  const dailyData = dailyDataForMonth(forecast, activeYear, selectedMonth);
+  const safeSelectedDayIndex = clamp(selectedDayIndex, 0, dailyData.length - 1);
+  const selectedDay = data[selectedMonth] || data[0];
+  const selectedSeries = SCORE_KEYS.find((item) => item.key === selectedSeriesKey) || SCORE_KEYS[0];
+  const sunThemeItems = monthlyItems(monthlyThemeItemsFromForecast(forecast, "monthly_sun_themes"), activeYear, selectedMonth);
+  const marsThemeItems = monthlyItems(monthlyThemeItemsFromForecast(forecast, "monthly_mars_themes"), activeYear, selectedMonth);
+  const emptySummaryItems = [];
+  const modeTitle = {
+    theme: "太陽テーマ",
+    lesson: "火星テーマ",
+    summary: "総括",
+  }[analysisMode] || "太陽テーマ";
+  const fallbackItems = [{ color: "#e9c349", label: `${MONTHS[selectedMonth]}: 作成中`, body: "作成中" }];
+  return (
+    <div className="grid gap-4 sm:gap-7">
+      <GlassPanel className="flex h-[520px] flex-col overflow-hidden border-gold/25 p-2 sm:h-[560px] sm:p-5 lg:h-[620px] lg:p-6">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <p className="font-mono text-[8px] font-bold uppercase tracking-[0.18em] text-gold/75 sm:text-[9px]">
+              Main Theme
+            </p>
+            <h2 className="mt-1 font-serif text-2xl font-semibold text-starlight sm:text-3xl">
+              {activeYear} {MONTHS[selectedMonth]} {modeTitle}
+            </h2>
+          </div>
+          <div className="flex shrink-0 rounded-full border border-white/10 bg-white/[0.04] p-1 font-mono text-[7px] font-bold text-mist sm:text-[10px]">
+            {[
+              ["theme", "太陽テーマ"],
+              ["lesson", "火星テーマ"],
+              ["summary", "総括"],
+            ].map(([value, label]) => (
+              <button
+                key={value}
+                type="button"
+                onClick={() => setAnalysisMode(value)}
+                className={cx(
+                  "rounded-full px-1.5 py-1.5 transition sm:px-3",
+                  analysisMode === value ? "bg-gold text-[#241a00]" : "hover:bg-white/10 hover:text-starlight"
+                )}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        </div>
+        <div className="mt-3 h-px bg-white/10 sm:mt-5" />
+        <div className="mt-3 flex gap-1.5 overflow-x-auto pb-1 font-mono text-[9px] font-bold tracking-[0.06em] text-mist [scrollbar-width:none] sm:mt-4 sm:gap-2 sm:text-xs">
+          {MONTHS.map((month, index) => (
+            <button
+              key={month}
+              type="button"
+              onClick={() => setSelectedMonthIndex(index)}
+              className={cx(
+                "shrink-0 rounded-full border px-2.5 py-1 transition sm:px-3 sm:py-1.5",
+                selectedMonth === index ? "border-gold bg-gold text-[#241a00]" : "border-white/10 bg-white/[0.04] hover:border-white/20 hover:text-starlight"
+              )}
+            >
+              {month}
+            </button>
+          ))}
+        </div>
+        {analysisMode === "theme" ? (
+          <MonthlyArticleList items={sunThemeItems.length ? sunThemeItems : fallbackItems} />
+        ) : null}
+        {analysisMode === "lesson" ? (
+          <MonthlyArticleList items={marsThemeItems.length ? marsThemeItems : fallbackItems} />
+        ) : null}
+        {analysisMode === "summary" ? (
+          <div className="mt-3 grid min-h-0 flex-1 gap-3 overflow-y-auto [scrollbar-color:#e9c349_rgba(255,255,255,0.08)] [scrollbar-width:thin] sm:mt-6 sm:gap-5 sm:pr-1">
+            <MonthlyArticleList items={emptySummaryItems} />
+          </div>
+        ) : null}
+      </GlassPanel>
+      <MonthlyChart
+        dailyData={dailyData}
+        selectedSeriesKey={selectedSeriesKey}
+        setSelectedSeriesKey={setSelectedSeriesKey}
+        selectedDayIndex={safeSelectedDayIndex}
+        setSelectedDayIndex={setSelectedDayIndex}
+        activeYear={activeYear}
+        selectedMonth={selectedMonth}
+      />
+      <MonthlyScoreMatrix dailyData={dailyData} selectedSeriesKey={selectedSeriesKey} selectedDayIndex={safeSelectedDayIndex} />
+    </div>
+  );
+}
+
+function MonthlyArticleList({ items, compact = false, emptyText = "" }) {
+  if (!items.length) {
+    return emptyText ? (
+      <div className="min-h-0 flex-1 overflow-y-auto pr-2">
+        <p className="text-sm leading-7 text-mist sm:text-base sm:leading-8">{emptyText}</p>
+      </div>
+    ) : null;
+  }
+  return (
+    <div className={cx(
+      "grid min-h-0 flex-1 overflow-y-auto pr-2 [scrollbar-color:#e9c349_rgba(255,255,255,0.08)] [scrollbar-width:thin]",
+      compact ? "gap-4" : "mt-6 gap-6 sm:mt-8 sm:gap-8"
+    )}>
+      {items.map((item) => (
+        <article key={`${item.label}-${item.title || ""}`} className={cx("relative", compact ? "pl-4 sm:pl-6" : "pl-8")}>
+          <span className={cx(
+            "absolute left-0 rounded-full shadow-[0_0_18px_currentColor]",
+            compact ? "top-1 h-2 w-2 sm:top-1.5 sm:h-3 sm:w-3" : "top-1.5 h-3 w-3"
+          )} style={{ color: item.color, backgroundColor: item.color }} />
+          <span className={cx(
+            "absolute w-px bg-white/15",
+            compact ? "bottom-0 left-[3px] top-3.5 sm:left-[5px] sm:top-5" : "left-[5px] top-5 h-full"
+          )} />
+          <p className={cx(
+            "font-mono font-bold uppercase",
+            compact ? "text-[9px] leading-4 tracking-[0.03em] sm:text-xs" : "text-xs tracking-[0.12em]"
+          )} style={{ color: item.color }}>
+            {item.label}
+          </p>
+          <p className={cx(
+            "mt-2 whitespace-pre-line text-mist",
+            compact ? "text-[10px] leading-5 sm:text-sm sm:leading-7" : "text-sm leading-7 sm:mt-3 sm:text-base sm:leading-8"
+          )}>{item.body || "作成中"}</p>
+        </article>
+      ))}
+    </div>
+  );
+}
+
 function FooterStats({ stats }) {
   const items = [
-    { label: "Annual Peak", value: MONTHS[monthIndex(stats.peak?.date)], icon: <Sparkles size={30} /> },
-    { label: "Dominant Sector", value: stats.strongest?.label || "-", icon: <CircleDot size={30} /> },
-    { label: "Stability", value: `${stats.stability}%`, icon: <Shield size={30} /> },
+    {
+      label: "Annual Peak",
+      value: MONTHS[monthIndex(stats.peak?.date)],
+      description: "年間スコアが最も高く出る月。行動量を増やしやすいピーク時期です。",
+      icon: <Sparkles size={30} />,
+    },
+    {
+      label: "Dominant Sector",
+      value: stats.strongest?.label || "-",
+      description: "年間を通して最も強く反応している分野。意識的に使うと成果につながりやすい領域です。",
+      icon: <CircleDot size={30} />,
+    },
+    {
+      label: "Stability",
+      value: `${stats.stability}%`,
+      description: "年間推移の安定度。数値が高いほど月ごとの波が穏やかで、低いほど変化が大きい傾向です。",
+      icon: <Shield size={30} />,
+    },
   ];
   return (
     <div className="grid gap-4 md:grid-cols-3 md:gap-6">
       {items.map((item) => (
-        <GlassPanel key={item.label} className="flex items-end justify-between gap-5 p-5 sm:p-7">
-          <div>
+        <GlassPanel key={item.label} className="flex items-start justify-between gap-5 p-5 sm:p-7">
+          <div className="min-w-0">
             <p className="font-mono text-xs font-bold uppercase tracking-[0.15em] text-mist">{item.label}</p>
             <p className="mt-3 font-serif text-3xl font-semibold text-starlight sm:mt-4 sm:text-4xl">{item.value}</p>
+            <p className="mt-3 text-xs leading-6 text-mist sm:mt-4 sm:text-sm sm:leading-7">{item.description}</p>
           </div>
-          <span className="text-gold">{item.icon}</span>
+          <span className="shrink-0 text-gold">{item.icon}</span>
         </GlassPanel>
       ))}
     </div>
@@ -1032,6 +1396,7 @@ function ForecastDetailPage() {
   const stats = useMemo(() => aggregateStats(data), [data]);
   const [selectedSeriesKey, setSelectedSeriesKey] = useState("general");
   const [selectedMonthIndex, setSelectedMonthIndex] = useState(monthIndex(stats.peak?.date));
+  const [activeView, setActiveView] = useState("annual");
   const handleCalculateYear = async () => {
     const normalizedYear = Number(targetYear);
     if (!Number.isInteger(normalizedYear) || normalizedYear < 2015 || normalizedYear > 2028) {
@@ -1069,23 +1434,38 @@ function ForecastDetailPage() {
 
   return (
     <div className="relative min-h-screen overflow-x-hidden text-starlight">
-      <Header activeYear={activeYear} />
-      <main className="mx-auto grid max-w-none gap-3 px-0.5 py-4 sm:gap-6 sm:px-4 sm:py-10 lg:px-6 lg:py-20">
-        <OraclePanel stats={stats} forecast={forecast} />
-        <div className="grid gap-4 sm:gap-7">
-          <AnnualChart
+      <Header activeYear={activeYear} activeView={activeView} setActiveView={setActiveView} />
+      <main className="mx-auto grid max-w-none gap-3 px-0.5 pb-4 pt-[136px] sm:gap-6 sm:px-4 sm:pb-10 sm:pt-36 lg:px-6 lg:pb-20 lg:pt-[136px]">
+        {activeView === "annual" ? (
+          <>
+            <OraclePanel stats={stats} forecast={forecast} />
+            <div className="grid gap-4 sm:gap-7">
+              <AnnualChart
+                data={data}
+                stats={stats}
+                selectedSeriesKey={selectedSeriesKey}
+                setSelectedSeriesKey={setSelectedSeriesKey}
+                selectedMonthIndex={selectedMonthIndex}
+                setSelectedMonthIndex={setSelectedMonthIndex}
+                activeYear={activeYear}
+                onOpenYearDialog={() => setYearDialogOpen(true)}
+              />
+              <AnnualScoreMatrix data={data} selectedSeriesKey={selectedSeriesKey} selectedMonthIndex={selectedMonthIndex} />
+              <FooterStats stats={stats} />
+            </div>
+          </>
+        ) : null}
+        {activeView === "monthly" ? (
+          <Matrix
             data={data}
-            stats={stats}
             selectedSeriesKey={selectedSeriesKey}
             setSelectedSeriesKey={setSelectedSeriesKey}
             selectedMonthIndex={selectedMonthIndex}
             setSelectedMonthIndex={setSelectedMonthIndex}
+            forecast={forecast}
             activeYear={activeYear}
-            onOpenYearDialog={() => setYearDialogOpen(true)}
           />
-          <Matrix data={data} selectedSeriesKey={selectedSeriesKey} selectedMonthIndex={selectedMonthIndex} />
-          <FooterStats stats={stats} />
-        </div>
+        ) : null}
       </main>
       <footer className="border-t border-white/10 bg-[#0d0e0f]/80 px-4 py-8 sm:px-8 sm:py-10">
         <div className="mx-auto flex max-w-[1540px] flex-col gap-4 text-mist md:flex-row md:items-center md:justify-between">
