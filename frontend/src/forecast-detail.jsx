@@ -992,7 +992,7 @@ function MonthlyChart({
         </foreignObject>
         {dailyData.map((day, index) => {
           const dayNumber = Number(String(day.date || "").slice(8, 10));
-          const shouldShow = index === 0 || index === dailyData.length - 1 || dayNumber % 5 === 0;
+          const shouldShow = index === 0 || dayNumber % 5 === 0;
           return shouldShow ? (
             <text key={day.date} x={chartX(index, dailyData.length)} y={CHART.height - 8} textAnchor="middle" fill="#c7c6cc" fontSize="12" fontFamily="JetBrains Mono">
               {dayNumber}
