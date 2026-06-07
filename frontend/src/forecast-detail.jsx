@@ -16,6 +16,20 @@ const SCORE_KEYS = [
   { key: "money", label: "お金", color: "#c3c6d7" },
 ];
 const CHART = { width: 920, height: 360, left: 34, right: 18, top: 34, bottom: 42 };
+const PLANET_LABELS = {
+  SUN: "太陽",
+  MOON: "月",
+  MERCURY: "水星",
+  VENUS: "金星",
+  MARS: "火星",
+  JUPITER: "木星",
+  SATURN: "土星",
+  URANUS: "天王星",
+  NEPTUNE: "海王星",
+  PLUTO: "冥王星",
+  ASC: "ASC",
+  MC: "MC",
+};
 
 function cx(...values) {
   return values.filter(Boolean).join(" ");
@@ -107,6 +121,133 @@ function forecastYear(forecast) {
   const firstDate = String(forecast?.yearly_data?.[0]?.date || forecast?.reading_date || "");
   const parsed = Number(firstDate.slice(0, 4));
   return Number.isFinite(parsed) ? parsed : 2026;
+}
+
+function planetLabel(value) {
+  const key = String(value || "").trim().toUpperCase();
+  return PLANET_LABELS[key] || value || "";
+}
+
+function dateKey(value) {
+  const match = String(value || "").match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})/);
+  if (!match) return "";
+  const [, year, month, day] = match;
+  return `${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}`;
+}
+
+function addDays(value, days) {
+  const date = new Date(`${value}T00:00:00`);
+  if (Number.isNaN(date.getTime())) return "";
+  date.setDate(date.getDate() + days);
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+}
+
+function formatShortDate(value) {
+  const normalized = dateKey(value);
+  if (!normalized) return value || "";
+  const [, month, day] = normalized.split("-");
+  return `${Number(month)}/${Number(day)}`;
+}
+
+function formatShortPeriod(startDate, endDate) {
+  const start = formatShortDate(startDate);
+  const end = formatShortDate(endDate);
+  return start === end ? start : `${start}-${end}`;
+}
+
+function jupiterAspectItemsFromForecast(forecast) {
+  const annualJupiterAspects = Array.isArray(forecast?.annual_jupiter_aspects)
+    ? forecast.annual_jupiter_aspects
+    : Array.isArray(forecast?.annualJupiterAspects)
+      ? forecast.annualJupiterAspects
+      : [];
+  const yearlyData = Array.isArray(forecast?.yearly_data) ? forecast.yearly_data : [];
+  const rawItems = [];
+  annualJupiterAspects.forEach((event) => {
+    const date = dateKey(event?.date);
+    const transitPlanet = String(event?.t_planet || event?.transit_planet || "").trim().toUpperCase();
+    const natalPlanet = String(event?.n_planet || event?.natal_planet || "").trim().toUpperCase();
+    const angle = event?.aspect_angle ?? event?.angle ?? event?.exact_angle;
+    if (!date || transitPlanet !== "JUPITER" || !natalPlanet || angle === null || angle === undefined || angle === "") return;
+    const numericAngle = Number(angle);
+    const angleLabel = Number.isFinite(numericAngle) ? numericAngle : angle;
+    rawItems.push({
+      date,
+      key: `${natalPlanet}-${transitPlanet}-${angleLabel}`,
+      label: `ネイタル${planetLabel(natalPlanet)} × トランジット${planetLabel(transitPlanet)} ${angleLabel}°`,
+      title: event?.title || "",
+      description: event?.description || "",
+      advisedTask: event?.advised_task || event?.advisedTask || "",
+    });
+  });
+  yearlyData.forEach((day) => {
+    const date = dateKey(day?.date);
+    if (!date) return;
+    const events = annualJupiterAspects.length
+      ? []
+      : [
+          ...(Array.isArray(day?.jupiter_aspects) ? day.jupiter_aspects : []),
+          ...(Array.isArray(day?.jupiterAspects) ? day.jupiterAspects : []),
+          ...(Array.isArray(day?.events) ? day.events : []),
+        ];
+    events.forEach((event) => {
+      const transitPlanet = String(event?.t_planet || event?.transit_planet || "").trim().toUpperCase();
+      const natalPlanet = String(event?.n_planet || event?.natal_planet || "").trim().toUpperCase();
+      const angle = event?.aspect_angle ?? event?.angle ?? event?.exact_angle;
+      if (transitPlanet !== "JUPITER" || !natalPlanet || angle === null || angle === undefined || angle === "") return;
+      const numericAngle = Number(angle);
+      const angleLabel = Number.isFinite(numericAngle) ? numericAngle : angle;
+      const label = `ネイタル${planetLabel(natalPlanet)} × トランジット${planetLabel(transitPlanet)} ${angleLabel}°`;
+      rawItems.push({
+        date,
+        key: `${natalPlanet}-${transitPlanet}-${angleLabel}`,
+        label,
+        title: event?.title || "",
+        description: event?.description || "",
+        advisedTask: event?.advised_task || event?.advisedTask || "",
+      });
+    });
+  });
+
+  const byAspect = new Map();
+  rawItems.forEach((item) => {
+    const existing = byAspect.get(item.key);
+    if (existing) {
+      existing.dates.add(item.date);
+      return;
+    }
+    byAspect.set(item.key, {
+      key: item.key,
+      label: item.label,
+      title: item.title,
+      description: item.description,
+      advisedTask: item.advisedTask,
+      dates: new Set([item.date]),
+    });
+  });
+
+  const grouped = [];
+  byAspect.forEach((aspect) => {
+    const dates = Array.from(aspect.dates).sort();
+    dates.forEach((date) => {
+      const previous = grouped[grouped.length - 1];
+      if (previous && previous.key === aspect.key && addDays(previous.endDate, 1) === date) {
+        previous.endDate = date;
+        return;
+      }
+      grouped.push({
+        key: aspect.key,
+        label: aspect.label,
+        title: aspect.title,
+        description: aspect.description,
+        advisedTask: aspect.advisedTask,
+        startDate: date,
+        endDate: date,
+      });
+    });
+  });
+
+  return grouped.sort((a, b) => a.startDate.localeCompare(b.startDate) || a.key.localeCompare(b.key));
 }
 
 function demoForecast() {
@@ -645,10 +786,13 @@ function OraclePanel({ stats, forecast }) {
   const themeItems = themeItemsFromForecast(forecast);
   const lessonItems = lessonItemsFromForecast(forecast);
   const summaryColumns = summaryItemsFromForecast(forecast);
+  const jupiterAspectItems = jupiterAspectItemsFromForecast(forecast);
   const analysisTitle = {
     theme: "幸運拡大",
     lesson: "成長課題",
     summary: "総括",
+    test1: "test1",
+    test2: "test2",
   }[analysisMode] || "幸運拡大";
   const fallbackThemeItems = [
     { color: "#e9c349", label: "THEME 01", body: "作成中" },
@@ -685,6 +829,8 @@ function OraclePanel({ stats, forecast }) {
               ["theme", "幸運拡大"],
               ["lesson", "成長課題"],
               ["summary", "総括"],
+              ["test1", "test1"],
+              ["test2", "test2"],
             ].map(([value, label]) => (
               <button
                 key={value}
@@ -758,6 +904,46 @@ function OraclePanel({ stats, forecast }) {
                 </div>
               ))}
             </div>
+          </div>
+        ) : null}
+        {analysisMode === "test1" ? (
+          <div className="mt-6 grid min-h-0 flex-1 gap-3 overflow-y-auto pr-2 [scrollbar-color:#e9c349_rgba(255,255,255,0.08)] [scrollbar-width:thin] sm:mt-8">
+            {jupiterAspectItems.length ? (
+              jupiterAspectItems.map((item) => (
+                <article key={`${item.key}-${item.startDate}`} className="overflow-hidden rounded-2xl border border-white/10 bg-white/[0.035]">
+                  <details className="group">
+                    <summary className="flex cursor-pointer list-none items-start justify-between gap-4 px-4 py-3">
+                      <div className="min-w-0">
+                        <p className="font-mono text-[10px] font-bold uppercase tracking-[0.12em] text-gold">
+                          {formatShortPeriod(item.startDate, item.endDate)}
+                        </p>
+                        <p className="mt-2 text-sm font-semibold leading-6 text-mist sm:text-base">{item.label}</p>
+                      </div>
+                      <span className="mt-1 shrink-0 font-mono text-xs font-bold text-gold transition group-open:rotate-90">›</span>
+                    </summary>
+                    <div className="border-t border-white/10 px-4 pb-4 pt-3">
+                      <p className="whitespace-pre-line text-xs leading-6 text-mist sm:text-sm sm:leading-7">
+                        {item.description || "解釈文がありません。"}
+                      </p>
+                      {item.advisedTask ? (
+                        <p className="mt-3 border-l border-gold/35 pl-3 text-xs leading-6 text-mist/85">
+                          {item.advisedTask}
+                        </p>
+                      ) : null}
+                    </div>
+                  </details>
+                </article>
+              ))
+            ) : (
+              <div className="flex min-h-0 flex-1 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.035] p-6 font-mono text-xs font-bold uppercase tracking-[0.18em] text-mist">
+                該当なし
+              </div>
+            )}
+          </div>
+        ) : null}
+        {analysisMode === "test2" ? (
+          <div className="mt-6 flex min-h-0 flex-1 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.035] p-6 font-mono text-xs font-bold uppercase tracking-[0.18em] text-mist sm:mt-8">
+            作成中
           </div>
         ) : null}
       </GlassPanel>
@@ -1371,12 +1557,10 @@ function ForecastDetailPage() {
         setSelectedMonthIndex(monthIndex(nextForecast?.summary?.peak?.date || nextForecast?.yearly_data?.[0]?.date));
         setSelectedMonthlyMonthIndex(workdayMonthIndex());
         const storedPayload = await getStoredReadingResultAsync({ allowStale: true });
-        if (storedPayload) {
-          await storeReadingResult({
-            ...storedPayload,
-            yearly_forecast: nextForecast,
-          });
-        }
+        await storeReadingResult({
+          ...(storedPayload || {}),
+          yearly_forecast: nextForecast,
+        });
       })
       .catch((error) => {
         if (active) {
@@ -1420,12 +1604,10 @@ function ForecastDetailPage() {
       setSelectedMonthlyMonthIndex(workdayMonthIndex());
 
       const storedPayload = await getStoredReadingResultAsync({ allowStale: true });
-      if (storedPayload) {
-        await storeReadingResult({
-          ...storedPayload,
-          yearly_forecast: nextForecast,
-        });
-      }
+      await storeReadingResult({
+        ...(storedPayload || {}),
+        yearly_forecast: nextForecast,
+      });
       setYearDialogOpen(false);
     } catch (error) {
       setYearCalculationError(error.message || "年間予測の計算に失敗しました。");

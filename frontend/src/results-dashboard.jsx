@@ -69,6 +69,9 @@ function getDashboardData() {
   }
   return {
     ...payload.dashboard_data,
+    readings: payload.readings || [],
+    meta: payload.meta || {},
+    chart_data: payload.chart_data || {},
     yearly_forecast: payload.yearly_forecast || payload.yearlyForecast || null,
     reading_date:
       payload.dashboard_data.reading_date ||
@@ -109,6 +112,9 @@ function dashboardDataFromPayload(payload) {
   }
   return {
     ...payload.dashboard_data,
+    readings: payload.readings || [],
+    meta: payload.meta || {},
+    chart_data: payload.chart_data || {},
     yearly_forecast: payload.yearly_forecast || payload.yearlyForecast || null,
     reading_date:
       payload.dashboard_data.reading_date ||

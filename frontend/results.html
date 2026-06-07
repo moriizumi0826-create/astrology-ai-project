@@ -69,9 +69,9 @@
   <body class="bg-surface text-on-surface selection:bg-[#f7e382]">
     <main class="min-h-screen bg-white px-0 pb-24 pt-0 sm:px-6 sm:pt-4 md:px-12 md:pt-6">
       <div class="mx-auto max-w-none sm:max-w-7xl">
-        <div class="relative left-1/2 mb-12 w-screen -translate-x-1/2" id="dashboard-prototype"></div>
+        <div class="relative left-1/2 mb-0 w-screen -translate-x-1/2" id="dashboard-prototype"></div>
 
-        <div class="mb-10 flex flex-col gap-3 sm:mb-16 md:items-end md:justify-between">
+        <div class="hidden mb-10 flex flex-col gap-3 sm:mb-16 md:items-end md:justify-between">
           <div class="flex flex-col gap-2">
             <label class="text-[10px] uppercase tracking-[0.3em] text-secondary font-bold">The Reading</label>
             <h1 class="text-3xl font-notoSerif text-primary sm:text-4xl md:text-5xl">Curated Results</h1>
@@ -89,7 +89,7 @@
 
         <div class="hidden mb-10 bg-[#f3ede0] text-[#5f5f59] px-6 py-5 font-notoSansJP text-sm leading-relaxed" id="error-box"></div>
 
-        <div class="grid grid-cols-1 lg:grid-cols-3 gap-8" id="reading-grid">
+        <div class="hidden grid grid-cols-1 lg:grid-cols-3 gap-8" id="reading-grid">
           <article class="bg-surface-container-lowest p-10 min-h-[280px] flex flex-col justify-between">
             <div>
               <p class="text-[10px] uppercase tracking-[0.3em] text-secondary font-bold mb-4">Waiting</p>
@@ -119,6 +119,5 @@
     </footer>
 
     <script type="module" src="/src/results-dashboard.jsx"></script>
-    <script type="module" src="/src/results.js"></script>
   </body>
 </html>

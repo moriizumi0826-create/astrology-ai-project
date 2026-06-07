@@ -714,11 +714,27 @@ def _build_day_forecast(
                 events.append(event)
 
     scores = _score_category_totals(events)
+    jupiter_aspects = [
+        {
+            "date": day.isoformat(),
+            "t_planet": event.get("t_planet"),
+            "n_planet": event.get("n_planet"),
+            "aspect_angle": event.get("aspect_angle"),
+            "orb_status": event.get("orb_status"),
+            "title": event.get("title"),
+            "description": event.get("description"),
+            "advised_task": event.get("advised_task"),
+            "source": event.get("source"),
+        }
+        for event in events
+        if event.get("t_planet") == "JUPITER" and event.get("aspect_angle") is not None
+    ]
     top_events = sorted(events, key=lambda event: (event["priority"], abs(event["weighted_score"])), reverse=True)[:5]
     return {
         "date": day.isoformat(),
         "scores": scores,
         "events": top_events,
+        "jupiter_aspects": jupiter_aspects,
         "category_highlights": _category_highlights(events),
         "category_theme_highlights": {
             "short": _category_highlights_for_duration(events, ("SHORT", "MID")),
@@ -1118,9 +1134,12 @@ def generate_yearly_forecast(
     end = date(year, 12, 31)
     natal_points, house_cusps, natal_sun_sign = _build_natal_points(birth_input)
     yearly_data: list[dict[str, Any]] = []
+    annual_jupiter_aspects: list[dict[str, Any]] = []
     current = start
     while current <= end:
-        yearly_data.append(_build_day_forecast(current, birth_input, natal_points, house_cusps, natal_sun_sign))
+        day_forecast = _build_day_forecast(current, birth_input, natal_points, house_cusps, natal_sun_sign)
+        annual_jupiter_aspects.extend(day_forecast.get("jupiter_aspects", []))
+        yearly_data.append(day_forecast)
         current += timedelta(days=1)
     annual_themes = build_annual_themes(
         year=year,
@@ -1172,6 +1191,7 @@ def generate_yearly_forecast(
         "annual_lessons": annual_lessons,
         "annual_summary_columns": annual_summary_columns,
         "annual_summaries": annual_summaries,
+        "annual_jupiter_aspects": annual_jupiter_aspects,
         "monthly_sun_themes": monthly_sun_themes,
         "monthly_mars_themes": monthly_mars_themes,
         "cache": build_yearly_forecast_cache_payload(birth_input, year),

@@ -1,5 +1,6 @@
 ﻿import React, { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
+import { getStoredReadingResult, getStoredReadingResultAsync } from "./reading-storage.js";
 import { YearlyForecastGraph } from "./yearly-forecast.jsx";
 import {
   BatteryMedium,
@@ -1928,8 +1929,11 @@ function DashboardV2Card({ title, eyebrow, children, className = "", bodyClassNa
   );
 }
 
-function DashboardV2Header({ data, displayDate, score }) {
-  const navItems = ["Dashboard", "Horoscope"];
+function DashboardV2Header({ data, displayDate, activePage = "dashboard", onPageChange = () => {} }) {
+  const navItems = [
+    { key: "dashboard", label: "Dashboard" },
+    { key: "horoscope", label: "Horoscope" },
+  ];
   const utilityItems = ["詳細レポート", "History", "My Page", "Plan", "逆行カレンダー"];
   const handleOpenLegacy = () => {
     const url = new URL(window.location.href);
@@ -1949,16 +1953,17 @@ function DashboardV2Header({ data, displayDate, score }) {
             </p>
           </div>
           <nav className="flex items-center gap-6 overflow-x-auto font-mono text-xs font-black text-slate-500">
-            {navItems.map((item, index) => (
+            {navItems.map((item) => (
               <button
-                key={item}
+                key={item.key}
                 type="button"
+                onClick={() => onPageChange(item.key)}
                 className={cx(
                   "shrink-0 border-b-2 pb-1 transition",
-                  index === 0 ? "border-[#D4AF37] text-[#0A192F]" : "border-transparent hover:border-[#D4AF37]/60 hover:text-[#D4AF37]"
+                  activePage === item.key ? "border-[#D4AF37] text-[#0A192F]" : "border-transparent hover:border-[#D4AF37]/60 hover:text-[#D4AF37]"
                 )}
               >
-                {item}
+                {item.label}
               </button>
             ))}
           </nav>
@@ -1975,10 +1980,6 @@ function DashboardV2Header({ data, displayDate, score }) {
             <Clock3 size={15} />
             <span>{displayDate}</span>
           </div>
-          <div className="inline-flex items-center gap-2 rounded-full border border-[#D4AF37]/30 bg-[#fff7df] px-3 py-2">
-            <span className="font-mono text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">Score</span>
-            <span className="text-base font-black leading-none text-[#0A192F]">{formatYearlyScore(score)}</span>
-          </div>
           <nav className="hidden items-center gap-2 2xl:flex">
             {utilityItems.map((item) => (
               <button
@@ -1990,12 +1991,6 @@ function DashboardV2Header({ data, displayDate, score }) {
               </button>
             ))}
           </nav>
-          <button
-            type="button"
-            className="rounded-full border border-slate-200 bg-white px-3 py-2 font-mono text-xs font-bold text-[#0A192F] 2xl:hidden"
-          >
-            Menu
-          </button>
           <div className="hidden items-center gap-3 pl-1 font-mono text-xs font-black uppercase tracking-[0.18em] text-[#0A192F] sm:flex">
             <span>Profile</span>
             <span className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 bg-white text-[#0A192F]">
@@ -2815,7 +2810,7 @@ export function AnnualBiorhythmDeveloperView({ data = dashboardData }) {
 
 function DashboardV2YearlyCard({ forecast, developerMode }) {
   const data = Array.isArray(forecast?.yearly_data) ? forecast.yearly_data : [];
-  const selectedIndex = mobileForecastSelectedIndex(forecast);
+  const currentYear = new Date().getFullYear();
   const demoData = Array.from({ length: 12 }, (_, index) => {
     const total = [40, 50, 55, 50, 52, 60, 65, 75, 85, 88, 70, 75][index];
     return {
@@ -2831,7 +2826,6 @@ function DashboardV2YearlyCard({ forecast, developerMode }) {
     };
   });
   const chartData = data.length ? data : demoData;
-  const selectedDay = data[selectedIndex] || chartData[0] || {};
   const width = 900;
   const height = 420;
   const padX = 68;
@@ -2864,6 +2858,9 @@ function DashboardV2YearlyCard({ forecast, developerMode }) {
     };
   });
   const visibleData = monthlyData;
+  const workdayMonthIndex = Math.max(0, Math.min(11, new Date().getMonth()));
+  const currentMonthX = padX + (workdayMonthIndex / 11) * (width - padX * 2);
+  const selectedDay = visibleData[workdayMonthIndex] || visibleData[0] || {};
   const scoreColors = {
     total: "#6d5bd7",
     general: "#2F9E68",
@@ -2871,6 +2868,12 @@ function DashboardV2YearlyCard({ forecast, developerMode }) {
     love: "#D84C8B",
     money: "#D4AF37",
   };
+  const metricCards = [
+    { label: "全般・健康", key: "general" },
+    { label: "仕事", key: "work" },
+    { label: "恋愛・対人", key: "love" },
+    { label: "お金", key: "money" },
+  ];
   const pointsFor = (key) => visibleData
     .map((day, index) => {
       const x = visibleData.length <= 1 ? padX : padX + (index / (visibleData.length - 1)) * (width - padX * 2);
@@ -2893,15 +2896,8 @@ function DashboardV2YearlyCard({ forecast, developerMode }) {
     }
     return commands.join(" ");
   };
-  const metricCards = [
-    { label: "全般・健康", key: "general" },
-    { label: "仕事", key: "work" },
-    { label: "恋愛・対人", key: "love" },
-    { label: "お金", key: "money" },
-  ];
-
   return (
-    <DashboardV2Card className="min-h-[784px] md:h-[784px]" bodyClassName="p-5">
+    <DashboardV2Card bodyClassName="p-5">
       {chartData.length ? (
         <div className="space-y-4">
           <div className="grid items-start gap-4 md:grid-cols-[1fr_auto]">
@@ -2909,7 +2905,7 @@ function DashboardV2YearlyCard({ forecast, developerMode }) {
               <p className="font-mono text-xs font-black uppercase tracking-[0.28em] text-[#e9c349]">Long-Term Vision</p>
             </div>
             <h2 className="max-w-[500px] justify-self-end text-right font-notoSerif text-lg font-semibold leading-snug tracking-[0.04em] text-[#e2e2e2] md:text-[22px]">
-              2026年 運勢シミュレーション
+              {currentYear}年 運勢予測
             </h2>
           </div>
           <svg className="h-[270px] w-full" viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="none" role="img" aria-label="2026年運勢スコアグラフ">
@@ -2946,6 +2942,23 @@ function DashboardV2YearlyCard({ forecast, developerMode }) {
                 filter="url(#v2ChartGlow)"
               />
             ))}
+            <line
+              x1={currentMonthX}
+              x2={currentMonthX}
+              y1={padY - 2}
+              y2={height - padY}
+              stroke="#e9c349"
+              strokeWidth="2"
+              opacity="0.9"
+            />
+            <circle
+              cx={currentMonthX}
+              cy={padY - 3}
+              r="5"
+              fill="#e9c349"
+              opacity="0.95"
+              filter="url(#v2ChartGlow)"
+            />
             {visibleData.map((day, index) => {
               const x = visibleData.length <= 1 ? padX : padX + (index / Math.max(1, visibleData.length - 1)) * (width - padX * 2);
               return (
@@ -2955,22 +2968,16 @@ function DashboardV2YearlyCard({ forecast, developerMode }) {
               );
             })}
           </svg>
-          <div className="grid gap-3 md:grid-cols-4">
+          <div className="grid grid-cols-4 gap-1.5 sm:gap-3">
             {metricCards.map((item) => (
-              <div key={item.key} className="rounded-xl border border-white/10 bg-white/[0.045] p-3">
-                <p className="flex items-center gap-2 font-mono text-[11px] font-black uppercase tracking-[0.08em] text-[#e2e2e2]">
-                  <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: scoreColors[item.key] }} />
-                  {item.label}
+              <div key={item.key} className="min-w-0 rounded-xl border border-white/10 bg-white/[0.045] p-2 sm:p-3">
+                <p className="flex min-w-0 items-center gap-1.5 font-mono text-[9px] font-black uppercase leading-tight tracking-[0.02em] text-[#e2e2e2] sm:gap-2 sm:text-[11px] sm:tracking-[0.08em]">
+                  <span className="h-2 w-2 shrink-0 rounded-full sm:h-2.5 sm:w-2.5" style={{ backgroundColor: scoreColors[item.key] }} />
+                  <span className="min-w-0 break-words">{item.label}</span>
                 </p>
-                <p className="mt-2 font-notoSerif text-2xl text-[#f3f3f0]">{formatYearlyScore(selectedDay?.scores?.[item.key])}</p>
+                <p className="mt-2 font-notoSerif text-lg leading-none text-[#f3f3f0] sm:text-2xl">{formatYearlyScore(selectedDay?.scores?.[item.key])}</p>
               </div>
             ))}
-          </div>
-          <div className="rounded-2xl border border-[#e9c349]/25 bg-[#140e00]/25 p-3">
-            <p className="font-mono text-[11px] font-black uppercase tracking-[0.24em] text-[#e9c349]">Detailed Insight</p>
-            <p className="mt-3 line-clamp-2 text-xs font-bold leading-6 text-[#e2e2e2]">
-              {selectedDay?.text_description || "選択日の主要テーマをここに表示します。"}
-            </p>
           </div>
           <button
             type="button"
@@ -2991,11 +2998,164 @@ function DashboardV2YearlyCard({ forecast, developerMode }) {
   );
 }
 
+function splitStoredReportSections(content) {
+  const lines = String(content || "").split("\n");
+  const sections = [];
+  let currentSection = null;
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (/^【第\d+章[：:].+】$/.test(trimmed) || /^縲千ｬｬ\d+遶・・+縲・/.test(trimmed)) {
+      if (currentSection) {
+        sections.push({ ...currentSection, body: currentSection.body.trim() });
+      }
+      currentSection = { title: trimmed, body: "" };
+      continue;
+    }
+
+    if (currentSection) {
+      currentSection.body += `${currentSection.body ? "\n" : ""}${line}`;
+    }
+  }
+
+  if (currentSection) {
+    sections.push({ ...currentSection, body: currentSection.body.trim() });
+  }
+
+  return sections.filter((section) => section.title || section.body);
+}
+
+function DashboardV2HoroscopePage({ data }) {
+  const [storedPayload, setStoredPayload] = useState(() => {
+    if (typeof window === "undefined") return null;
+    try {
+      return getStoredReadingResult({ allowStale: true });
+    } catch {
+      return null;
+    }
+  });
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    let cancelled = false;
+    try {
+      setStoredPayload(getStoredReadingResult({ allowStale: true }));
+    } catch {
+      setStoredPayload(null);
+    }
+    getStoredReadingResultAsync({ allowStale: true })
+      .then((payload) => {
+        if (!cancelled && payload) {
+          setStoredPayload(payload);
+        }
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const payload = storedPayload || data || {};
+  const readings = Array.isArray(payload.readings) ? payload.readings : Array.isArray(data?.readings) ? data.readings : [];
+  const meta = payload.meta || data?.meta || {};
+  const chartData = payload.chart_data || payload.chartData || data?.chart_data || data?.chartData || null;
+
+  return (
+    <main className="mx-auto max-w-[1440px] px-5 py-5 md:px-8 lg:px-14">
+      <section className="mb-5 border-b border-white/10 pb-5">
+        <p className="font-mono text-[10px] font-black uppercase tracking-[0.3em] text-[#e9c349]">The Reading</p>
+        <h1 className="mt-2 font-notoSerif text-3xl font-semibold leading-tight text-[#f3f3f0] md:text-5xl">
+          Curated Results
+        </h1>
+      </section>
+
+      {meta && Object.keys(meta).length ? (
+        <DashboardV2Card className="mb-5" bodyClassName="p-5">
+          <div className="grid gap-4 font-mono text-xs font-bold text-[#c7c6cc] md:grid-cols-3">
+            <div>
+              <p className="mb-1 text-[10px] uppercase tracking-[0.22em] text-[#e9c349]">Name</p>
+              <p>{meta.full_name || meta.name || "-"}</p>
+            </div>
+            <div>
+              <p className="mb-1 text-[10px] uppercase tracking-[0.22em] text-[#e9c349]">Birth</p>
+              <p>
+                {[meta.birth_date, meta.birth_time].filter(Boolean).join(" ") || "-"}
+                {meta.timezone_offset !== undefined ? ` / UTC${Number(meta.timezone_offset) >= 0 ? "+" : ""}${meta.timezone_offset}` : ""}
+              </p>
+            </div>
+            <div>
+              <p className="mb-1 text-[10px] uppercase tracking-[0.22em] text-[#e9c349]">Place</p>
+              <p>{meta.birthplace || meta.location || "-"}</p>
+            </div>
+          </div>
+        </DashboardV2Card>
+      ) : null}
+
+      {readings.length ? (
+        <div className="grid gap-5">
+          {readings.map((item, itemIndex) => {
+            const sections = splitStoredReportSections(item.content);
+            const title = item.type === "full_report" ? "フルリポート" : item.title || item.type || "リポート";
+            return (
+              <DashboardV2Card key={`${item.type || "reading"}-${itemIndex}`} bodyClassName="p-0">
+                <details className="group" open={itemIndex === 0}>
+                  <summary className="flex cursor-pointer list-none items-center justify-between gap-4 border-b border-white/10 px-5 py-5">
+                    <div>
+                      <p className="font-mono text-[10px] font-black uppercase tracking-[0.3em] text-[#e9c349]">Reading</p>
+                      <h2 className="mt-2 font-notoSerif text-2xl font-semibold text-[#f3f3f0]">{title}</h2>
+                    </div>
+                    <ChevronRight size={20} className="shrink-0 text-[#e9c349] transition group-open:rotate-90" />
+                  </summary>
+                  <div className="grid gap-4 p-5 lg:grid-cols-2">
+                    {sections.length ? (
+                      sections.map((section, sectionIndex) => (
+                        <article key={`${section.title}-${sectionIndex}`} className="overflow-hidden rounded-2xl border border-white/10 bg-[#0d0e0f]/45">
+                          <details className="group">
+                            <summary className="flex cursor-pointer list-none items-center justify-between gap-4 px-5 py-4">
+                              <h3 className="font-notoSerif text-lg font-semibold leading-snug text-[#f3f3f0]">{section.title}</h3>
+                              <ChevronRight size={18} className="shrink-0 text-[#e9c349] transition group-open:rotate-90" />
+                            </summary>
+                            <div className="border-t border-white/10 px-5 pb-5 pt-4">
+                              <p className="whitespace-pre-wrap text-sm font-medium leading-7 text-[#c7c6cc]">{section.body}</p>
+                            </div>
+                          </details>
+                        </article>
+                      ))
+                    ) : (
+                      <article className="lg:col-span-2 rounded-2xl border border-white/10 bg-[#0d0e0f]/45 p-5">
+                        <p className="whitespace-pre-wrap text-sm font-medium leading-7 text-[#c7c6cc]">{item.content || "表示できるリポートがありません。"}</p>
+                      </article>
+                    )}
+                  </div>
+                </details>
+              </DashboardV2Card>
+            );
+          })}
+        </div>
+      ) : (
+        <DashboardV2Card bodyClassName="p-8">
+          <p className="font-mono text-sm font-bold uppercase tracking-[0.18em] text-[#909096]">
+            保存済みの鑑定結果がありません
+          </p>
+        </DashboardV2Card>
+      )}
+
+      {chartData ? (
+        <DashboardV2Card className="mt-5" bodyClassName="p-5">
+          <p className="mb-4 font-mono text-[10px] font-black uppercase tracking-[0.3em] text-[#e9c349]">Natal Data</p>
+          <pre className="whitespace-pre-wrap font-mono text-xs leading-6 text-[#c7c6cc]">
+            {Object.entries(chartData).map(([key, value]) => `${key}: ${value}`).join("\n")}
+          </pre>
+        </DashboardV2Card>
+      ) : null}
+    </main>
+  );
+}
+
 function DashboardV2({ data = dashboardData, embedded = false, developerMode = false }) {
+  const [activePage, setActivePage] = useState("dashboard");
   const displayDate = dashboardDisplayDate(data);
   const forecast = data.yearly_forecast || data.yearlyForecast || null;
-  const selectedDay = Array.isArray(forecast?.yearly_data) ? forecast.yearly_data[0] : null;
-  const totalScore = Number(selectedDay?.scores?.total ?? 0);
 
   return (
     <div className={cx(
@@ -3003,17 +3163,21 @@ function DashboardV2({ data = dashboardData, embedded = false, developerMode = f
       "bg-[radial-gradient(circle_at_50%_0%,rgba(211,188,249,0.12),transparent_34%),radial-gradient(circle_at_15%_24%,rgba(233,195,73,0.08),transparent_26%)]",
       embedded ? "" : ""
     )}>
-      <DashboardV2Header data={data} displayDate={displayDate} score={totalScore} />
-      <main className="mx-auto grid max-w-[1440px] gap-5 px-5 py-5 md:px-8 lg:grid-cols-[0.78fr_1.18fr] lg:px-14">
-        <div className="grid gap-3">
-          <DashboardV2PersonalCard data={data} />
-          <DashboardV2DailyFlowCard data={data} />
-          <DashboardV2CountdownCard data={data} />
-        </div>
-        <div className="grid gap-3">
-          <DashboardV2YearlyCard forecast={forecast} developerMode={developerMode} />
-        </div>
-      </main>
+      <DashboardV2Header data={data} displayDate={displayDate} activePage={activePage} onPageChange={setActivePage} />
+      {activePage === "horoscope" ? (
+        <DashboardV2HoroscopePage data={data} />
+      ) : (
+        <main className="mx-auto grid max-w-[1440px] gap-5 px-5 py-5 md:px-8 lg:grid-cols-[0.78fr_1.18fr] lg:px-14">
+          <div className="grid gap-3">
+            <DashboardV2PersonalCard data={data} />
+            <DashboardV2DailyFlowCard data={data} />
+            <DashboardV2CountdownCard data={data} />
+          </div>
+          <div className="grid gap-3">
+            <DashboardV2YearlyCard forecast={forecast} developerMode={developerMode} />
+          </div>
+        </main>
+      )}
       <footer className="border-t border-white/10 px-5 py-8">
         <div className="mx-auto flex max-w-[1440px] flex-wrap items-center justify-between gap-4 font-mono text-xs uppercase tracking-[0.28em] text-[#909096] md:px-11">
           <span>ASTRAEA Celestial Insights</span>
