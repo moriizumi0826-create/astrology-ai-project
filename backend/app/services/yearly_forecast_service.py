@@ -260,6 +260,7 @@ def _indexed_aspect_interpretation(
     if not base_candidates:
         return {}
 
+    text_orb_status = "Applying"
     fallback_filter_sets = [
         ("N_House", "T_Retrograde_Flag", "Orb_Status"),
         ("N_House", "T_Retrograde_Flag"),
@@ -285,7 +286,7 @@ def _indexed_aspect_interpretation(
             candidates = [
                 row
                 for row in candidates
-                if reading_service._normalize_orb_status(row.get("Orb_Status")) == reading_service._normalize_orb_status(orb_status)
+                if reading_service._normalize_orb_status(row.get("Orb_Status")) == reading_service._normalize_orb_status(text_orb_status)
             ]
         selected = reading_service._pick_highest_priority(pd.DataFrame(candidates))
         if selected is not None:
@@ -666,6 +667,7 @@ def _build_day_forecast(
     natal_sun_sign: str,
 ) -> dict[str, Any]:
     events: list[dict[str, Any]] = []
+    saturn_aspects: list[dict[str, Any]] = []
 
     for transit_planet in FORECAST_PLANETS:
         transit_longitude, is_retrograde, calendar_row = _calendar_transit_state(day, transit_planet)
@@ -687,6 +689,19 @@ def _build_day_forecast(
                 natal_point["longitude"],
                 exact_angle,
             )
+            saturn_export_item = None
+            if transit_planet == "SATURN":
+                saturn_export_item = {
+                    "date": day.isoformat(),
+                    "t_planet": transit_planet,
+                    "n_planet": natal_point["planet"],
+                    "aspect_angle": exact_angle,
+                    "orb_status": orb_status,
+                    "title": "",
+                    "description": "",
+                    "advised_task": "",
+                    "source": {},
+                }
             interpretation = dict(
                 _cached_aspect_interpretation(
                     transit_planet,
@@ -712,29 +727,43 @@ def _build_day_forecast(
             )
             if event:
                 events.append(event)
+                if saturn_export_item is not None:
+                    saturn_export_item.update({
+                        "title": event.get("title"),
+                        "description": event.get("description"),
+                        "advised_task": event.get("advised_task"),
+                        "source": event.get("source"),
+                    })
+            if saturn_export_item is not None:
+                saturn_aspects.append(saturn_export_item)
 
     scores = _score_category_totals(events)
-    jupiter_aspects = [
-        {
-            "date": day.isoformat(),
-            "t_planet": event.get("t_planet"),
-            "n_planet": event.get("n_planet"),
-            "aspect_angle": event.get("aspect_angle"),
-            "orb_status": event.get("orb_status"),
-            "title": event.get("title"),
-            "description": event.get("description"),
-            "advised_task": event.get("advised_task"),
-            "source": event.get("source"),
-        }
-        for event in events
-        if event.get("t_planet") == "JUPITER" and event.get("aspect_angle") is not None
-    ]
+
+    def transit_aspects_for(planet: str) -> list[dict[str, Any]]:
+        return [
+            {
+                "date": day.isoformat(),
+                "t_planet": event.get("t_planet"),
+                "n_planet": event.get("n_planet"),
+                "aspect_angle": event.get("aspect_angle"),
+                "orb_status": event.get("orb_status"),
+                "title": event.get("title"),
+                "description": event.get("description"),
+                "advised_task": event.get("advised_task"),
+                "source": event.get("source"),
+            }
+            for event in events
+            if event.get("t_planet") == planet and event.get("aspect_angle") is not None
+        ]
+
+    jupiter_aspects = transit_aspects_for("JUPITER")
     top_events = sorted(events, key=lambda event: (event["priority"], abs(event["weighted_score"])), reverse=True)[:5]
     return {
         "date": day.isoformat(),
         "scores": scores,
         "events": top_events,
         "jupiter_aspects": jupiter_aspects,
+        "saturn_aspects": saturn_aspects,
         "category_highlights": _category_highlights(events),
         "category_theme_highlights": {
             "short": _category_highlights_for_duration(events, ("SHORT", "MID")),
@@ -1135,10 +1164,12 @@ def generate_yearly_forecast(
     natal_points, house_cusps, natal_sun_sign = _build_natal_points(birth_input)
     yearly_data: list[dict[str, Any]] = []
     annual_jupiter_aspects: list[dict[str, Any]] = []
+    annual_saturn_aspects: list[dict[str, Any]] = []
     current = start
     while current <= end:
         day_forecast = _build_day_forecast(current, birth_input, natal_points, house_cusps, natal_sun_sign)
         annual_jupiter_aspects.extend(day_forecast.get("jupiter_aspects", []))
+        annual_saturn_aspects.extend(day_forecast.get("saturn_aspects", []))
         yearly_data.append(day_forecast)
         current += timedelta(days=1)
     annual_themes = build_annual_themes(
@@ -1192,6 +1223,7 @@ def generate_yearly_forecast(
         "annual_summary_columns": annual_summary_columns,
         "annual_summaries": annual_summaries,
         "annual_jupiter_aspects": annual_jupiter_aspects,
+        "annual_saturn_aspects": annual_saturn_aspects,
         "monthly_sun_themes": monthly_sun_themes,
         "monthly_mars_themes": monthly_mars_themes,
         "cache": build_yearly_forecast_cache_payload(birth_input, year),

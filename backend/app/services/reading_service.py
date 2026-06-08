@@ -770,11 +770,12 @@ def get_aspect_interpretation(
         )
         return {}
     base_candidates = pd.DataFrame(base_candidate_rows)
+    text_orb_status = "Applying"
 
     optional_filters = [
         ("N_House", lambda df: _series_int_equals(df["N_House"], house)),
         ("T_Retrograde_Flag", lambda df: _series_bool_equals(df["T_Retrograde_Flag"], is_retrograde)),
-        ("Orb_Status", lambda df: _series_orb_equals(df["Orb_Status"], orb_status)),
+        ("Orb_Status", lambda df: _series_orb_equals(df["Orb_Status"], text_orb_status)),
     ]
     fallback_filter_sets = [
         ("N_House", "T_Retrograde_Flag", "Orb_Status"),

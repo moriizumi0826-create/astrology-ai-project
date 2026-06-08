@@ -40,6 +40,20 @@ function resolveApiBaseUrl() {
   if (configured) {
     return configured.replace(/\/$/, "");
   }
+  try {
+    const params = new URL(window.location.href).searchParams;
+    const requested = String(params.get("api_base") || "").trim();
+    if (requested) {
+      window.localStorage?.setItem("celestial_api_base_url", requested);
+      return requested.replace(/\/$/, "");
+    }
+    const stored = String(window.localStorage?.getItem("celestial_api_base_url") || "").trim();
+    if (stored) {
+      return stored.replace(/\/$/, "");
+    }
+  } catch {
+    // Ignore local developer override failures and fall back to the default endpoint.
+  }
   if (["localhost", "127.0.0.1"].includes(window.location.hostname) && /^517\d$/.test(window.location.port)) {
     return "http://127.0.0.1:8000";
   }
@@ -47,27 +61,79 @@ function resolveApiBaseUrl() {
 }
 
 async function postJson(path, payload) {
-  const response = await fetch(`${resolveApiBaseUrl()}${path}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
-  });
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await requestJson(`${apiBaseUrl}${path}`, payload);
   if (!response.ok) {
-    const errorPayload = await response.json().catch(() => ({}));
-    throw new Error(errorPayload.detail || `Request failed: ${response.status}`);
+    const errorPayload = response.data || {};
+    throw new Error(formatApiError(errorPayload.detail, `Request failed: ${response.status}`));
   }
-  return response.json();
+  return response.data;
 }
 
 async function reloadCsvMasters() {
-  const response = await fetch(`${resolveApiBaseUrl()}/api/dev/reload-csv`, {
-    method: "POST",
-  });
+  const response = await requestJson(`${resolveApiBaseUrl()}/api/dev/reload-csv`);
   if (!response.ok) {
-    const errorPayload = await response.json().catch(() => ({}));
-    throw new Error(errorPayload.detail || `CSV reload failed: ${response.status}`);
+    const errorPayload = response.data || {};
+    throw new Error(formatApiError(errorPayload.detail, `CSV reload failed: ${response.status}`));
   }
-  return response.json();
+  return response.data;
+}
+
+function formatApiError(detail, fallback) {
+  if (!detail) return fallback;
+  if (typeof detail === "string") return detail;
+  if (Array.isArray(detail)) {
+    return detail.map((item) => {
+      if (typeof item === "string") return item;
+      const location = Array.isArray(item?.loc) ? item.loc.join(".") : "";
+      const message = item?.msg || JSON.stringify(item);
+      return location ? `${location}: ${message}` : message;
+    }).join(" / ");
+  }
+  try {
+    return JSON.stringify(detail);
+  } catch {
+    return fallback;
+  }
+}
+
+async function requestJson(url, payload) {
+  const body = payload === undefined ? undefined : JSON.stringify(payload);
+  if (typeof globalThis.fetch === "function") {
+    const response = await globalThis.fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body,
+    });
+    return {
+      ok: response.ok,
+      status: response.status,
+      data: await response.json().catch(() => ({})),
+    };
+  }
+  if (typeof globalThis.XMLHttpRequest !== "function") {
+    throw new Error("このブラウザ環境でAPI通信機能が利用できません。");
+  }
+  return new Promise((resolve, reject) => {
+    const request = new globalThis.XMLHttpRequest();
+    request.open("POST", url, true);
+    request.setRequestHeader("Content-Type", "application/json");
+    request.onload = () => {
+      let data = {};
+      try {
+        data = request.responseText ? JSON.parse(request.responseText) : {};
+      } catch {
+        data = {};
+      }
+      resolve({
+        ok: request.status >= 200 && request.status < 300,
+        status: request.status,
+        data,
+      });
+    };
+    request.onerror = () => reject(new Error("API通信に失敗しました。"));
+    request.send(body);
+  });
 }
 
 function shouldForceRefresh() {
@@ -119,8 +185,19 @@ function forecastYear(forecast) {
     return fromCache;
   }
   const firstDate = String(forecast?.yearly_data?.[0]?.date || forecast?.reading_date || "");
-  const parsed = Number(firstDate.slice(0, 4));
+  const parsed = Number.parseInt(firstDate.slice(0, 4), 10);
   return Number.isFinite(parsed) ? parsed : 2026;
+}
+
+function readableErrorMessage(error, fallback) {
+  const message = error?.message || error;
+  if (!message) return fallback;
+  if (typeof message === "string") return message;
+  try {
+    return JSON.stringify(message);
+  } catch {
+    return fallback;
+  }
 }
 
 function planetLabel(value) {
@@ -155,20 +232,25 @@ function formatShortPeriod(startDate, endDate) {
   return start === end ? start : `${start}-${end}`;
 }
 
-function jupiterAspectItemsFromForecast(forecast) {
-  const annualJupiterAspects = Array.isArray(forecast?.annual_jupiter_aspects)
-    ? forecast.annual_jupiter_aspects
-    : Array.isArray(forecast?.annualJupiterAspects)
-      ? forecast.annualJupiterAspects
+function transitAspectItemsFromForecast(forecast, transitPlanetName, annualKeys, dayKeys) {
+  const transitPlanetFilter = String(transitPlanetName || "").trim().toUpperCase();
+  const annualAspects = annualKeys.reduce((items, key) => {
+    if (items.length) return items;
+    const value = forecast?.[key];
+    return Array.isArray(value) ? value : [];
+  }, []);
+  const yearlyData = Array.isArray(forecast?.yearly_data)
+    ? forecast.yearly_data
+    : Array.isArray(forecast?.yearlyData)
+      ? forecast.yearlyData
       : [];
-  const yearlyData = Array.isArray(forecast?.yearly_data) ? forecast.yearly_data : [];
   const rawItems = [];
-  annualJupiterAspects.forEach((event) => {
+  annualAspects.forEach((event) => {
     const date = dateKey(event?.date);
     const transitPlanet = String(event?.t_planet || event?.transit_planet || "").trim().toUpperCase();
     const natalPlanet = String(event?.n_planet || event?.natal_planet || "").trim().toUpperCase();
     const angle = event?.aspect_angle ?? event?.angle ?? event?.exact_angle;
-    if (!date || transitPlanet !== "JUPITER" || !natalPlanet || angle === null || angle === undefined || angle === "") return;
+    if (!date || transitPlanet !== transitPlanetFilter || !natalPlanet || angle === null || angle === undefined || angle === "") return;
     const numericAngle = Number(angle);
     const angleLabel = Number.isFinite(numericAngle) ? numericAngle : angle;
     rawItems.push({
@@ -183,18 +265,17 @@ function jupiterAspectItemsFromForecast(forecast) {
   yearlyData.forEach((day) => {
     const date = dateKey(day?.date);
     if (!date) return;
-    const events = annualJupiterAspects.length
+    const events = annualAspects.length
       ? []
-      : [
-          ...(Array.isArray(day?.jupiter_aspects) ? day.jupiter_aspects : []),
-          ...(Array.isArray(day?.jupiterAspects) ? day.jupiterAspects : []),
-          ...(Array.isArray(day?.events) ? day.events : []),
-        ];
+      : dayKeys.reduce((items, key) => {
+          const value = day?.[key];
+          return Array.isArray(value) ? [...items, ...value] : items;
+        }, []);
     events.forEach((event) => {
       const transitPlanet = String(event?.t_planet || event?.transit_planet || "").trim().toUpperCase();
       const natalPlanet = String(event?.n_planet || event?.natal_planet || "").trim().toUpperCase();
       const angle = event?.aspect_angle ?? event?.angle ?? event?.exact_angle;
-      if (transitPlanet !== "JUPITER" || !natalPlanet || angle === null || angle === undefined || angle === "") return;
+      if (transitPlanet !== transitPlanetFilter || !natalPlanet || angle === null || angle === undefined || angle === "") return;
       const numericAngle = Number(angle);
       const angleLabel = Number.isFinite(numericAngle) ? numericAngle : angle;
       const label = `ネイタル${planetLabel(natalPlanet)} × トランジット${planetLabel(transitPlanet)} ${angleLabel}°`;
@@ -211,36 +292,39 @@ function jupiterAspectItemsFromForecast(forecast) {
 
   const byAspect = new Map();
   rawItems.forEach((item) => {
-    const existing = byAspect.get(item.key);
-    if (existing) {
-      existing.dates.add(item.date);
-      return;
-    }
-    byAspect.set(item.key, {
+    const aspect = byAspect.get(item.key) || {
       key: item.key,
       label: item.label,
-      title: item.title,
-      description: item.description,
-      advisedTask: item.advisedTask,
-      dates: new Set([item.date]),
-    });
+      byDate: new Map(),
+    };
+    const existing = aspect.byDate.get(item.date);
+    if (!existing || (!existing.description && item.description)) {
+      aspect.byDate.set(item.date, item);
+    }
+    byAspect.set(item.key, aspect);
   });
-
   const grouped = [];
   byAspect.forEach((aspect) => {
-    const dates = Array.from(aspect.dates).sort();
-    dates.forEach((date) => {
+    Array.from(aspect.byDate.keys()).sort().forEach((date) => {
+      const item = aspect.byDate.get(date);
       const previous = grouped[grouped.length - 1];
-      if (previous && previous.key === aspect.key && addDays(previous.endDate, 1) === date) {
+      if (
+        previous
+        && previous.key === item.key
+        && addDays(previous.endDate, 1) === date
+      ) {
         previous.endDate = date;
+        if (!previous.title && item.title) previous.title = item.title;
+        if (!previous.description && item.description) previous.description = item.description;
+        if (!previous.advisedTask && item.advisedTask) previous.advisedTask = item.advisedTask;
         return;
       }
       grouped.push({
-        key: aspect.key,
-        label: aspect.label,
-        title: aspect.title,
-        description: aspect.description,
-        advisedTask: aspect.advisedTask,
+        key: item.key,
+        label: item.label,
+        title: item.title,
+        description: item.description,
+        advisedTask: item.advisedTask,
         startDate: date,
         endDate: date,
       });
@@ -248,6 +332,24 @@ function jupiterAspectItemsFromForecast(forecast) {
   });
 
   return grouped.sort((a, b) => a.startDate.localeCompare(b.startDate) || a.key.localeCompare(b.key));
+}
+
+function jupiterAspectItemsFromForecast(forecast) {
+  return transitAspectItemsFromForecast(
+    forecast,
+    "JUPITER",
+    ["annual_jupiter_aspects", "annualJupiterAspects"],
+    ["jupiter_aspects", "jupiterAspects", "events"],
+  );
+}
+
+function saturnAspectItemsFromForecast(forecast) {
+  return transitAspectItemsFromForecast(
+    forecast,
+    "SATURN",
+    ["annual_saturn_aspects", "annualSaturnAspects"],
+    ["saturn_aspects", "saturnAspects", "events"],
+  );
 }
 
 function demoForecast() {
@@ -644,9 +746,9 @@ function monthlyItems(items, year, index) {
   return items.filter((item) => itemOverlapsMonth(item, year, index));
 }
 
-function monthlyData(forecast) {
+function monthlyData(forecast, useDemoFallback = true) {
   const source = Array.isArray(forecast?.yearly_data) ? forecast.yearly_data : [];
-  if (!source.length) return demoForecast().yearly_data;
+  if (!source.length) return useDemoFallback ? demoForecast().yearly_data : [];
   return Array.from({ length: 12 }, (_, index) => {
     const items = source.filter((day) => monthIndex(day.date) === index);
     if (!items.length) {
@@ -715,6 +817,14 @@ function smoothPath(points) {
 }
 
 function aggregateStats(data) {
+  if (!data.length) {
+    return {
+      peak: null,
+      low: null,
+      strongest: SCORE_KEYS[0],
+      stability: 0,
+    };
+  }
   const totals = data.map((day) => scoreFor(day, "total"));
   const peakIndex = totals.reduce((best, score, index) => (score > totals[best] ? index : best), 0);
   const lowIndex = totals.reduce((best, score, index) => (score < totals[best] ? index : best), 0);
@@ -783,10 +893,12 @@ function Header({ activeYear, activeView, setActiveView }) {
 
 function OraclePanel({ stats, forecast }) {
   const [analysisMode, setAnalysisMode] = useState("theme");
+  const [openTransitAspectKeys, setOpenTransitAspectKeys] = useState(() => new Set());
   const themeItems = themeItemsFromForecast(forecast);
   const lessonItems = lessonItemsFromForecast(forecast);
   const summaryColumns = summaryItemsFromForecast(forecast);
   const jupiterAspectItems = jupiterAspectItemsFromForecast(forecast);
+  const saturnAspectItems = saturnAspectItemsFromForecast(forecast);
   const analysisTitle = {
     theme: "幸運拡大",
     lesson: "成長課題",
@@ -812,10 +924,21 @@ function OraclePanel({ stats, forecast }) {
     environment: summaryEnvironmentItems,
     mental: summaryMentalItems,
   }, activeYear, summaryScale, viewportWidth);
+  const toggleTransitAspect = (key) => {
+    setOpenTransitAspectKeys((current) => {
+      const next = new Set(current);
+      if (next.has(key)) {
+        next.delete(key);
+      } else {
+        next.add(key);
+      }
+      return next;
+    });
+  };
   return (
     <div className="h-full">
       <GlassPanel className="flex h-[520px] flex-col overflow-hidden p-2 sm:h-[560px] sm:p-5 lg:h-[620px] lg:p-6">
-        <div className="flex items-center justify-between gap-3">
+        <div className="flex flex-col items-start gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <p className="font-mono text-[8px] font-bold uppercase tracking-[0.18em] text-gold/75 sm:text-[9px]">
               Main Theme
@@ -824,7 +947,7 @@ function OraclePanel({ stats, forecast }) {
               {analysisTitle}
             </h2>
           </div>
-          <div className="flex shrink-0 rounded-full border border-white/10 bg-white/[0.04] p-1 font-mono text-[7px] font-bold text-mist sm:text-[10px]">
+          <div className="flex w-full overflow-x-auto rounded-full border border-white/10 bg-white/[0.04] p-1 font-mono text-[7px] font-bold text-mist [scrollbar-width:none] sm:w-auto sm:shrink-0 sm:text-[10px]">
             {[ 
               ["theme", "幸運拡大"],
               ["lesson", "成長課題"],
@@ -837,7 +960,7 @@ function OraclePanel({ stats, forecast }) {
                 type="button"
                 onClick={() => setAnalysisMode(value)}
                 className={cx(
-                  "rounded-full px-1.5 py-1.5 transition sm:px-3",
+                  "shrink-0 rounded-full px-2 py-1.5 transition sm:px-3",
                   analysisMode === value ? "bg-gold text-[#241a00]" : "hover:bg-white/10 hover:text-starlight"
                 )}
               >
@@ -907,33 +1030,40 @@ function OraclePanel({ stats, forecast }) {
           </div>
         ) : null}
         {analysisMode === "test1" ? (
-          <div className="mt-6 grid min-h-0 flex-1 gap-3 overflow-y-auto pr-2 [scrollbar-color:#e9c349_rgba(255,255,255,0.08)] [scrollbar-width:thin] sm:mt-8">
+          <div className="mt-6 flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto pr-2 [scrollbar-color:#e9c349_rgba(255,255,255,0.08)] [scrollbar-width:thin] sm:mt-8">
             {jupiterAspectItems.length ? (
-              jupiterAspectItems.map((item) => (
-                <article key={`${item.key}-${item.startDate}`} className="overflow-hidden rounded-2xl border border-white/10 bg-white/[0.035]">
-                  <details className="group">
-                    <summary className="flex cursor-pointer list-none items-start justify-between gap-4 px-4 py-3">
+              jupiterAspectItems.map((item) => {
+                const itemKey = `jupiter-${item.key}-${item.startDate}`;
+                const isOpen = openTransitAspectKeys.has(itemKey);
+                return (
+                <article key={`${item.key}-${item.startDate}`} className="shrink-0 overflow-hidden rounded-2xl border border-white/10 bg-white/[0.035]">
+                  <button
+                    type="button"
+                    className="flex w-full items-start justify-between gap-3 px-3 py-3 text-left sm:gap-4 sm:px-4"
+                    aria-expanded={isOpen}
+                    onClick={() => toggleTransitAspect(itemKey)}
+                  >
                       <div className="min-w-0">
                         <p className="font-mono text-[10px] font-bold uppercase tracking-[0.12em] text-gold">
                           {formatShortPeriod(item.startDate, item.endDate)}
                         </p>
-                        <p className="mt-2 text-sm font-semibold leading-6 text-mist sm:text-base">{item.label}</p>
+                        <p className="mt-2 text-xs font-semibold leading-5 text-mist sm:text-base sm:leading-6">{item.label}</p>
                       </div>
-                      <span className="mt-1 shrink-0 font-mono text-xs font-bold text-gold transition group-open:rotate-90">›</span>
-                    </summary>
-                    <div className="border-t border-white/10 px-4 pb-4 pt-3">
-                      <p className="whitespace-pre-line text-xs leading-6 text-mist sm:text-sm sm:leading-7">
+                      <span className={cx(
+                        "mt-1 shrink-0 font-mono text-xs font-bold text-gold transition",
+                        isOpen && "rotate-90"
+                      )}>›</span>
+                  </button>
+                  {isOpen ? (
+                    <div className="border-t border-white/10 px-3 pb-4 pt-3 sm:px-4">
+                      <p className="whitespace-pre-line text-[11px] leading-6 text-mist sm:text-sm sm:leading-7">
                         {item.description || "解釈文がありません。"}
                       </p>
-                      {item.advisedTask ? (
-                        <p className="mt-3 border-l border-gold/35 pl-3 text-xs leading-6 text-mist/85">
-                          {item.advisedTask}
-                        </p>
-                      ) : null}
                     </div>
-                  </details>
+                  ) : null}
                 </article>
-              ))
+                );
+              })
             ) : (
               <div className="flex min-h-0 flex-1 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.035] p-6 font-mono text-xs font-bold uppercase tracking-[0.18em] text-mist">
                 該当なし
@@ -942,8 +1072,45 @@ function OraclePanel({ stats, forecast }) {
           </div>
         ) : null}
         {analysisMode === "test2" ? (
-          <div className="mt-6 flex min-h-0 flex-1 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.035] p-6 font-mono text-xs font-bold uppercase tracking-[0.18em] text-mist sm:mt-8">
-            作成中
+          <div className="mt-6 flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto pr-2 [scrollbar-color:#e9c349_rgba(255,255,255,0.08)] [scrollbar-width:thin] sm:mt-8">
+            {saturnAspectItems.length ? (
+              saturnAspectItems.map((item) => {
+                const itemKey = `saturn-${item.key}-${item.startDate}`;
+                const isOpen = openTransitAspectKeys.has(itemKey);
+                return (
+                <article key={`${item.key}-${item.startDate}`} className="shrink-0 overflow-hidden rounded-2xl border border-white/10 bg-white/[0.035]">
+                  <button
+                    type="button"
+                    className="flex w-full items-start justify-between gap-3 px-3 py-3 text-left sm:gap-4 sm:px-4"
+                    aria-expanded={isOpen}
+                    onClick={() => toggleTransitAspect(itemKey)}
+                  >
+                      <div className="min-w-0">
+                        <p className="font-mono text-[10px] font-bold uppercase tracking-[0.12em] text-gold">
+                          {formatShortPeriod(item.startDate, item.endDate)}
+                        </p>
+                        <p className="mt-2 text-xs font-semibold leading-5 text-mist sm:text-base sm:leading-6">{item.label}</p>
+                      </div>
+                      <span className={cx(
+                        "mt-1 shrink-0 font-mono text-xs font-bold text-gold transition",
+                        isOpen && "rotate-90"
+                      )}>›</span>
+                  </button>
+                  {isOpen ? (
+                    <div className="border-t border-white/10 px-3 pb-4 pt-3 sm:px-4">
+                      <p className="whitespace-pre-line text-[11px] leading-6 text-mist sm:text-sm sm:leading-7">
+                        {item.description || "解釈文がありません。"}
+                      </p>
+                    </div>
+                  ) : null}
+                </article>
+                );
+              })
+            ) : (
+              <div className="flex min-h-0 flex-1 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.035] p-6 font-mono text-xs font-bold uppercase tracking-[0.18em] text-mist">
+                該当なし
+              </div>
+            )}
           </div>
         ) : null}
       </GlassPanel>
@@ -1512,14 +1679,15 @@ function YearCalculationDialog({
 }
 
 function ForecastDetailPage() {
-  const [forecast, setForecast] = useState(() => getForecast() || demoForecast());
+  const forceRefresh = shouldForceRefresh();
+  const [forecast, setForecast] = useState(() => getForecast() || (forceRefresh ? null : demoForecast()));
   const activeYear = forecastYear(forecast);
   const [yearDialogOpen, setYearDialogOpen] = useState(false);
   const [targetYear, setTargetYear] = useState(String(activeYear));
   const [calculatingYear, setCalculatingYear] = useState(false);
   const [yearCalculationError, setYearCalculationError] = useState("");
   useEffect(() => {
-    if (shouldForceRefresh()) {
+    if (forceRefresh) {
       return () => {};
     }
     let active = true;
@@ -1532,7 +1700,7 @@ function ForecastDetailPage() {
     return () => {
       active = false;
     };
-  }, []);
+  }, [forceRefresh]);
   useEffect(() => {
     if (!yearDialogOpen) {
       setTargetYear(String(activeYear));
@@ -1540,7 +1708,7 @@ function ForecastDetailPage() {
     }
   }, [activeYear, yearDialogOpen]);
   useEffect(() => {
-    if (!shouldForceRefresh()) {
+    if (!forceRefresh) {
       return;
     }
     const formPayload = getQueryReadingForm() || getStoredReadingForm();
@@ -1549,6 +1717,7 @@ function ForecastDetailPage() {
     }
     let active = true;
     setCalculatingYear(true);
+    setYearCalculationError("");
     reloadCsvMasters()
       .then(() => postJson(`/api/yearly-forecast?year=${activeYear}`, formPayload))
       .then(async (nextForecast) => {
@@ -1564,7 +1733,7 @@ function ForecastDetailPage() {
       })
       .catch((error) => {
         if (active) {
-          setYearCalculationError(error.message || "年間予測の再計算に失敗しました。");
+          setYearCalculationError(readableErrorMessage(error, "年間予測の再計算に失敗しました。"));
         }
       })
       .finally(() => {
@@ -1575,8 +1744,8 @@ function ForecastDetailPage() {
     return () => {
       active = false;
     };
-  }, [activeYear]);
-  const data = useMemo(() => monthlyData(forecast), [forecast]);
+  }, [activeYear, forceRefresh]);
+  const data = useMemo(() => monthlyData(forecast, !forceRefresh), [forecast, forceRefresh]);
   const stats = useMemo(() => aggregateStats(data), [data]);
   const [selectedSeriesKey, setSelectedSeriesKey] = useState("general");
   const [selectedMonthIndex, setSelectedMonthIndex] = useState(monthIndex(stats.peak?.date));
@@ -1610,7 +1779,7 @@ function ForecastDetailPage() {
       });
       setYearDialogOpen(false);
     } catch (error) {
-      setYearCalculationError(error.message || "年間予測の計算に失敗しました。");
+      setYearCalculationError(readableErrorMessage(error, "年間予測の計算に失敗しました。"));
     } finally {
       setCalculatingYear(false);
     }
@@ -1620,6 +1789,16 @@ function ForecastDetailPage() {
     <div className="relative min-h-screen overflow-x-hidden text-starlight">
       <Header activeYear={activeYear} activeView={activeView} setActiveView={setActiveView} />
       <main className="mx-auto grid max-w-none gap-3 px-0.5 pb-4 pt-[136px] sm:gap-6 sm:px-4 sm:pb-10 sm:pt-36 lg:px-6 lg:pb-20 lg:pt-[136px]">
+        {yearCalculationError ? (
+          <div className="rounded-2xl border border-[#ffb4ab]/30 bg-[#3a1d1d]/45 px-4 py-3 text-xs leading-6 text-[#ffb4ab] sm:text-sm">
+            {yearCalculationError}
+          </div>
+        ) : null}
+        {forceRefresh && calculatingYear && !forecast ? (
+          <GlassPanel className="p-6 text-center font-mono text-xs font-bold uppercase tracking-[0.18em] text-mist">
+            年間予測を再計算中...
+          </GlassPanel>
+        ) : null}
         {activeView === "annual" ? (
           <>
             <OraclePanel stats={stats} forecast={forecast} />
