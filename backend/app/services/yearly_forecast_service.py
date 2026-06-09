@@ -668,6 +668,8 @@ def _build_day_forecast(
 ) -> dict[str, Any]:
     events: list[dict[str, Any]] = []
     saturn_aspects: list[dict[str, Any]] = []
+    sun_aspects: list[dict[str, Any]] = []
+    mars_aspects: list[dict[str, Any]] = []
 
     for transit_planet in FORECAST_PLANETS:
         transit_longitude, is_retrograde, calendar_row = _calendar_transit_state(day, transit_planet)
@@ -690,8 +692,21 @@ def _build_day_forecast(
                 exact_angle,
             )
             saturn_export_item = None
+            local_export_item = None
             if transit_planet == "SATURN":
                 saturn_export_item = {
+                    "date": day.isoformat(),
+                    "t_planet": transit_planet,
+                    "n_planet": natal_point["planet"],
+                    "aspect_angle": exact_angle,
+                    "orb_status": orb_status,
+                    "title": "",
+                    "description": "",
+                    "advised_task": "",
+                    "source": {},
+                }
+            if transit_planet in {"SUN", "MARS"}:
+                local_export_item = {
                     "date": day.isoformat(),
                     "t_planet": transit_planet,
                     "n_planet": natal_point["planet"],
@@ -734,8 +749,20 @@ def _build_day_forecast(
                         "advised_task": event.get("advised_task"),
                         "source": event.get("source"),
                     })
+                if local_export_item is not None:
+                    local_export_item.update({
+                        "title": event.get("title"),
+                        "description": event.get("description"),
+                        "advised_task": event.get("advised_task"),
+                        "source": event.get("source"),
+                    })
             if saturn_export_item is not None:
                 saturn_aspects.append(saturn_export_item)
+            if local_export_item is not None:
+                if transit_planet == "SUN":
+                    sun_aspects.append(local_export_item)
+                elif transit_planet == "MARS":
+                    mars_aspects.append(local_export_item)
 
     scores = _score_category_totals(events)
 
@@ -764,6 +791,8 @@ def _build_day_forecast(
         "events": top_events,
         "jupiter_aspects": jupiter_aspects,
         "saturn_aspects": saturn_aspects,
+        "sun_aspects": sun_aspects,
+        "mars_aspects": mars_aspects,
         "category_highlights": _category_highlights(events),
         "category_theme_highlights": {
             "short": _category_highlights_for_duration(events, ("SHORT", "MID")),
@@ -1165,11 +1194,15 @@ def generate_yearly_forecast(
     yearly_data: list[dict[str, Any]] = []
     annual_jupiter_aspects: list[dict[str, Any]] = []
     annual_saturn_aspects: list[dict[str, Any]] = []
+    annual_sun_aspects: list[dict[str, Any]] = []
+    annual_mars_aspects: list[dict[str, Any]] = []
     current = start
     while current <= end:
         day_forecast = _build_day_forecast(current, birth_input, natal_points, house_cusps, natal_sun_sign)
         annual_jupiter_aspects.extend(day_forecast.get("jupiter_aspects", []))
         annual_saturn_aspects.extend(day_forecast.get("saturn_aspects", []))
+        annual_sun_aspects.extend(day_forecast.get("sun_aspects", []))
+        annual_mars_aspects.extend(day_forecast.get("mars_aspects", []))
         yearly_data.append(day_forecast)
         current += timedelta(days=1)
     annual_themes = build_annual_themes(
@@ -1224,6 +1257,8 @@ def generate_yearly_forecast(
         "annual_summaries": annual_summaries,
         "annual_jupiter_aspects": annual_jupiter_aspects,
         "annual_saturn_aspects": annual_saturn_aspects,
+        "annual_sun_aspects": annual_sun_aspects,
+        "annual_mars_aspects": annual_mars_aspects,
         "monthly_sun_themes": monthly_sun_themes,
         "monthly_mars_themes": monthly_mars_themes,
         "cache": build_yearly_forecast_cache_payload(birth_input, year),

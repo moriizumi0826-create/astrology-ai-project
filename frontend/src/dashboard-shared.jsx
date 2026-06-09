@@ -2904,7 +2904,7 @@ function DashboardV2YearlyCard({ forecast, developerMode }) {
             <div className="min-w-0">
               <p className="font-mono text-xs font-black uppercase tracking-[0.28em] text-[#e9c349]">Long-Term Vision</p>
             </div>
-            <h2 className="max-w-[500px] justify-self-end text-right font-notoSerif text-lg font-semibold leading-snug tracking-[0.04em] text-[#e2e2e2] md:text-[22px]">
+            <h2 className="max-w-[500px] justify-self-start text-left font-notoSerif text-lg font-semibold leading-snug tracking-[0.04em] text-[#e2e2e2] md:text-[22px]">
               {currentYear}年 運勢予測
             </h2>
           </div>

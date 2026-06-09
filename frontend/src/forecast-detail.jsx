@@ -352,6 +352,24 @@ function saturnAspectItemsFromForecast(forecast) {
   );
 }
 
+function sunAspectItemsFromForecast(forecast) {
+  return transitAspectItemsFromForecast(
+    forecast,
+    "SUN",
+    ["annual_sun_aspects", "annualSunAspects"],
+    ["sun_aspects", "sunAspects", "events"],
+  );
+}
+
+function marsAspectItemsFromForecast(forecast) {
+  return transitAspectItemsFromForecast(
+    forecast,
+    "MARS",
+    ["annual_mars_aspects", "annualMarsAspects"],
+    ["mars_aspects", "marsAspects", "events"],
+  );
+}
+
 function demoForecast() {
   const monthScores = {
     general: [45, 12, 88, 34, -15, 62, 41, 94, 20, -30, 5, 18],
@@ -735,8 +753,8 @@ function monthBounds(year, index) {
 }
 
 function itemOverlapsMonth(item, year, index) {
-  const start = parseLocalDate(item?.startRaw);
-  const end = parseLocalDate(item?.endRaw);
+  const start = parseLocalDate(item?.startRaw || item?.startDate);
+  const end = parseLocalDate(item?.endRaw || item?.endDate);
   if (!start || !end) return true;
   const bounds = monthBounds(year, index);
   return start <= bounds.end && end >= bounds.start;
@@ -1450,6 +1468,7 @@ function AnnualScoreMatrix({ data, selectedSeriesKey, selectedMonthIndex }) {
 
 function Matrix({ data, selectedSeriesKey, setSelectedSeriesKey, selectedMonthIndex, setSelectedMonthIndex, forecast, activeYear }) {
   const [analysisMode, setAnalysisMode] = useState("theme");
+  const [openMonthlyAspectKeys, setOpenMonthlyAspectKeys] = useState(() => new Set());
   const selectedMonth = clamp(selectedMonthIndex, 0, data.length - 1);
   const [selectedDayIndex, setSelectedDayIndex] = useState(0);
   useEffect(() => {
@@ -1461,12 +1480,27 @@ function Matrix({ data, selectedSeriesKey, setSelectedSeriesKey, selectedMonthIn
   const selectedSeries = SCORE_KEYS.find((item) => item.key === selectedSeriesKey) || SCORE_KEYS[0];
   const sunThemeItems = monthlyItems(monthlyThemeItemsFromForecast(forecast, "monthly_sun_themes"), activeYear, selectedMonth);
   const marsThemeItems = monthlyItems(monthlyThemeItemsFromForecast(forecast, "monthly_mars_themes"), activeYear, selectedMonth);
+  const sunAspectItems = monthlyItems(sunAspectItemsFromForecast(forecast), activeYear, selectedMonth);
+  const marsAspectItems = monthlyItems(marsAspectItemsFromForecast(forecast), activeYear, selectedMonth);
   const emptySummaryItems = [];
   const modeTitle = {
     theme: "今月の主軸",
     lesson: "今月の熱量",
     summary: "今月の総括",
+    test1: "test1",
+    test2: "test2",
   }[analysisMode] || "今月の主軸";
+  const toggleMonthlyAspect = (key) => {
+    setOpenMonthlyAspectKeys((current) => {
+      const next = new Set(current);
+      if (next.has(key)) {
+        next.delete(key);
+      } else {
+        next.add(key);
+      }
+      return next;
+    });
+  };
   const fallbackItems = [{ color: "#e9c349", label: `${MONTHS[selectedMonth]}: 作成中`, body: "作成中" }];
   return (
     <div className="grid gap-4 sm:gap-7">
@@ -1500,6 +1534,8 @@ function Matrix({ data, selectedSeriesKey, setSelectedSeriesKey, selectedMonthIn
               ["theme", "主軸"],
               ["lesson", "熱量"],
               ["summary", "総括"],
+              ["test1", "test1"],
+              ["test2", "test2"],
             ].map(([value, label]) => (
               <button
                 key={value}
@@ -1526,6 +1562,12 @@ function Matrix({ data, selectedSeriesKey, setSelectedSeriesKey, selectedMonthIn
           <div className="mt-3 grid min-h-0 flex-1 gap-3 overflow-y-auto [scrollbar-color:#e9c349_rgba(255,255,255,0.08)] [scrollbar-width:thin] sm:mt-6 sm:gap-5 sm:pr-1">
             <MonthlyArticleList items={emptySummaryItems} />
           </div>
+        ) : null}
+        {analysisMode === "test1" ? (
+          <TransitAspectList items={sunAspectItems} openKeys={openMonthlyAspectKeys} onToggle={toggleMonthlyAspect} prefix="monthly-sun" />
+        ) : null}
+        {analysisMode === "test2" ? (
+          <TransitAspectList items={marsAspectItems} openKeys={openMonthlyAspectKeys} onToggle={toggleMonthlyAspect} prefix="monthly-mars" />
         ) : null}
       </GlassPanel>
       <MonthlyChart
@@ -1577,6 +1619,51 @@ function MonthlyArticleList({ items, compact = false, emptyText = "" }) {
           )}>{item.body || "作成中"}</p>
         </article>
       ))}
+    </div>
+  );
+}
+
+function TransitAspectList({ items, openKeys, onToggle, prefix }) {
+  return (
+    <div className="mt-6 flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto pr-2 [scrollbar-color:#e9c349_rgba(255,255,255,0.08)] [scrollbar-width:thin] sm:mt-8">
+      {items.length ? (
+        items.map((item) => {
+          const itemKey = `${prefix}-${item.key}-${item.startDate}`;
+          const isOpen = openKeys.has(itemKey);
+          return (
+            <article key={`${prefix}-${item.key}-${item.startDate}`} className="shrink-0 overflow-hidden rounded-2xl border border-white/10 bg-white/[0.035]">
+              <button
+                type="button"
+                className="flex w-full items-start justify-between gap-3 px-3 py-3 text-left sm:gap-4 sm:px-4"
+                aria-expanded={isOpen}
+                onClick={() => onToggle(itemKey)}
+              >
+                <div className="min-w-0">
+                  <p className="font-mono text-[10px] font-bold uppercase tracking-[0.12em] text-gold">
+                    {formatShortPeriod(item.startDate, item.endDate)}
+                  </p>
+                  <p className="mt-2 text-xs font-semibold leading-5 text-mist sm:text-base sm:leading-6">{item.label}</p>
+                </div>
+                <span className={cx(
+                  "mt-1 shrink-0 font-mono text-xs font-bold text-gold transition",
+                  isOpen && "rotate-90"
+                )}>›</span>
+              </button>
+              {isOpen ? (
+                <div className="border-t border-white/10 px-3 pb-4 pt-3 sm:px-4">
+                  <p className="whitespace-pre-line text-[11px] leading-6 text-mist sm:text-sm sm:leading-7">
+                    {item.description || "解釈文がありません。"}
+                  </p>
+                </div>
+              ) : null}
+            </article>
+          );
+        })
+      ) : (
+        <div className="flex min-h-0 flex-1 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.035] p-6 font-mono text-xs font-bold uppercase tracking-[0.18em] text-mist">
+          該当なし
+        </div>
+      )}
     </div>
   );
 }
