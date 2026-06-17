@@ -800,6 +800,11 @@ function interpolatedTransitChart(fromChart, toChart, progress, dateValue, timeV
 
 function setTransitVisualsFromCharts(state, fromChart, toChart, progress) {
   if (!state?.transitVisuals) return;
+  const radii = state.mapRadii || {};
+  const transitPlanetRadius = radii.transitPlanetRadius ?? 3.88;
+  const transitHouseInnerRadius = radii.transitHouseInnerRadius ?? 3.28;
+  const transitOrbitRadius = radii.transitOrbitRadius ?? 4.15;
+  const transitHouseLabelRadius = radii.transitHouseLabelRadius ?? 3.72;
   const fromTransits = chartTransitMap(fromChart);
   const toTransits = chartTransitMap(toChart);
   state.transitVisuals.forEach((visual, planet) => {
@@ -807,7 +812,7 @@ function setTransitVisualsFromCharts(state, fromChart, toChart, progress) {
     const targetLongitude = toTransits.get(planet);
     if (startLongitude === undefined || targetLongitude === undefined) return;
     const longitude = interpolateLongitude(startLongitude, targetLongitude, progress);
-    const position = longitudePosition(longitude, 3.88, visual.baseY);
+    const position = longitudePosition(longitude, transitPlanetRadius, visual.baseY);
     visual.objects.forEach((object) => object.position.copy(position));
     visual.longitude = longitude;
     state.transitPositions.set(planet, position.clone());
@@ -817,14 +822,14 @@ function setTransitVisualsFromCharts(state, fromChart, toChart, progress) {
   if (fromCusps.length >= 12 && toCusps.length >= 12) {
     const currentCusps = fromCusps.map((longitude, index) => interpolateLongitude(longitude, toCusps[index], progress));
     state.transitHouseLines.forEach(({ line, index }) => {
-      const inner = longitudePosition(currentCusps[index], 3.28, -0.03);
-      const outer = longitudePosition(currentCusps[index], 4.15, -0.03);
+      const inner = longitudePosition(currentCusps[index], transitHouseInnerRadius, -0.03);
+      const outer = longitudePosition(currentCusps[index], transitOrbitRadius, -0.03);
       line.geometry.dispose();
       line.geometry = new THREE.BufferGeometry().setFromPoints([inner, outer]);
     });
     state.transitHouseLabels.forEach(({ mesh, index }) => {
       const nextLongitude = currentCusps[(index + 1) % currentCusps.length];
-      setOrbitTextPlaneTransform(mesh, midpointLongitude(currentCusps[index], nextLongitude), 3.72, 0.07);
+      setOrbitTextPlaneTransform(mesh, midpointLongitude(currentCusps[index], nextLongitude), transitHouseLabelRadius, 0.07);
     });
   }
   const hasCheckedAspectTargets = Boolean(
@@ -951,6 +956,27 @@ function applyMapOffset(group, offset, flatView = false) {
     group.position.y = offset.y;
     group.position.z = 0;
   }
+}
+
+function isMobileViewport() {
+  if (typeof window === "undefined") return false;
+  return window.matchMedia?.("(max-width: 639px)").matches ?? window.innerWidth < 640;
+}
+
+function defaultMapZoom() {
+  return isMobileViewport() ? 0.56 : 0.8;
+}
+
+function defaultFlatMapZoom() {
+  return isMobileViewport() ? 0.72 : 1.05;
+}
+
+function minimumMapZoom() {
+  return isMobileViewport() ? 0.38 : 0.52;
+}
+
+function compactDateLabel(value) {
+  return value ? String(value).replaceAll("-", "/") : "--";
 }
 
 function planetTexture(planet) {
@@ -1722,8 +1748,48 @@ function transitPositionLabel(item, houseCusps) {
   return `${ZODIAC_SIGN_NAMES[signIndex]} ${ZODIAC_SIGNS[signIndex]} / ${degreeInSign}° / ${house ? `${house}ハウス` : "-ハウス"}`;
 }
 
+function chartPositionParts(item, houseCusps) {
+  const longitude = normalizeLongitude(item?.longitude) ?? 0;
+  const signIndex = clamp(Math.floor(longitude / 30), 0, 11);
+  const degreeInSign = Math.floor(longitude % 30);
+  const house = houseForLongitude(longitude, houseCusps);
+  return {
+    signName: ZODIAC_SIGN_NAMES[signIndex],
+    signSymbol: ZODIAC_SIGNS[signIndex],
+    degree: `${degreeInSign}°`,
+    house: house ? `${house}ハウス` : "-ハウス",
+  };
+}
+
 function chartPositionLabel(item, houseCusps) {
   return transitPositionLabel(item, houseCusps);
+}
+
+function ChartPositionColumns({ item, houseCusps, className = "" }) {
+  const position = chartPositionParts(item, houseCusps);
+  return (
+    <span className={cx("inline-flex min-w-0 shrink-0 items-center whitespace-nowrap tabular-nums", className)}>
+      <span className="w-[4.25em] text-left">{position.signName} {position.signSymbol}</span>
+      <span className="px-1.5 text-mist/45">/</span>
+      <span className="w-[2.35em] text-right">{position.degree}</span>
+      <span className="px-1.5 text-mist/45">/</span>
+      <span className="w-[3.6em] text-right">{position.house}</span>
+    </span>
+  );
+}
+
+function ChartPositionCompact({ item, houseCusps, className = "" }) {
+  const position = chartPositionParts(item, houseCusps);
+  const houseNumber = position.house.replace("ハウス", "");
+  return (
+    <span className={cx("grid min-w-0 grid-cols-[2.55rem_1.35rem_0.9rem] items-center gap-0.5 whitespace-nowrap tabular-nums", className)}>
+      <span className="min-w-0 truncate text-left">
+        {position.signName} <span className="text-violet-300">{position.signSymbol}</span>
+      </span>
+      <span className="text-right">{position.degree}</span>
+      <span className="text-right">{houseNumber}</span>
+    </span>
+  );
 }
 
 function collectNatalPoints(forecast) {
@@ -1905,6 +1971,7 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
   const aspectLineFocusRef = React.useRef(null);
   const preservedMapViewRef = React.useRef(null);
   const aspectListDragRef = React.useRef(null);
+  const mobileAspectListDragRef = React.useRef(null);
   const [selectedNatalPlanet, setSelectedNatalPlanet] = useState("SUN");
   const [selectedTransitTime, setSelectedTransitTime] = useState(() => currentTenMinuteTime());
   const [transitChart, setTransitChart] = useState(null);
@@ -1921,9 +1988,11 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
   const [transitLayerActive, setTransitLayerActive] = useState(true);
   const [isTransitTableCollapsed, setIsTransitTableCollapsed] = useState(false);
   const [isNatalTableCollapsed, setIsNatalTableCollapsed] = useState(false);
+  const [mobilePlanetTableTab, setMobilePlanetTableTab] = useState("transit");
+  const [mobileMapPanelTab, setMobileMapPanelTab] = useState("display");
   const [isMapControlsMenuOpen, setIsMapControlsMenuOpen] = useState(false);
   const [isMapFullscreen, setIsMapFullscreen] = useState(false);
-  const [mapZoom, setMapZoom] = useState(0.8);
+  const [mapZoom, setMapZoom] = useState(() => defaultMapZoom());
   const [mapOffset, setMapOffset] = useState({ x: -1.15, y: 2.25 });
   const [isRotationPaused, setIsRotationPaused] = useState(false);
   const [isFlatMapView, setIsFlatMapView] = useState(false);
@@ -1937,6 +2006,7 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
   const [openTooltipAspectKeys, setOpenTooltipAspectKeys] = useState(() => new Set());
   const [openAspectInterpretationKeys, setOpenAspectInterpretationKeys] = useState(() => new Set());
   const [aspectListPanelPosition, setAspectListPanelPosition] = useState({ x: 520, y: 104 });
+  const [mobileAspectListPanelPosition, setMobileAspectListPanelPosition] = useState({ x: 10, y: 198 });
   const selectedDate = dateKey(day?.date);
   const displayedTransitDateTime = isTransitPlaybackActive && transitPlaybackCursor
     ? transitPlaybackCursor
@@ -2251,11 +2321,37 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
     fillLight.position.set(-1.5, 2.2, 3.5);
     scene.add(fillLight);
 
+    const isMobileMapCanvas = window.matchMedia?.("(max-width: 639px)").matches ?? window.innerWidth < 640;
+    const mapRadii = {
+      natalOrbitRadius: isMobileMapCanvas ? 1.76 : 2.05,
+      natalHouseInnerRadius: isMobileMapCanvas ? 1.46 : 1.72,
+      natalHouseOuterRadius: isMobileMapCanvas ? 2.92 : 3.28,
+      natalHouseLabelRadius: isMobileMapCanvas ? 2.26 : 2.58,
+      transitHouseInnerRadius: isMobileMapCanvas ? 2.92 : 3.28,
+      transitOrbitRadius: isMobileMapCanvas ? 3.66 : 4.15,
+      transitHouseLabelRadius: isMobileMapCanvas ? 3.28 : 3.72,
+      transitPlanetRadius: isMobileMapCanvas ? 3.42 : 3.88,
+      zodiacOuterRadius: isMobileMapCanvas ? 4.16 : 4.72,
+      zodiacLabelRadius: isMobileMapCanvas ? 3.92 : 4.45,
+    };
+    const {
+      natalOrbitRadius,
+      natalHouseInnerRadius,
+      natalHouseOuterRadius,
+      natalHouseLabelRadius,
+      transitHouseInnerRadius,
+      transitOrbitRadius,
+      transitHouseLabelRadius,
+      transitPlanetRadius,
+      zodiacOuterRadius,
+      zodiacLabelRadius,
+    } = mapRadii;
+
     [
-      { radius: 2.05, color: 0xe9c349, opacity: 0.2 },
-      { radius: 3.28, color: 0xffffff, opacity: 0.08 },
-      { radius: 4.15, color: 0x8bd3ff, opacity: 0.18 },
-      { radius: 4.72, color: 0xe9c349, opacity: 0.12 },
+      { radius: natalOrbitRadius, color: 0xe9c349, opacity: 0.2 },
+      { radius: natalHouseOuterRadius, color: 0xffffff, opacity: 0.08 },
+      { radius: transitOrbitRadius, color: 0x8bd3ff, opacity: 0.18 },
+      { radius: zodiacOuterRadius, color: 0xe9c349, opacity: 0.12 },
     ].forEach((item) => {
       const ring = new THREE.Mesh(
         new THREE.TorusGeometry(item.radius, 0.01, 10, 160),
@@ -2338,8 +2434,8 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
     group.add(earthAtmosphere);
 
     sceneSky.natalHouseCusps.forEach((longitude, index) => {
-      const inner = longitudePosition(longitude, 1.72, -0.03);
-      const outer = longitudePosition(longitude, 3.28, -0.03);
+      const inner = longitudePosition(longitude, natalHouseInnerRadius, -0.03);
+      const outer = longitudePosition(longitude, natalHouseOuterRadius, -0.03);
       const line = new THREE.Line(
         new THREE.BufferGeometry().setFromPoints([inner, outer]),
         new THREE.LineBasicMaterial({
@@ -2362,7 +2458,7 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
         glowBlur: index === 0 ? 34 : 28,
       });
       textures.push(texture);
-      setOrbitTextPlaneTransform(mesh, midpointLongitude(longitude, nextLongitude), 2.58, 0.07);
+      setOrbitTextPlaneTransform(mesh, midpointLongitude(longitude, nextLongitude), natalHouseLabelRadius, 0.07);
       natalHouseLabels.push({
         mesh,
         brightOpacity: index === 0 ? 0.98 : 0.84,
@@ -2371,8 +2467,8 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
       group.add(mesh);
     });
     sceneSky.transitHouseCusps.forEach((longitude, index) => {
-      const inner = longitudePosition(longitude, 3.28, -0.03);
-      const outer = longitudePosition(longitude, 4.15, -0.03);
+      const inner = longitudePosition(longitude, transitHouseInnerRadius, -0.03);
+      const outer = longitudePosition(longitude, transitOrbitRadius, -0.03);
       const line = new THREE.Line(
         new THREE.BufferGeometry().setFromPoints([inner, outer]),
         new THREE.LineBasicMaterial({
@@ -2400,7 +2496,7 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
         glowBlur: 14,
       });
       textures.push(texture);
-      setOrbitTextPlaneTransform(mesh, midpointLongitude(longitude, nextLongitude), 3.72, 0.07);
+      setOrbitTextPlaneTransform(mesh, midpointLongitude(longitude, nextLongitude), transitHouseLabelRadius, 0.07);
       transitHouseLabels.push({
         mesh,
         index,
@@ -2410,8 +2506,8 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
     });
     for (let index = 0; index < 12; index += 1) {
       const longitude = index * 30;
-      const inner = longitudePosition(longitude, 4.15, -0.03);
-      const outer = longitudePosition(longitude, 4.72, -0.03);
+      const inner = longitudePosition(longitude, transitOrbitRadius, -0.03);
+      const outer = longitudePosition(longitude, zodiacOuterRadius, -0.03);
       const line = new THREE.Line(
         new THREE.BufferGeometry().setFromPoints([inner, outer]),
         new THREE.LineBasicMaterial({
@@ -2434,12 +2530,12 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
         glowBlur: 22,
       });
       textures.push(texture);
-      setOrbitTextPlaneTransform(mesh, index * 30 + 15, 4.45, 0.05);
+      setOrbitTextPlaneTransform(mesh, index * 30 + 15, zodiacLabelRadius, 0.05);
       group.add(mesh);
     });
     [
-      { label: "ネイタル天体", longitude: 262, radius: 2.05, color: "#e9c349", opacity: 0.74 },
-      { label: "現行天体", longitude: 262, radius: 4.15, color: "#8bd3ff", opacity: 0.72 },
+      { label: "ネイタル天体", longitude: 262, radius: natalOrbitRadius, color: "#e9c349", opacity: 0.74 },
+      { label: "現行天体", longitude: 262, radius: transitOrbitRadius, color: "#8bd3ff", opacity: 0.72 },
     ].forEach((item) => {
       const { mesh, texture } = orbitTextPlane(item.label, {
         color: item.color,
@@ -2469,7 +2565,7 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
     });
 
     sceneSky.natalPoints.forEach((point, index) => {
-      const position = longitudePosition(point.longitude, 2.05, 0.42 + (index % 2) * 0.16);
+      const position = longitudePosition(point.longitude, natalOrbitRadius, 0.42 + (index % 2) * 0.16);
       const texture = planetTexture(point.planet);
       textures.push(texture);
       const material = new THREE.MeshStandardMaterial({
@@ -2523,7 +2619,7 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
     });
 
     sceneSky.transits.forEach((item, index) => {
-      const position = longitudePosition(item.longitude, 3.88, (index % 2) * 0.18);
+      const position = longitudePosition(item.longitude, transitPlanetRadius, (index % 2) * 0.18);
       transitPositions.set(item.planet, position.clone());
       const transitVisual = {
         longitude: item.longitude,
@@ -2756,6 +2852,7 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
       transitLayerLabels,
       transitPositions,
       transitVisuals,
+      mapRadii,
       aspectGroup,
       selectedPulseMesh: null,
       selectedPulseBaseScale: 1,
@@ -3231,6 +3328,32 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
     aspectListDragRef.current = null;
     event.currentTarget.releasePointerCapture?.(event.pointerId);
   };
+  const beginMobileAspectListDrag = (event) => {
+    if (event.button !== 0) return;
+    const rect = frameRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    mobileAspectListDragRef.current = {
+      offsetX: event.clientX - rect.left - mobileAspectListPanelPosition.x,
+      offsetY: event.clientY - rect.top - mobileAspectListPanelPosition.y,
+    };
+    event.currentTarget.setPointerCapture?.(event.pointerId);
+  };
+  const moveMobileAspectListPanel = (event) => {
+    const drag = mobileAspectListDragRef.current;
+    const frame = frameRef.current;
+    if (!drag || !frame) return;
+    const rect = frame.getBoundingClientRect();
+    const panelWidth = Math.min(330, Math.max(280, rect.width - 24));
+    const panelHeight = 300;
+    setMobileAspectListPanelPosition({
+      x: clamp(event.clientX - rect.left - drag.offsetX, 8, Math.max(8, rect.width - panelWidth - 8)),
+      y: clamp(event.clientY - rect.top - drag.offsetY, 48, Math.max(48, rect.height - panelHeight - 8)),
+    });
+  };
+  const endMobileAspectListDrag = (event) => {
+    mobileAspectListDragRef.current = null;
+    event.currentTarget.releasePointerCapture?.(event.pointerId);
+  };
   const commitTransitPlaybackPosition = (cursor) => {
     preserveCurrentMapView();
     if (!cursor?.date || !cursor?.time) {
@@ -3328,14 +3451,14 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
       setIsMapFullscreen(false);
     }
   };
-  const zoomOutMap = () => setMapZoom((value) => clamp(Number((value - 0.08).toFixed(2)), 0.52, 1.35));
-  const zoomInMap = () => setMapZoom((value) => clamp(Number((value + 0.08).toFixed(2)), 0.52, 1.35));
+  const zoomOutMap = () => setMapZoom((value) => clamp(Number((value - 0.08).toFixed(2)), minimumMapZoom(), 1.35));
+  const zoomInMap = () => setMapZoom((value) => clamp(Number((value + 0.08).toFixed(2)), minimumMapZoom(), 1.35));
   const toggleFlatMapView = () => {
     const state = sceneStateRef.current;
     const nextFlatView = !isFlatMapView;
     setIsFlatMapView(nextFlatView);
     setIsRotationPaused(nextFlatView);
-    setMapZoom(nextFlatView ? 1.05 : 0.8);
+    setMapZoom(nextFlatView ? defaultFlatMapZoom() : defaultMapZoom());
     setMapOffset(nextFlatView ? { x: 0, y: 0 } : { x: -1.15, y: 2.25 });
     if (!state?.camera || !state?.group) return;
     state.hasManualTilt = nextFlatView;
@@ -3365,14 +3488,165 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
           }}
         >
           <div ref={mountRef} className="absolute inset-0" aria-label="現行天体とネイタル天体の3Dマップ" />
-          <div className="absolute right-3 top-3 z-20 flex items-center gap-1.5 rounded-xl border border-white/10 bg-[#121414]/72 p-1 shadow-[0_10px_26px_rgba(0,0,0,0.28)] backdrop-blur sm:right-4 sm:top-4">
+          <div className="absolute left-2 top-2 z-30 grid gap-1 text-shadow-sm sm:hidden">
+            <div className="flex items-center gap-0.5">
+              <span className="relative inline-flex h-7 w-[82px] items-center rounded-md border border-transparent bg-transparent px-1 font-mono text-[10px] font-semibold text-starlight transition hover:border-white/10 hover:bg-[#121414]/40 focus-within:border-gold/50 focus-within:bg-[#121414]/70 focus-within:ring-2 focus-within:ring-gold/25">
+                <span className="pointer-events-none">{compactDateLabel(displayedTransitDateTime.date)}</span>
+                <input
+                  type="date"
+                  value={displayedTransitDateTime.date || ""}
+                  min={minSelectableDate || undefined}
+                  max={maxSelectableDate || undefined}
+                  onChange={handleTransitDateChange}
+                  onClick={(event) => event.currentTarget.showPicker?.()}
+                  disabled={!onSelectDayIndex}
+                  className="absolute inset-0 h-full w-full cursor-pointer appearance-none opacity-0 [color-scheme:dark] disabled:pointer-events-none [&::-webkit-calendar-picker-indicator]:hidden [&::-webkit-calendar-picker-indicator]:appearance-none"
+                  aria-label="現行天体の計算日"
+                  title="日付を選択"
+                />
+              </span>
+              <select
+                value={displayedTransitDateTime.time || selectedTransitTime}
+                onChange={(event) => {
+                  setIsTransitPlaybackActive(false);
+                  setTransitPlaybackCursor(null);
+                  setPlaybackTransitChart(null);
+                  setSelectedTransitTime(event.target.value);
+                }}
+                className="h-7 w-[66px] rounded-md border border-white/10 bg-[#121414]/70 px-1 font-mono text-[10px] font-bold text-starlight outline-none transition [color-scheme:dark] focus:border-gold/50 focus:ring-2 focus:ring-gold/25"
+                aria-label="現行天体の計算時刻"
+                title="現行天体の計算時刻"
+              >
+                {timeOptions.map((time) => (
+                  <option key={time} value={time}>{time}</option>
+                ))}
+              </select>
+              {transitChartLoading ? (
+                <span className="font-mono text-[9px] font-bold text-mist/70">計算中</span>
+              ) : null}
+            </div>
+            <div className="inline-flex w-max items-center gap-1 rounded-xl border border-white/10 bg-[#121414]/72 p-1 shadow-[0_10px_26px_rgba(0,0,0,0.28)] backdrop-blur">
+              <button type="button" onClick={zoomOutMap} disabled={mapZoom <= minimumMapZoom()} className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-mist transition hover:bg-white/10 hover:text-gold disabled:opacity-35" aria-label="3Dマップを縮小" title="縮小"><Minus size={15} /></button>
+              <button type="button" onClick={zoomInMap} disabled={mapZoom >= 1.35} className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-mist transition hover:bg-white/10 hover:text-gold disabled:opacity-35" aria-label="3Dマップを拡大" title="拡大"><Plus size={15} /></button>
+              <button type="button" onClick={() => setIsRotationPaused((value) => !value)} className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-mist transition hover:bg-white/10 hover:text-gold" aria-label={isRotationPaused ? "3Dマップの回転を再開" : "3Dマップの回転を停止"} title={isRotationPaused ? "回転再開" : "回転停止"}>{isRotationPaused ? <Play size={14} /> : <Pause size={14} />}</button>
+              <button type="button" onClick={toggleFlatMapView} className="inline-flex h-8 w-8 items-center justify-center rounded-lg font-mono text-[9px] font-bold text-mist transition hover:bg-white/10 hover:text-gold" aria-label={isFlatMapView ? "3Dマップを立体表示に戻す" : "3Dマップを平面表示で見る"} title={isFlatMapView ? "3D表示" : "平面表示"}>{isFlatMapView ? "3D" : "2D"}</button>
+            </div>
+          </div>
+          <div className="absolute right-2 top-2 z-30 sm:hidden">
+            <button type="button" onClick={toggleMapFullscreen} className="inline-flex h-8 w-8 items-center justify-center rounded-xl border border-white/10 bg-[#121414]/72 text-mist shadow-[0_10px_26px_rgba(0,0,0,0.28)] backdrop-blur transition hover:bg-white/10 hover:text-gold" aria-label={isMapFullscreen ? "3Dマップの全画面を閉じる" : "3Dマップを全画面で表示"} title={isMapFullscreen ? "全画面を閉じる" : "全画面"}>{isMapFullscreen ? <Minimize2 size={15} /> : <Maximize2 size={15} />}</button>
+          </div>
+          <div className="absolute bottom-2 right-2 z-30 sm:hidden">
+            <button
+              type="button"
+              onClick={() => setIsAspectListPanelOpen((value) => !value)}
+              className={cx(
+                "inline-flex h-9 items-center gap-1 rounded-xl border px-2 font-mono text-[9px] font-bold shadow-[0_10px_26px_rgba(0,0,0,0.28)] backdrop-blur transition",
+                isAspectListPanelOpen ? "border-gold/35 bg-gold/15 text-gold" : "border-white/10 bg-[#121414]/72 text-mist hover:bg-white/10 hover:text-gold"
+              )}
+              aria-expanded={isAspectListPanelOpen}
+              aria-controls="mobile-aspect-interpretation-panel"
+            >
+              <span>{isAspectListPanelOpen ? "<<" : ">>"}</span>
+              <span>アスペクト一覧</span>
+            </button>
+          </div>
+          <div
+            id="mobile-aspect-interpretation-panel"
+            className={cx(
+              "absolute z-30 max-h-[300px] overflow-hidden rounded-xl border border-white/10 bg-[#121414]/48 p-2 font-mono text-[9px] font-bold text-mist shadow-[0_18px_42px_rgba(0,0,0,0.24)] backdrop-blur-sm transition-opacity duration-300 sm:hidden",
+              isAspectListPanelOpen ? "opacity-100" : "pointer-events-none border-transparent opacity-0"
+            )}
+            style={{
+              left: `${mobileAspectListPanelPosition.x}px`,
+              top: `${mobileAspectListPanelPosition.y}px`,
+              width: "min(330px, calc(100% - 24px))",
+            }}
+            aria-hidden={!isAspectListPanelOpen}
+          >
+            <div
+              className="mb-2 flex cursor-move touch-none select-none items-center justify-between gap-2 rounded-lg border border-white/10 bg-white/[0.055] px-2.5 py-1.5 text-starlight"
+              onPointerDown={beginMobileAspectListDrag}
+              onPointerMove={moveMobileAspectListPanel}
+              onPointerUp={endMobileAspectListDrag}
+              onPointerCancel={endMobileAspectListDrag}
+              title="ドラッグで移動"
+            >
+              <span className="text-[10px]">アスペクト解釈</span>
+              <Move size={13} className="shrink-0 text-mist/65" aria-hidden="true" />
+            </div>
+            <div className="mb-2 grid grid-cols-3 gap-1 rounded-lg border border-white/10 bg-white/[0.025] p-1">
+              {[
+                ["all", "両方"],
+                ["transitNatal", "現行×ネイタル"],
+                ["transitTransit", "現行×現行"],
+              ].map(([value, label]) => (
+                <button
+                  key={`mobile-map-interpretation-${value}`}
+                  type="button"
+                  onClick={() => setAspectInterpretationScope(value)}
+                  className={cx("h-7 rounded-md px-1 text-[8px] transition", aspectInterpretationScope === value ? "bg-gold/18 text-gold ring-1 ring-gold/35" : "text-mist/65 hover:bg-white/10 hover:text-starlight")}
+                  aria-pressed={aspectInterpretationScope === value}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+            <div className="grid max-h-[244px] grid-cols-[24px_1fr] gap-2 overflow-y-auto pr-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+              <div className="flex self-stretch flex-col gap-0">
+                <p className="shrink-0 text-center text-[7px] leading-none text-mist/65">影響度</p>
+                <div className="relative flex min-h-0 flex-1 flex-col items-center justify-between rounded-full bg-gradient-to-b from-[#ff5c68] via-gold/45 to-white/10 py-0 text-[7px] leading-none text-gold shadow-[0_0_14px_rgba(255,92,104,0.22)]">
+                  <span className="writing-mode-vertical-rl [writing-mode:vertical-rl] text-[#ffb4ab]">高</span>
+                  <span className="writing-mode-vertical-rl [writing-mode:vertical-rl] text-mist/55">低</span>
+                </div>
+              </div>
+              <div className="grid gap-1.5">
+                {aspectInterpretationItems.length ? aspectInterpretationItems.map((aspect) => {
+                  const isOpen = openAspectInterpretationKeys.has(aspect.key);
+                  const toneClass = aspect.importance.tone === "high"
+                    ? "border-gold/35 bg-gold/[0.09] text-gold"
+                    : aspect.importance.tone === "mid"
+                      ? "border-sky-300/25 bg-sky-300/[0.07] text-sky-100"
+                      : "border-white/10 bg-white/[0.025] text-mist/70";
+                  return (
+                    <article key={`mobile-map-${aspect.key}`} className="overflow-hidden rounded-lg border border-white/10 bg-white/[0.025] backdrop-blur-[2px]">
+                      <button
+                        type="button"
+                        onClick={() => toggleAspectInterpretation(aspect.key)}
+                        className="flex w-full items-start gap-2 px-2.5 py-2 text-left transition hover:bg-white/[0.035] focus:outline-none focus:ring-2 focus:ring-gold/35"
+                        aria-expanded={isOpen}
+                      >
+                        <span className="mt-1 h-2.5 w-1.5 shrink-0 rounded-full" style={{ backgroundColor: aspect.color }} />
+                        <span className="min-w-0 flex-1">
+                          <span className="flex min-w-0 items-center gap-1.5">
+                            <span className="min-w-0 truncate text-[10px] text-starlight">{aspect.title}</span>
+                            <span className="shrink-0 rounded border border-white/10 bg-white/[0.035] px-1.5 py-0.5 text-[7px] text-mist/60">{aspect.scopeLabel}</span>
+                          </span>
+                          <span className="mt-0.5 block text-[8px] leading-4 text-mist/60">
+                            実角度 {Number.isFinite(aspect.liveAngle) ? aspect.liveAngle.toFixed(1) : "-"}°
+                            {Number.isFinite(aspect.orb) ? ` / オーブ ${aspect.orb.toFixed(2)}°` : ""}
+                            {aspect.status ? ` / ${aspect.status}` : ""}
+                          </span>
+                        </span>
+                        <span className="shrink-0 text-right">
+                          <span className={cx("inline-flex rounded border px-1.5 py-0.5 text-[8px]", toneClass)}>{aspect.importance.label}</span>
+                          <span className="mt-1 block text-[8px] text-mist/60">{isOpen ? "閉じる" : "解釈"}</span>
+                        </span>
+                      </button>
+                      {isOpen ? <p className="border-t border-white/10 bg-white/[0.025] px-3 py-3 text-xs font-medium leading-6 text-mist">{aspect.description}</p> : null}
+                    </article>
+                  );
+                }) : <p className="rounded-lg border border-white/10 bg-white/[0.035] px-3 py-4 text-xs leading-6 text-mist">このタイミングの主要アスペクトはありません。</p>}
+              </div>
+            </div>
+          </div>
+          <div className="absolute right-4 top-4 z-30 hidden items-center gap-1.5 rounded-xl border border-white/10 bg-[#121414]/72 p-1 shadow-[0_10px_26px_rgba(0,0,0,0.28)] backdrop-blur sm:flex">
             <button
               type="button"
               onClick={zoomOutMap}
               className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-mist transition hover:bg-white/10 hover:text-gold focus:outline-none focus:ring-2 focus:ring-gold/45 disabled:cursor-not-allowed disabled:opacity-35"
               aria-label="3Dマップを縮小"
               title="縮小"
-              disabled={mapZoom <= 0.52}
+                  disabled={mapZoom <= minimumMapZoom()}
             >
               <Minus size={16} />
             </button>
@@ -3416,7 +3690,7 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
           </div>
           <div
             className={cx(
-              "absolute right-3 top-16 z-20 grid justify-items-end gap-1.5 sm:right-4 sm:top-16"
+              "absolute right-4 top-16 z-30 hidden justify-items-end gap-1.5 sm:grid"
             )}
           >
             <div className="flex items-start gap-1.5">
@@ -3725,11 +3999,14 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
                           >
                             <span className="mt-1 h-2.5 w-1.5 shrink-0 rounded-full" style={{ backgroundColor: aspect.color }} />
                             <span className="min-w-0 flex-1">
-                              <span className="block truncate text-[10px] text-starlight sm:text-[11px]">{aspect.title}</span>
+                              <span className="flex min-w-0 items-center gap-1.5">
+                                <span className="min-w-0 truncate text-[10px] text-starlight sm:text-[11px]">{aspect.title}</span>
+                                <span className="shrink-0 rounded border border-white/10 bg-white/[0.035] px-1.5 py-0.5 text-[7px] text-mist/60 sm:text-[8px]">{aspect.scopeLabel}</span>
+                              </span>
                               <span className="mt-0.5 block text-[8px] leading-4 text-mist/60">
-                                {aspect.scopeLabel} / {aspect.angle}°
-                                {Number.isFinite(aspect.liveAngle) ? ` / 実角度 ${aspect.liveAngle.toFixed(1)}°` : ""}
+                                実角度 {Number.isFinite(aspect.liveAngle) ? aspect.liveAngle.toFixed(1) : "-"}°
                                 {Number.isFinite(aspect.orb) ? ` / オーブ ${aspect.orb.toFixed(2)}°` : ""}
+                                {aspect.status ? ` / ${aspect.status}` : ""}
                               </span>
                             </span>
                             <span className="shrink-0 text-right">
@@ -3754,7 +4031,7 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
               </div>
             </div>
           </div>
-          <div className="absolute left-3 top-3 z-20 flex items-center gap-2 text-shadow-sm sm:left-4 sm:top-4">
+          <div className="absolute left-4 top-4 z-20 hidden items-center gap-2 text-shadow-sm sm:flex">
             <p className="font-mono text-[9px] font-bold uppercase tracking-[0.16em] text-gold">Transit Sky</p>
             <input
               type="date"
@@ -3787,7 +4064,7 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
               <span className="pointer-events-none font-mono text-[9px] font-bold text-mist/70">計算中</span>
             ) : null}
           </div>
-          <div className="pointer-events-none absolute left-3 top-12 z-10 w-[min(470px,calc(100%-24px))] space-y-2 sm:left-4 sm:top-12 sm:w-[490px]">
+          <div className="pointer-events-none absolute left-4 top-12 z-10 hidden w-[490px] space-y-2 sm:block">
             <button
               type="button"
               onClick={() => setIsMapControlsMenuOpen((value) => !value)}
@@ -3813,9 +4090,31 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
               )}
               aria-hidden={!isMapControlsMenuOpen}
             >
+            <div className="pointer-events-auto grid grid-cols-2 gap-1 rounded-xl border border-white/10 bg-[#121414]/72 p-1 font-mono text-[9px] font-bold sm:hidden">
+              {[
+                ["transit", "現行天体"],
+                ["natal", "ネイタル天体"],
+              ].map(([value, label]) => (
+                <button
+                  key={value}
+                  type="button"
+                  onClick={() => setMobilePlanetTableTab(value)}
+                  className={cx(
+                    "h-8 rounded-lg transition",
+                    mobilePlanetTableTab === value
+                      ? "bg-gold/18 text-gold ring-1 ring-gold/35"
+                      : "text-mist/65 hover:bg-white/10 hover:text-starlight"
+                  )}
+                  aria-pressed={mobilePlanetTableTab === value}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
             <div
               className={cx(
-                "rounded-xl border p-2 backdrop-blur-md transition sm:p-2.5",
+                "rounded-xl border p-2 backdrop-blur-md transition sm:block sm:p-2.5",
+                mobilePlanetTableTab !== "transit" && "hidden",
                 isTransitTableCollapsed && "w-fit",
                 transitLayerActive
                   ? "border-white/10 bg-[#121414]/78"
@@ -3868,7 +4167,7 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
                   <div
                     id="transit-planet-table"
                     className={cx(
-                      "mt-1.5 grid gap-1.5 font-mono text-[9px] font-bold transition sm:grid-cols-2 sm:gap-1.5 sm:text-[10px]",
+                      "mt-1.5 grid grid-cols-2 gap-1.5 font-mono text-[9px] font-bold transition sm:grid-cols-2 sm:gap-1.5 sm:text-[10px]",
                       transitLayerActive ? "text-mist opacity-100" : "text-mist/25"
                     )}
                   >
@@ -3878,7 +4177,7 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
                         <div
                           key={item.planet}
                           className={cx(
-                            "flex min-w-0 items-center gap-1.5 rounded-md border px-2 py-1.5 transition",
+                            "grid min-w-0 grid-cols-[0.5rem_2.35rem_minmax(0,1fr)] items-center gap-1.5 rounded-md border px-2 py-1.5 transition sm:grid-cols-[0.5rem_3rem_minmax(0,1fr)]",
                             isFocusedTransitRow
                               ? "border-sky-200/45 bg-sky-200/[0.11] text-starlight shadow-[0_0_18px_rgba(139,211,255,0.14)]"
                               : transitLayerActive ? "border-white/10 bg-white/[0.035]" : "border-white/[0.035] bg-white/[0.006]"
@@ -3892,8 +4191,12 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
                               opacity: isFocusedTransitRow || transitLayerActive ? 1 : 0.18,
                             }}
                           />
-                          <span className="w-12 shrink-0 truncate">{item.label}</span>
-                          <span className={cx("shrink-0 text-[8px] sm:text-[9px]", isFocusedTransitRow ? "text-starlight" : transitLayerActive ? "text-mist/70" : "text-mist/25")}>{chartPositionLabel(item, tableSky.transitHouseCusps)}</span>
+                          <span className="min-w-0 truncate text-left">{item.label}</span>
+                          <ChartPositionColumns
+                            item={item}
+                            houseCusps={tableSky.transitHouseCusps}
+                            className={cx("text-[8px] sm:text-[9px]", isFocusedTransitRow ? "text-starlight" : transitLayerActive ? "text-mist/70" : "text-mist/25")}
+                          />
                         </div>
                       );
                     })}
@@ -3903,7 +4206,8 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
             </div>
             <div
               className={cx(
-                "rounded-xl border p-2 backdrop-blur-md transition sm:p-2.5",
+                "rounded-xl border p-2 backdrop-blur-md transition sm:block sm:p-2.5",
+                mobilePlanetTableTab !== "natal" && "hidden",
                 isNatalTableCollapsed && "w-fit",
                 natalLayerActive
                   ? "border-gold/20 bg-[#121414]/76 shadow-[0_0_22px_rgba(233,195,73,0.08)]"
@@ -3956,7 +4260,7 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
                   <div
                     id="natal-planet-table"
                     className={cx(
-                      "mt-1.5 grid gap-1.5 font-mono text-[9px] font-bold sm:grid-cols-2 sm:gap-1.5 sm:text-[10px]",
+                      "mt-1.5 grid grid-cols-2 gap-1.5 font-mono text-[9px] font-bold sm:grid-cols-2 sm:gap-1.5 sm:text-[10px]",
                       natalLayerActive ? "text-mist" : "text-mist/25"
                     )}
                   >
@@ -3966,7 +4270,7 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
                         <div
                           key={item.planet}
                           className={cx(
-                            "flex min-w-0 items-center gap-1.5 rounded-md border px-2 py-1.5 transition",
+                            "grid min-w-0 grid-cols-[0.5rem_2.35rem_minmax(0,1fr)] items-center gap-1.5 rounded-md border px-2 py-1.5 transition sm:grid-cols-[0.5rem_3rem_minmax(0,1fr)]",
                             shouldHighlightNatalRow
                               ? "border-gold/45 bg-gold/[0.12] text-starlight shadow-[0_0_18px_rgba(233,195,73,0.14)]"
                               : natalLayerActive ? "border-white/10 bg-white/[0.035]" : "border-white/[0.035] bg-white/[0.006]"
@@ -3980,8 +4284,12 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
                               opacity: shouldHighlightNatalRow || natalLayerActive ? 1 : 0.18,
                             }}
                           />
-                          <span className="w-12 shrink-0 truncate">{planetLabel(item.planet)}</span>
-                          <span className={cx("shrink-0 text-[8px] sm:text-[9px]", shouldHighlightNatalRow ? "text-starlight" : natalLayerActive ? "text-mist/70" : "text-mist/25")}>{chartPositionLabel(item, sky.natalHouseCusps)}</span>
+                          <span className="min-w-0 truncate text-left">{planetLabel(item.planet)}</span>
+                          <ChartPositionColumns
+                            item={item}
+                            houseCusps={sky.natalHouseCusps}
+                            className={cx("text-[8px] sm:text-[9px]", shouldHighlightNatalRow ? "text-starlight" : natalLayerActive ? "text-mist/70" : "text-mist/25")}
+                          />
                         </div>
                       );
                     })}
@@ -3993,7 +4301,7 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
           </div>
           {aspectTooltip ? (
             <div
-              className="absolute right-5 top-[42%] z-30 w-[min(520px,calc(100%-40px))] -translate-y-1/2 rounded-2xl border border-gold/25 bg-[#121414]/86 p-4 shadow-[0_22px_54px_rgba(0,0,0,0.48)] backdrop-blur-md sm:right-8 sm:p-5 lg:right-12 xl:right-16"
+              className="absolute right-5 top-[42%] z-30 hidden w-[min(520px,calc(100%-40px))] -translate-y-1/2 rounded-2xl border border-gold/25 bg-[#121414]/86 p-4 shadow-[0_22px_54px_rgba(0,0,0,0.48)] backdrop-blur-md sm:block sm:right-8 sm:p-5 lg:right-12 xl:right-16"
             >
               <button
                 type="button"
@@ -4048,17 +4356,197 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
               </div>
             </div>
           ) : null}
-          {!sky.hasPreciseData ? (
-            <p className="pointer-events-none absolute bottom-3 left-3 z-10 max-w-[320px] text-[10px] leading-5 text-mist/70 sm:bottom-4 sm:left-4">
-              一部はデモ表示用の推定位置です。API計算後は黄経データで描画されます。
-            </p>
-          ) : null}
           {transitChartError ? (
             <p className="pointer-events-none absolute bottom-3 right-3 z-10 max-w-[360px] text-right text-[10px] leading-5 text-rose-200/80 sm:bottom-4 sm:right-4">
               {transitChartError}
             </p>
           ) : null}
         </div>
+        <section className="-mx-3 grid gap-3 rounded-2xl border border-white/10 bg-[#121414]/76 p-2 shadow-[0_18px_42px_rgba(0,0,0,0.28)] backdrop-blur-md sm:hidden">
+          <div className="grid grid-cols-3 gap-1 rounded-xl border border-white/10 bg-white/[0.035] p-1 font-mono text-[8px] font-bold text-mist">
+            {[
+              ["display", "表示"],
+              ["play", "再生"],
+              ["aspect", "アスペクト"],
+            ].map(([value, label]) => (
+              <button
+                key={value}
+                type="button"
+                onClick={() => setMobileMapPanelTab(value)}
+                className={cx(
+                  "h-8 rounded-lg transition",
+                  mobileMapPanelTab === value ? "bg-gold/18 text-gold ring-1 ring-gold/35" : "hover:bg-white/10 hover:text-starlight"
+                )}
+                aria-pressed={mobileMapPanelTab === value}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+
+          {mobileMapPanelTab === "display" ? (
+            <div className="grid gap-2">
+              <div className="grid grid-cols-2 gap-1 rounded-xl border border-white/10 bg-white/[0.025] p-1 font-mono text-[9px] font-bold">
+                {[
+                  ["transit", "現行天体"],
+                  ["natal", "ネイタル天体"],
+                ].map(([value, label]) => (
+                  <button
+                    key={value}
+                    type="button"
+                    onClick={() => setMobilePlanetTableTab(value)}
+                    className={cx(
+                      "h-8 rounded-lg transition",
+                      mobilePlanetTableTab === value ? "bg-gold/18 text-gold ring-1 ring-gold/35" : "text-mist/65 hover:bg-white/10 hover:text-starlight"
+                    )}
+                    aria-pressed={mobilePlanetTableTab === value}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+              {mobilePlanetTableTab === "transit" ? (
+                <div className="rounded-xl border border-white/10 bg-white/[0.025] p-1.5">
+                  <button
+                    type="button"
+                    onClick={() => setTransitLayerActive((value) => !value)}
+                    className={cx("mb-2 inline-flex items-center gap-1.5 font-mono text-[9px] font-bold", transitLayerActive ? "text-gold/80" : "text-mist/45")}
+                    aria-pressed={transitLayerActive}
+                  >
+                    {transitLayerActive ? <Eye size={13} /> : <EyeOff size={13} />}
+                    現行天体
+                  </button>
+                  <div className="mb-1 grid grid-cols-[0.5rem_2.45rem_2.55rem_1.35rem_0.9rem] items-center gap-0.5 px-1 font-mono text-[8px] font-bold text-mist/45">
+                    <span />
+                    <span>天体</span>
+                    <span>星座</span>
+                    <span className="text-right">度数</span>
+                    <span className="text-right">室</span>
+                  </div>
+                  <div className={cx("grid grid-cols-2 gap-1 font-mono text-[9px] font-bold", transitLayerActive ? "text-mist" : "text-mist/25")}>
+                    {tableSky.transits.map((item) => {
+                      const isFocusedTransitRow = focusedTransitPlanets.has(item.planet);
+                      return (
+                        <div
+                          key={`mobile-transit-${item.planet}`}
+                          className={cx(
+                            "grid min-w-0 grid-cols-[0.5rem_2.45rem_min-content] items-center gap-0.5 rounded-md border px-1 py-1.5",
+                            isFocusedTransitRow ? "border-sky-200/45 bg-sky-200/[0.11] text-starlight" : "border-white/10 bg-white/[0.035]"
+                          )}
+                        >
+                          <span className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: item.color, opacity: isFocusedTransitRow || transitLayerActive ? 1 : 0.18 }} />
+                          <span className="min-w-0 truncate text-left">{item.label}</span>
+                          <ChartPositionCompact item={item} houseCusps={tableSky.transitHouseCusps} className="min-w-0 text-[8px]" />
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              ) : (
+                <div className="rounded-xl border border-white/10 bg-white/[0.025] p-1.5">
+                  <button
+                    type="button"
+                    onClick={() => setNatalLayerActive((value) => !value)}
+                    className={cx("mb-2 inline-flex items-center gap-1.5 font-mono text-[9px] font-bold", natalLayerActive ? "text-gold" : "text-mist/55")}
+                    aria-pressed={natalLayerActive}
+                  >
+                    {natalLayerActive ? <Eye size={13} /> : <EyeOff size={13} />}
+                    ネイタル天体
+                  </button>
+                  <div className="mb-1 grid grid-cols-[0.5rem_2.45rem_2.55rem_1.35rem_0.9rem] items-center gap-0.5 px-1 font-mono text-[8px] font-bold text-mist/45">
+                    <span />
+                    <span>天体</span>
+                    <span>星座</span>
+                    <span className="text-right">度数</span>
+                    <span className="text-right">室</span>
+                  </div>
+                  <div className={cx("grid grid-cols-2 gap-1 font-mono text-[9px] font-bold", natalLayerActive ? "text-mist" : "text-mist/25")}>
+                    {sky.natalPoints.map((item) => {
+                      const shouldHighlightNatalRow = focusedNatalPlanets.has(item.planet);
+                      return (
+                        <div
+                          key={`mobile-natal-${item.planet}`}
+                          className={cx(
+                            "grid min-w-0 grid-cols-[0.5rem_2.45rem_min-content] items-center gap-0.5 rounded-md border px-1 py-1.5",
+                            shouldHighlightNatalRow ? "border-gold/45 bg-gold/[0.12] text-starlight" : "border-white/10 bg-white/[0.035]"
+                          )}
+                        >
+                          <span className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: item.color, opacity: shouldHighlightNatalRow || natalLayerActive ? 1 : 0.18 }} />
+                          <span className="min-w-0 truncate text-left">{planetLabel(item.planet)}</span>
+                          <ChartPositionCompact item={item} houseCusps={sky.natalHouseCusps} className="min-w-0 text-[8px]" />
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
+          ) : null}
+
+          {mobileMapPanelTab === "play" ? (
+            <div className="grid gap-2 font-mono text-[9px] font-bold">
+              <button
+                type="button"
+                onClick={toggleTransitPlayback}
+                className={cx("h-10 rounded-xl border transition disabled:cursor-wait disabled:opacity-70", isTransitPlaybackActive ? "border-gold/35 bg-gold/15 text-gold" : "border-white/10 bg-white/[0.035] text-cyan-200/85")}
+                disabled={isTransitPlaybackPreloading}
+              >
+                {isTransitPlaybackPreloading ? "読込中" : isTransitPlaybackActive ? "停止" : "▶ 再生"}
+              </button>
+              <div className="grid grid-cols-2 gap-2">
+                <div className="rounded-xl border border-white/10 bg-white/[0.025] p-2">
+                  <p className="mb-1 text-[8px] text-mist/70">期間</p>
+                  <div className="grid grid-cols-2 gap-1">
+                    {TRANSIT_PLAYBACK_RANGE_OPTIONS.map((option) => (
+                      <button
+                        key={option.key}
+                        type="button"
+                        onClick={() => setTransitPlaybackRange(option.key)}
+                        className={cx("h-8 rounded-lg border", transitPlaybackRange === option.key ? "border-gold/40 bg-gold/15 text-gold" : "border-white/10 text-mist/70")}
+                        disabled={isTransitPlaybackActive || isTransitPlaybackPreloading}
+                      >
+                        {option.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div className="rounded-xl border border-white/10 bg-white/[0.025] p-2">
+                  <p className="mb-1 text-[8px] text-mist/70">速度</p>
+                  <div className="grid grid-cols-2 gap-1">
+                    {TRANSIT_PLAYBACK_STEP_OPTIONS.map((option) => (
+                      <button
+                        key={option.days}
+                        type="button"
+                        onClick={() => setTransitPlaybackStepDays(option.days)}
+                        className={cx("h-8 rounded-lg border", transitPlaybackStepDays === option.days ? "border-gold/40 bg-gold/15 text-gold" : "border-white/10 text-mist/70")}
+                        disabled={isTransitPlaybackActive || isTransitPlaybackPreloading}
+                      >
+                        {option.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+          ) : null}
+
+          {mobileMapPanelTab === "aspect" ? (
+            <div className="grid gap-2 font-mono text-[9px] font-bold">
+              <div className="grid grid-cols-3 gap-1 rounded-xl border border-white/10 bg-white/[0.025] p-1">
+                {ASPECT_DISPLAY_MODE_OPTIONS.map((option) => (
+                  <button
+                    key={`mobile-aspect-mode-${option.key}`}
+                    type="button"
+                    onClick={() => setAspectLineMode(option.key)}
+                    className={cx("min-h-9 rounded-lg px-1 transition", aspectLineMode === option.key ? "bg-gold/18 text-gold ring-1 ring-gold/35" : "text-mist/65")}
+                  >
+                    {option.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          ) : null}
+        </section>
       </div>
     </GlassPanel>
   );
