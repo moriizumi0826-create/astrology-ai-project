@@ -1,6 +1,6 @@
 ﻿import React, { useEffect, useMemo, useState } from "react";
 import { createRoot } from "react-dom/client";
-import { CircleDot, Eye, EyeOff, Maximize2, Minimize2, Minus, Move, Pause, Play, Plus, Shield, SlidersHorizontal, Sparkles } from "lucide-react";
+import { CircleDot, Eye, EyeOff, Maximize2, Menu, Minimize2, Minus, Move, Pause, Play, Plus, Shield, SlidersHorizontal, Sparkles } from "lucide-react";
 import * as THREE from "three";
 import {
   getStoredReadingForm,
@@ -964,7 +964,11 @@ function isMobileViewport() {
 }
 
 function defaultMapZoom() {
-  return isMobileViewport() ? 0.56 : 0.8;
+  return isMobileViewport() ? 0.52 : 0.8;
+}
+
+function defaultMapOffset() {
+  return isMobileViewport() ? { x: -0.42, y: 1.12 } : { x: -0.45, y: 2.25 };
 }
 
 function defaultFlatMapZoom() {
@@ -1993,7 +1997,7 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
   const [isMapControlsMenuOpen, setIsMapControlsMenuOpen] = useState(false);
   const [isMapFullscreen, setIsMapFullscreen] = useState(false);
   const [mapZoom, setMapZoom] = useState(() => defaultMapZoom());
-  const [mapOffset, setMapOffset] = useState({ x: -1.15, y: 2.25 });
+  const [mapOffset, setMapOffset] = useState(() => defaultMapOffset());
   const [isRotationPaused, setIsRotationPaused] = useState(false);
   const [isFlatMapView, setIsFlatMapView] = useState(false);
   const [aspectTooltip, setAspectTooltip] = useState(null);
@@ -2096,8 +2100,8 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
           importance,
           description: aspect.description || descriptionLookup.get(descriptionKey) || aspectInterpretationFallback(aspect),
           title: aspect.scope === "transitTransit"
-            ? `現行${planetLabel(aspect.transitPlanet)} × 現行${planetLabel(aspect.transitPlanetB)}`
-            : `現行${planetLabel(aspect.transitPlanet)} × ネイタル${planetLabel(aspect.natalPlanet)}`,
+            ? `現行${planetLabel(aspect.transitPlanet)} × 現行${planetLabel(aspect.transitPlanetB)}　${aspect.angle}°`
+            : `現行${planetLabel(aspect.transitPlanet)} × ネイタル${planetLabel(aspect.natalPlanet)}　${aspect.angle}°`,
           scopeLabel: aspect.scope === "transitTransit" ? "現行天体同士" : "出生図との関係",
         };
       })
@@ -2518,13 +2522,15 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
       );
       group.add(line);
     }
-    ZODIAC_SIGNS.forEach((sign, index) => {
-      const { mesh, texture } = orbitTextPlane(sign, {
+    ZODIAC_SIGN_NAMES.forEach((signName, index) => {
+      const { mesh, texture } = orbitTextPlane(signName, {
         color: "#e9c349",
-        font: "400 90px 'Segoe UI Symbol', 'Noto Sans Symbols', Georgia, serif",
-        scaleX: 0.43,
-        scaleY: 0.34,
-        opacity: 0.72,
+        font: "900 82px 'Noto Sans JP', 'Yu Gothic', 'Hiragino Sans', sans-serif",
+        width: 260,
+        height: 128,
+        scaleX: isMobileMapCanvas ? 0.78 : 0.6,
+        scaleY: isMobileMapCanvas ? 0.42 : 0.34,
+        opacity: isMobileMapCanvas ? 0.88 : 0.72,
         strokeOnly: false,
         glowColor: "rgba(233,195,73,0.62)",
         glowBlur: 22,
@@ -2589,6 +2595,21 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
       natalMeshes.set(point.planet, { mesh, material, point });
       group.add(mesh);
 
+      const hitMesh = new THREE.Mesh(
+        new THREE.SphereGeometry(0.3, 32, 16),
+        new THREE.MeshBasicMaterial({
+          transparent: true,
+          opacity: 0,
+          depthTest: false,
+          depthWrite: false,
+        })
+      );
+      hitMesh.position.copy(position);
+      hitMesh.userData.tooltip = `あなたの${planetLabel(point.planet)}`;
+      hitMesh.userData.natalPlanet = point.planet;
+      hoverTargets.push(hitMesh);
+      group.add(hitMesh);
+
       const symbol = PLANET_SYMBOLS[point.planet] || planetLabel(point.planet);
       const symbolTexture = planetSymbolTexture(symbol, point.color);
       const flatSymbolTexture = planetSymbolOutlineTexture(symbol, point.color);
@@ -2606,6 +2627,9 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
       const symbolScale = 0.44;
       symbolSprite.scale.set(symbolScale, symbolScale, 1);
       symbolSprite.renderOrder = 7;
+      symbolSprite.userData.tooltip = `あなたの${planetLabel(point.planet)}`;
+      symbolSprite.userData.natalPlanet = point.planet;
+      hoverTargets.push(symbolSprite);
       symbolBillboards.push({ sprite: symbolSprite, target: mesh, offset: 0.18, baseScale: symbolScale, avoidOverlap: true });
       natalPlanetSymbols.push({
         sprite: symbolSprite,
@@ -2661,6 +2685,22 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
       });
       group.add(mesh);
 
+      const hitMesh = new THREE.Mesh(
+        new THREE.SphereGeometry(Math.max(radius * 1.7, 0.32), 32, 16),
+        new THREE.MeshBasicMaterial({
+          transparent: true,
+          opacity: 0,
+          depthTest: false,
+          depthWrite: false,
+        })
+      );
+      hitMesh.position.copy(position);
+      hitMesh.userData.tooltip = item.label;
+      hitMesh.userData.transitPlanet = item.planet;
+      hoverTargets.push(hitMesh);
+      transitVisual.objects.push(hitMesh);
+      group.add(hitMesh);
+
       const symbolTexture = planetSymbolTexture(PLANET_SYMBOLS[item.planet] || item.label, item.color);
       textures.push(symbolTexture);
       const symbolSprite = new THREE.Sprite(
@@ -2675,6 +2715,9 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
       const symbolScale = 0.44;
       symbolSprite.scale.set(symbolScale, symbolScale, 1);
       symbolSprite.renderOrder = 7;
+      symbolSprite.userData.tooltip = item.label;
+      symbolSprite.userData.transitPlanet = item.planet;
+      hoverTargets.push(symbolSprite);
       symbolBillboards.push({ sprite: symbolSprite, target: mesh, offset: radius + 0.035, baseScale: symbolScale });
       transitLayerObjects.push({
         planet: item.planet,
@@ -2869,8 +2912,11 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
     let pointerDownX = 0;
     let pointerDownY = 0;
     let pointerMoved = false;
-    const dragThreshold = 8;
+    const isCoarsePointer = window.matchMedia?.("(pointer: coarse)")?.matches ?? false;
+    const dragThreshold = isCoarsePointer ? 18 : 8;
     const raycaster = new THREE.Raycaster();
+    raycaster.params.Points = { threshold: isCoarsePointer ? 0.2 : 0.08 };
+    raycaster.params.Line = { threshold: isCoarsePointer ? 0.2 : 0.08 };
     const pointer = new THREE.Vector2();
     const hideTooltip = () => {
       tooltip.style.display = "none";
@@ -3459,7 +3505,8 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
     setIsFlatMapView(nextFlatView);
     setIsRotationPaused(nextFlatView);
     setMapZoom(nextFlatView ? defaultFlatMapZoom() : defaultMapZoom());
-    setMapOffset(nextFlatView ? { x: 0, y: 0 } : { x: -1.15, y: 2.25 });
+    const nextOffset = nextFlatView ? { x: 0, y: 0 } : defaultMapOffset();
+    setMapOffset(nextOffset);
     if (!state?.camera || !state?.group) return;
     state.hasManualTilt = nextFlatView;
     state.cameraTiltDegrees = nextFlatView ? 84 : 17;
@@ -3468,7 +3515,7 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
     state.camera.lookAt(0, 0, 0);
     state.group.rotation.x = nextFlatView ? 0 : 0.18;
     state.group.rotation.y = nextFlatView ? 0 : 0.22;
-    applyMapOffset(state.group, nextFlatView ? { x: 0, y: 0 } : { x: -1.15, y: 2.25 }, nextFlatView);
+    applyMapOffset(state.group, nextOffset, nextFlatView);
   };
 
   return (
@@ -3577,8 +3624,8 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
             <div className="mb-2 grid grid-cols-3 gap-1 rounded-lg border border-white/10 bg-white/[0.025] p-1">
               {[
                 ["all", "両方"],
-                ["transitNatal", "現行×ネイタル"],
-                ["transitTransit", "現行×現行"],
+                ["transitNatal", "出生図との関係"],
+                ["transitTransit", "現行天体同士"],
               ].map(([value, label]) => (
                 <button
                   key={`mobile-map-interpretation-${value}`}
@@ -3617,10 +3664,7 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
                       >
                         <span className="mt-1 h-2.5 w-1.5 shrink-0 rounded-full" style={{ backgroundColor: aspect.color }} />
                         <span className="min-w-0 flex-1">
-                          <span className="flex min-w-0 items-center gap-1.5">
-                            <span className="min-w-0 truncate text-[10px] text-starlight">{aspect.title}</span>
-                            <span className="shrink-0 rounded border border-white/10 bg-white/[0.035] px-1.5 py-0.5 text-[7px] text-mist/60">{aspect.scopeLabel}</span>
-                          </span>
+                          <span className="block truncate text-[10px] text-starlight">{aspect.title}</span>
                           <span className="mt-0.5 block text-[8px] leading-4 text-mist/60">
                             実角度 {Number.isFinite(aspect.liveAngle) ? aspect.liveAngle.toFixed(1) : "-"}°
                             {Number.isFinite(aspect.orb) ? ` / オーブ ${aspect.orb.toFixed(2)}°` : ""}
@@ -3929,7 +3973,7 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
               <div
                 id="aspect-interpretation-panel"
                 className={cx(
-                  "fixed z-50 origin-left overflow-hidden rounded-xl border border-white/10 bg-[#121414]/90 font-mono text-[9px] font-bold text-mist shadow-[0_18px_42px_rgba(0,0,0,0.34)] backdrop-blur-md transition-[width,padding,opacity] duration-300 ease-out sm:text-[10px]",
+                  "fixed z-50 origin-left overflow-hidden rounded-xl border border-white/10 bg-[#121414]/48 font-mono text-[9px] font-bold text-mist shadow-[0_18px_42px_rgba(0,0,0,0.24)] backdrop-blur-sm transition-[width,padding,opacity] duration-300 ease-out sm:text-[10px]",
                   isAspectListPanelOpen
                     ? "w-[min(520px,calc(100vw-170px))] p-2 opacity-100"
                     : "pointer-events-none w-0 border-transparent p-0 opacity-0"
@@ -3954,8 +3998,8 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
                 <div className="mb-2 grid grid-cols-3 gap-1 rounded-lg border border-white/10 bg-white/[0.025] p-1">
                   {[
                     ["all", "両方"],
-                    ["transitNatal", "現行×ネイタル"],
-                    ["transitTransit", "現行×現行"],
+                    ["transitNatal", "出生図との関係"],
+                    ["transitTransit", "現行天体同士"],
                   ].map(([value, label]) => (
                     <button
                       key={value}
@@ -3999,10 +4043,7 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
                           >
                             <span className="mt-1 h-2.5 w-1.5 shrink-0 rounded-full" style={{ backgroundColor: aspect.color }} />
                             <span className="min-w-0 flex-1">
-                              <span className="flex min-w-0 items-center gap-1.5">
-                                <span className="min-w-0 truncate text-[10px] text-starlight sm:text-[11px]">{aspect.title}</span>
-                                <span className="shrink-0 rounded border border-white/10 bg-white/[0.035] px-1.5 py-0.5 text-[7px] text-mist/60 sm:text-[8px]">{aspect.scopeLabel}</span>
-                              </span>
+                              <span className="block truncate text-[10px] text-starlight sm:text-[11px]">{aspect.title}</span>
                               <span className="mt-0.5 block text-[8px] leading-4 text-mist/60">
                                 実角度 {Number.isFinite(aspect.liveAngle) ? aspect.liveAngle.toFixed(1) : "-"}°
                                 {Number.isFinite(aspect.orb) ? ` / オーブ ${aspect.orb.toFixed(2)}°` : ""}
@@ -4015,7 +4056,7 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
                             </span>
                           </button>
                           {isOpen ? (
-                            <p className="border-t border-white/10 bg-black/10 px-3 py-3 text-xs font-medium leading-6 text-mist sm:text-sm sm:leading-7">
+                            <p className="border-t border-white/10 bg-white/[0.025] px-3 py-3 text-xs font-medium leading-6 text-mist sm:text-sm sm:leading-7">
                               {aspect.description}
                             </p>
                           ) : null}
@@ -4301,7 +4342,7 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
           </div>
           {aspectTooltip ? (
             <div
-              className="absolute right-5 top-[42%] z-30 hidden w-[min(520px,calc(100%-40px))] -translate-y-1/2 rounded-2xl border border-gold/25 bg-[#121414]/86 p-4 shadow-[0_22px_54px_rgba(0,0,0,0.48)] backdrop-blur-md sm:block sm:right-8 sm:p-5 lg:right-12 xl:right-16"
+              className="absolute inset-x-2 top-[104px] z-30 max-h-[360px] overflow-y-auto rounded-2xl border border-gold/25 bg-[#121414]/82 p-4 shadow-[0_22px_54px_rgba(0,0,0,0.48)] backdrop-blur-md [scrollbar-width:none] sm:inset-x-auto sm:right-8 sm:top-[42%] sm:w-[min(520px,calc(100%-40px))] sm:-translate-y-1/2 sm:bg-[#121414]/86 sm:p-5 lg:right-12 xl:right-16 [&::-webkit-scrollbar]:hidden"
             >
               <button
                 type="button"
@@ -5045,10 +5086,11 @@ function aggregateStats(data) {
   };
 }
 
-function GlassPanel({ children, className = "" }) {
+function GlassPanel({ children, className = "", variant = "default" }) {
   return (
     <section className={cx(
-      "rounded-2xl border border-white/10 bg-[#1a1c1c]/62 shadow-[0_24px_80px_rgba(0,0,0,0.32)] backdrop-blur-xl",
+      "rounded-2xl border border-white/10 shadow-[0_24px_80px_rgba(0,0,0,0.32)] backdrop-blur-xl",
+      variant === "text" ? "bg-[#1a1c1c]/36" : "bg-[#1a1c1c]/62",
       "min-w-0",
       className
     )}>
@@ -5130,7 +5172,7 @@ function UnifiedForecastView({
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <p className="font-mono text-[10px] font-bold uppercase tracking-[0.22em] text-gold/80">Unified Forecast</p>
-          <h2 className="mt-1 font-serif text-2xl font-semibold text-starlight sm:text-4xl">統合予測</h2>
+          <h2 className="mt-1 font-serif text-2xl font-semibold text-starlight sm:text-4xl">星の見通し</h2>
         </div>
       </div>
 
@@ -5198,43 +5240,74 @@ function UnifiedForecastView({
 }
 
 function Header({ activeYear, activeView, setActiveView, activeUnifiedView, setActiveUnifiedView }) {
+  const [isMobileUnifiedMenuOpen, setIsMobileUnifiedMenuOpen] = useState(false);
   const navItems = [
-    ["unified", "統合予測"],
+    ["unified", "星の見通し"],
     ["horoscope", "Horoscope"],
   ];
   const forecastLabel = {
     annual: "年間予測",
     monthly: "月間予測",
-    unified: "統合予測",
+    unified: "星の見通し",
     daily: "日別詳細",
     dailySaved: "日別詳細（保存用）",
     horoscope: "Horoscope",
   }[activeView] || "年間予測";
   return (
     <header className="fixed left-0 top-0 z-40 w-full border-b border-slate-200/90 bg-[#f8fafc]/95 backdrop-blur-xl">
-      <div className="flex w-full max-w-none flex-wrap items-center justify-between gap-3 px-4 py-4 sm:gap-6 sm:px-8 sm:py-6 lg:mx-auto lg:max-w-[1760px]">
+      <div className="flex w-full max-w-none flex-wrap items-center justify-between gap-2 px-3 py-2 sm:gap-6 sm:px-8 sm:py-6 lg:mx-auto lg:max-w-[1760px]">
         <div className="flex min-w-0 items-center gap-4 sm:gap-8">
-          <a href="/results.html" className="max-w-[150px] font-serif text-[22px] font-bold leading-[0.98] text-[#0A192F] sm:max-w-none sm:text-4xl sm:leading-none">The Celestial Atelier</a>
+          <a href="/results.html" className="max-w-[86px] font-serif text-[13px] font-bold leading-[0.98] text-[#0A192F] sm:max-w-none sm:text-4xl sm:leading-none">The Celestial Atelier</a>
           <span className="hidden h-10 w-px bg-slate-200 md:block" />
-          <h1 className="truncate font-serif text-lg font-semibold tracking-[0.04em] text-[#0A192F] sm:text-2xl md:text-3xl">
-            {activeYear}年 {forecastLabel}
-          </h1>
+          <div className="relative flex min-w-0 items-center gap-1.5">
+            <h1 className="truncate font-serif text-lg font-semibold tracking-[0.04em] text-[#0A192F] sm:text-2xl md:text-3xl">
+              {activeYear}年 {forecastLabel}
+            </h1>
+            <button
+              type="button"
+              onClick={() => setIsMobileUnifiedMenuOpen((value) => !value)}
+              className={cx(
+                "inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-slate-200 bg-white text-[#0A192F] shadow-sm transition sm:hidden",
+                isMobileUnifiedMenuOpen ? "ring-1 ring-[#D4AF37]/45" : "hover:bg-[#fff7df] hover:text-[#D4AF37]"
+              )}
+              aria-expanded={isMobileUnifiedMenuOpen}
+              aria-controls="forecast-mobile-nav"
+              aria-label="ナビゲーションを開く"
+              title="メニュー"
+            >
+              <Menu size={15} />
+            </button>
+          </div>
         </div>
-        <nav className="order-last flex w-full items-center gap-7 overflow-x-auto border-t border-slate-200 pt-3 font-mono text-[10px] font-bold tracking-[0.1em] text-[#0A192F]/70 [scrollbar-width:none] sm:text-xs lg:order-none lg:w-auto lg:gap-10 lg:border-t-0 lg:pt-0 lg:tracking-[0.12em]">
+        <nav
+          id="forecast-mobile-nav"
+          className={cx(
+            "order-last w-full items-center gap-5 overflow-x-auto border-t border-slate-200 pt-3 font-mono text-[10px] font-bold tracking-[0.1em] text-[#0A192F]/70 transition-all [scrollbar-width:none] sm:flex sm:text-xs lg:order-none lg:w-auto lg:gap-10 lg:border-t-0 lg:pt-0 lg:tracking-[0.12em]",
+            isMobileUnifiedMenuOpen ? "flex max-h-20 opacity-100" : "hidden max-h-0 opacity-0 sm:flex sm:max-h-none sm:opacity-100"
+          )}
+        >
           {navItems.map(([value, label]) => (
             <React.Fragment key={value}>
               <button
                 type="button"
-                onClick={() => setActiveView(value)}
+                  onClick={() => {
+                    setActiveView(value);
+                    setIsMobileUnifiedMenuOpen(false);
+                  }}
                 className={cx(
-                  "pb-3 transition",
+                  "pb-2 transition sm:pb-3",
                   activeView === value ? "border-b-2 border-[#D4AF37] text-[#0A192F]" : "hover:text-[#D4AF37]"
                 )}
               >
                 {label}
               </button>
               {value === "unified" ? (
-                <div className="mb-2 flex shrink-0 rounded-full border border-slate-200 bg-white p-1 font-mono text-[10px] font-bold text-[#0A192F]/70 shadow-sm sm:text-xs">
+                <div
+                  className={cx(
+                    "mb-1 shrink-0 rounded-full border border-slate-200 bg-white p-1 font-mono text-[10px] font-bold text-[#0A192F]/70 shadow-sm sm:mb-2 sm:flex sm:text-xs",
+                    isMobileUnifiedMenuOpen ? "flex" : "hidden sm:flex"
+                  )}
+                >
                   {UNIFIED_FORECAST_TABS.map((item) => (
                     <button
                       key={item.key}
@@ -5242,6 +5315,7 @@ function Header({ activeYear, activeView, setActiveView, activeUnifiedView, setA
                       onClick={() => {
                         setActiveView("unified");
                         setActiveUnifiedView(item.key);
+                        setIsMobileUnifiedMenuOpen(false);
                       }}
                       className={cx(
                         "rounded-full px-3 py-1.5 transition",
@@ -5310,7 +5384,7 @@ function OraclePanel({ stats, forecast }) {
   };
   return (
     <div className="h-full">
-      <GlassPanel className="flex h-[520px] flex-col overflow-hidden p-2 sm:h-[560px] sm:p-5 lg:h-[620px] lg:p-6">
+      <GlassPanel variant="text" className="flex h-[520px] flex-col overflow-hidden p-2 sm:h-[560px] sm:p-5 lg:h-[620px] lg:p-6">
         <div className="flex flex-col items-start gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <p className="font-mono text-[8px] font-bold uppercase tracking-[0.18em] text-gold/75 sm:text-[9px]">
@@ -5409,7 +5483,7 @@ function OraclePanel({ stats, forecast }) {
                 const itemKey = `jupiter-${item.key}-${item.startDate}`;
                 const isOpen = openTransitAspectKeys.has(itemKey);
                 return (
-                <article key={`${item.key}-${item.startDate}`} className="shrink-0 overflow-hidden rounded-2xl border border-white/10 bg-white/[0.035]">
+                <article key={`${item.key}-${item.startDate}`} className="shrink-0 overflow-hidden rounded-2xl border border-white/10 bg-white/[0.022]">
                   <button
                     type="button"
                     className="flex w-full items-start justify-between gap-3 px-3 py-3 text-left sm:gap-4 sm:px-4"
@@ -5451,7 +5525,7 @@ function OraclePanel({ stats, forecast }) {
                 const itemKey = `saturn-${item.key}-${item.startDate}`;
                 const isOpen = openTransitAspectKeys.has(itemKey);
                 return (
-                <article key={`${item.key}-${item.startDate}`} className="shrink-0 overflow-hidden rounded-2xl border border-white/10 bg-white/[0.035]">
+                <article key={`${item.key}-${item.startDate}`} className="shrink-0 overflow-hidden rounded-2xl border border-white/10 bg-white/[0.022]">
                   <button
                     type="button"
                     className="flex w-full items-start justify-between gap-3 px-3 py-3 text-left sm:gap-4 sm:px-4"
@@ -5892,7 +5966,7 @@ function Matrix({
           </button>
         ))}
       </div>
-      <GlassPanel className="flex h-[520px] flex-col overflow-hidden border-gold/25 p-2 sm:h-[560px] sm:p-5 lg:h-[620px] lg:p-6">
+      <GlassPanel variant="text" className="flex h-[520px] flex-col overflow-hidden border-gold/25 p-2 sm:h-[560px] sm:p-5 lg:h-[620px] lg:p-6">
         <div className="flex items-start justify-between gap-2 sm:items-center sm:gap-3">
           <div className="min-w-0">
             <p className="font-mono text-[8px] font-bold uppercase tracking-[0.18em] text-gold/75 sm:text-[9px]">
@@ -6031,7 +6105,7 @@ function TransitAspectList({ items, openKeys, onToggle, prefix }) {
           const itemKey = `${prefix}-${item.key}-${item.startDate}`;
           const isOpen = openKeys.has(itemKey);
           return (
-            <article key={`${prefix}-${item.key}-${item.startDate}`} className="shrink-0 overflow-hidden rounded-2xl border border-white/10 bg-white/[0.035]">
+            <article key={`${prefix}-${item.key}-${item.startDate}`} className="shrink-0 overflow-hidden rounded-2xl border border-white/10 bg-white/[0.022]">
               <button
                 type="button"
                 className="flex w-full items-start justify-between gap-3 px-3 py-3 text-left sm:gap-4 sm:px-4"
@@ -6309,7 +6383,7 @@ function ForecastDetailPage() {
         activeUnifiedView={activeUnifiedView}
         setActiveUnifiedView={setActiveUnifiedView}
       />
-      <main className="mx-auto grid max-w-none gap-3 px-0.5 pb-4 pt-[136px] sm:gap-6 sm:px-4 sm:pb-10 sm:pt-36 lg:px-6 lg:pb-20 lg:pt-[136px]">
+      <main className="mx-auto grid max-w-none gap-3 px-0.5 pb-4 pt-[56px] sm:gap-6 sm:px-4 sm:pb-10 sm:pt-36 lg:px-6 lg:pb-20 lg:pt-[136px]">
         {yearCalculationError ? (
           <div className="rounded-2xl border border-[#ffb4ab]/30 bg-[#3a1d1d]/45 px-4 py-3 text-xs leading-6 text-[#ffb4ab] sm:text-sm">
             {yearCalculationError}
