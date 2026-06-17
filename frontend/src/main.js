@@ -551,7 +551,7 @@ form.addEventListener("submit", async (event) => {
 
     await storeReadingResult(data);
     persistFormData(collectFormSnapshot());
-    window.location.href = "/results.html";
+    window.location.href = "/forecast-detail.html";
   } catch (error) {
     if (error instanceof TypeError) {
       setError("Backend API に接続できませんでした。backend が http://127.0.0.1:8000 で起動しているか確認してください。");

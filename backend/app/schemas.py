@@ -13,6 +13,7 @@ class ReadingRequest(BaseModel):
     longitude: float = Field(ge=-180, le=180)
     timezone_offset: float | None = Field(default=None, ge=-12, le=14)
     timezone_name: str | None = Field(default=None, min_length=1, max_length=100)
+    target_date: date | None = None
 
     @field_validator("full_name", "birthplace")
     @classmethod
@@ -29,6 +30,18 @@ class ReadingRequest(BaseModel):
         if self.timezone_offset is None and not self.timezone_name:
             raise ValueError("timezone_offset or timezone_name is required")
         return self
+
+
+class TransitChartRequest(ReadingRequest):
+    target_date: date
+    target_time: time = Field(default=time(hour=12))
+
+    @field_validator("target_time")
+    @classmethod
+    def validate_target_time_step(cls, value: time) -> time:
+        if value.second or value.microsecond or value.minute % 10 != 0:
+            raise ValueError("target_time must be specified in 10-minute intervals")
+        return value
 
 
 class ReadingSection(BaseModel):

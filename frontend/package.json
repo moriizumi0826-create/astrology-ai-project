@@ -13,5 +13,8 @@
     "react": "^19.2.5",
     "react-dom": "^19.2.5",
     "vite": "^5.4.8"
+  },
+  "dependencies": {
+    "three": "^0.184.0"
   }
 }

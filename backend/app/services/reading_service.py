@@ -3800,7 +3800,11 @@ def generate_readings(payload: ReadingRequest) -> ReadingResponse:
     )
 
     chart_rows = build_chart_rows(birth_input)
-    current_dt = _app_now()
+    current_dt = (
+        datetime.combine(payload.target_date, dt_time(hour=12))
+        if payload.target_date
+        else _app_now()
+    )
     dashboard_data = build_dashboard_data_from_aspects(
         aspects=build_transit_aspect_inputs(birth_input, current_dt),
         current_dt=current_dt,

@@ -1,7 +1,8 @@
 ﻿import React, { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
-import { getStoredReadingResult, getStoredReadingResultAsync } from "./reading-storage.js";
+import { getStoredReadingForm, getStoredReadingResult, getStoredReadingResultAsync } from "./reading-storage.js";
 import { YearlyForecastGraph } from "./yearly-forecast.jsx";
+import dailyDetailGalaxyBg from "./assets/daily-detail-galaxy-bg.jpg";
 import {
   BatteryMedium,
   BriefcaseBusiness,
@@ -743,6 +744,60 @@ function dashboardDisplayDate(data = {}) {
       data.meta?.reading_date ||
       data.meta?.date
   );
+}
+
+function addDaysToIsoDate(value, days) {
+  const normalized = formatIsoDate(value) || formatIsoDate(new Date());
+  if (!normalized) return "";
+  const date = new Date(`${normalized}T12:00:00`);
+  if (Number.isNaN(date.getTime())) return normalized;
+  date.setDate(date.getDate() + days);
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+}
+
+function resolveDashboardApiBaseUrl() {
+  const configured = String(typeof __APP_API_BASE_URL__ === "undefined" ? "" : __APP_API_BASE_URL__ || "").trim();
+  if (configured) {
+    return configured.replace(/\/$/, "");
+  }
+  if (typeof window !== "undefined" && ["localhost", "127.0.0.1"].includes(window.location.hostname) && /^517\d$/.test(window.location.port)) {
+    return "http://127.0.0.1:8000";
+  }
+  return typeof window === "undefined" ? "" : window.location.origin.replace(/\/$/, "");
+}
+
+async function postDashboardJson(path, payload) {
+  const response = await fetch(`${resolveDashboardApiBaseUrl()}${path}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  if (!response.ok) {
+    const errorPayload = await response.json().catch(() => ({}));
+    throw new Error(errorPayload.detail || `Request failed: ${response.status}`);
+  }
+  return response.json();
+}
+
+function dashboardDataFromReadingPayload(payload, fallbackData = {}) {
+  if (!payload?.dashboard_data) return null;
+  const yearlyForecast = payload.yearly_forecast || payload.yearlyForecast || fallbackData.yearly_forecast || fallbackData.yearlyForecast || null;
+  return {
+    ...payload.dashboard_data,
+    readings: payload.readings || fallbackData.readings || [],
+    meta: payload.meta || fallbackData.meta || {},
+    chart_data: payload.chart_data || fallbackData.chart_data || {},
+    yearly_forecast: yearlyForecast,
+    reading_date:
+      payload.dashboard_data.reading_date ||
+      payload.dashboard_data.readingDate ||
+      payload.dashboard_data.timelineDate ||
+      payload.dashboard_data.timeline_date ||
+      yearlyForecast?.reading_date ||
+      yearlyForecast?.date ||
+      payload.meta?.reading_date ||
+      payload.meta?.date,
+  };
 }
 
 function MotionIndicatorGrid({ items = [], compact = false }) {
@@ -1932,7 +1987,6 @@ function DashboardV2Card({ title, eyebrow, children, className = "", bodyClassNa
 function DashboardV2Header({ data, displayDate, activePage = "dashboard", onPageChange = () => {} }) {
   const navItems = [
     { key: "dashboard", label: "Dashboard" },
-    { key: "horoscope", label: "Horoscope" },
   ];
   const utilityItems = ["詳細レポート", "History", "My Page", "Plan", "逆行カレンダー"];
   const handleOpenLegacy = () => {
@@ -2010,14 +2064,14 @@ function DashboardV2Header({ data, displayDate, activePage = "dashboard", onPage
   );
 }
 
-function DashboardV2PersonalCard({ data }) {
+function DashboardV2PersonalCard({ data, displayDate = "", onDateShift = () => {}, isDateLoading = false }) {
   const [personalReadingTab, setPersonalReadingTab] = useState("daily");
   const [selectedHighlightKey, setSelectedHighlightKey] = useState("positive");
   const summaryScrollerRef = React.useRef(null);
   const summaryTrackRef = React.useRef(null);
   const [isSummaryDragging, setIsSummaryDragging] = useState(false);
   const [summaryScrollRatio, setSummaryScrollRatio] = useState(0);
-  const displayDate = dashboardDisplayDate(data);
+  const activeDisplayDate = displayDate || dashboardDisplayDate(data);
   const dailyStarVibe = String(data.hero?.dailyStarVibe || data.hero?.daily_star_vibe || "").trim();
   const summaryText = dailyStarVibe || "本日の星模様を表示できません。";
   const aspectHighlights =
@@ -2082,11 +2136,23 @@ function DashboardV2PersonalCard({ data }) {
             <div className="mt-2 flex items-center gap-3 font-mono text-[10px] font-black uppercase leading-4 tracking-[0.14em] text-[#909096]">
               <p>Today's Insight</p>
               <div className="flex items-center gap-1.5">
-                <button type="button" className="inline-flex h-4 w-4 items-center justify-center rounded-full border border-[#e9c349]/35 text-[#e9c349]">
+                <button
+                  type="button"
+                  onClick={() => onDateShift(-1)}
+                  disabled={isDateLoading}
+                  aria-label="前の日の洞察を表示"
+                  className="inline-flex h-5 w-5 items-center justify-center rounded-full border border-[#e9c349]/45 text-[#e9c349] transition hover:border-[#e9c349] hover:bg-[#e9c349]/10 disabled:cursor-wait disabled:opacity-45"
+                >
                   <ChevronLeft size={9} />
                 </button>
-                <p>{displayDate}</p>
-                <button type="button" className="inline-flex h-4 w-4 items-center justify-center rounded-full border border-[#e9c349]/35 text-[#e9c349]">
+                <p className={cx("min-w-[6.2rem] text-center", isDateLoading && "text-[#e9c349]")}>{isDateLoading ? "Loading..." : activeDisplayDate}</p>
+                <button
+                  type="button"
+                  onClick={() => onDateShift(1)}
+                  disabled={isDateLoading}
+                  aria-label="次の日の洞察を表示"
+                  className="inline-flex h-5 w-5 items-center justify-center rounded-full border border-[#e9c349]/45 text-[#e9c349] transition hover:border-[#e9c349] hover:bg-[#e9c349]/10 disabled:cursor-wait disabled:opacity-45"
+                >
                   <ChevronRight size={9} />
                 </button>
               </div>
@@ -2215,6 +2281,112 @@ function DashboardV2PersonalCard({ data }) {
           )}
         </div>
       )}
+    </DashboardV2Card>
+  );
+}
+
+function DashboardV2DailyThemeCard({ data, displayDate = "", onDateShift = () => {}, isDateLoading = false }) {
+  const [analysisMode, setAnalysisMode] = useState("theme");
+  const activeDisplayDate = displayDate || dashboardDisplayDate(data);
+  const dailyStarVibe = String(data.hero?.dailyStarVibe || data.hero?.daily_star_vibe || "").trim();
+  const summaryText = dailyStarVibe || "本日の星模様を表示できません。";
+  const aspectHighlights =
+    data.hero?.aspectHighlights ||
+    data.hero?.aspect_highlights ||
+    data.aspectHighlights ||
+    data.aspect_highlights ||
+    {};
+  const positiveHighlights = Array.isArray(aspectHighlights.positive) ? aspectHighlights.positive : [];
+  const negativeHighlights = Array.isArray(aspectHighlights.negative) ? aspectHighlights.negative : [];
+  const analysisTitle = {
+    theme: "今日の洞察",
+    lesson: "今日の追い風",
+    summary: "今日の消耗注意",
+    test1: "カウントダウン1",
+    test2: "カウントダウン2",
+  }[analysisMode] || "今日の洞察";
+  const timelineItems = (items, fallbackBody, color) => (
+    <div className="mt-6 grid min-h-0 flex-1 gap-6 overflow-y-auto pr-2 [scrollbar-color:#e9c349_rgba(255,255,255,0.08)] [scrollbar-width:thin] sm:mt-8 sm:gap-8">
+      {(items.length ? items : [{ label: activeDisplayDate || "TODAY", description: fallbackBody }]).map((item, index) => (
+        <article key={`${item.label || "daily"}-${index}`} className="relative pl-8">
+          <span className="absolute left-0 top-0.5 h-3 w-3 rounded-full shadow-[0_0_18px_currentColor]" style={{ color, backgroundColor: color }} />
+          <span className="absolute left-[5px] top-4 h-full w-px bg-white/15" />
+          <p className="font-mono text-xs font-bold uppercase tracking-[0.12em]" style={{ color }}>
+            {item.label || activeDisplayDate || "TODAY"}
+          </p>
+          <p className="mt-3 whitespace-pre-line text-sm leading-7 text-[#c7c6cc] sm:text-base sm:leading-8">
+            {item.description || item.advisedTask || fallbackBody}
+          </p>
+        </article>
+      ))}
+    </div>
+  );
+
+  return (
+    <DashboardV2Card className="h-[520px] sm:h-[560px] lg:h-[620px]" bodyClassName="flex h-full flex-col p-2 sm:p-5 lg:p-6">
+      <div className="flex flex-col items-start gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <p className="font-mono text-[8px] font-bold uppercase tracking-[0.18em] text-[#e9c349]/75 sm:text-[9px]">
+            Main Theme
+          </p>
+          <div className="mt-1 flex items-center gap-3">
+            <h2 className="font-notoSerif text-2xl font-semibold text-[#f3f3f0] sm:text-3xl">
+              {analysisTitle}
+            </h2>
+            <Moon size={30} strokeWidth={1.8} className="shrink-0 text-[#e9c349]" />
+          </div>
+          <div className="mt-2 flex items-center gap-1.5 font-mono text-[10px] font-black uppercase tracking-[0.14em] text-[#909096]">
+            <button
+              type="button"
+              onClick={() => onDateShift(-1)}
+              disabled={isDateLoading}
+              aria-label="前の日の洞察を表示"
+              className="inline-flex h-5 w-5 items-center justify-center rounded-full border border-[#e9c349]/45 text-[#e9c349] transition hover:border-[#e9c349] hover:bg-[#e9c349]/10 disabled:cursor-wait disabled:opacity-45"
+            >
+              <ChevronLeft size={9} />
+            </button>
+            <p className={cx("min-w-[6.2rem] text-center", isDateLoading && "text-[#e9c349]")}>
+              {isDateLoading ? "Loading..." : activeDisplayDate}
+            </p>
+            <button
+              type="button"
+              onClick={() => onDateShift(1)}
+              disabled={isDateLoading}
+              aria-label="次の日の洞察を表示"
+              className="inline-flex h-5 w-5 items-center justify-center rounded-full border border-[#e9c349]/45 text-[#e9c349] transition hover:border-[#e9c349] hover:bg-[#e9c349]/10 disabled:cursor-wait disabled:opacity-45"
+            >
+              <ChevronRight size={9} />
+            </button>
+          </div>
+        </div>
+        <div className="flex w-full overflow-x-auto rounded-full border border-white/10 bg-white/[0.04] p-1 font-mono text-[7px] font-bold text-[#909096] [scrollbar-width:none] sm:w-auto sm:shrink-0 sm:text-[10px]">
+          {[
+            ["theme", "洞察"],
+            ["lesson", "追い風"],
+            ["summary", "消耗注意"],
+            ["test1", "カウントダウン1"],
+            ["test2", "カウントダウン2"],
+          ].map(([value, label]) => (
+            <button
+              key={value}
+              type="button"
+              onClick={() => setAnalysisMode(value)}
+              className={cx(
+                "shrink-0 rounded-full px-2 py-1.5 transition sm:px-3",
+                analysisMode === value ? "bg-[#e9c349] text-[#241a00]" : "hover:bg-white/10 hover:text-[#f3f3f0]"
+              )}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      </div>
+      <div className="mt-3 h-px bg-white/10 sm:mt-5" />
+      {analysisMode === "theme" ? timelineItems([], summaryText, "#e9c349") : null}
+      {analysisMode === "lesson" ? timelineItems(positiveHighlights, "追い風に該当するアスペクトなし", "#38bdf8") : null}
+      {analysisMode === "summary" ? timelineItems(negativeHighlights, "負荷・消耗注意に該当するアスペクトなし", "#fecdd3") : null}
+      {analysisMode === "test1" ? timelineItems(positiveHighlights, "追い風に該当するアスペクトなし", "#38bdf8") : null}
+      {analysisMode === "test2" ? timelineItems(negativeHighlights, "負荷・消耗注意に該当するアスペクトなし", "#ff5c68") : null}
     </DashboardV2Card>
   );
 }
@@ -3025,7 +3197,7 @@ function splitStoredReportSections(content) {
   return sections.filter((section) => section.title || section.body);
 }
 
-function DashboardV2HoroscopePage({ data }) {
+export function DashboardV2HoroscopePage({ data }) {
   const [storedPayload, setStoredPayload] = useState(() => {
     if (typeof window === "undefined") return null;
     try {
@@ -3153,8 +3325,6 @@ function DashboardV2HoroscopePage({ data }) {
 }
 
 function DashboardV2({ data = dashboardData, embedded = false, developerMode = false }) {
-  const [activePage, setActivePage] = useState("dashboard");
-  const displayDate = dashboardDisplayDate(data);
   const forecast = data.yearly_forecast || data.yearlyForecast || null;
 
   return (
@@ -3163,27 +3333,134 @@ function DashboardV2({ data = dashboardData, embedded = false, developerMode = f
       "bg-[radial-gradient(circle_at_50%_0%,rgba(211,188,249,0.12),transparent_34%),radial-gradient(circle_at_15%_24%,rgba(233,195,73,0.08),transparent_26%)]",
       embedded ? "" : ""
     )}>
-      <DashboardV2Header data={data} displayDate={displayDate} activePage={activePage} onPageChange={setActivePage} />
-      {activePage === "horoscope" ? (
-        <DashboardV2HoroscopePage data={data} />
-      ) : (
-        <main className="mx-auto grid max-w-[1440px] gap-5 px-5 py-5 md:px-8 lg:grid-cols-[0.78fr_1.18fr] lg:px-14">
-          <div className="grid gap-3">
-            <DashboardV2PersonalCard data={data} />
-            <DashboardV2DailyFlowCard data={data} />
-            <DashboardV2CountdownCard data={data} />
-          </div>
-          <div className="grid gap-3">
-            <DashboardV2YearlyCard forecast={forecast} developerMode={developerMode} />
-          </div>
-        </main>
-      )}
+      <DashboardV2Header data={data} displayDate={dashboardDisplayDate(data)} activePage="dashboard" />
+      <main className="mx-auto grid max-w-[1440px] gap-5 px-5 py-5 md:px-8 lg:px-14">
+        <DashboardV2YearlyCard forecast={forecast} developerMode={developerMode} />
+      </main>
       <footer className="border-t border-white/10 px-5 py-8">
         <div className="mx-auto flex max-w-[1440px] flex-wrap items-center justify-between gap-4 font-mono text-xs uppercase tracking-[0.28em] text-[#909096] md:px-11">
           <span>ASTRAEA Celestial Insights</span>
           <span>Stellar API</span>
         </div>
       </footer>
+    </div>
+  );
+}
+
+export function DashboardDailyDetailLayer({ data = dashboardData, className = "" }) {
+  return (
+    <section
+      className={cx(
+        "relative -mx-5 -my-5 min-h-[calc(100vh-168px)] overflow-hidden bg-[#05070f] px-5 py-5 md:-mx-8 md:px-8 lg:-mx-14 lg:px-14",
+        className
+      )}
+      style={{
+        backgroundImage: `linear-gradient(180deg, rgba(5,7,15,0.54), rgba(5,7,15,0.78)), url(${dailyDetailGalaxyBg})`,
+        backgroundPosition: "center center",
+        backgroundSize: "cover",
+      }}
+    >
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_8%,rgba(233,195,73,0.10),transparent_28%),linear-gradient(90deg,rgba(5,7,15,0.34),rgba(5,7,15,0.08)_42%,rgba(5,7,15,0.48))]" />
+      <DashboardDailyDetailLayerBase data={data} className="relative z-10" insightVariant="monthly" />
+    </section>
+  );
+}
+
+export function DashboardDailyDetailSavedLayer({ data = dashboardData, className = "" }) {
+  return <DashboardDailyDetailLayerBase data={data} className={className} insightVariant="saved" />;
+}
+
+export function DashboardDailyDetailContentLayer({ data = dashboardData, className = "" }) {
+  return <DashboardDailyDetailLayerBase data={data} className={className} insightVariant="monthly" />;
+}
+
+function DashboardDailyDetailLayerBase({ data = dashboardData, className = "", insightVariant = "monthly" }) {
+  const [activeDailyData, setActiveDailyData] = useState(data);
+  const [selectedDailyDate, setSelectedDailyDate] = useState(() => dashboardDisplayDate(data));
+  const [isDailyDateLoading, setIsDailyDateLoading] = useState(false);
+  const [dailyDateError, setDailyDateError] = useState("");
+  const dailyDataCacheRef = React.useRef(new Map());
+  const dailyDateRequestIdRef = React.useRef(0);
+  const displayDate = selectedDailyDate || dashboardDisplayDate(activeDailyData);
+
+  useEffect(() => {
+    const nextDate = dashboardDisplayDate(data);
+    setActiveDailyData(data);
+    setSelectedDailyDate(nextDate);
+    if (nextDate) {
+      dailyDataCacheRef.current.set(nextDate, data);
+    }
+  }, [data]);
+
+  const handleDailyDateShift = async (days) => {
+    const nextDate = addDaysToIsoDate(displayDate || dashboardDisplayDate(activeDailyData), days);
+    if (!nextDate) return;
+
+    const cached = dailyDataCacheRef.current.get(nextDate);
+    setSelectedDailyDate(nextDate);
+    setDailyDateError("");
+    if (cached) {
+      setActiveDailyData(cached);
+      return;
+    }
+
+    const formPayload = getStoredReadingForm();
+    if (!formPayload) {
+      setDailyDateError("保存済みの出生情報がないため、日付を切り替えられません。");
+      return;
+    }
+
+    const requestId = dailyDateRequestIdRef.current + 1;
+    dailyDateRequestIdRef.current = requestId;
+    setIsDailyDateLoading(true);
+    try {
+      const payload = await postDashboardJson("/api/readings", {
+        ...formPayload,
+        target_date: nextDate,
+      });
+      if (dailyDateRequestIdRef.current !== requestId) return;
+      const nextData = dashboardDataFromReadingPayload(payload, data);
+      if (nextData) {
+        dailyDataCacheRef.current.set(nextDate, nextData);
+        setActiveDailyData(nextData);
+      }
+    } catch (error) {
+      if (dailyDateRequestIdRef.current !== requestId) return;
+      setDailyDateError(error?.message || "日付データの取得に失敗しました。");
+      setSelectedDailyDate(dashboardDisplayDate(activeDailyData));
+    } finally {
+      if (dailyDateRequestIdRef.current === requestId) {
+        setIsDailyDateLoading(false);
+      }
+    }
+  };
+
+  return (
+    <div className={cx("grid gap-3 lg:grid-cols-[0.92fr_1.08fr]", className)}>
+      <div className="grid gap-3">
+        {dailyDateError ? (
+          <p className="rounded-xl border border-rose-300/30 bg-rose-300/10 px-4 py-3 text-xs font-bold leading-5 text-rose-100">
+            {dailyDateError}
+          </p>
+        ) : null}
+        {insightVariant === "saved" ? (
+          <DashboardV2PersonalCard
+            data={activeDailyData}
+            displayDate={displayDate}
+            onDateShift={handleDailyDateShift}
+            isDateLoading={isDailyDateLoading}
+          />
+        ) : (
+          <DashboardV2DailyThemeCard
+            data={activeDailyData}
+            displayDate={displayDate}
+            onDateShift={handleDailyDateShift}
+            isDateLoading={isDailyDateLoading}
+          />
+        )}
+        <DashboardV2CountdownCard data={activeDailyData} />
+      </div>
+      <DashboardV2DailyFlowCard data={activeDailyData} />
     </div>
   );
 }

@@ -57,6 +57,7 @@ def _forecast_planet_ids() -> dict[str, int]:
         raise RuntimeError("swisseph is not installed")
     return {
         "SUN": swe.SUN,
+        "MOON": swe.MOON,
         "MERCURY": swe.MERCURY,
         "VENUS": swe.VENUS,
         "MARS": swe.MARS,
@@ -460,6 +461,38 @@ def _calc_transit_state(planet: str, local_dt: datetime, timezone_offset: float)
     return float(result[0][0]), float(result[0][3]) < 0
 
 
+def build_transit_chart(
+    birth_input: BirthInput,
+    target_date: date,
+    target_time: dt_time,
+) -> dict[str, Any]:
+    if swe is None:
+        raise RuntimeError("swisseph is not installed")
+
+    local_dt = datetime.combine(target_date, target_time)
+    jd = _julian_day(local_dt, birth_input.timezone_offset)
+    planet_ids = _forecast_planet_ids()
+    planet_order = ("SUN", "MOON", "MERCURY", "VENUS", "MARS", "JUPITER", "SATURN", "URANUS", "NEPTUNE", "PLUTO")
+    transits = []
+    for planet in planet_order:
+        result = swe.calc_ut(jd, planet_ids[planet], swe.FLG_SPEED)
+        transits.append({
+            "planet": planet,
+            "longitude": round(float(result[0][0]) % 360, 4),
+            "retrograde": float(result[0][3]) < 0,
+        })
+
+    house_cusps, _ascmc = swe.houses(jd, birth_input.latitude, birth_input.longitude, b"P")
+    return {
+        "date": target_date.isoformat(),
+        "time": target_time.strftime("%H:%M"),
+        "timezone_offset": birth_input.timezone_offset,
+        "transits": transits,
+        "house_cusps": [round(float(cusp) % 360, 4) for cusp in house_cusps],
+        "house_system": "Placidus",
+    }
+
+
 def _solar_house(transit_sign: str, natal_sun_sign: str) -> int:
     transit_index = SIGNS.index(reading_service._normalize_sign(transit_sign))
     sun_index = SIGNS.index(reading_service._normalize_sign(natal_sun_sign))
@@ -783,12 +816,31 @@ def _build_day_forecast(
             if event.get("t_planet") == planet and event.get("aspect_angle") is not None
         ]
 
+    all_aspects = [
+        {
+            "date": day.isoformat(),
+            "t_planet": event.get("t_planet"),
+            "n_planet": event.get("n_planet"),
+            "aspect_angle": event.get("aspect_angle"),
+            "orb": event.get("orb"),
+            "orb_status": event.get("orb_status"),
+            "transit_longitude": event.get("transit_longitude"),
+            "title": event.get("title"),
+            "description": event.get("description"),
+            "advised_task": event.get("advised_task"),
+            "source": event.get("source"),
+        }
+        for event in events
+        if event.get("aspect_angle") is not None
+    ]
+
     jupiter_aspects = transit_aspects_for("JUPITER")
     top_events = sorted(events, key=lambda event: (event["priority"], abs(event["weighted_score"])), reverse=True)[:5]
     return {
         "date": day.isoformat(),
         "scores": scores,
         "events": top_events,
+        "all_aspects": all_aspects,
         "jupiter_aspects": jupiter_aspects,
         "saturn_aspects": saturn_aspects,
         "sun_aspects": sun_aspects,
@@ -1250,6 +1302,8 @@ def generate_yearly_forecast(
     return {
         "summary": build_yearly_summary(yearly_data),
         "yearly_data": yearly_data,
+        "natal_points": natal_points,
+        "natal_house_cusps": house_cusps,
         "milestones": extract_milestones(yearly_data),
         "annual_themes": annual_themes,
         "annual_lessons": annual_lessons,
