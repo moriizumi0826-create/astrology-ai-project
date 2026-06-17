@@ -1976,6 +1976,7 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
   const preservedMapViewRef = React.useRef(null);
   const aspectListDragRef = React.useRef(null);
   const mobileAspectListDragRef = React.useRef(null);
+  const hasManualMapPositionRef = React.useRef(false);
   const [selectedNatalPlanet, setSelectedNatalPlanet] = useState("SUN");
   const [selectedTransitTime, setSelectedTransitTime] = useState(() => currentTenMinuteTime());
   const [transitChart, setTransitChart] = useState(null);
@@ -1996,6 +1997,7 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
   const [mobileMapPanelTab, setMobileMapPanelTab] = useState("display");
   const [isMapControlsMenuOpen, setIsMapControlsMenuOpen] = useState(false);
   const [isMapFullscreen, setIsMapFullscreen] = useState(false);
+  const [isMapPositionPanelOpen, setIsMapPositionPanelOpen] = useState(false);
   const [mapZoom, setMapZoom] = useState(() => defaultMapZoom());
   const [mapOffset, setMapOffset] = useState(() => defaultMapOffset());
   const [isRotationPaused, setIsRotationPaused] = useState(false);
@@ -3053,10 +3055,60 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
       camera.aspect = width / height;
       camera.updateProjectionMatrix();
       renderer.setSize(width, height, false);
+      window.requestAnimationFrame(() => centerMobileMapInViewport());
     };
     resize();
     const observer = new ResizeObserver(resize);
     observer.observe(mount);
+
+    const projectedEarthCenter = () => {
+      const width = Math.max(1, renderer.domElement.clientWidth || mount.clientWidth);
+      const height = Math.max(1, renderer.domElement.clientHeight || mount.clientHeight);
+      group.updateMatrixWorld(true);
+      camera.updateMatrixWorld(true);
+      const projected = earthMesh.position.clone().applyMatrix4(group.matrixWorld).project(camera);
+      if (!Number.isFinite(projected.x) || !Number.isFinite(projected.y)) return null;
+      return {
+        width,
+        height,
+        centerX: (projected.x * 0.5 + 0.5) * width,
+        centerY: (-projected.y * 0.5 + 0.5) * height,
+      };
+    };
+
+    const centerMobileMapInViewport = () => {
+      const state = sceneStateRef.current;
+      if (!isMobileMapCanvas || dragging || state?.isFlatMapView || hasManualMapPositionRef.current) return;
+      const current = projectedEarthCenter();
+      if (!current) return;
+      const targetX = current.width * 0.5;
+      const targetY = current.height * 0.5;
+      const pixelDeltaX = targetX - current.centerX;
+      const pixelDeltaY = targetY - current.centerY;
+      if (Math.hypot(pixelDeltaX, pixelDeltaY) < 2) return;
+
+      const originalX = group.position.x;
+      const originalY = group.position.y;
+      group.position.x = originalX + 1;
+      const xMoved = projectedEarthCenter();
+      group.position.x = originalX;
+      group.position.y = originalY + 1;
+      const yMoved = projectedEarthCenter();
+      group.position.y = originalY;
+      if (!xMoved || !yMoved) return;
+
+      const xAxisX = xMoved.centerX - current.centerX;
+      const xAxisY = xMoved.centerY - current.centerY;
+      const yAxisX = yMoved.centerX - current.centerX;
+      const yAxisY = yMoved.centerY - current.centerY;
+      const determinant = xAxisX * yAxisY - yAxisX * xAxisY;
+      if (Math.abs(determinant) < 0.001) return;
+
+      const worldDeltaX = clamp((pixelDeltaX * yAxisY - pixelDeltaY * yAxisX) / determinant, -0.5, 0.5);
+      const worldDeltaY = clamp((xAxisX * pixelDeltaY - xAxisY * pixelDeltaX) / determinant, -0.5, 0.5);
+      group.position.x = originalX + worldDeltaX;
+      group.position.y = originalY + worldDeltaY;
+    };
 
     let frameId = 0;
     const animate = () => {
@@ -3110,6 +3162,7 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
         camera.position.y = cameraYForTiltDegrees(tiltDegrees);
         camera.lookAt(0, 0, 0);
       }
+      centerMobileMapInViewport();
       spinningMeshes.forEach((item) => {
         if (item.materialRotation && item.mesh.material) {
           item.mesh.material.rotation = (item.mesh.material.rotation || 0) + item.speed;
@@ -3499,6 +3552,17 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
   };
   const zoomOutMap = () => setMapZoom((value) => clamp(Number((value - 0.08).toFixed(2)), minimumMapZoom(), 1.35));
   const zoomInMap = () => setMapZoom((value) => clamp(Number((value + 0.08).toFixed(2)), minimumMapZoom(), 1.35));
+  const nudgeMapPosition = (deltaX, deltaY) => {
+    hasManualMapPositionRef.current = true;
+    setMapOffset((current) => ({
+      x: Number((current.x + deltaX).toFixed(2)),
+      y: Number((current.y + deltaY).toFixed(2)),
+    }));
+  };
+  const resetMapPosition = () => {
+    hasManualMapPositionRef.current = false;
+    setMapOffset(isFlatMapView ? { x: 0, y: 0 } : defaultMapOffset());
+  };
   const toggleFlatMapView = () => {
     const state = sceneStateRef.current;
     const nextFlatView = !isFlatMapView;
@@ -3506,6 +3570,7 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
     setIsRotationPaused(nextFlatView);
     setMapZoom(nextFlatView ? defaultFlatMapZoom() : defaultMapZoom());
     const nextOffset = nextFlatView ? { x: 0, y: 0 } : defaultMapOffset();
+    hasManualMapPositionRef.current = false;
     setMapOffset(nextOffset);
     if (!state?.camera || !state?.group) return;
     state.hasManualTilt = nextFlatView;
@@ -3535,6 +3600,40 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
           }}
         >
           <div ref={mountRef} className="absolute inset-0" aria-label="現行天体とネイタル天体の3Dマップ" />
+          <div className="absolute bottom-0 left-0 z-30 h-8 w-[76px] sm:h-9 sm:w-[82px]">
+            <div
+              id="map-position-panel"
+              className={cx(
+                "absolute bottom-9 left-0 grid origin-bottom-left rounded-xl border border-white/10 bg-[#121414]/76 p-1 font-mono text-[12px] font-bold text-mist shadow-[0_18px_42px_rgba(0,0,0,0.32)] backdrop-blur-md transition-all duration-200 sm:bottom-10",
+                isMapPositionPanelOpen ? "scale-100 opacity-100" : "pointer-events-none scale-95 opacity-0"
+              )}
+              aria-hidden={!isMapPositionPanelOpen}
+            >
+              <div className="grid grid-cols-3 gap-1">
+                <span />
+                <button type="button" onClick={() => nudgeMapPosition(0, 0.12)} className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-white/10 bg-white/[0.035] transition hover:border-gold/35 hover:text-gold sm:h-8 sm:w-8" aria-label="3Dマップを上へ移動" title="上へ">↑</button>
+                <span />
+                <button type="button" onClick={() => nudgeMapPosition(-0.12, 0)} className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-white/10 bg-white/[0.035] transition hover:border-gold/35 hover:text-gold sm:h-8 sm:w-8" aria-label="3Dマップを左へ移動" title="左へ">←</button>
+                <button type="button" onClick={() => nudgeMapPosition(0, -0.12)} className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-white/10 bg-white/[0.035] transition hover:border-gold/35 hover:text-gold sm:h-8 sm:w-8" aria-label="3Dマップを下へ移動" title="下へ">↓</button>
+                <button type="button" onClick={() => nudgeMapPosition(0.12, 0)} className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-white/10 bg-white/[0.035] transition hover:border-gold/35 hover:text-gold sm:h-8 sm:w-8" aria-label="3Dマップを右へ移動" title="右へ">→</button>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setIsMapPositionPanelOpen((value) => !value)}
+              onDoubleClick={resetMapPosition}
+              className={cx(
+                "absolute bottom-0 left-0 inline-flex h-8 w-[76px] items-center justify-center rounded-lg border px-2 text-[11px] font-bold shadow-[0_10px_26px_rgba(0,0,0,0.28)] backdrop-blur transition sm:h-9 sm:w-[82px]",
+                isMapPositionPanelOpen ? "border-gold/35 bg-gold/15 text-gold" : "border-white/10 bg-[#121414]/72 text-mist hover:bg-white/10 hover:text-gold"
+              )}
+              aria-expanded={isMapPositionPanelOpen}
+              aria-controls="map-position-panel"
+              aria-label="3Dマップの位置調整"
+              title="位置調整 / ダブルクリックでリセット"
+            >
+              位置調整
+            </button>
+          </div>
           <div className="absolute left-2 top-2 z-30 grid gap-1 text-shadow-sm sm:hidden">
             <div className="flex items-center gap-0.5">
               <span className="relative inline-flex h-7 w-[82px] items-center rounded-md border border-transparent bg-transparent px-1 font-mono text-[10px] font-semibold text-starlight transition hover:border-white/10 hover:bg-[#121414]/40 focus-within:border-gold/50 focus-within:bg-[#121414]/70 focus-within:ring-2 focus-within:ring-gold/25">
