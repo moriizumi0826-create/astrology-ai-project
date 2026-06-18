@@ -55,7 +55,7 @@ const PLANET_SYMBOLS = {
 const TRANSIT_PLANET_ORDER = ["SUN", "MOON", "MERCURY", "VENUS", "MARS", "JUPITER", "SATURN", "URANUS", "NEPTUNE", "PLUTO"];
 const NATAL_POINT_ORDER = ["SUN", "MOON", "MERCURY", "VENUS", "MARS", "JUPITER", "SATURN", "URANUS", "NEPTUNE", "PLUTO", "ASC", "MC"];
 const ZODIAC_SIGN_NAMES = ["牡羊", "牡牛", "双子", "蟹", "獅子", "乙女", "天秤", "蠍", "射手", "山羊", "水瓶", "魚"];
-const ZODIAC_SIGNS = ["♈", "♉", "♊", "♋", "♌", "♍", "♎", "♏", "♐", "♑", "♒", "♓"];
+const ZODIAC_SIGNS = ["♈︎", "♉︎", "♊︎", "♋︎", "♌︎", "♍︎", "♎︎", "♏︎", "♐︎", "♑︎", "♒︎", "♓︎"];
 const PLANET_COLORS = {
   SUN: "#e9c349",
   MOON: "#c3c6d7",
@@ -2583,7 +2583,7 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
     ZODIAC_SIGNS.forEach((signSymbol, index) => {
       const { mesh, texture } = orbitTextPlane(signSymbol, {
         color: "#e9c349",
-        font: "900 108px 'Segoe UI Symbol', 'Noto Sans Symbols', JetBrains Mono, sans-serif",
+        font: "900 108px 'Noto Sans Symbols 2', 'Noto Sans Symbols', 'Segoe UI Symbol', 'Apple Symbols', 'DejaVu Sans', sans-serif",
         width: 160,
         height: 128,
         scaleX: isMobileMapCanvas ? 0.5 : 0.42,
