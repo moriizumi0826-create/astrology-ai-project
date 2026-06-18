@@ -606,6 +606,10 @@ function dashboardDataFromReadingPayload(payload, fallbackData = {}) {
   };
 }
 
+function hasWeeklyAspectFeed(data = {}) {
+  return Array.isArray(data.weekly_aspects) || Array.isArray(data.weeklyAspects);
+}
+
 function MotionIndicatorGrid({ items = [], compact = false }) {
   const motionItems = Array.isArray(items) ? items : [];
   return (
@@ -1444,6 +1448,47 @@ function weeklyAspectDateLabel(item) {
   return `${date.getMonth() + 1}/${date.getDate()}`;
 }
 
+function WeeklyAspectList({ items = [] }) {
+  const weeklyAspects = Array.isArray(items) ? items : [];
+  if (!weeklyAspects.length) {
+    return (
+      <div className="flex min-h-[220px] items-center justify-center rounded-lg border border-white/10 bg-white/[0.035] text-center text-xs font-bold leading-5 text-[#909096]">
+        直近1週間の表示対象アスペクトはありません
+      </div>
+    );
+  }
+  return (
+    <div className="min-h-0 flex-1 space-y-2 overflow-y-auto pr-1">
+      {weeklyAspects.map((item, index) => {
+        const score = Number(item.scoreImpact ?? item.score_impact ?? 0);
+        const isNegative = score < 0;
+        const orb = Number(item.orb);
+        return (
+          <div
+            key={`${item.date || "date"}-${item.label || "aspect"}-${index}`}
+            className="grid grid-cols-[54px_1fr_auto] items-start gap-3 rounded-lg border border-white/10 bg-white/[0.035] px-3 py-2"
+          >
+            <span className="font-mono text-[10px] font-black leading-5 text-[#e9c349]">{weeklyAspectDateLabel(item)}</span>
+            <div className="min-w-0">
+              <p className="truncate text-xs font-black leading-5 text-[#f3f3f0]">{item.label || item.title || "アスペクト"}</p>
+              <p className="truncate text-[10px] font-bold leading-4 text-[#909096]">
+                {item.title || item.category || "General"}
+                {Number.isFinite(orb) ? ` / orb ${orb.toFixed(2)}` : ""}
+              </p>
+            </div>
+            <span className={cx(
+              "rounded-full px-2 py-1 font-mono text-[10px] font-black leading-none",
+              isNegative ? "bg-rose-300/10 text-rose-200" : "bg-sky-300/10 text-sky-200"
+            )}>
+              {score > 0 ? `+${score}` : score}
+            </span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 function LunarCountdownWidget({ data, items = [], groups = {}, developerMode = false, developerMeta = {} }) {
   const [shortIndex, setShortIndex] = useState(0);
   const [longIndex, setLongIndex] = useState(0);
@@ -2128,11 +2173,16 @@ function DashboardV2DailyThemeCard({ data, displayDate = "", onDateShift = () =>
     {};
   const positiveHighlights = Array.isArray(aspectHighlights.positive) ? aspectHighlights.positive : [];
   const negativeHighlights = Array.isArray(aspectHighlights.negative) ? aspectHighlights.negative : [];
+  const weeklyAspects = Array.isArray(data.weekly_aspects)
+    ? data.weekly_aspects
+    : Array.isArray(data.weeklyAspects)
+      ? data.weeklyAspects
+      : [];
   const analysisTitle = {
     theme: "今日の洞察",
     lesson: "今日の追い風",
     summary: "今日の消耗注意",
-    test1: "カウントダウン1",
+    test1: "直近1週間",
     test2: "カウントダウン2",
   }[analysisMode] || "今日の洞察";
   const timelineItems = (items, fallbackBody, color) => (
@@ -2215,7 +2265,7 @@ function DashboardV2DailyThemeCard({ data, displayDate = "", onDateShift = () =>
       {analysisMode === "theme" ? timelineItems([], summaryText, "#e9c349") : null}
       {analysisMode === "lesson" ? timelineItems(positiveHighlights, "追い風に該当するアスペクトなし", "#38bdf8") : null}
       {analysisMode === "summary" ? timelineItems(negativeHighlights, "負荷・消耗注意に該当するアスペクトなし", "#fecdd3") : null}
-      {analysisMode === "test1" ? timelineItems(positiveHighlights, "追い風に該当するアスペクトなし", "#38bdf8") : null}
+      {analysisMode === "test1" ? <WeeklyAspectList items={weeklyAspects} /> : null}
       {analysisMode === "test2" ? timelineItems(negativeHighlights, "負荷・消耗注意に該当するアスペクトなし", "#ff5c68") : null}
     </DashboardV2Card>
   );
@@ -2225,11 +2275,6 @@ function DashboardV2CountdownCard({ data }) {
   const [activeEventIndex, setActiveEventIndex] = useState(0);
   const groups = data.countdown_groups || {};
   const displayDate = dashboardDisplayDate(data);
-  const weeklyAspects = Array.isArray(data.weekly_aspects)
-    ? data.weekly_aspects
-    : Array.isArray(data.weeklyAspects)
-      ? data.weeklyAspects
-      : [];
   const candidates = React.useMemo(() => {
     const longByPriorityItems = groups.long_by_priority && typeof groups.long_by_priority === "object"
       ? Object.values(groups.long_by_priority).flatMap((items) => Array.isArray(items) ? items : [])
@@ -2260,47 +2305,6 @@ function DashboardV2CountdownCard({ data }) {
   useEffect(() => {
     setActiveEventIndex(0);
   }, [candidateKeys]);
-  if (weeklyAspects.length) {
-    return (
-      <DashboardV2Card className="h-[300px]" bodyClassName="flex h-full flex-col p-5">
-        <div className="flex items-center justify-between gap-3">
-          <div>
-            <p className="font-mono text-xs font-black uppercase tracking-[0.28em] text-[#e9c349]">Countdown 1</p>
-            <p className="mt-1 text-xs font-bold text-[#c7c6cc]">直近1週間の全アスペクト</p>
-          </div>
-          <span className="shrink-0 font-mono text-[10px] font-black text-[#909096]">{weeklyAspects.length}件</span>
-        </div>
-        <div className="mt-4 min-h-0 flex-1 space-y-2 overflow-y-auto pr-1">
-          {weeklyAspects.map((item, index) => {
-            const score = Number(item.scoreImpact ?? item.score_impact ?? 0);
-            const isNegative = score < 0;
-            const orb = Number(item.orb);
-            return (
-              <div
-                key={`${item.date || "date"}-${item.label || "aspect"}-${index}`}
-                className="grid grid-cols-[54px_1fr_auto] items-start gap-3 rounded-lg border border-white/10 bg-white/[0.035] px-3 py-2"
-              >
-                <span className="font-mono text-[10px] font-black leading-5 text-[#e9c349]">{weeklyAspectDateLabel(item)}</span>
-                <div className="min-w-0">
-                  <p className="truncate text-xs font-black leading-5 text-[#f3f3f0]">{item.label || item.title || "アスペクト"}</p>
-                  <p className="truncate text-[10px] font-bold leading-4 text-[#909096]">
-                    {item.title || item.category || "General"}
-                    {Number.isFinite(orb) ? ` / orb ${orb.toFixed(2)}` : ""}
-                  </p>
-                </div>
-                <span className={cx(
-                  "rounded-full px-2 py-1 font-mono text-[10px] font-black leading-none",
-                  isNegative ? "bg-rose-300/10 text-rose-200" : "bg-sky-300/10 text-sky-200"
-                )}>
-                  {score > 0 ? `+${score}` : score}
-                </span>
-              </div>
-            );
-          })}
-        </div>
-      </DashboardV2Card>
-    );
-  }
   const goToEvent = (direction) => {
     if (eventCount <= 1) return;
     setActiveEventIndex((index) => (index + direction + eventCount) % eventCount);
@@ -3294,6 +3298,40 @@ function DashboardDailyDetailLayerBase({ data = dashboardData, className = "", i
       dailyDataCacheRef.current.set(nextDate, data);
     }
   }, [data]);
+
+  useEffect(() => {
+    const targetDate = selectedDailyDate || dashboardDisplayDate(activeDailyData);
+    if (!targetDate || hasWeeklyAspectFeed(activeDailyData)) return;
+
+    const formPayload = getStoredReadingForm();
+    if (!formPayload) return;
+
+    const requestId = dailyDateRequestIdRef.current + 1;
+    dailyDateRequestIdRef.current = requestId;
+    setIsDailyDateLoading(true);
+    setDailyDateError("");
+    postDashboardJson("/api/readings", {
+      ...formPayload,
+      target_date: targetDate,
+    })
+      .then((payload) => {
+        if (dailyDateRequestIdRef.current !== requestId) return;
+        const nextData = dashboardDataFromReadingPayload(payload, data);
+        if (nextData) {
+          dailyDataCacheRef.current.set(targetDate, nextData);
+          setActiveDailyData(nextData);
+        }
+      })
+      .catch((error) => {
+        if (dailyDateRequestIdRef.current !== requestId) return;
+        setDailyDateError(error?.message || "直近1週間のアスペクト取得に失敗しました。");
+      })
+      .finally(() => {
+        if (dailyDateRequestIdRef.current === requestId) {
+          setIsDailyDateLoading(false);
+        }
+      });
+  }, [activeDailyData, data, selectedDailyDate]);
 
   const handleDailyDateShift = async (days) => {
     const nextDate = addDaysToIsoDate(displayDate || dashboardDisplayDate(activeDailyData), days);
