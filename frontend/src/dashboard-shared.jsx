@@ -1480,22 +1480,22 @@ function RainbowFocusStyle() {
           100% { filter: hue-rotate(360deg); transform: rotate(360deg); }
         }
         @keyframes celestialRainbowPulse {
-          0%, 100% { box-shadow: 0 0 18px rgba(233, 195, 73, 0.28), 0 0 30px rgba(56, 189, 248, 0.18); }
-          50% { box-shadow: 0 0 28px rgba(236, 72, 153, 0.42), 0 0 46px rgba(34, 211, 238, 0.28); }
+          0%, 100% { box-shadow: 0 0 10px rgba(233, 195, 73, 0.16), 0 0 18px rgba(56, 189, 248, 0.08); }
+          50% { box-shadow: 0 0 14px rgba(236, 72, 153, 0.2), 0 0 24px rgba(34, 211, 238, 0.12); }
         }
         .celestial-rainbow-focus {
           position: relative;
-          border-color: rgba(255,255,255,0.22);
-          animation: celestialRainbowPulse 1.35s ease-in-out infinite;
+          border-color: rgba(255,255,255,0.16);
+          animation: celestialRainbowPulse 3.8s ease-in-out infinite;
         }
         .celestial-rainbow-focus::before {
           content: "";
           position: absolute;
-          inset: -2px;
+          inset: -1px;
           z-index: 0;
           border-radius: inherit;
-          background: conic-gradient(from 0deg, #ff4fd8, #ffd84f, #38f77f, #37d5ff, #8b5cff, #ff4fd8);
-          animation: celestialRainbowFocus 1.4s linear infinite;
+          background: conic-gradient(from 0deg, rgba(244,114,182,0.78), rgba(234,179,8,0.7), rgba(74,222,128,0.68), rgba(56,189,248,0.72), rgba(167,139,250,0.72), rgba(244,114,182,0.78));
+          animation: celestialRainbowFocus 6s linear infinite;
         }
         .celestial-rainbow-focus::after {
           content: "";
