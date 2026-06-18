@@ -1452,21 +1452,30 @@ function countdownDaysUntil(slide, baseDateKey = "") {
 }
 
 function weeklyAspectDateLabel(item) {
+  const formatDate = (value) => {
+    const date = dateKeyToLocalDate(value);
+    if (!date) return "";
+    return `${date.getMonth() + 1}/${date.getDate()}`;
+  };
+  const startLabel = formatDate(item?.start_date || item?.startDate || item?.date || item?.target_date || item?.event_date);
+  const endLabel = formatDate(item?.end_date || item?.endDate || item?.date || item?.target_date || item?.event_date);
+  if (startLabel && endLabel) {
+    return startLabel === endLabel ? `影響期間 ${startLabel}` : `影響期間 ${startLabel}〜${endLabel}`;
+  }
   const days = Number(item?.days_until ?? item?.daysUntil);
   if (Number.isFinite(days)) {
     if (days === 0) return "今日";
     if (days === 1) return "明日";
     return `${days}日後`;
   }
-  const date = dateKeyToLocalDate(item?.date || item?.target_date || item?.event_date);
-  if (!date) return "";
-  return `${date.getMonth() + 1}/${date.getDate()}`;
+  return "";
 }
 
 function weeklyAspectItemKey(item, index) {
   return [
     aspectFocusKey(item),
-    item?.date || item?.target_date || item?.event_date || "",
+    item?.start_date || item?.startDate || item?.date || item?.target_date || item?.event_date || "",
+    item?.end_date || item?.endDate || "",
     index,
   ].join("|");
 }

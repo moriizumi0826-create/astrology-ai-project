@@ -1135,7 +1135,7 @@ def _build_weekly_aspect_items(
     if birth_input is None or swe is None:
         return []
     target_date = _dashboard_target_date(current_dt)
-    items: list[dict[str, Any]] = []
+    grouped_items: dict[str, dict[str, Any]] = {}
     for day_offset in range(max(days, 0)):
         sample_dt = datetime.combine(target_date + timedelta(days=day_offset), dt_time(hour=12))
         try:
@@ -1157,9 +1157,43 @@ def _build_weekly_aspect_items(
             key=lambda item: (_safe_number(item, "Priority"), abs(_safe_number(item, "Score_Impact")), -_extract_current_orb(item)),
             reverse=True,
         ):
-            items.append({
+            aspect_key = "|".join(
+                [
+                    _safe_text(row, "Countdown_ID"),
+                    _safe_text(row, "T_Planet"),
+                    _safe_text(row, "N_Planet"),
+                    str(_safe_number(row, "Aspect_Angle")),
+                ]
+            )
+            row_rank = (_safe_number(row, "Priority"), abs(_safe_number(row, "Score_Impact")), -_extract_current_orb(row))
+            item = grouped_items.get(aspect_key)
+            if item:
+                item["end_date"] = sample_dt.date().isoformat()
+                item["end_days_until"] = day_offset
+                item["active_dates"].append(sample_dt.date().isoformat())
+                if row_rank > item["_rank"]:
+                    item.update({
+                        "label": _hero_aspect_label(row),
+                        "title": _safe_text(row, "Countdown_Label") or _safe_text(row, "Category", "Aspect"),
+                        "category": _safe_text(row, "Category", "General"),
+                        "scoreImpact": _safe_number(row, "Score_Impact"),
+                        "priority": _safe_number(row, "Priority"),
+                        "orb": round(_extract_current_orb(row), 2),
+                        "orbStatus": _safe_text(row, "_orb_status", _safe_text(row, "Orb_Status")),
+                        "description": _safe_text(row, "Text_Description"),
+                        "advisedTask": _safe_text(row, "Advised_Task"),
+                        "target": row,
+                        "_rank": row_rank,
+                    })
+                continue
+            grouped_items[aspect_key] = {
                 "date": sample_dt.date().isoformat(),
                 "days_until": day_offset,
+                "start_date": sample_dt.date().isoformat(),
+                "end_date": sample_dt.date().isoformat(),
+                "start_days_until": day_offset,
+                "end_days_until": day_offset,
+                "active_dates": [sample_dt.date().isoformat()],
                 "label": _hero_aspect_label(row),
                 "title": _safe_text(row, "Countdown_Label") or _safe_text(row, "Category", "Aspect"),
                 "category": _safe_text(row, "Category", "General"),
@@ -1170,7 +1204,12 @@ def _build_weekly_aspect_items(
                 "description": _safe_text(row, "Text_Description"),
                 "advisedTask": _safe_text(row, "Advised_Task"),
                 "target": row,
-            })
+                "_rank": row_rank,
+            }
+    items = list(grouped_items.values())
+    items.sort(key=lambda item: (item["start_days_until"], -_safe_number(item, "priority"), -abs(_safe_number(item, "scoreImpact"))))
+    for item in items:
+        item.pop("_rank", None)
     return items
 
 

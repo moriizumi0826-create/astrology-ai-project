@@ -756,11 +756,14 @@ class ApiTestCase(unittest.TestCase):
                 current_dt=date(2026, 5, 2),
             )
 
-        self.assertEqual(len(dashboard["weekly_aspects"]), 6)
+        self.assertEqual(len(dashboard["weekly_aspects"]), 1)
         self.assertEqual(dashboard["weekly_aspects"][0]["date"], "2026-05-02")
         self.assertEqual(dashboard["weekly_aspects"][0]["days_until"], 0)
-        self.assertEqual(dashboard["weekly_aspects"][5]["date"], "2026-05-07")
-        self.assertEqual(dashboard["weekly_aspects"][5]["days_until"], 5)
+        self.assertEqual(dashboard["weekly_aspects"][0]["start_date"], "2026-05-02")
+        self.assertEqual(dashboard["weekly_aspects"][0]["end_date"], "2026-05-07")
+        self.assertEqual(dashboard["weekly_aspects"][0]["start_days_until"], 0)
+        self.assertEqual(dashboard["weekly_aspects"][0]["end_days_until"], 5)
+        self.assertEqual(len(dashboard["weekly_aspects"][0]["active_dates"]), 6)
         self.assertEqual(dashboard["weekly_aspects"][0]["scoreImpact"], -24)
         self.assertFalse(any(item["priority"] < 5 for item in dashboard["weekly_aspects"]))
         self.assertTrue(all(item["target"]["N_Planet"] == "NATAL_MOON" for item in dashboard["weekly_aspects"]))
