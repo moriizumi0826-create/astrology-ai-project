@@ -1459,11 +1459,40 @@ function weeklyAspectDateLabel(item) {
   return `${date.getMonth() + 1}/${date.getDate()}`;
 }
 
+function weeklyAspectItemKey(item, index) {
+  return [
+    aspectFocusKey(item),
+    item?.date || item?.target_date || item?.event_date || "",
+    index,
+  ].join("|");
+}
+
 function WeeklyAspectList({ items = [], focusKey = "", focusToken = 0 }) {
   const weeklyAspects = Array.isArray(items) ? items : [];
+  const [openKeys, setOpenKeys] = useState(() => new Set());
   const focusedItemRef = React.useRef(null);
+  const toggleOpen = (key) => {
+    setOpenKeys((current) => {
+      const next = new Set(current);
+      if (next.has(key)) {
+        next.delete(key);
+      } else {
+        next.add(key);
+      }
+      return next;
+    });
+  };
   useEffect(() => {
     if (!focusKey || !focusedItemRef.current) return;
+    setOpenKeys((current) => {
+      const next = new Set(current);
+      weeklyAspects.forEach((item, index) => {
+        if (aspectFocusKey(item) === focusKey) {
+          next.add(weeklyAspectItemKey(item, index));
+        }
+      });
+      return next;
+    });
     focusedItemRef.current.scrollIntoView({ block: "center", behavior: "smooth" });
   }, [focusKey, focusToken, weeklyAspects.length]);
   if (!weeklyAspects.length) {
@@ -1474,38 +1503,54 @@ function WeeklyAspectList({ items = [], focusKey = "", focusToken = 0 }) {
     );
   }
   return (
-    <div className="min-h-0 flex-1 space-y-2 overflow-y-auto pr-1">
+    <div className="mt-4 min-h-0 flex-1 space-y-3 overflow-y-auto pr-1 [scrollbar-color:#e9c349_rgba(255,255,255,0.08)] [scrollbar-width:thin]">
       {weeklyAspects.map((item, index) => {
-        const score = Number(item.scoreImpact ?? item.score_impact ?? 0);
-        const isNegative = score < 0;
-        const orb = Number(item.orb);
         const isFocused = Boolean(focusKey) && aspectFocusKey(item) === focusKey;
+        const itemKey = weeklyAspectItemKey(item, index);
+        const isOpen = openKeys.has(itemKey);
+        const body = item.description || item.advisedTask || "解釈文がありません。";
         return (
-          <div
+          <article
             ref={isFocused ? focusedItemRef : null}
-            key={`${item.date || "date"}-${item.label || "aspect"}-${index}`}
+            key={itemKey}
             className={cx(
-              "grid grid-cols-[54px_1fr_auto] items-start gap-3 rounded-lg border px-3 py-2 transition",
+              "overflow-hidden rounded-xl border transition",
               isFocused
                 ? "border-[#e9c349]/80 bg-[#e9c349]/12 shadow-[0_0_18px_rgba(233,195,73,0.18)]"
                 : "border-white/10 bg-white/[0.035]"
             )}
           >
-            <span className="font-mono text-[10px] font-black leading-5 text-[#e9c349]">{weeklyAspectDateLabel(item)}</span>
-            <div className="min-w-0">
-              <p className="truncate text-xs font-black leading-5 text-[#f3f3f0]">{item.label || item.title || "アスペクト"}</p>
-              <p className="truncate text-[10px] font-bold leading-4 text-[#909096]">
-                {item.title || item.category || "General"}
-                {Number.isFinite(orb) ? ` / orb ${orb.toFixed(2)}` : ""}
-              </p>
-            </div>
-            <span className={cx(
-              "rounded-full px-2 py-1 font-mono text-[10px] font-black leading-none",
-              isNegative ? "bg-rose-300/10 text-rose-200" : "bg-sky-300/10 text-sky-200"
-            )}>
-              {score > 0 ? `+${score}` : score}
-            </span>
-          </div>
+            <button
+              type="button"
+              onClick={() => toggleOpen(itemKey)}
+              className="flex w-full items-start justify-between gap-3 px-3 py-3 text-left transition hover:bg-white/[0.04] sm:px-4"
+            >
+              <div className="min-w-0">
+                <p className="font-mono text-[10px] font-black uppercase tracking-[0.12em] text-[#e9c349]">
+                  {weeklyAspectDateLabel(item)}
+                </p>
+                <p className="mt-2 text-xs font-black leading-5 text-[#f3f3f0] sm:text-sm sm:leading-6">
+                  {item.label || item.title || "アスペクト"}
+                </p>
+              </div>
+              <span
+                className={cx(
+                  "mt-1 inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-white/10 text-lg font-black leading-none text-[#e9c349] transition",
+                  isOpen && "rotate-90 border-[#e9c349]/45 bg-[#e9c349]/10"
+                )}
+                aria-hidden="true"
+              >
+                ›
+              </span>
+            </button>
+            {isOpen ? (
+              <div className="border-t border-white/10 px-3 pb-4 pt-3 sm:px-4">
+                <p className="whitespace-pre-line text-[11px] leading-6 text-[#c7c6cc] sm:text-sm sm:leading-7">
+                  {body}
+                </p>
+              </div>
+            ) : null}
+          </article>
         );
       })}
     </div>
@@ -2213,7 +2258,6 @@ function DashboardV2DailyThemeCard({ data, displayDate = "", onDateShift = () =>
     lesson: "今日の追い風",
     summary: "今日の消耗注意",
     test1: "直近1週間",
-    test2: "カウントダウン2",
   }[analysisMode] || "今日の洞察";
   const timelineItems = (items, fallbackBody, color) => (
     <div className="mt-6 grid min-h-0 flex-1 gap-6 overflow-y-auto pr-2 [scrollbar-color:#e9c349_rgba(255,255,255,0.08)] [scrollbar-width:thin] sm:mt-8 sm:gap-8">
@@ -2275,7 +2319,6 @@ function DashboardV2DailyThemeCard({ data, displayDate = "", onDateShift = () =>
             ["lesson", "追い風"],
             ["summary", "消耗注意"],
             ["test1", "カウントダウン1"],
-            ["test2", "カウントダウン2"],
           ].map(([value, label]) => (
             <button
               key={value}
@@ -2296,7 +2339,6 @@ function DashboardV2DailyThemeCard({ data, displayDate = "", onDateShift = () =>
       {analysisMode === "lesson" ? timelineItems(positiveHighlights, "追い風に該当するアスペクトなし", "#38bdf8") : null}
       {analysisMode === "summary" ? timelineItems(negativeHighlights, "負荷・消耗注意に該当するアスペクトなし", "#fecdd3") : null}
       {analysisMode === "test1" ? <WeeklyAspectList items={weeklyAspects} focusKey={focusedAspectKey} focusToken={focusedAspectToken} /> : null}
-      {analysisMode === "test2" ? timelineItems(negativeHighlights, "負荷・消耗注意に該当するアスペクトなし", "#ff5c68") : null}
     </DashboardV2Card>
   );
 }
