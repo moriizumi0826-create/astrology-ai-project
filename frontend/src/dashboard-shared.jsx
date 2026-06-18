@@ -1471,6 +1471,49 @@ function weeklyAspectItemKey(item, index) {
   ].join("|");
 }
 
+function RainbowFocusStyle() {
+  return (
+    <style>
+      {`
+        @keyframes celestialRainbowFocus {
+          0% { filter: hue-rotate(0deg); transform: rotate(0deg); }
+          100% { filter: hue-rotate(360deg); transform: rotate(360deg); }
+        }
+        @keyframes celestialRainbowPulse {
+          0%, 100% { box-shadow: 0 0 18px rgba(233, 195, 73, 0.28), 0 0 30px rgba(56, 189, 248, 0.18); }
+          50% { box-shadow: 0 0 28px rgba(236, 72, 153, 0.42), 0 0 46px rgba(34, 211, 238, 0.28); }
+        }
+        .celestial-rainbow-focus {
+          position: relative;
+          border-color: rgba(255,255,255,0.22);
+          animation: celestialRainbowPulse 1.35s ease-in-out infinite;
+        }
+        .celestial-rainbow-focus::before {
+          content: "";
+          position: absolute;
+          inset: -2px;
+          z-index: 0;
+          border-radius: inherit;
+          background: conic-gradient(from 0deg, #ff4fd8, #ffd84f, #38f77f, #37d5ff, #8b5cff, #ff4fd8);
+          animation: celestialRainbowFocus 1.4s linear infinite;
+        }
+        .celestial-rainbow-focus::after {
+          content: "";
+          position: absolute;
+          inset: 2px;
+          z-index: 0;
+          border-radius: calc(0.75rem - 1px);
+          background: rgba(12, 14, 18, 0.94);
+        }
+        .celestial-rainbow-focus > * {
+          position: relative;
+          z-index: 1;
+        }
+      `}
+    </style>
+  );
+}
+
 function WeeklyAspectList({ items = [], focusKey = "", focusToken = 0 }) {
   const weeklyAspects = Array.isArray(items) ? items : [];
   const [openKeys, setOpenKeys] = useState(() => new Set());
@@ -1508,6 +1551,7 @@ function WeeklyAspectList({ items = [], focusKey = "", focusToken = 0 }) {
   }
   return (
     <div className="mt-4 min-h-0 flex-1 space-y-3 overflow-y-auto pr-1 [scrollbar-color:#e9c349_rgba(255,255,255,0.08)] [scrollbar-width:thin]">
+      <RainbowFocusStyle />
       {weeklyAspects.map((item, index) => {
         const isFocused = Boolean(focusKey) && aspectFocusKey(item) === focusKey;
         const itemKey = weeklyAspectItemKey(item, index);
@@ -1520,7 +1564,7 @@ function WeeklyAspectList({ items = [], focusKey = "", focusToken = 0 }) {
             className={cx(
               "overflow-hidden rounded-xl border transition",
               isFocused
-                ? "border-[#e9c349]/80 bg-[#e9c349]/12 shadow-[0_0_18px_rgba(233,195,73,0.18)]"
+                ? "celestial-rainbow-focus bg-[#e9c349]/12"
                 : "border-white/10 bg-white/[0.035]"
             )}
           >
