@@ -20,8 +20,6 @@ export default defineConfig(({ mode }) => {
       rollupOptions: {
         input: {
           main: path.resolve(__dirname, "index.html"),
-          results: path.resolve(__dirname, "results.html"),
-          dashboard: path.resolve(__dirname, "dashboard.html"),
           forecastDetail: path.resolve(__dirname, "forecast-detail.html"),
           annualBiorhythmDev: path.resolve(__dirname, "annual-biorhythm-dev.html"),
         },

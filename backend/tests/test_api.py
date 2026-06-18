@@ -627,6 +627,116 @@ class ApiTestCase(unittest.TestCase):
         self.assertEqual(countdown["orb_percent"], 36)
         self.assertEqual(countdown["exit_days_remaining"], 2)
 
+    def test_negative_countdown_counts_until_leaving_influence(self):
+        with patch("backend.app.services.reading_service._scan_countdown_departure") as scan_mock:
+            scan_mock.return_value = {
+                "days_remaining": 9,
+                "total_days": 14,
+                "percent": 35,
+                "scan_status": "departing",
+                "current_orb": 1.0,
+                "departure_day": 9,
+                "departure_orb": 5.2,
+                "departure_retrograde": False,
+            }
+            countdown = build_countdown_data(
+                {
+                    "T_Planet": "TRANSIT_MERCURY",
+                    "N_Planet": "NATAL_MOON",
+                    "Aspect_Angle": 90,
+                    "Countdown_ID": "MIND_BODY_BALANCE",
+                    "Countdown_Label": "negative sample",
+                    "Score_Impact": -50,
+                    "Priority": 8,
+                    "_orb_status": "Applying",
+                    "_input": {
+                        "orb": 1.0,
+                        "natal_longitude": 15.0,
+                    },
+                },
+                current_dt=datetime(2026, 5, 2),
+                countdown_mode="departure",
+            )
+
+        self.assertEqual(countdown["countdown_mode"], "departure")
+        self.assertEqual(countdown["scan_status"], "departing")
+        self.assertEqual(countdown["days_remaining"], 9)
+        self.assertEqual(countdown["daysLeft"], 9)
+        self.assertEqual(countdown["departure_days_remaining"], 9)
+        self.assertEqual(countdown["scan"]["departure_day"], 9)
+
+    def test_dashboard_data_includes_weekly_aspects_for_countdown_one(self):
+        def fake_aspect_inputs(_birth_input, current_dt=None):
+            target_date = current_dt.date() if isinstance(current_dt, datetime) else current_dt
+            return [{"target_date": target_date.isoformat()}]
+
+        def fake_interpretations(aspects):
+            return [
+                {
+                    "T_Planet": "TRANSIT_MERCURY",
+                    "N_Planet": "NATAL_MOON",
+                    "Aspect_Angle": 90,
+                    "Category": "Work",
+                    "Countdown_Label": f"aspect {aspects[0]['target_date']}",
+                    "Score_Impact": -24,
+                    "Priority": 7,
+                    "_orb_status": "Applying",
+                    "_input": {"orb": 1.25},
+                    "Text_Description": "weekly aspect",
+                    "Advised_Task": "adjust",
+                }
+            ]
+
+        rows = [
+            {
+                "T_Planet": "TRANSIT_SUN",
+                "N_Planet": "NATAL_SUN",
+                "Aspect_Angle": 0,
+                "Category": "Work",
+                "Countdown_ID": "WORK_SUCCESS_JUPITER",
+                "Countdown_Label": "sample",
+                "Score_Impact": 60,
+                "Priority": 8,
+                "_orb_status": "Applying",
+                "_input": {"orb": 2.0},
+                "Text_Description": "sample",
+                "Advised_Task": "sample",
+            }
+        ]
+
+        with patch.object(reading_service, "swe", object()), patch(
+            "backend.app.services.reading_service.build_transit_aspect_inputs",
+            side_effect=fake_aspect_inputs,
+        ), patch(
+            "backend.app.services.reading_service.get_all_aspect_interpretations",
+            side_effect=fake_interpretations,
+        ), patch(
+            "backend.app.services.reading_service._build_timeline_from_interpretations",
+            return_value=[],
+        ), patch(
+            "backend.app.services.reading_service._build_timeline_days",
+            return_value=[],
+        ), patch(
+            "backend.app.services.reading_service._build_daily_performance",
+            return_value=[],
+        ), patch(
+            "backend.app.services.reading_service._dashboard_planet_motion",
+            return_value=[],
+        ):
+            dashboard = build_dashboard_data_from_interpretations(
+                rows,
+                {"modifier": 0, "items": []},
+                birth_input=object(),
+                current_dt=date(2026, 5, 2),
+            )
+
+        self.assertEqual(len(dashboard["weekly_aspects"]), 7)
+        self.assertEqual(dashboard["weekly_aspects"][0]["date"], "2026-05-02")
+        self.assertEqual(dashboard["weekly_aspects"][0]["days_until"], 0)
+        self.assertEqual(dashboard["weekly_aspects"][6]["date"], "2026-05-08")
+        self.assertEqual(dashboard["weekly_aspects"][6]["days_until"], 6)
+        self.assertEqual(dashboard["weekly_aspects"][0]["scoreImpact"], -24)
+
     def test_display_countdown_items_prefer_future_days_over_past_peak(self):
         items = [
             {"title": "past peak", "days_remaining": 0, "scan_status": "turning_away"},
@@ -731,7 +841,7 @@ class ApiTestCase(unittest.TestCase):
             1,
         )
 
-    def test_dashboard_countdown_groups_include_negative_departure_items(self):
+    def test_dashboard_countdown_groups_include_negative_departure_items_without_separating_rows(self):
         rows = []
         short_planets = ["TRANSIT_MOON", "TRANSIT_MERCURY", "TRANSIT_VENUS"]
         long_planets = ["TRANSIT_JUPITER", "TRANSIT_SATURN", "TRANSIT_URANUS"]
@@ -758,7 +868,7 @@ class ApiTestCase(unittest.TestCase):
                     "Countdown_Label": f"short negative {index}",
                     "Score_Impact": -40 - index,
                     "Priority": 8,
-                    "_orb_status": "Applying" if index == 1 else "Separating",
+                    "_orb_status": "Applying",
                     "_input": {"orb": 1.0},
                 }
             )
@@ -786,7 +896,7 @@ class ApiTestCase(unittest.TestCase):
                     "Countdown_Label": f"long negative {index}",
                     "Score_Impact": -60 - index,
                     "Priority": long_priorities[index],
-                    "_orb_status": "Applying" if index == 1 else "Separating",
+                    "_orb_status": "Applying",
                     "_input": {"orb": 1.0},
                 }
             )
@@ -822,7 +932,7 @@ class ApiTestCase(unittest.TestCase):
         )
         self.assertEqual(
             [item["target"]["_orb_status"] for item in dashboard["countdown_groups"]["short"][2:]],
-            ["Separating", "Applying"],
+            ["Applying", "Applying"],
         )
         self.assertTrue(
             all(item["target"]["Score_Impact"] < 0 for item in dashboard["countdown_groups"]["short"][2:])
@@ -844,7 +954,7 @@ class ApiTestCase(unittest.TestCase):
         )
         self.assertEqual(
             [item["target"]["_orb_status"] for item in dashboard["countdown_groups"]["long"][3:]],
-            ["Separating", "Applying", "Separating"],
+            ["Applying", "Applying", "Applying"],
         )
         self.assertTrue(
             all(item["target"]["Score_Impact"] < 0 for item in dashboard["countdown_groups"]["long"][3:])

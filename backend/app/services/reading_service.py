@@ -1127,6 +1127,44 @@ def _aspect_input_orb(row: dict[str, Any]) -> float | None:
     return None
 
 
+def _build_weekly_aspect_items(
+    birth_input: BirthInput | None,
+    current_dt: datetime | date | None,
+    days: int = 7,
+) -> list[dict[str, Any]]:
+    if birth_input is None or swe is None:
+        return []
+    target_date = _dashboard_target_date(current_dt)
+    items: list[dict[str, Any]] = []
+    for day_offset in range(max(days, 0)):
+        sample_dt = datetime.combine(target_date + timedelta(days=day_offset), dt_time(hour=12))
+        try:
+            day_rows = get_all_aspect_interpretations(build_transit_aspect_inputs(birth_input, sample_dt))
+        except Exception as exc:
+            LOGGER.warning("Failed to build weekly aspect items for %s: %s", sample_dt.date(), exc)
+            continue
+        for row in sorted(
+            day_rows,
+            key=lambda item: (_safe_number(item, "Priority"), abs(_safe_number(item, "Score_Impact")), -_extract_current_orb(item)),
+            reverse=True,
+        ):
+            items.append({
+                "date": sample_dt.date().isoformat(),
+                "days_until": day_offset,
+                "label": _hero_aspect_label(row),
+                "title": _safe_text(row, "Countdown_Label") or _safe_text(row, "Category", "Aspect"),
+                "category": _safe_text(row, "Category", "General"),
+                "scoreImpact": _safe_number(row, "Score_Impact"),
+                "priority": _safe_number(row, "Priority"),
+                "orb": round(_extract_current_orb(row), 2),
+                "orbStatus": _safe_text(row, "_orb_status", _safe_text(row, "Orb_Status")),
+                "description": _safe_text(row, "Text_Description"),
+                "advisedTask": _safe_text(row, "Advised_Task"),
+                "target": row,
+            })
+    return items
+
+
 def _mars_aspect_peaks_on_target_date(row: dict[str, Any], current_dt: datetime | date | None) -> bool:
     if swe is None:
         orb = _aspect_input_orb(row)
@@ -1600,17 +1638,21 @@ def _select_countdown_target(rows: list[dict[str, Any]]) -> dict[str, Any] | Non
     return targets[0] if targets else None
 
 
+def _is_countdown_candidate_orb_status(row: dict[str, Any]) -> bool:
+    orb_status = _normalize_orb_status(row.get("_orb_status", row.get("Orb_Status")))
+    return orb_status in {"", "APPLYING", "SEPARATING"}
+
+
 def _select_countdown_targets(
     rows: list[dict[str, Any]],
     limit: int = 3,
     score_sign: str = "positive",
 ) -> list[dict[str, Any]]:
     score_sign_normalized = str(score_sign or "").strip().lower()
-    allowed_orb_statuses = {"APPLYING", "SEPARATING"}
     candidates = [
         row
         for row in rows
-        if _normalize_orb_status(row.get("_orb_status", row.get("Orb_Status"))) in allowed_orb_statuses
+        if _is_countdown_candidate_orb_status(row)
         and (
             _safe_number(row, "Score_Impact") > 0
             if score_sign_normalized != "negative"
@@ -2070,6 +2112,7 @@ def build_countdown_data(
         scan_status = scan.get("scan_status")
     else:
         scan_status = "unknown"
+    departure_days_remaining = days_remaining if countdown_mode_normalized == "departure" else exit_days_remaining
     if countdown_mode_normalized == "departure":
         title = (
             _safe_text(master_row, "Arrival_Text", _safe_text(master_row, "Display_Title") or fallback_label)
@@ -2094,7 +2137,7 @@ def build_countdown_data(
         "percent": progress_percent,
         "orb_percent": orb_percent,
         "exit_days_remaining": exit_days_remaining,
-        "departure_days_remaining": exit_days_remaining,
+        "departure_days_remaining": departure_days_remaining,
         "scan_status": scan_status,
         "priority": _safe_number(countdown_target, "Priority"),
         "trigger_id": _safe_text(master_row, "Trigger_ID", countdown_id),
@@ -3509,6 +3552,7 @@ def build_dashboard_data_from_interpretations(
             "dailyPerformance": daily_performance,
             "planetMotion": _dashboard_planet_motion(birth_input, current_dt),
             "retrogradeCalendar": _dashboard_retrograde_calendar(current_dt),
+            "weekly_aspects": [],
             "topics": topics,
             "premium": {"title": "Premium AI Preview", "description": "", "placeholder": "", "preview": ""},
             "aspect_interpretations": [],
@@ -3583,6 +3627,7 @@ def build_dashboard_data_from_interpretations(
     timeline = _build_timeline_from_interpretations(interpretations, final_score, birth_input=birth_input, current_dt=current_dt, daily_modifier=daily_modifier, is_noise_heavy=is_noise_heavy)
     timeline_days = _build_timeline_days(interpretations, final_score, birth_input=birth_input, current_dt=current_dt, daily_modifier=daily_modifier, is_noise_heavy=is_noise_heavy)
     daily_performance = _build_daily_performance(birth_input, current_dt, daily_vibe)
+    weekly_aspects = _build_weekly_aspect_items(birth_input, current_dt)
     topics = _build_topics_from_interpretations(interpretations, final_score)
     hero = {
         "rank": _score_to_rank(final_score),
@@ -3617,6 +3662,7 @@ def build_dashboard_data_from_interpretations(
         "dailyPerformance": daily_performance,
         "planetMotion": _dashboard_planet_motion(birth_input, current_dt),
         "retrogradeCalendar": _dashboard_retrograde_calendar(current_dt),
+        "weekly_aspects": weekly_aspects,
         "topics": topics,
         "premium": {
             "title": "Premium AI Preview",

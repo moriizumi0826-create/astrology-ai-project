@@ -1,18 +1,13 @@
 ﻿import React, { useEffect, useState } from "react";
-import { createPortal } from "react-dom";
 import { getStoredReadingForm, getStoredReadingResult, getStoredReadingResultAsync } from "./reading-storage.js";
-import { YearlyForecastGraph } from "./yearly-forecast.jsx";
-import dailyDetailGalaxyBg from "./assets/daily-detail-galaxy-bg.jpg";
 import {
   BatteryMedium,
   BriefcaseBusiness,
   ChevronLeft,
   ChevronRight,
   Clock3,
-  Crown,
   Code2,
   Gauge,
-  History,
   Moon,
   Shield,
   Sparkles,
@@ -421,195 +416,6 @@ function TimelineDeveloperBlock({ entry, slot }) {
         {entry.logic ? <p className="mb-3 text-xs leading-6 text-slate-700">{entry.logic}</p> : null}
         <DeveloperSourceList sources={entry.sources || []} />
       </div>
-    );
-  }
-
-function HeaderMotionMenu({ items = [], retrogradeCalendar = [] }) {
-  const [isOpen, setIsOpen] = useState(false);
-  const [calendarSort, setCalendarSort] = useState("date");
-  const motionItems = Array.isArray(items) ? items : [];
-  const calendarItems = Array.isArray(retrogradeCalendar) ? retrogradeCalendar : [];
-  const planetSortOrder = new Map(MOTION_PLANET_SORT_ORDER.map((planet, index) => [planet, index]));
-  const sortedCalendarItems = [...calendarItems].sort((a, b) => {
-    const dateCompare = String(a.event_date || "").localeCompare(String(b.event_date || ""));
-    if (calendarSort === "planet") {
-      const aPlanet = planetSortOrder.get(String(a.planet || "").toUpperCase()) ?? 999;
-      const bPlanet = planetSortOrder.get(String(b.planet || "").toUpperCase()) ?? 999;
-      return aPlanet - bPlanet || dateCompare;
-    }
-    return dateCompare || String(a.planet || "").localeCompare(String(b.planet || ""));
-  });
-  if (!motionItems.length) return null;
-
-  const modal = isOpen && typeof document !== "undefined" ? createPortal(
-    <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-slate-950/70 px-4 backdrop-blur-sm">
-      <div
-        className="flex max-h-[86vh] overflow-hidden rounded-2xl border border-white/10 bg-slate-950 shadow-2xl"
-        style={{ width: "min(1120px, calc(100vw - 32px))" }}
-      >
-        <div className="flex min-h-0 w-full flex-col">
-          <div className="flex items-center justify-between border-b border-white/10 px-5 py-4">
-            <p className="text-sm font-black tracking-[0.16em] text-slate-100">逆行カレンダー</p>
-            <div className="flex items-center gap-2">
-              <div className="grid grid-cols-2 rounded-full border border-white/10 bg-white/[0.04] p-1 text-[10px] font-bold text-slate-400">
-                {[
-                  ["date", "時系列順"],
-                  ["planet", "天体別順"],
-                ].map(([value, label]) => (
-                  <button
-                    key={value}
-                    type="button"
-                    onClick={() => setCalendarSort(value)}
-                    className={cx(
-                      "rounded-full px-3 py-1 transition",
-                      calendarSort === value ? "bg-amber-400 text-slate-950" : "hover:bg-white/10 hover:text-slate-100"
-                    )}
-                  >
-                    {label}
-                  </button>
-                ))}
-              </div>
-              <button
-                type="button"
-                onClick={() => setIsOpen(false)}
-                className="rounded-full border border-white/10 px-3 py-1 text-xs font-bold text-slate-300 transition hover:border-amber-300 hover:text-amber-200"
-              >
-                閉じる
-              </button>
-            </div>
-          </div>
-          <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4 pb-6">
-            <div className="grid gap-2">
-              {sortedCalendarItems.map((item, index) => (
-                <div
-                  key={`${item.planet || item.planet_label}-${item.event_date}-${item.event_label}-${index}`}
-                  className="grid gap-3 rounded-xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm text-slate-200 sm:grid-cols-[140px_120px_1fr]"
-                >
-                  <span className="font-bold text-slate-100">{item.planet_label || item.label || item.planet}</span>
-                  <span className={cx(
-                    "font-bold",
-                    String(item.event_type || "").includes("RETROGRADE") || item.event_label === "逆行開始"
-                      ? "text-rose-300"
-                      : "text-sky-300"
-                  )}>
-                    {item.event_label || item.event_type}
-                  </span>
-                  <span className="text-slate-300">
-                    {formatCalendarDate(item.event_date)} {item.degree_display || item.degreeDisplay || ""}
-                  </span>
-                </div>
-              ))}
-            </div>
-          </div>
-          <div className="shrink-0 border-t border-white/10 bg-slate-950/95 px-5 py-4">
-            <div className="mb-3 flex flex-wrap items-center gap-x-4 gap-y-2 text-[11px] font-bold text-slate-300">
-              {Object.entries(MOTION_STATUS_STYLES).map(([status, style]) => (
-                <span key={status} className="inline-flex items-center gap-2">
-                  <MotionDot status={status} />
-                  {style.label}
-                </span>
-              ))}
-            </div>
-            <MotionIndicatorGrid items={motionItems} compact />
-          </div>
-        </div>
-      </div>
-    </div>,
-    document.body
-  ) : null;
-
-  return (
-    <>
-      <button
-        type="button"
-        onClick={() => setIsOpen((value) => !value)}
-        className={cx(
-        "inline-flex shrink-0 items-center gap-2 rounded-2xl border px-3 py-2 text-xs font-semibold transition sm:px-4 sm:text-sm",
-          isOpen
-            ? "border-[#D4AF37] bg-[#fff7df] text-[#0A192F]"
-            : "border-slate-200 bg-white text-[#0A192F] hover:border-[#D4AF37] hover:text-[#D4AF37]"
-        )}
-        aria-expanded={isOpen}
-      >
-        <Clock3 size={16} />
-        <span>逆行カレンダー</span>
-      </button>
-      {modal}
-    </>
-  );
-}
-
-function Header({
-  data: header,
-  embedded = false,
-  developerMode = false,
-  onToggleDeveloperMode,
-  planetMotion = [],
-  retrogradeCalendar = [],
-}) {
-  const headerContent = (
-    <header
-      className={cx(
-        "fixed inset-x-0 top-0 z-50 border-b border-slate-200/90 bg-[#f8fafc]/95 backdrop-blur-xl",
-        ""
-      )}
-    >
-      <div className="flex flex-col items-start gap-3 px-0 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-4 md:px-6">
-        <div className="flex w-full min-w-0 items-center justify-between gap-3 sm:w-auto">
-          <div className="flex min-w-0 items-center gap-3 sm:gap-4">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-[#0A192F] text-[#D4AF37] shadow-[0_18px_36px_rgba(10,25,47,0.08)] sm:h-11 sm:w-11">
-              <Sparkles size={20} />
-            </div>
-            <div className="min-w-0">
-              <p className="truncate text-[15px] font-extrabold tracking-tight text-[#0A192F] sm:text-base">
-                {header.brand.name}
-              </p>
-              <p className="truncate text-[10px] uppercase tracking-[0.14em] text-slate-500 sm:text-xs sm:tracking-[0.18em]">
-                {header.brand.sublabel}
-              </p>
-            </div>
-          </div>
-        </div>
-
-        <nav className="flex w-full max-w-full flex-nowrap items-center gap-2 overflow-x-auto pb-1 sm:w-auto sm:flex-wrap sm:justify-end sm:overflow-visible sm:pb-0">
-          {header.actions.map((action, index) => {
-            const iconMap = [History, UserCircle2, Crown];
-            const Icon = iconMap[index] || UserCircle2;
-            return (
-              <button
-                key={action}
-                className="inline-flex shrink-0 items-center gap-2 rounded-2xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-[#0A192F] transition hover:border-[#D4AF37] hover:text-[#D4AF37] sm:px-4 sm:text-sm"
-                type="button"
-              >
-                <Icon size={16} />
-                <span>{action}</span>
-              </button>
-            );
-          })}
-          <HeaderMotionMenu items={planetMotion} retrogradeCalendar={retrogradeCalendar} />
-          <button
-            className={cx(
-              "inline-flex shrink-0 items-center gap-2 rounded-2xl border px-3 py-2 text-xs font-semibold transition sm:px-4 sm:text-sm",
-              developerMode
-                ? "border-[#D4AF37] bg-[#fff7df] text-[#0A192F]"
-                : "border-slate-200 bg-white text-[#0A192F] hover:border-[#D4AF37] hover:text-[#D4AF37]"
-            )}
-            onClick={onToggleDeveloperMode}
-            type="button"
-          >
-            <Code2 size={16} />
-            <span>開発者用</span>
-          </button>
-        </nav>
-      </div>
-    </header>
-  );
-
-  return (
-    <>
-      {typeof document !== "undefined" ? createPortal(headerContent, document.body) : headerContent}
-      <div aria-hidden="true" className="h-[132px] shrink-0 sm:h-[80px]" />
-    </>
     );
   }
 
@@ -1592,6 +1398,52 @@ function isTransitMoonCountdown(slide) {
   return planet.replace(/^TRANSIT_/, "") === "MOON";
 }
 
+function dateKeyToLocalDate(value) {
+  const text = String(value || "").trim();
+  const match = text.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (!match) return null;
+  const date = new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function countdownDaysUntil(slide, baseDateKey = "") {
+  const explicitDays = Number(
+    slide?.days_remaining ??
+    slide?.daysRemaining ??
+    slide?.daysLeft ??
+    slide?.days_left
+  );
+  if (Number.isFinite(explicitDays)) {
+    return explicitDays;
+  }
+
+  const targetDate = dateKeyToLocalDate(
+    slide?.target_date ||
+    slide?.targetDate ||
+    slide?.event_date ||
+    slide?.eventDate ||
+    slide?.peak_date ||
+    slide?.peakDate ||
+    slide?.date
+  );
+  if (!targetDate) return null;
+  const baseDate = dateKeyToLocalDate(baseDateKey) || new Date();
+  const baseMidnight = new Date(baseDate.getFullYear(), baseDate.getMonth(), baseDate.getDate());
+  return Math.ceil((targetDate.getTime() - baseMidnight.getTime()) / 86400000);
+}
+
+function weeklyAspectDateLabel(item) {
+  const days = Number(item?.days_until ?? item?.daysUntil);
+  if (Number.isFinite(days)) {
+    if (days === 0) return "今日";
+    if (days === 1) return "明日";
+    return `${days}日後`;
+  }
+  const date = dateKeyToLocalDate(item?.date || item?.target_date || item?.event_date);
+  if (!date) return "";
+  return `${date.getMonth() + 1}/${date.getDate()}`;
+}
+
 function LunarCountdownWidget({ data, items = [], groups = {}, developerMode = false, developerMeta = {} }) {
   const [shortIndex, setShortIndex] = useState(0);
   const [longIndex, setLongIndex] = useState(0);
@@ -1935,16 +1787,6 @@ function MobileWidgetCard({ title, eyebrow, value, children, onOpen, tone = "dar
   );
 }
 
-function isDashboardLegacyRequested() {
-  if (typeof window === "undefined") return false;
-  try {
-    const dashboardMode = new URL(window.location.href).searchParams.get("dashboard");
-    return dashboardMode === "legacy" || dashboardMode === "old";
-  } catch {
-    return false;
-  }
-}
-
 function mobileForecastSelectedIndex(forecast) {
   const data = Array.isArray(forecast?.yearly_data) ? forecast.yearly_data : [];
   if (!data.length) return 0;
@@ -1989,11 +1831,6 @@ function DashboardV2Header({ data, displayDate, activePage = "dashboard", onPage
     { key: "dashboard", label: "Dashboard" },
   ];
   const utilityItems = ["詳細レポート", "History", "My Page", "Plan", "逆行カレンダー"];
-  const handleOpenLegacy = () => {
-    const url = new URL(window.location.href);
-    url.searchParams.set("dashboard", "legacy");
-    window.location.href = url.toString();
-  };
   return (
     <header className="sticky top-0 z-40 border-b border-slate-200/90 bg-[#f8fafc]/95 backdrop-blur-xl">
       <div className="mx-auto flex max-w-[1440px] flex-col gap-2 px-5 py-2 lg:flex-row lg:items-center lg:justify-between lg:px-14">
@@ -2051,13 +1888,6 @@ function DashboardV2Header({ data, displayDate, activePage = "dashboard", onPage
               <UserCircle2 size={20} />
             </span>
           </div>
-          <button
-            type="button"
-            onClick={handleOpenLegacy}
-            className="rounded-full border border-[#D4AF37]/30 bg-[#fff7df] px-3 py-2 font-mono text-xs font-bold text-[#0A192F] transition hover:border-[#D4AF37] hover:text-[#D4AF37]"
-          >
-            旧UI
-          </button>
         </div>
       </div>
     </header>
@@ -2392,35 +2222,140 @@ function DashboardV2DailyThemeCard({ data, displayDate = "", onDateShift = () =>
 }
 
 function DashboardV2CountdownCard({ data }) {
+  const [activeEventIndex, setActiveEventIndex] = useState(0);
   const groups = data.countdown_groups || {};
-  const candidates = [
-    ...(Array.isArray(groups.short) ? groups.short : []),
-    ...(Array.isArray(groups.long) ? groups.long : []),
-    ...(data.countdown ? [data.countdown] : []),
-    ...(Array.isArray(data.countdown_items) ? data.countdown_items : []),
-  ].filter((item) => item && !isTransitMoonCountdown(item));
-  const slide = candidates[0] || {};
-  const days = Number(slide.days_remaining ?? slide.daysLeft ?? 0);
-  const title = slide.title || slide.countdown_label || "カウントダウン";
+  const displayDate = dashboardDisplayDate(data);
+  const weeklyAspects = Array.isArray(data.weekly_aspects)
+    ? data.weekly_aspects
+    : Array.isArray(data.weeklyAspects)
+      ? data.weeklyAspects
+      : [];
+  const candidates = React.useMemo(() => {
+    const longByPriorityItems = groups.long_by_priority && typeof groups.long_by_priority === "object"
+      ? Object.values(groups.long_by_priority).flatMap((items) => Array.isArray(items) ? items : [])
+      : [];
+    const rawItems = [
+      ...(Array.isArray(groups.short) ? groups.short : []),
+      ...(Array.isArray(groups.legacy_short) ? groups.legacy_short : []),
+      ...longByPriorityItems,
+      ...(Array.isArray(groups.long) ? groups.long : []),
+      ...(Array.isArray(groups.legacy_long) ? groups.legacy_long : []),
+      ...(data.countdown ? [data.countdown] : []),
+      ...(Array.isArray(data.countdown_items) ? data.countdown_items : []),
+    ].filter((item) => {
+      if (!item || isTransitMoonCountdown(item)) return false;
+      const daysUntil = countdownDaysUntil(item, displayDate);
+      return daysUntil !== null && daysUntil >= 0 && daysUntil <= 30;
+    });
+    const seen = new Set();
+    return rawItems.filter((item) => {
+      const key = countdownSlideKey(item);
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+  }, [data, groups, displayDate]);
+  const eventCount = candidates.length;
+  const candidateKeys = candidates.map((item) => countdownSlideKey(item)).join("|");
+  useEffect(() => {
+    setActiveEventIndex(0);
+  }, [candidateKeys]);
+  if (weeklyAspects.length) {
+    return (
+      <DashboardV2Card className="h-[300px]" bodyClassName="flex h-full flex-col p-5">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <p className="font-mono text-xs font-black uppercase tracking-[0.28em] text-[#e9c349]">Countdown 1</p>
+            <p className="mt-1 text-xs font-bold text-[#c7c6cc]">直近1週間の全アスペクト</p>
+          </div>
+          <span className="shrink-0 font-mono text-[10px] font-black text-[#909096]">{weeklyAspects.length}件</span>
+        </div>
+        <div className="mt-4 min-h-0 flex-1 space-y-2 overflow-y-auto pr-1">
+          {weeklyAspects.map((item, index) => {
+            const score = Number(item.scoreImpact ?? item.score_impact ?? 0);
+            const isNegative = score < 0;
+            const orb = Number(item.orb);
+            return (
+              <div
+                key={`${item.date || "date"}-${item.label || "aspect"}-${index}`}
+                className="grid grid-cols-[54px_1fr_auto] items-start gap-3 rounded-lg border border-white/10 bg-white/[0.035] px-3 py-2"
+              >
+                <span className="font-mono text-[10px] font-black leading-5 text-[#e9c349]">{weeklyAspectDateLabel(item)}</span>
+                <div className="min-w-0">
+                  <p className="truncate text-xs font-black leading-5 text-[#f3f3f0]">{item.label || item.title || "アスペクト"}</p>
+                  <p className="truncate text-[10px] font-bold leading-4 text-[#909096]">
+                    {item.title || item.category || "General"}
+                    {Number.isFinite(orb) ? ` / orb ${orb.toFixed(2)}` : ""}
+                  </p>
+                </div>
+                <span className={cx(
+                  "rounded-full px-2 py-1 font-mono text-[10px] font-black leading-none",
+                  isNegative ? "bg-rose-300/10 text-rose-200" : "bg-sky-300/10 text-sky-200"
+                )}>
+                  {score > 0 ? `+${score}` : score}
+                </span>
+              </div>
+            );
+          })}
+        </div>
+      </DashboardV2Card>
+    );
+  }
+  const goToEvent = (direction) => {
+    if (eventCount <= 1) return;
+    setActiveEventIndex((index) => (index + direction + eventCount) % eventCount);
+  };
+  const visibleEventIndex = Math.min(activeEventIndex, Math.max(0, eventCount - 1));
+  const slide = candidates[visibleEventIndex] || {};
+  const days = countdownDaysUntil(slide, displayDate);
+  const hasEvent = eventCount > 0;
+  const title = hasEvent ? (slide.title || slide.countdown_label || "カウントダウン") : "30日以内のイベントはありません";
   return (
     <DashboardV2Card className="h-[185px]" bodyClassName="p-5">
       <div className="flex h-full flex-col justify-between">
         <div>
-          <p className="font-mono text-xs font-black uppercase tracking-[0.28em] text-[#e9c349]">Next Stellar Event</p>
+          <div className="flex items-center justify-between gap-3">
+            <p className="font-mono text-xs font-black uppercase tracking-[0.28em] text-[#e9c349]">Next Stellar Event</p>
+            {eventCount > 1 ? (
+              <div className="flex items-center gap-1">
+                <button
+                  type="button"
+                  onClick={() => goToEvent(-1)}
+                  className="inline-flex h-7 w-7 items-center justify-center rounded-full border border-[#e9c349]/35 text-[#e9c349] transition hover:border-[#e9c349] hover:bg-[#e9c349]/10"
+                  aria-label="前のステラーイベント"
+                  title="前へ"
+                >
+                  <ChevronLeft size={15} />
+                </button>
+                <span className="min-w-[34px] text-center font-mono text-[10px] font-black text-[#909096]">
+                  {visibleEventIndex + 1}/{eventCount}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => goToEvent(1)}
+                  className="inline-flex h-7 w-7 items-center justify-center rounded-full border border-[#e9c349]/35 text-[#e9c349] transition hover:border-[#e9c349] hover:bg-[#e9c349]/10"
+                  aria-label="次のステラーイベント"
+                  title="次へ"
+                >
+                  <ChevronRight size={15} />
+                </button>
+              </div>
+            ) : null}
+          </div>
           <div className="mt-3 grid grid-cols-[1fr_auto] items-end gap-4">
             <div>
               <p className="line-clamp-2 font-notoSerif text-lg font-black leading-tight text-[#f3f3f0]">{title}</p>
               <p className="mt-1 text-xs text-[#c7c6cc]">Current transit focus</p>
             </div>
-            <p className="font-mono text-xl font-black leading-none text-[#e9c349]">{Number.isFinite(days) ? days : 0}日</p>
+            <p className="font-mono text-xl font-black leading-none text-[#e9c349]">{hasEvent && Number.isFinite(days) ? `${days}日` : "-"}</p>
           </div>
         </div>
         <div className="mt-4 h-px bg-[#e9c349]/25" />
         <p className="mt-2 line-clamp-1 text-[11px] font-bold leading-5 text-[#e2e2e2]">
-          {slide.note || data.countdown?.note || "次の流れに備えて、いま整えるべき行動を絞り込みます。"}
+          {hasEvent ? (slide.note || data.countdown?.note || "次の流れに備えて、いま整えるべき行動を絞り込みます。") : "直近30日以内に表示対象のステラーイベントはありません。"}
         </p>
         <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-white/10">
-          <div className="h-full rounded-full bg-[#e9c349]" style={{ width: `${Math.max(8, Math.min(100, 100 - Math.max(0, days) * 8))}%` }} />
+          <div className="h-full rounded-full bg-[#e9c349]" style={{ width: hasEvent ? `${Math.max(8, Math.min(100, 100 - Math.max(0, Number(days) || 0) * 8))}%` : "0%" }} />
         </div>
       </div>
     </DashboardV2Card>
@@ -3151,15 +3086,6 @@ function DashboardV2YearlyCard({ forecast, developerMode }) {
               </div>
             ))}
           </div>
-          <button
-            type="button"
-            onClick={() => {
-              window.location.href = "./forecast-detail.html";
-            }}
-            className="h-10 w-full rounded-full bg-[#e9c349] font-mono text-xs font-black tracking-[0.12em] text-[#241a00] shadow-[0_0_24px_rgba(233,195,73,0.18)]"
-          >
-            全てのチャートを計算する
-          </button>
         </div>
       ) : (
         <div className="flex min-h-[640px] items-center justify-center rounded-2xl border border-white/10 bg-[#0d0e0f]/60 p-6 font-mono text-sm font-bold uppercase tracking-[0.18em] text-[#c7c6cc]">
@@ -3347,29 +3273,6 @@ function DashboardV2({ data = dashboardData, embedded = false, developerMode = f
   );
 }
 
-export function DashboardDailyDetailLayer({ data = dashboardData, className = "" }) {
-  return (
-    <section
-      className={cx(
-        "relative -mx-5 -my-5 min-h-[calc(100vh-168px)] overflow-hidden bg-[#05070f] px-5 py-5 md:-mx-8 md:px-8 lg:-mx-14 lg:px-14",
-        className
-      )}
-      style={{
-        backgroundImage: `linear-gradient(180deg, rgba(5,7,15,0.54), rgba(5,7,15,0.78)), url(${dailyDetailGalaxyBg})`,
-        backgroundPosition: "center center",
-        backgroundSize: "cover",
-      }}
-    >
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_8%,rgba(233,195,73,0.10),transparent_28%),linear-gradient(90deg,rgba(5,7,15,0.34),rgba(5,7,15,0.08)_42%,rgba(5,7,15,0.48))]" />
-      <DashboardDailyDetailLayerBase data={data} className="relative z-10" insightVariant="monthly" />
-    </section>
-  );
-}
-
-export function DashboardDailyDetailSavedLayer({ data = dashboardData, className = "" }) {
-  return <DashboardDailyDetailLayerBase data={data} className={className} insightVariant="saved" />;
-}
-
 export function DashboardDailyDetailContentLayer({ data = dashboardData, className = "" }) {
   return <DashboardDailyDetailLayerBase data={data} className={className} insightVariant="monthly" />;
 }
@@ -3465,78 +3368,6 @@ function DashboardDailyDetailLayerBase({ data = dashboardData, className = "", i
   );
 }
 
-function DashboardLegacy({ data = dashboardData, embedded = false, developerMode = false }) {
-  const displayDate = dashboardDisplayDate(data);
-  const forecast = data.yearly_forecast || data.yearlyForecast || null;
-  const handleToggleDeveloperMode = () => {
-    const url = new URL(window.location.href);
-    if (developerMode) {
-      url.searchParams.delete("mode");
-    } else {
-      url.searchParams.set("mode", "developer");
-    }
-    window.location.href = url.toString();
-  };
-  return (
-    <>
-      <div
-        className={cx(
-          "w-full max-w-full min-w-0 rounded-none border-0 bg-transparent shadow-none backdrop-blur-0",
-          "overflow-x-hidden overflow-y-visible",
-          embedded ? "" : "min-h-screen"
-        )}
-      >
-        <Header
-          data={data.header}
-          embedded={embedded}
-          developerMode={developerMode}
-          onToggleDeveloperMode={handleToggleDeveloperMode}
-          planetMotion={data.planetMotion}
-          retrogradeCalendar={data.retrogradeCalendar}
-        />
-        <main className={cx(
-          "flex min-w-0 max-w-full flex-col gap-6 overflow-x-hidden",
-          embedded ? "px-0 py-4 md:px-0 md:py-5" : "px-0 py-4 md:px-0 md:py-5"
-        )}>
-          <TypographicHero
-            data={data.hero}
-            diagnosticData={data.diagnostic}
-            planetMotion={data.planetMotion}
-            retrogradeCalendar={data.retrogradeCalendar}
-            displayDate={displayDate}
-            developerMode={developerMode}
-            developerMeta={data.developerMeta || dashboardData.developerMeta}
-          />
-          {forecast ? (
-            <div className="md:hidden">
-              <YearlyForecastGraph forecast={forecast} developerMode={developerMode} />
-            </div>
-          ) : null}
-          <Timeline
-            data={data.timeline}
-            date={data.timelineDate}
-            days={data.timelineDays}
-            developerMode={developerMode}
-            developerMeta={(data.developerMeta || dashboardData.developerMeta).timeline || {}}
-          />
-          <TopicGrid
-            data={data.topics}
-            developerMode={developerMode}
-            developerMeta={(data.developerMeta || dashboardData.developerMeta).topics || {}}
-          />
-          <LunarCountdownWidget
-            data={data.countdown}
-            items={data.countdown_items}
-            groups={data.countdown_groups}
-            developerMode={developerMode}
-            developerMeta={data.developerMeta || dashboardData.developerMeta}
-          />
-        </main>
-      </div>
-    </>
-  );
-}
-
 export function Dashboard({ data = dashboardData, embedded = false, developerMode = false }) {
   if (typeof window !== "undefined") {
     try {
@@ -3551,11 +3382,7 @@ export function Dashboard({ data = dashboardData, embedded = false, developerMod
       // Fall through to the standard dashboard.
     }
   }
-  return isDashboardLegacyRequested() ? (
-    <DashboardLegacy data={data} embedded={embedded} developerMode={developerMode} />
-  ) : (
-    <DashboardV2 data={data} embedded={embedded} developerMode={developerMode} />
-  );
+  return <DashboardV2 data={data} embedded={embedded} developerMode={developerMode} />;
 }
 
 

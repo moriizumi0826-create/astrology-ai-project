@@ -1,6 +1,6 @@
 ﻿import React, { useEffect, useMemo, useState } from "react";
 import { createRoot } from "react-dom/client";
-import { CircleDot, Eye, EyeOff, Maximize2, Menu, Minimize2, Minus, Move, Pause, Play, Plus, Shield, SlidersHorizontal, Sparkles } from "lucide-react";
+import { CalendarDays, CircleDot, Eye, EyeOff, Maximize2, Menu, Minimize2, Minus, Move, Pause, Play, Plus, Shield, SlidersHorizontal, Sparkles } from "lucide-react";
 import * as THREE from "three";
 import {
   getStoredReadingForm,
@@ -10,8 +10,6 @@ import {
 } from "./reading-storage.js";
 import {
   DashboardDailyDetailContentLayer,
-  DashboardDailyDetailLayer,
-  DashboardDailyDetailSavedLayer,
   DashboardV2HoroscopePage,
   dashboardData as fallbackDashboardData,
 } from "./dashboard-shared.jsx";
@@ -255,9 +253,24 @@ function forecastYear(forecast) {
   if (Number.isFinite(fromCache)) {
     return fromCache;
   }
+  const fromForecastYear = Number(forecast?.year || forecast?.target_year || forecast?.targetYear || forecast?.meta?.year);
+  if (Number.isFinite(fromForecastYear)) {
+    return fromForecastYear;
+  }
   const firstDate = String(forecast?.yearly_data?.[0]?.date || forecast?.reading_date || "");
   const parsed = Number.parseInt(firstDate.slice(0, 4), 10);
   return Number.isFinite(parsed) ? parsed : 2026;
+}
+
+function forecastWithSelectedYear(forecast, year) {
+  if (!forecast || !Number.isFinite(Number(year))) return forecast;
+  return {
+    ...forecast,
+    cache: {
+      ...(forecast.cache || {}),
+      year: Number(year),
+    },
+  };
 }
 
 function readableErrorMessage(error, fallback) {
@@ -635,13 +648,43 @@ function liveTransitTransitAspectsFromChart(chart) {
   return transitTransitAspectsFromTransits(Array.isArray(chart?.transits) ? chart.transits : []);
 }
 
+function aspectMergeKey(aspect) {
+  const scope = aspect?.scope || "transitNatal";
+  const angle = normalizeAspectAngle(aspect?.angle);
+  if (scope === "transitTransit") {
+    return `tt-${aspect?.transitPlanet || ""}-${aspect?.transitPlanetB || ""}-${angle}`;
+  }
+  return `tn-${aspect?.transitPlanet || aspect?.planet || ""}-${aspect?.natalPlanet || ""}-${angle}`;
+}
+
+function mergeAspectSources(preferred = [], supplemental = []) {
+  const merged = [];
+  const seen = new Set();
+  [...preferred, ...supplemental].forEach((aspect) => {
+    const key = aspectMergeKey(aspect);
+    if (seen.has(key)) return;
+    seen.add(key);
+    merged.push(aspect);
+  });
+  return merged;
+}
+
 function filterAspectLinesForControls(aspects, { focus, selections, mode }) {
   const renderableAspects = aspects.filter((aspect) => isRenderable3DAspectAngle(aspect.angle));
   if (mode === "transitNatal") {
-    return renderableAspects.filter((aspect) => (aspect.scope || "transitNatal") === "transitNatal");
+    return renderableAspects.filter((aspect) => {
+      if ((aspect.scope || "transitNatal") !== "transitNatal") return false;
+      if (focus?.type === "natal") return aspect.natalPlanet === focus.planet;
+      if (focus?.type === "transit") return aspect.transitPlanet === focus.planet;
+      return true;
+    });
   }
   if (mode === "transitTransit") {
-    return renderableAspects.filter((aspect) => aspect.scope === "transitTransit");
+    return renderableAspects.filter((aspect) => {
+      if (aspect.scope !== "transitTransit") return false;
+      if (focus?.type === "transit") return aspect.transitPlanet === focus.planet || aspect.transitPlanetB === focus.planet;
+      return true;
+    });
   }
   const natalSelections = new Set(selections?.transitNatal?.natal || []);
   const transitSelections = new Set(selections?.transitNatal?.transit || []);
@@ -964,11 +1007,11 @@ function isMobileViewport() {
 }
 
 function defaultMapZoom() {
-  return isMobileViewport() ? 0.52 : 0.8;
+  return isMobileViewport() ? 0.84 : 1.13;
 }
 
 function defaultMapOffset() {
-  return isMobileViewport() ? { x: -0.42, y: 1.12 } : { x: -0.45, y: 2.25 };
+  return { x: 0, y: 0 };
 }
 
 function defaultFlatMapZoom() {
@@ -2056,9 +2099,21 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
     () => (isTransitPlaybackActive && playbackTransitChart ? liveTransitTransitAspectsFromChart(playbackTransitChart) : null),
     [isTransitPlaybackActive, playbackTransitChart]
   );
+  const currentLiveAspects = useMemo(() => {
+    const preciseTransits = aspectLineSky.transits.filter((item) => !item.estimated);
+    if (!preciseTransits.length) return [];
+    return liveAspectsFromChart({ transits: preciseTransits }, aspectLineSky.natalPoints);
+  }, [aspectLineSky.natalPoints, aspectLineSky.transits]);
+  const currentTransitTransitAspects = useMemo(() => {
+    const preciseTransits = aspectLineSky.transits.filter((item) => !item.estimated);
+    if (preciseTransits.length < 2) return [];
+    return transitTransitAspectsFromTransits(preciseTransits);
+  }, [aspectLineSky.transits]);
+  const transitNatalSourceAspects = livePlaybackAspects || mergeAspectSources(aspectLineSky.allAspects, currentLiveAspects);
+  const transitTransitSourceAspects = livePlaybackTransitTransitAspects || currentTransitTransitAspects;
   const aspectLineSourceAspects = [
-    ...(livePlaybackAspects || aspectLineSky.allAspects),
-    ...(livePlaybackTransitTransitAspects || transitTransitAspectsFromTransits(aspectLineSky.transits)),
+    ...transitNatalSourceAspects,
+    ...transitTransitSourceAspects,
   ];
   const activeAspectLineAspects = useMemo(() => filterAspectLinesForControls(aspectLineSourceAspects, {
     focus: aspectLineFocus,
@@ -2288,6 +2343,7 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
     const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
     renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
     renderer.setClearColor(0x000000, 0);
+    renderer.domElement.style.display = "block";
     renderer.domElement.style.touchAction = "none";
     mount.appendChild(renderer.domElement);
     const tooltip = document.createElement("div");
@@ -2524,13 +2580,13 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
       );
       group.add(line);
     }
-    ZODIAC_SIGN_NAMES.forEach((signName, index) => {
-      const { mesh, texture } = orbitTextPlane(signName, {
+    ZODIAC_SIGNS.forEach((signSymbol, index) => {
+      const { mesh, texture } = orbitTextPlane(signSymbol, {
         color: "#e9c349",
-        font: "900 82px 'Noto Sans JP', 'Yu Gothic', 'Hiragino Sans', sans-serif",
-        width: 260,
+        font: "900 108px 'Segoe UI Symbol', 'Noto Sans Symbols', JetBrains Mono, sans-serif",
+        width: 160,
         height: 128,
-        scaleX: isMobileMapCanvas ? 0.78 : 0.6,
+        scaleX: isMobileMapCanvas ? 0.5 : 0.42,
         scaleY: isMobileMapCanvas ? 0.42 : 0.34,
         opacity: isMobileMapCanvas ? 0.88 : 0.72,
         strokeOnly: false,
@@ -3054,46 +3110,61 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
       const height = Math.max(300, mount.clientHeight);
       camera.aspect = width / height;
       camera.updateProjectionMatrix();
-      renderer.setSize(width, height, false);
-      window.requestAnimationFrame(() => centerMobileMapInViewport());
+      renderer.setSize(width, height);
+      window.requestAnimationFrame(() => centerMapInViewport());
     };
     resize();
     const observer = new ResizeObserver(resize);
     observer.observe(mount);
 
-    const projectedEarthCenter = () => {
+    const projectedMapBounds = () => {
       const width = Math.max(1, renderer.domElement.clientWidth || mount.clientWidth);
       const height = Math.max(1, renderer.domElement.clientHeight || mount.clientHeight);
       group.updateMatrixWorld(true);
       camera.updateMatrixWorld(true);
-      const projected = earthMesh.position.clone().applyMatrix4(group.matrixWorld).project(camera);
-      if (!Number.isFinite(projected.x) || !Number.isFinite(projected.y)) return null;
+      const radius = zodiacOuterRadius * 1.04;
+      const points = [];
+      for (let index = 0; index < 32; index += 1) {
+        const angle = (Math.PI * 2 * index) / 32;
+        points.push(new THREE.Vector3(Math.cos(angle) * radius, 0, Math.sin(angle) * radius));
+      }
+      points.push(new THREE.Vector3(0, 0, 0));
+      const projectedPoints = points
+        .map((point) => point.clone().applyMatrix4(group.matrixWorld).project(camera))
+        .filter((point) => Number.isFinite(point.x) && Number.isFinite(point.y));
+      if (!projectedPoints.length) return null;
+      const xs = projectedPoints.map((point) => (point.x * 0.5 + 0.5) * width);
+      const ys = projectedPoints.map((point) => (-point.y * 0.5 + 0.5) * height);
+      const left = Math.min(...xs);
+      const right = Math.max(...xs);
+      const top = Math.min(...ys);
+      const bottom = Math.max(...ys);
       return {
         width,
         height,
-        centerX: (projected.x * 0.5 + 0.5) * width,
-        centerY: (-projected.y * 0.5 + 0.5) * height,
+        centerX: (left + right) / 2,
+        centerY: (top + bottom) / 2,
       };
     };
 
-    const centerMobileMapInViewport = () => {
+    const centerMapInViewport = () => {
       const state = sceneStateRef.current;
-      if (!isMobileMapCanvas || dragging || state?.isFlatMapView || hasManualMapPositionRef.current) return;
-      const current = projectedEarthCenter();
+      if (dragging || state?.isFlatMapView || hasManualMapPositionRef.current) return;
+      const current = projectedMapBounds();
       if (!current) return;
       const targetX = current.width * 0.5;
       const targetY = current.height * 0.5;
       const pixelDeltaX = targetX - current.centerX;
       const pixelDeltaY = targetY - current.centerY;
-      if (Math.hypot(pixelDeltaX, pixelDeltaY) < 2) return;
+      if (Math.hypot(pixelDeltaX, pixelDeltaY) < 1.5) return;
 
       const originalX = group.position.x;
       const originalY = group.position.y;
       group.position.x = originalX + 1;
-      const xMoved = projectedEarthCenter();
+      const xMoved = projectedMapBounds();
       group.position.x = originalX;
       group.position.y = originalY + 1;
-      const yMoved = projectedEarthCenter();
+      const yMoved = projectedMapBounds();
       group.position.y = originalY;
       if (!xMoved || !yMoved) return;
 
@@ -3104,8 +3175,8 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
       const determinant = xAxisX * yAxisY - yAxisX * xAxisY;
       if (Math.abs(determinant) < 0.001) return;
 
-      const worldDeltaX = clamp((pixelDeltaX * yAxisY - pixelDeltaY * yAxisX) / determinant, -0.5, 0.5);
-      const worldDeltaY = clamp((xAxisX * pixelDeltaY - xAxisY * pixelDeltaX) / determinant, -0.5, 0.5);
+      const worldDeltaX = clamp((pixelDeltaX * yAxisY - pixelDeltaY * yAxisX) / determinant, -0.35, 0.35);
+      const worldDeltaY = clamp((xAxisX * pixelDeltaY - xAxisY * pixelDeltaX) / determinant, -0.35, 0.35);
       group.position.x = originalX + worldDeltaX;
       group.position.y = originalY + worldDeltaY;
     };
@@ -3162,7 +3233,7 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
         camera.position.y = cameraYForTiltDegrees(tiltDegrees);
         camera.lookAt(0, 0, 0);
       }
-      centerMobileMapInViewport();
+      centerMapInViewport();
       spinningMeshes.forEach((item) => {
         if (item.materialRotation && item.mesh.material) {
           item.mesh.material.rotation = (item.mesh.material.rotation || 0) + item.speed;
@@ -3350,36 +3421,48 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
     return () => document.removeEventListener("fullscreenchange", updateFullscreenState);
   }, []);
 
-  const strongestAspects = sky.aspects.slice(0, 4);
+  const focusedNatalTooltipAspects = aspectTooltip?.type === "natal"
+    ? aspectLineSourceAspects
+      .filter((aspect) => (aspect.scope || "transitNatal") === "transitNatal" && aspect.natalPlanet === aspectTooltip.planet)
+      .slice(0, 6)
+      .map((aspect) => {
+        const transit = aspectLineSky.transits.find((item) => item.planet === aspect.transitPlanet);
+        const natal = aspectLineSky.natalPoints.find((item) => item.planet === aspect.natalPlanet);
+        return {
+          ...aspect,
+          planet: aspect.transitPlanet,
+          label: `${planetLabel(aspect.transitPlanet)} ${aspect.angle}°`,
+          transitLabel: transit ? transit.label : planetLabel(aspect.transitPlanet),
+          natalLabel: natal ? natal.label : planetLabel(aspect.natalPlanet),
+          usesSelectedNatalLabel: natal?.planet === aspectTooltip.planet,
+          liveAngle: transit && natal ? circularAngleDistance(transit.longitude, natal.longitude) : null,
+          description: aspect.description || aspectInterpretationFallback(aspect),
+        };
+      })
+    : [];
   const transitTooltipAspects = aspectTooltip?.type === "transit"
-    ? sky.allAspects
+    ? aspectLineSourceAspects
       .filter((aspect) => aspect.transitPlanet === aspectTooltip.planet)
       .slice(0, 6)
       .map((aspect) => {
-        const transit = sky.transits.find((item) => item.planet === aspect.transitPlanet);
-        const natal = sky.natalPoints.find((item) => item.planet === aspect.natalPlanet);
+        const transit = aspectLineSky.transits.find((item) => item.planet === aspect.transitPlanet);
+        const natal = aspectLineSky.natalPoints.find((item) => item.planet === aspect.natalPlanet);
         return {
           ...aspect,
           planet: aspect.transitPlanet,
           natalLabel: natal ? planetLabel(natal.planet) : planetLabel(aspect.natalPlanet),
           transitLabel: transit ? transit.label : planetLabel(aspect.transitPlanet),
           liveAngle: transit && natal ? circularAngleDistance(transit.longitude, natal.longitude) : null,
+          description: aspect.description || aspectInterpretationFallback(aspect),
         };
       })
     : [];
   const tooltipAspects = aspectTooltip?.type === "transit"
     ? transitTooltipAspects
-    : aspectTooltip?.planet === sky.selectedNatal.planet
-      ? strongestAspects.map((aspect) => ({
-        ...aspect,
-        transitLabel: planetLabel(aspect.planet),
-        natalLabel: sky.selectedNatal.label,
-        usesSelectedNatalLabel: true,
-      }))
-      : [];
+    : focusedNatalTooltipAspects;
   const tooltipEmptyLabel = aspectTooltip?.type === "transit"
     ? `トランジット${planetLabel(aspectTooltip.planet)}から主要アスペクトはありません。`
-    : `選択日に${sky.selectedNatal.label}への主要アスペクトはありません。`;
+    : `選択日に${planetLabel(aspectTooltip?.planet || sky.selectedNatal.planet)}への主要アスペクトはありません。`;
   useEffect(() => {
     setOpenTooltipAspectKeys(new Set());
   }, [aspectTooltip?.type, aspectTooltip?.planet]);
@@ -3600,22 +3683,22 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
           }}
         >
           <div ref={mountRef} className="absolute inset-0" aria-label="現行天体とネイタル天体の3Dマップ" />
-          <div className="absolute bottom-0 left-0 z-30 h-8 w-[76px] sm:h-9 sm:w-[82px]">
+          <div className="absolute bottom-2 left-2 z-30 h-9 w-[96px]">
             <div
               id="map-position-panel"
               className={cx(
-                "absolute bottom-9 left-0 grid origin-bottom-left rounded-xl border border-white/10 bg-[#121414]/76 p-1 font-mono text-[12px] font-bold text-mist shadow-[0_18px_42px_rgba(0,0,0,0.32)] backdrop-blur-md transition-all duration-200 sm:bottom-10",
+                "absolute bottom-10 left-0 grid w-[120px] origin-bottom-left rounded-xl border border-white/10 bg-[#121414]/76 p-1.5 font-mono text-[12px] font-bold text-mist shadow-[0_18px_42px_rgba(0,0,0,0.32)] backdrop-blur-md transition-all duration-200",
                 isMapPositionPanelOpen ? "scale-100 opacity-100" : "pointer-events-none scale-95 opacity-0"
               )}
               aria-hidden={!isMapPositionPanelOpen}
             >
-              <div className="grid grid-cols-3 gap-1">
+              <div className="grid grid-cols-[32px_32px_32px] justify-center gap-1.5">
                 <span />
-                <button type="button" onClick={() => nudgeMapPosition(0, 0.12)} className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-white/10 bg-white/[0.035] transition hover:border-gold/35 hover:text-gold sm:h-8 sm:w-8" aria-label="3Dマップを上へ移動" title="上へ">↑</button>
+                <button type="button" onClick={() => nudgeMapPosition(0, 0.12)} className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-white/10 bg-white/[0.035] transition hover:border-gold/35 hover:text-gold" aria-label="3Dマップを上へ移動" title="上へ">↑</button>
                 <span />
-                <button type="button" onClick={() => nudgeMapPosition(-0.12, 0)} className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-white/10 bg-white/[0.035] transition hover:border-gold/35 hover:text-gold sm:h-8 sm:w-8" aria-label="3Dマップを左へ移動" title="左へ">←</button>
-                <button type="button" onClick={() => nudgeMapPosition(0, -0.12)} className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-white/10 bg-white/[0.035] transition hover:border-gold/35 hover:text-gold sm:h-8 sm:w-8" aria-label="3Dマップを下へ移動" title="下へ">↓</button>
-                <button type="button" onClick={() => nudgeMapPosition(0.12, 0)} className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-white/10 bg-white/[0.035] transition hover:border-gold/35 hover:text-gold sm:h-8 sm:w-8" aria-label="3Dマップを右へ移動" title="右へ">→</button>
+                <button type="button" onClick={() => nudgeMapPosition(-0.12, 0)} className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-white/10 bg-white/[0.035] transition hover:border-gold/35 hover:text-gold" aria-label="3Dマップを左へ移動" title="左へ">←</button>
+                <button type="button" onClick={() => nudgeMapPosition(0, -0.12)} className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-white/10 bg-white/[0.035] transition hover:border-gold/35 hover:text-gold" aria-label="3Dマップを下へ移動" title="下へ">↓</button>
+                <button type="button" onClick={() => nudgeMapPosition(0.12, 0)} className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-white/10 bg-white/[0.035] transition hover:border-gold/35 hover:text-gold" aria-label="3Dマップを右へ移動" title="右へ">→</button>
               </div>
             </div>
             <button
@@ -3623,7 +3706,7 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
               onClick={() => setIsMapPositionPanelOpen((value) => !value)}
               onDoubleClick={resetMapPosition}
               className={cx(
-                "absolute bottom-0 left-0 inline-flex h-8 w-[76px] items-center justify-center rounded-lg border px-2 text-[11px] font-bold shadow-[0_10px_26px_rgba(0,0,0,0.28)] backdrop-blur transition sm:h-9 sm:w-[82px]",
+                "absolute bottom-0 left-0 inline-flex h-9 w-[96px] items-center justify-center rounded-xl border px-2 font-mono text-[9px] font-bold shadow-[0_10px_26px_rgba(0,0,0,0.28)] backdrop-blur transition",
                 isMapPositionPanelOpen ? "border-gold/35 bg-gold/15 text-gold" : "border-white/10 bg-[#121414]/72 text-mist hover:bg-white/10 hover:text-gold"
               )}
               aria-expanded={isMapPositionPanelOpen}
@@ -5206,12 +5289,13 @@ function ForecastGalaxyBackground({ children, className = "", innerClassName = "
         className
       )}
       style={{
-        backgroundImage: `linear-gradient(180deg, rgba(5,7,15,0.54), rgba(5,7,15,0.80)), url(${forecastGalaxyBg})`,
+        backgroundImage: `linear-gradient(180deg, rgba(5,7,15,0.28), rgba(5,7,15,0.52)), url(${forecastGalaxyBg})`,
+        backgroundAttachment: "fixed",
         backgroundPosition: "center center",
         backgroundSize: "cover",
       }}
     >
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_8%,rgba(233,195,73,0.10),transparent_28%),linear-gradient(90deg,rgba(5,7,15,0.34),rgba(5,7,15,0.08)_42%,rgba(5,7,15,0.48))]" />
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_8%,rgba(233,195,73,0.16),transparent_32%),linear-gradient(90deg,rgba(5,7,15,0.14),rgba(5,7,15,0.02)_42%,rgba(5,7,15,0.24))]" />
       <div className={cx("relative z-10 grid gap-3 sm:gap-6", innerClassName)}>
         {children}
       </div>
@@ -5338,29 +5422,44 @@ function UnifiedForecastView({
   );
 }
 
-function Header({ activeYear, activeView, setActiveView, activeUnifiedView, setActiveUnifiedView }) {
+function Header({ activeYear, activeView, setActiveView, activeUnifiedView, setActiveUnifiedView, forecast = null }) {
   const [isMobileUnifiedMenuOpen, setIsMobileUnifiedMenuOpen] = useState(false);
+  const [isRetrogradeCalendarOpen, setIsRetrogradeCalendarOpen] = useState(false);
+  const [retrogradeCalendarSort, setRetrogradeCalendarSort] = useState("date");
   const navItems = [
     ["unified", "星の見通し"],
     ["horoscope", "Horoscope"],
   ];
+  const retrogradeCalendar = useMemo(() => {
+    const payload = getStoredReadingResult() || fallbackDashboardData;
+    const sourceForecast = forecast || getForecast() || payload?.yearly_forecast || payload?.yearlyForecast || {};
+    const items = sourceForecast?.retrogradeCalendar || sourceForecast?.retrograde_calendar || payload?.retrogradeCalendar || payload?.retrograde_calendar || [];
+    return Array.isArray(items) ? items : [];
+  }, [forecast]);
+  const sortedRetrogradeCalendar = useMemo(() => {
+    return [...retrogradeCalendar].sort((a, b) => {
+      if (retrogradeCalendarSort === "planet") {
+        return String(a.planet_label || a.planetLabel || a.planet || "").localeCompare(String(b.planet_label || b.planetLabel || b.planet || ""), "ja")
+          || String(a.event_date || a.eventDate || "").localeCompare(String(b.event_date || b.eventDate || ""));
+      }
+      return String(a.event_date || a.eventDate || "").localeCompare(String(b.event_date || b.eventDate || ""))
+        || String(a.planet_label || a.planetLabel || a.planet || "").localeCompare(String(b.planet_label || b.planetLabel || b.planet || ""), "ja");
+    });
+  }, [retrogradeCalendar, retrogradeCalendarSort]);
   const forecastLabel = {
-    annual: "年間予測",
-    monthly: "月間予測",
     unified: "星の見通し",
-    daily: "日別詳細",
-    dailySaved: "日別詳細（保存用）",
     horoscope: "Horoscope",
-  }[activeView] || "年間予測";
+  }[activeView] || "星の見通し";
+  const headerTitle = activeView === "horoscope" ? forecastLabel : `${activeYear}年 ${forecastLabel}`;
   return (
     <header className="fixed left-0 top-0 z-40 w-full border-b border-slate-200/90 bg-[#f8fafc]/95 backdrop-blur-xl">
       <div className="flex w-full max-w-none flex-wrap items-center justify-between gap-2 px-3 py-2 sm:gap-6 sm:px-8 sm:py-6 lg:mx-auto lg:max-w-[1760px]">
         <div className="flex min-w-0 items-center gap-4 sm:gap-8">
-          <a href="/results.html" className="max-w-[86px] font-serif text-[13px] font-bold leading-[0.98] text-[#0A192F] sm:max-w-none sm:text-4xl sm:leading-none">The Celestial Atelier</a>
+          <a href="/" className="max-w-[86px] font-serif text-[13px] font-bold leading-[0.98] text-[#0A192F] sm:max-w-none sm:text-4xl sm:leading-none">The Celestial Atelier</a>
           <span className="hidden h-10 w-px bg-slate-200 md:block" />
           <div className="relative flex min-w-0 items-center gap-1.5">
             <h1 className="truncate font-serif text-lg font-semibold tracking-[0.04em] text-[#0A192F] sm:text-2xl md:text-3xl">
-              {activeYear}年 {forecastLabel}
+              {headerTitle}
             </h1>
             <button
               type="button"
@@ -5431,10 +5530,83 @@ function Header({ activeYear, activeView, setActiveView, activeUnifiedView, setA
               ) : null}
             </React.Fragment>
           ))}
+          {retrogradeCalendar.length ? (
+            <div className="relative shrink-0">
+              <button
+                type="button"
+                onClick={() => {
+                  setIsRetrogradeCalendarOpen((value) => !value);
+                  setIsMobileUnifiedMenuOpen(false);
+                }}
+                className={cx(
+                  "inline-flex h-8 items-center gap-1.5 rounded-full border border-slate-200 bg-white px-3 text-[#0A192F]/75 shadow-sm transition hover:border-[#D4AF37]/45 hover:bg-[#fff7df] hover:text-[#0A192F]",
+                  isRetrogradeCalendarOpen && "border-[#D4AF37]/55 bg-[#fff7df] text-[#0A192F]"
+                )}
+                aria-expanded={isRetrogradeCalendarOpen}
+                aria-controls="forecast-retrograde-calendar"
+              >
+                <CalendarDays size={14} />
+                <span>逆行カレンダー</span>
+              </button>
+              <div
+                id="forecast-retrograde-calendar"
+                className={cx(
+                  "absolute right-0 top-10 z-50 w-[min(330px,calc(100vw-24px))] overflow-hidden rounded-2xl border border-slate-200 bg-white/95 p-3 text-[#0A192F] shadow-[0_18px_45px_rgba(15,23,42,0.18)] backdrop-blur-xl transition",
+                  isRetrogradeCalendarOpen ? "pointer-events-auto translate-y-0 opacity-100" : "pointer-events-none -translate-y-1 opacity-0"
+                )}
+                aria-hidden={!isRetrogradeCalendarOpen}
+              >
+                <div className="mb-3 flex items-center justify-between gap-3">
+                  <p className="text-[11px] font-black tracking-[0.16em] text-[#0A192F]">逆行カレンダー</p>
+                  <div className="flex rounded-full border border-slate-200 bg-slate-50 p-0.5 text-[9px]">
+                    {[
+                      ["date", "日付"],
+                      ["planet", "天体"],
+                    ].map(([value, label]) => (
+                      <button
+                        key={value}
+                        type="button"
+                        onClick={() => setRetrogradeCalendarSort(value)}
+                        className={cx(
+                          "rounded-full px-2 py-1 transition",
+                          retrogradeCalendarSort === value ? "bg-[#D4AF37] text-white" : "text-[#0A192F]/60 hover:text-[#0A192F]"
+                        )}
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div className="grid max-h-[320px] gap-1.5 overflow-y-auto pr-1">
+                  {sortedRetrogradeCalendar.map((item, index) => {
+                    const isRetrogradeStart = String(item.event_type || item.eventType || "").includes("RETROGRADE") || item.event_label === "逆行開始" || item.eventLabel === "逆行開始";
+                    return (
+                      <div key={`${item.planet || item.planet_label || index}-${item.event_date || item.eventDate || index}`} className="grid grid-cols-[3.2rem_1fr] gap-2 rounded-xl border border-slate-200 bg-slate-50/80 px-2.5 py-2">
+                        <span className={cx("rounded-full px-2 py-1 text-center text-[9px] font-black", isRetrogradeStart ? "bg-[#D4AF37]/15 text-[#9d7620]" : "bg-cyan-100 text-cyan-800")}>
+                          {item.event_label || item.eventLabel || item.event_type || item.eventType || "-"}
+                        </span>
+                        <div className="min-w-0">
+                          <p className="truncate text-[11px] font-black text-[#0A192F]">{item.planet_label || item.planetLabel || planetLabel(item.planet)}</p>
+                          <p className="mt-0.5 text-[10px] font-bold text-[#0A192F]/60">{formatHeaderCalendarDate(item.event_date || item.eventDate)} {item.degree_display || item.degreeDisplay || ""}</p>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          ) : null}
         </nav>
       </div>
     </header>
   );
+}
+
+function formatHeaderCalendarDate(value) {
+  const text = String(value || "").trim();
+  const match = text.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (!match) return text || "-";
+  return `${Number(match[2])}/${Number(match[3])}`;
 }
 
 function OraclePanel({ stats, forecast }) {
@@ -6382,13 +6554,14 @@ function ForecastDetailPage() {
       .then(() => postJson(`/api/yearly-forecast?year=${activeYear}`, formPayload))
       .then(async (nextForecast) => {
         if (!active) return;
-        setForecast(nextForecast);
-        setSelectedMonthIndex(realtimeMonthIndex(monthlyData(nextForecast, false)));
+        const selectedYearForecast = forecastWithSelectedYear(nextForecast, activeYear);
+        setForecast(selectedYearForecast);
+        setSelectedMonthIndex(realtimeMonthIndex(monthlyData(selectedYearForecast, false)));
         setSelectedMonthlyMonthIndex(workdayMonthIndex());
         const storedPayload = await getStoredReadingResultAsync({ allowStale: true });
         await storeReadingResult({
           ...(storedPayload || {}),
-          yearly_forecast: nextForecast,
+          yearly_forecast: selectedYearForecast,
         });
       })
       .catch((error) => {
@@ -6456,14 +6629,15 @@ function ForecastDetailPage() {
     setYearCalculationError("");
     try {
       const nextForecast = await postJson(`/api/yearly-forecast?year=${normalizedYear}`, formPayload);
-      setForecast(nextForecast);
-      setSelectedMonthIndex(realtimeMonthIndex(monthlyData(nextForecast, false)));
+      const selectedYearForecast = forecastWithSelectedYear(nextForecast, normalizedYear);
+      setForecast(selectedYearForecast);
+      setSelectedMonthIndex(realtimeMonthIndex(monthlyData(selectedYearForecast, false)));
       setSelectedMonthlyMonthIndex(workdayMonthIndex());
 
       const storedPayload = await getStoredReadingResultAsync({ allowStale: true });
       await storeReadingResult({
         ...(storedPayload || {}),
-        yearly_forecast: nextForecast,
+        yearly_forecast: selectedYearForecast,
       });
       setYearDialogOpen(false);
     } catch (error) {
@@ -6481,6 +6655,7 @@ function ForecastDetailPage() {
         setActiveView={setActiveView}
         activeUnifiedView={activeUnifiedView}
         setActiveUnifiedView={setActiveUnifiedView}
+        forecast={forecast}
       />
       <main className="mx-auto grid max-w-none gap-3 px-0.5 pb-4 pt-[56px] sm:gap-6 sm:px-4 sm:pb-10 sm:pt-36 lg:px-6 lg:pb-20 lg:pt-[136px]">
         {yearCalculationError ? (
@@ -6492,51 +6667,6 @@ function ForecastDetailPage() {
           <GlassPanel className="p-6 text-center font-mono text-xs font-bold uppercase tracking-[0.18em] text-mist">
             年間予測を再計算中...
           </GlassPanel>
-        ) : null}
-        {activeView === "annual" ? (
-          <ForecastGalaxyBackground>
-            <OraclePanel stats={stats} forecast={forecast} />
-            <div className="grid gap-4 sm:gap-7">
-              <TransitNatalSunMap
-                day={annualTransitDays[annualTransitDayIndex] || data[clamp(selectedMonthIndex, 0, data.length - 1)] || data[0]}
-                forecast={forecast}
-                availableDays={annualTransitDays}
-                selectedDayIndex={annualTransitDayIndex}
-                onSelectDayIndex={setSelectedAnnualDayIndex}
-              />
-              <AnnualChart
-                data={data}
-                stats={stats}
-                selectedSeriesKey={selectedSeriesKey}
-                setSelectedSeriesKey={setSelectedSeriesKey}
-                selectedMonthIndex={selectedMonthIndex}
-                setSelectedMonthIndex={setSelectedMonthIndex}
-                activeYear={activeYear}
-                onOpenYearDialog={() => setYearDialogOpen(true)}
-              />
-              <AnnualScoreMatrix data={data} selectedSeriesKey={selectedSeriesKey} selectedMonthIndex={selectedMonthIndex} />
-              <FooterStats stats={stats} />
-            </div>
-          </ForecastGalaxyBackground>
-        ) : null}
-        {activeView === "monthly" ? (
-          <ForecastGalaxyBackground>
-            <Matrix
-              data={data}
-              selectedSeriesKey={selectedSeriesKey}
-              setSelectedSeriesKey={setSelectedSeriesKey}
-              selectedMonthIndex={selectedMonthlyMonthIndex}
-              setSelectedMonthIndex={setSelectedMonthlyMonthIndex}
-              forecast={forecast}
-              activeYear={activeYear}
-            />
-          </ForecastGalaxyBackground>
-        ) : null}
-        {activeView === "daily" ? (
-          <DashboardDailyDetailLayer data={dailyDetailData} />
-        ) : null}
-        {activeView === "dailySaved" ? (
-          <DashboardDailyDetailSavedLayer data={dailyDetailData} />
         ) : null}
         {activeView === "unified" ? (
           <UnifiedForecastView
@@ -6569,8 +6699,8 @@ function ForecastDetailPage() {
       <footer className="border-t border-slate-200/90 bg-[#f8fafc]/95 px-4 py-8 text-[#0A192F] sm:px-8 sm:py-10">
         <div className="mx-auto flex max-w-[1540px] flex-col gap-4 text-[#0A192F]/70 md:flex-row md:items-center md:justify-between">
           <p className="font-serif text-2xl font-semibold text-[#0A192F]">The Celestial Atelier</p>
-          <p className="text-sm">Annual forecast detail. Dashboard remains independent.</p>
-          <a href="/results.html" className="font-mono text-xs uppercase tracking-[0.18em] text-[#0A192F]/70 hover:text-[#D4AF37]">Back to Results</a>
+          <p className="text-sm">Annual forecast detail.</p>
+          <a href="/" className="font-mono text-xs uppercase tracking-[0.18em] text-[#0A192F]/70 hover:text-[#D4AF37]">Back to Entry</a>
         </div>
       </footer>
       <YearCalculationDialog

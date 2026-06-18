@@ -27,13 +27,6 @@ const locationSearchResults = document.querySelector("#location-search-results")
 const submitLabel = document.querySelector("#submit-label");
 const submitButton = form.querySelector('button[type="submit"]');
 const errorBox = document.querySelector("#error-box");
-const readingGrid = document.querySelector("#reading-grid");
-const metaCard = document.querySelector("#meta-card");
-const chartCard = document.querySelector("#chart-card");
-const metaName = document.querySelector("#meta-name");
-const metaBirth = document.querySelector("#meta-birth");
-const metaPlace = document.querySelector("#meta-place");
-const chartDataNode = document.querySelector("#chart-data");
 const latitudeInput = form.querySelector('input[name="latitude"]');
 const longitudeInput = form.querySelector('input[name="longitude"]');
 const timezoneOffsetInput = form.querySelector('input[name="timezone_offset"]');
@@ -348,96 +341,6 @@ function setError(message) {
 function clearError() {
   errorBox.textContent = "";
   errorBox.classList.add("hidden");
-}
-
-function splitReportSections(content) {
-  const lines = String(content || "").split("\n");
-  const sections = [];
-  let currentSection = null;
-
-  for (const line of lines) {
-    const trimmed = line.trim();
-    if (/^【第\d+章：.+】$/.test(trimmed)) {
-      if (currentSection) {
-        currentSection.body = currentSection.body.trim();
-        sections.push(currentSection);
-      }
-      currentSection = { title: trimmed, body: "" };
-      continue;
-    }
-
-    if (!currentSection) {
-      continue;
-    }
-
-    currentSection.body += `${currentSection.body ? "\n" : ""}${line}`;
-  }
-
-  if (currentSection) {
-    currentSection.body = currentSection.body.trim();
-    sections.push(currentSection);
-  }
-
-  return sections;
-}
-
-function renderAccordionReading(item) {
-  const sections = splitReportSections(item.content);
-  if (!sections.length) {
-    return `
-      <article class="bg-surface-container-lowest p-10 flex flex-col gap-6 reveal">
-        <div>
-          <p class="text-[10px] uppercase tracking-[0.3em] text-secondary font-bold mb-4">${escapeHtml(item.type)}</p>
-          <h3 class="font-notoSerif text-2xl text-primary mb-4">${escapeHtml(item.title)}</h3>
-          <p class="text-on-surface-variant leading-relaxed whitespace-pre-wrap">${escapeHtml(item.content)}</p>
-        </div>
-      </article>
-    `;
-  }
-
-  return sections
-    .map(
-      (section) => `
-        <article class="bg-surface-container-lowest p-0 flex flex-col reveal shadow-[0px_12px_24px_rgba(46,52,45,0.05)]">
-          <details class="group">
-            <summary class="list-none cursor-pointer px-6 py-5 flex items-center justify-between gap-4">
-              <div class="flex flex-col gap-2">
-                <p class="text-[10px] uppercase tracking-[0.3em] text-secondary font-bold">${escapeHtml(item.type)}</p>
-                <span class="font-notoSerif text-xl text-primary leading-snug">${escapeHtml(section.title)}</span>
-              </div>
-              <span class="material-symbols-outlined text-secondary transition-transform duration-300 group-open:rotate-180">expand_more</span>
-            </summary>
-            <div class="px-6 pb-6 pt-2 border-t border-outline-variant/20">
-              <p class="text-on-surface-variant leading-relaxed whitespace-pre-wrap font-notoSansJP">${escapeHtml(section.body)}</p>
-            </div>
-          </details>
-        </article>
-      `
-    )
-    .join("");
-}
-
-function renderReadings(payload) {
-  metaCard.classList.remove("hidden");
-  chartCard.classList.remove("hidden");
-
-  metaName.textContent = payload.meta.full_name;
-  metaBirth.textContent = `${payload.meta.birth_date} ${payload.meta.birth_time} / UTC${payload.meta.timezone_offset >= 0 ? "+" : ""}${payload.meta.timezone_offset}`;
-  metaPlace.textContent = payload.meta.birthplace;
-  chartDataNode.textContent = Object.entries(payload.chart_data)
-    .map(([key, value]) => `${key}: ${value}`)
-    .join("\n");
-
-  const hasStructuredReport = payload.readings.some(
-    (item) => splitReportSections(item.content).length > 0
-  );
-  readingGrid.className = hasStructuredReport
-    ? "grid grid-cols-1 lg:grid-cols-2 gap-6"
-    : "grid grid-cols-1 lg:grid-cols-3 gap-8";
-
-  readingGrid.innerHTML = payload.readings
-    .map((item) => renderAccordionReading(item))
-    .join("");
 }
 
 async function postJson(path, payload) {
