@@ -1130,7 +1130,7 @@ def _aspect_input_orb(row: dict[str, Any]) -> float | None:
 def _build_weekly_aspect_items(
     birth_input: BirthInput | None,
     current_dt: datetime | date | None,
-    days: int = 7,
+    days: int = 6,
 ) -> list[dict[str, Any]]:
     if birth_input is None or swe is None:
         return []
@@ -1143,8 +1143,16 @@ def _build_weekly_aspect_items(
         except Exception as exc:
             LOGGER.warning("Failed to build weekly aspect items for %s: %s", sample_dt.date(), exc)
             continue
+        candidate_rows = [
+            row
+            for row in day_rows
+            if _is_countdown_candidate_orb_status(row)
+            and _normalize_planet(row.get("T_Planet")) in (COUNTDOWN_SHORT_PLANETS | COUNTDOWN_LONG_PLANETS)
+            and _safe_number(row, "Score_Impact") != 0
+            and _countdown_priority_band(_safe_number(row, "Priority")) != "low"
+        ]
         for row in sorted(
-            day_rows,
+            candidate_rows,
             key=lambda item: (_safe_number(item, "Priority"), abs(_safe_number(item, "Score_Impact")), -_extract_current_orb(item)),
             reverse=True,
         ):

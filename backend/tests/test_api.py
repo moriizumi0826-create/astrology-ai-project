@@ -684,6 +684,19 @@ class ApiTestCase(unittest.TestCase):
                     "_input": {"orb": 1.25},
                     "Text_Description": "weekly aspect",
                     "Advised_Task": "adjust",
+                },
+                {
+                    "T_Planet": "TRANSIT_MERCURY",
+                    "N_Planet": "NATAL_SUN",
+                    "Aspect_Angle": 60,
+                    "Category": "Work",
+                    "Countdown_Label": f"low aspect {aspects[0]['target_date']}",
+                    "Score_Impact": 10,
+                    "Priority": 4,
+                    "_orb_status": "Applying",
+                    "_input": {"orb": 1.1},
+                    "Text_Description": "low impact",
+                    "Advised_Task": "ignore",
                 }
             ]
 
@@ -730,12 +743,13 @@ class ApiTestCase(unittest.TestCase):
                 current_dt=date(2026, 5, 2),
             )
 
-        self.assertEqual(len(dashboard["weekly_aspects"]), 7)
+        self.assertEqual(len(dashboard["weekly_aspects"]), 6)
         self.assertEqual(dashboard["weekly_aspects"][0]["date"], "2026-05-02")
         self.assertEqual(dashboard["weekly_aspects"][0]["days_until"], 0)
-        self.assertEqual(dashboard["weekly_aspects"][6]["date"], "2026-05-08")
-        self.assertEqual(dashboard["weekly_aspects"][6]["days_until"], 6)
+        self.assertEqual(dashboard["weekly_aspects"][5]["date"], "2026-05-07")
+        self.assertEqual(dashboard["weekly_aspects"][5]["days_until"], 5)
         self.assertEqual(dashboard["weekly_aspects"][0]["scoreImpact"], -24)
+        self.assertFalse(any(item["priority"] < 5 for item in dashboard["weekly_aspects"]))
 
     def test_display_countdown_items_prefer_future_days_over_past_peak(self):
         items = [
