@@ -1396,6 +1396,17 @@ function countdownSlideKey(slide) {
   ].join("|");
 }
 
+function aspectFocusKey(value) {
+  if (!value) return "";
+  const target = value.target || value;
+  return [
+    target.Countdown_ID || value.countdown_id || value.trigger_id || "",
+    target.T_Planet || value.t_planet || value.transit_planet || "",
+    target.N_Planet || value.n_planet || value.natal_planet || "",
+    target.Aspect_Angle || value.aspect_angle || value.angle || "",
+  ].map((item) => String(item || "").trim().toUpperCase()).join("|");
+}
+
 function isTransitMoonCountdown(slide) {
   const target = slide?.target || {};
   const planet = String(target.T_Planet || slide?.t_planet || slide?.transit_planet || "").trim().toUpperCase();
@@ -1448,8 +1459,13 @@ function weeklyAspectDateLabel(item) {
   return `${date.getMonth() + 1}/${date.getDate()}`;
 }
 
-function WeeklyAspectList({ items = [] }) {
+function WeeklyAspectList({ items = [], focusKey = "", focusToken = 0 }) {
   const weeklyAspects = Array.isArray(items) ? items : [];
+  const focusedItemRef = React.useRef(null);
+  useEffect(() => {
+    if (!focusKey || !focusedItemRef.current) return;
+    focusedItemRef.current.scrollIntoView({ block: "center", behavior: "smooth" });
+  }, [focusKey, focusToken, weeklyAspects.length]);
   if (!weeklyAspects.length) {
     return (
       <div className="flex min-h-[220px] items-center justify-center rounded-lg border border-white/10 bg-white/[0.035] text-center text-xs font-bold leading-5 text-[#909096]">
@@ -1463,10 +1479,17 @@ function WeeklyAspectList({ items = [] }) {
         const score = Number(item.scoreImpact ?? item.score_impact ?? 0);
         const isNegative = score < 0;
         const orb = Number(item.orb);
+        const isFocused = Boolean(focusKey) && aspectFocusKey(item) === focusKey;
         return (
           <div
+            ref={isFocused ? focusedItemRef : null}
             key={`${item.date || "date"}-${item.label || "aspect"}-${index}`}
-            className="grid grid-cols-[54px_1fr_auto] items-start gap-3 rounded-lg border border-white/10 bg-white/[0.035] px-3 py-2"
+            className={cx(
+              "grid grid-cols-[54px_1fr_auto] items-start gap-3 rounded-lg border px-3 py-2 transition",
+              isFocused
+                ? "border-[#e9c349]/80 bg-[#e9c349]/12 shadow-[0_0_18px_rgba(233,195,73,0.18)]"
+                : "border-white/10 bg-white/[0.035]"
+            )}
           >
             <span className="font-mono text-[10px] font-black leading-5 text-[#e9c349]">{weeklyAspectDateLabel(item)}</span>
             <div className="min-w-0">
@@ -2160,7 +2183,7 @@ function DashboardV2PersonalCard({ data, displayDate = "", onDateShift = () => {
   );
 }
 
-function DashboardV2DailyThemeCard({ data, displayDate = "", onDateShift = () => {}, isDateLoading = false }) {
+function DashboardV2DailyThemeCard({ data, displayDate = "", onDateShift = () => {}, isDateLoading = false, focusedAspect = null }) {
   const [analysisMode, setAnalysisMode] = useState("theme");
   const activeDisplayDate = displayDate || dashboardDisplayDate(data);
   const dailyStarVibe = String(data.hero?.dailyStarVibe || data.hero?.daily_star_vibe || "").trim();
@@ -2178,6 +2201,13 @@ function DashboardV2DailyThemeCard({ data, displayDate = "", onDateShift = () =>
     : Array.isArray(data.weeklyAspects)
       ? data.weeklyAspects
       : [];
+  const focusedAspectKey = focusedAspect?.key || "";
+  const focusedAspectToken = focusedAspect?.token || 0;
+  useEffect(() => {
+    if (focusedAspectKey) {
+      setAnalysisMode("test1");
+    }
+  }, [focusedAspectKey, focusedAspectToken]);
   const analysisTitle = {
     theme: "今日の洞察",
     lesson: "今日の追い風",
@@ -2265,13 +2295,13 @@ function DashboardV2DailyThemeCard({ data, displayDate = "", onDateShift = () =>
       {analysisMode === "theme" ? timelineItems([], summaryText, "#e9c349") : null}
       {analysisMode === "lesson" ? timelineItems(positiveHighlights, "追い風に該当するアスペクトなし", "#38bdf8") : null}
       {analysisMode === "summary" ? timelineItems(negativeHighlights, "負荷・消耗注意に該当するアスペクトなし", "#fecdd3") : null}
-      {analysisMode === "test1" ? <WeeklyAspectList items={weeklyAspects} /> : null}
+      {analysisMode === "test1" ? <WeeklyAspectList items={weeklyAspects} focusKey={focusedAspectKey} focusToken={focusedAspectToken} /> : null}
       {analysisMode === "test2" ? timelineItems(negativeHighlights, "負荷・消耗注意に該当するアスペクトなし", "#ff5c68") : null}
     </DashboardV2Card>
   );
 }
 
-function DashboardV2CountdownCard({ data }) {
+function DashboardV2CountdownCard({ data, onSelectAspect = () => {} }) {
   const [activeEventIndex, setActiveEventIndex] = useState(0);
   const groups = data.countdown_groups || {};
   const displayDate = dashboardDisplayDate(data);
@@ -2314,9 +2344,26 @@ function DashboardV2CountdownCard({ data }) {
   const days = countdownDaysUntil(slide, displayDate);
   const hasEvent = eventCount > 0;
   const title = hasEvent ? (slide.title || slide.countdown_label || "カウントダウン") : "30日以内のイベントはありません";
+  const handleSelectEvent = () => {
+    if (!hasEvent) return;
+    onSelectAspect(aspectFocusKey(slide));
+  };
   return (
     <DashboardV2Card className="h-[185px]" bodyClassName="p-5">
-      <div className="flex h-full flex-col justify-between">
+      <div
+        role="button"
+        tabIndex={hasEvent ? 0 : -1}
+        onClick={handleSelectEvent}
+        onKeyDown={(event) => {
+          if (!hasEvent) return;
+          if (event.key === "Enter" || event.key === " ") {
+            event.preventDefault();
+            handleSelectEvent();
+          }
+        }}
+        className={cx("flex h-full w-full flex-col justify-between text-left", hasEvent ? "cursor-pointer" : "cursor-default")}
+        aria-label={hasEvent ? "対応するカウントダウン1のアスペクトへ移動" : undefined}
+      >
         <div>
           <div className="flex items-center justify-between gap-3">
             <p className="font-mono text-xs font-black uppercase tracking-[0.28em] text-[#e9c349]">Next Stellar Event</p>
@@ -2324,7 +2371,10 @@ function DashboardV2CountdownCard({ data }) {
               <div className="flex items-center gap-1">
                 <button
                   type="button"
-                  onClick={() => goToEvent(-1)}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    goToEvent(-1);
+                  }}
                   className="inline-flex h-7 w-7 items-center justify-center rounded-full border border-[#e9c349]/35 text-[#e9c349] transition hover:border-[#e9c349] hover:bg-[#e9c349]/10"
                   aria-label="前のステラーイベント"
                   title="前へ"
@@ -2336,7 +2386,10 @@ function DashboardV2CountdownCard({ data }) {
                 </span>
                 <button
                   type="button"
-                  onClick={() => goToEvent(1)}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    goToEvent(1);
+                  }}
                   className="inline-flex h-7 w-7 items-center justify-center rounded-full border border-[#e9c349]/35 text-[#e9c349] transition hover:border-[#e9c349] hover:bg-[#e9c349]/10"
                   aria-label="次のステラーイベント"
                   title="次へ"
@@ -3286,6 +3339,7 @@ function DashboardDailyDetailLayerBase({ data = dashboardData, className = "", i
   const [selectedDailyDate, setSelectedDailyDate] = useState(() => dashboardDisplayDate(data));
   const [isDailyDateLoading, setIsDailyDateLoading] = useState(false);
   const [dailyDateError, setDailyDateError] = useState("");
+  const [focusedAspect, setFocusedAspect] = useState(null);
   const dailyDataCacheRef = React.useRef(new Map());
   const dailyDateRequestIdRef = React.useRef(0);
   const displayDate = selectedDailyDate || dashboardDisplayDate(activeDailyData);
@@ -3294,6 +3348,7 @@ function DashboardDailyDetailLayerBase({ data = dashboardData, className = "", i
     const nextDate = dashboardDisplayDate(data);
     setActiveDailyData(data);
     setSelectedDailyDate(nextDate);
+    setFocusedAspect(null);
     if (nextDate) {
       dailyDataCacheRef.current.set(nextDate, data);
     }
@@ -3339,6 +3394,7 @@ function DashboardDailyDetailLayerBase({ data = dashboardData, className = "", i
 
     const cached = dailyDataCacheRef.current.get(nextDate);
     setSelectedDailyDate(nextDate);
+    setFocusedAspect(null);
     setDailyDateError("");
     if (cached) {
       setActiveDailyData(cached);
@@ -3397,9 +3453,13 @@ function DashboardDailyDetailLayerBase({ data = dashboardData, className = "", i
             displayDate={displayDate}
             onDateShift={handleDailyDateShift}
             isDateLoading={isDailyDateLoading}
+            focusedAspect={focusedAspect}
           />
         )}
-        <DashboardV2CountdownCard data={activeDailyData} />
+        <DashboardV2CountdownCard
+          data={activeDailyData}
+          onSelectAspect={(key) => setFocusedAspect(key ? { key, token: Date.now() } : null)}
+        />
       </div>
       <DashboardV2DailyFlowCard data={activeDailyData} />
     </div>
