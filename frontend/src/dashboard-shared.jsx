@@ -1480,6 +1480,10 @@ function RainbowFocusStyle() {
           35% { box-shadow: 0 0 16px rgba(233, 195, 73, 0.22), 0 0 26px rgba(56, 189, 248, 0.14); }
           100% { box-shadow: 0 0 0 rgba(233, 195, 73, 0), 0 0 0 rgba(56, 189, 248, 0); }
         }
+        @keyframes celestialRainbowRotate {
+          0% { transform: rotate(0deg); }
+          100% { transform: rotate(360deg); }
+        }
         .celestial-rainbow-focus {
           position: relative;
           border-color: rgba(255,255,255,0.16);
@@ -1491,7 +1495,8 @@ function RainbowFocusStyle() {
           inset: -1px;
           z-index: 0;
           border-radius: inherit;
-          background: linear-gradient(135deg, rgba(244,114,182,0.76), rgba(234,179,8,0.72), rgba(74,222,128,0.7), rgba(56,189,248,0.74), rgba(167,139,250,0.74), rgba(244,114,182,0.76));
+          background: conic-gradient(from 0deg, rgba(244,114,182,0.76), rgba(234,179,8,0.72), rgba(74,222,128,0.7), rgba(56,189,248,0.74), rgba(167,139,250,0.74), rgba(244,114,182,0.76));
+          animation: celestialRainbowRotate 8s linear infinite;
         }
         .celestial-rainbow-focus::after {
           content: "";
