@@ -1480,19 +1480,36 @@ function RainbowFocusStyle() {
           35% { box-shadow: 0 0 16px rgba(233, 195, 73, 0.22), 0 0 26px rgba(56, 189, 248, 0.14); }
           100% { box-shadow: 0 0 0 rgba(233, 195, 73, 0), 0 0 0 rgba(56, 189, 248, 0); }
         }
-        @keyframes celestialRainbowShift {
-          0% { filter: hue-rotate(0deg); }
-          100% { filter: hue-rotate(360deg); }
+        @keyframes celestialRainbowSpinOnce {
+          0% { transform: rotate(0deg); opacity: 0.74; }
+          18% { opacity: 1; }
+          100% { transform: rotate(360deg); opacity: 0.74; }
         }
         .celestial-rainbow-focus {
           position: relative;
-          border: 1px solid transparent;
-          background:
-            linear-gradient(rgba(12, 14, 18, 0.94), rgba(12, 14, 18, 0.94)) padding-box,
-            linear-gradient(90deg, rgba(244,114,182,0.76), rgba(234,179,8,0.72), rgba(74,222,128,0.7), rgba(56,189,248,0.74), rgba(167,139,250,0.74), rgba(244,114,182,0.76)) border-box;
-          animation:
-            celestialRainbowFlash 1.8s ease-out 1 forwards,
-            celestialRainbowShift 12s linear infinite;
+          border-color: transparent;
+          animation: celestialRainbowFlash 1.25s ease-out 1 forwards;
+        }
+        .celestial-rainbow-focus::before {
+          content: "";
+          position: absolute;
+          inset: -1px;
+          z-index: 0;
+          border-radius: inherit;
+          background: conic-gradient(from 0deg, rgba(244,114,182,0.78), rgba(234,179,8,0.74), rgba(74,222,128,0.72), rgba(56,189,248,0.76), rgba(167,139,250,0.76), rgba(244,114,182,0.78));
+          animation: celestialRainbowSpinOnce 1.25s ease-out 1 forwards;
+        }
+        .celestial-rainbow-focus::after {
+          content: "";
+          position: absolute;
+          inset: 2px;
+          z-index: 0;
+          border-radius: calc(0.75rem - 1px);
+          background: rgba(12, 14, 18, 0.94);
+        }
+        .celestial-rainbow-focus > * {
+          position: relative;
+          z-index: 1;
         }
       `}
     </style>
