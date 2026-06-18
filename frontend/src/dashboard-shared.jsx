@@ -1410,7 +1410,11 @@ function aspectFocusKey(value) {
 function isTransitMoonCountdown(slide) {
   const target = slide?.target || {};
   const planet = String(target.T_Planet || slide?.t_planet || slide?.transit_planet || "").trim().toUpperCase();
-  return planet.replace(/^TRANSIT_/, "") === "MOON";
+  const transitPlanet = planet.replace(/^TRANSIT_/, "");
+  const natalPlanet = String(target.N_Planet || slide?.n_planet || slide?.natal_planet || "").trim().toUpperCase().replace(/^NATAL_/, "");
+  const angle = Number(target.Aspect_Angle || slide?.aspect_angle || slide?.angle);
+  const isNewOrFullMoon = transitPlanet === "MOON" && natalPlanet === "SUN" && (angle === 0 || angle === 180);
+  return transitPlanet === "MOON" && !isNewOrFullMoon;
 }
 
 function dateKeyToLocalDate(value) {

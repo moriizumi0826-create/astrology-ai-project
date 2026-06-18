@@ -139,7 +139,7 @@ PLANET_STATION_SPEED_THRESHOLDS = {
 STATIONARY_LOOKAHEAD_DAYS = 3
 MOTION_CHANGE_LOOKAHEAD_DAYS = 800
 
-COUNTDOWN_SHORT_PLANETS = {"SUN", "MERCURY", "VENUS", "MARS"}
+COUNTDOWN_SHORT_PLANETS = {"MOON", "SUN", "MERCURY", "VENUS", "MARS"}
 COUNTDOWN_LONG_PLANETS = {"JUPITER", "SATURN", "URANUS", "NEPTUNE", "PLUTO"}
 PERSONAL_READING_TRANSIT_PLANETS = {"MOON", "MERCURY", "VENUS", "MARS"}
 COUNTDOWN_PRIORITY_BANDS = {
@@ -1147,6 +1147,7 @@ def _build_weekly_aspect_items(
             row
             for row in day_rows
             if _is_countdown_candidate_orb_status(row)
+            and _is_allowed_countdown_lunar_aspect(row)
             and _normalize_planet(row.get("T_Planet")) in (COUNTDOWN_SHORT_PLANETS | COUNTDOWN_LONG_PLANETS)
             and _safe_number(row, "Score_Impact") != 0
             and _countdown_priority_band(_safe_number(row, "Priority")) != "low"
@@ -1651,6 +1652,22 @@ def _is_countdown_candidate_orb_status(row: dict[str, Any]) -> bool:
     return orb_status in {"", "APPLYING", "SEPARATING"}
 
 
+def _is_new_or_full_moon_aspect(row: dict[str, Any]) -> bool:
+    planets = {
+        _normalize_planet(row.get("T_Planet")),
+        _normalize_planet(row.get("N_Planet")),
+    }
+    angle = _normalize_int(row.get("Aspect_Angle"))
+    return planets == {"SUN", "MOON"} and angle in {0, 180}
+
+
+def _is_allowed_countdown_lunar_aspect(row: dict[str, Any]) -> bool:
+    transit_planet = _normalize_planet(row.get("T_Planet"))
+    if transit_planet != "MOON":
+        return True
+    return _is_new_or_full_moon_aspect(row)
+
+
 def _select_countdown_targets(
     rows: list[dict[str, Any]],
     limit: int = 3,
@@ -1661,6 +1678,7 @@ def _select_countdown_targets(
         row
         for row in rows
         if _is_countdown_candidate_orb_status(row)
+        and _is_allowed_countdown_lunar_aspect(row)
         and (
             _safe_number(row, "Score_Impact") > 0
             if score_sign_normalized != "negative"

@@ -686,6 +686,19 @@ class ApiTestCase(unittest.TestCase):
                     "Advised_Task": "adjust",
                 },
                 {
+                    "T_Planet": "TRANSIT_MOON",
+                    "N_Planet": "NATAL_MERCURY",
+                    "Aspect_Angle": 90,
+                    "Category": "Work",
+                    "Countdown_Label": f"transit moon aspect {aspects[0]['target_date']}",
+                    "Score_Impact": -30,
+                    "Priority": 8,
+                    "_orb_status": "Applying",
+                    "_input": {"orb": 1.2},
+                    "Text_Description": "transit moon non lunation",
+                    "Advised_Task": "ignore",
+                },
+                {
                     "T_Planet": "TRANSIT_MERCURY",
                     "N_Planet": "NATAL_SUN",
                     "Aspect_Angle": 60,
@@ -750,6 +763,7 @@ class ApiTestCase(unittest.TestCase):
         self.assertEqual(dashboard["weekly_aspects"][5]["days_until"], 5)
         self.assertEqual(dashboard["weekly_aspects"][0]["scoreImpact"], -24)
         self.assertFalse(any(item["priority"] < 5 for item in dashboard["weekly_aspects"]))
+        self.assertTrue(all(item["target"]["N_Planet"] == "NATAL_MOON" for item in dashboard["weekly_aspects"]))
 
     def test_display_countdown_items_prefer_future_days_over_past_peak(self):
         items = [
@@ -886,6 +900,32 @@ class ApiTestCase(unittest.TestCase):
                     "_input": {"orb": 1.0},
                 }
             )
+        rows.extend(
+            [
+                {
+                    "T_Planet": "TRANSIT_MOON",
+                    "N_Planet": "NATAL_SUN",
+                    "Aspect_Angle": 0,
+                    "Countdown_ID": "STUDY_EFFICIENCY_MAX",
+                    "Countdown_Label": "new moon positive",
+                    "Score_Impact": 45,
+                    "Priority": 8,
+                    "_orb_status": "Applying",
+                    "_input": {"orb": 1.0},
+                },
+                {
+                    "T_Planet": "TRANSIT_MOON",
+                    "N_Planet": "NATAL_SUN",
+                    "Aspect_Angle": 180,
+                    "Countdown_ID": "MIND_BODY_BALANCE",
+                    "Countdown_Label": "full moon negative",
+                    "Score_Impact": -45,
+                    "Priority": 8,
+                    "_orb_status": "Applying",
+                    "_input": {"orb": 1.0},
+                },
+            ]
+        )
         long_priorities = [9, 6, 3]
         for index, planet in enumerate(long_planets):
             rows.append(
@@ -927,29 +967,29 @@ class ApiTestCase(unittest.TestCase):
             }
             dashboard = build_dashboard_data_from_interpretations(rows, {"modifier": 0, "items": []})
 
-        self.assertEqual(len(dashboard["countdown_groups"]["short"]), 4)
+        self.assertEqual(len(dashboard["countdown_groups"]["short"]), 6)
         self.assertEqual(len(dashboard["countdown_groups"]["long"]), 6)
         self.assertEqual(
-            [item["target"]["_orb_status"] for item in dashboard["countdown_groups"]["short"][:2]],
-            ["Applying", "Separating"],
+            [item["target"]["Countdown_Label"] for item in dashboard["countdown_groups"]["short"][:3]],
+            ["new moon positive", "short positive 2", "short positive 1"],
         )
         self.assertTrue(
-            all(item["target"]["Score_Impact"] > 0 for item in dashboard["countdown_groups"]["short"][:2])
+            all(item["target"]["Score_Impact"] > 0 for item in dashboard["countdown_groups"]["short"][:3])
         )
         self.assertEqual(
-            [item["countdown_mode"] for item in dashboard["countdown_groups"]["short"][2:]],
-            ["departure", "departure"],
+            [item["countdown_mode"] for item in dashboard["countdown_groups"]["short"][3:]],
+            ["departure", "departure", "departure"],
         )
         self.assertEqual(
-            [item["scan_status"] for item in dashboard["countdown_groups"]["short"][2:]],
-            ["departing", "departing"],
+            [item["scan_status"] for item in dashboard["countdown_groups"]["short"][3:]],
+            ["departing", "departing", "departing"],
         )
         self.assertEqual(
-            [item["target"]["_orb_status"] for item in dashboard["countdown_groups"]["short"][2:]],
-            ["Applying", "Applying"],
+            [item["target"]["Countdown_Label"] for item in dashboard["countdown_groups"]["short"][3:]],
+            ["full moon negative", "short negative 2", "short negative 1"],
         )
         self.assertTrue(
-            all(item["target"]["Score_Impact"] < 0 for item in dashboard["countdown_groups"]["short"][2:])
+            all(item["target"]["Score_Impact"] < 0 for item in dashboard["countdown_groups"]["short"][3:])
         )
         self.assertEqual(
             [item["target"]["_orb_status"] for item in dashboard["countdown_groups"]["long"][:3]],
@@ -973,7 +1013,7 @@ class ApiTestCase(unittest.TestCase):
         self.assertTrue(
             all(item["target"]["Score_Impact"] < 0 for item in dashboard["countdown_groups"]["long"][3:])
         )
-        self.assertEqual(len(dashboard["countdown_groups"]["legacy_short"]), 2)
+        self.assertEqual(len(dashboard["countdown_groups"]["legacy_short"]), 3)
         self.assertEqual(len(dashboard["countdown_groups"]["legacy_long"]), 3)
         self.assertEqual(len(dashboard["countdown_groups"]["long_by_priority"]["high"]), 2)
         self.assertEqual(len(dashboard["countdown_groups"]["long_by_priority"]["middle"]), 2)
