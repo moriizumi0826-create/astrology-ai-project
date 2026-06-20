@@ -325,11 +325,11 @@ const TRANSIT_PLAYBACK_RANGE_OPTIONS = [
   { key: "year", label: "1年間", days: 366 },
 ];
 const ASPECT_LINE_SCOPE_OPTIONS = [
-  { key: "transitNatal", label: "出生図との関係", shortLabel: "現行×ネイタル", title: "現行天体×ネイタル天体" },
+  { key: "transitNatal", label: "出生図との関係", shortLabel: "ネイタル×現行", title: "ネイタル天体×現行天体" },
   { key: "transitTransit", label: "現行天体同士", shortLabel: "現行×現行", title: "現行天体×現行天体" },
 ];
 const ASPECT_DISPLAY_MODE_OPTIONS = [
-  { key: "transitNatal", label: "出生図との関係", description: "現行×ネイタル" },
+  { key: "transitNatal", label: "出生図との関係", description: "ネイタル×現行" },
   { key: "transitTransit", label: "現行天体同士", description: "現行×現行" },
   { key: "custom", label: "カスタム", description: "表示対象を選択" },
 ];
@@ -391,7 +391,7 @@ function transitAspectItemsFromForecast(forecast, transitPlanetName, annualKeys,
     rawItems.push({
       date,
       key: `${natalPlanet}-${transitPlanet}-${angleLabel}`,
-      label: `ネイタル${planetLabel(natalPlanet)} × トランジット${planetLabel(transitPlanet)} ${angleLabel}°`,
+      label: `ネイタル${planetLabel(natalPlanet)} × 現行${planetLabel(transitPlanet)} ${angleLabel}°`,
       title: event?.title || "",
       description: event?.description || "",
       advisedTask: event?.advised_task || event?.advisedTask || "",
@@ -413,7 +413,7 @@ function transitAspectItemsFromForecast(forecast, transitPlanetName, annualKeys,
       if (transitPlanet !== transitPlanetFilter || !natalPlanet || angle === null || angle === undefined || angle === "") return;
       const numericAngle = Number(angle);
       const angleLabel = Number.isFinite(numericAngle) ? numericAngle : angle;
-      const label = `ネイタル${planetLabel(natalPlanet)} × トランジット${planetLabel(transitPlanet)} ${angleLabel}°`;
+      const label = `ネイタル${planetLabel(natalPlanet)} × 現行${planetLabel(transitPlanet)} ${angleLabel}°`;
       rawItems.push({
         date,
         key: `${natalPlanet}-${transitPlanet}-${angleLabel}`,
@@ -2157,7 +2157,7 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
           description: aspect.description || descriptionLookup.get(descriptionKey) || aspectInterpretationFallback(aspect),
           title: aspect.scope === "transitTransit"
             ? `現行${planetLabel(aspect.transitPlanet)} × 現行${planetLabel(aspect.transitPlanetB)}　${aspect.angle}°`
-            : `現行${planetLabel(aspect.transitPlanet)} × ネイタル${planetLabel(aspect.natalPlanet)}　${aspect.angle}°`,
+            : `ネイタル${planetLabel(aspect.natalPlanet)} × 現行${planetLabel(aspect.transitPlanet)}　${aspect.angle}°`,
           scopeLabel: aspect.scope === "transitTransit" ? "現行天体同士" : "出生図との関係",
         };
       })
@@ -3460,7 +3460,7 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
     ? transitTooltipAspects
     : focusedNatalTooltipAspects;
   const tooltipEmptyLabel = aspectTooltip?.type === "transit"
-    ? `トランジット${planetLabel(aspectTooltip.planet)}から主要アスペクトはありません。`
+    ? `現行${planetLabel(aspectTooltip.planet)}から主要アスペクトはありません。`
     : `選択日に${planetLabel(aspectTooltip?.planet || sky.selectedNatal.planet)}への主要アスペクトはありません。`;
   useEffect(() => {
     setOpenTooltipAspectKeys(new Set());
@@ -4088,7 +4088,7 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
                                     "flex h-6 cursor-pointer items-center justify-center rounded border text-[11px] transition",
                                     checked ? "border-sky-300/45 bg-sky-300/15 text-sky-100" : "border-white/10 bg-white/[0.03] text-mist/65 hover:text-starlight"
                                   )}
-                                  title={`トランジット${planetLabel(item.planet)}`}
+                                  title={`現行${planetLabel(item.planet)}`}
                                 >
                                   <input
                                     type="checkbox"
@@ -4550,7 +4550,7 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
                         <span className="mt-1 h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: aspect.color }} />
                         <span className="min-w-0 flex-1">
                           <span className="block font-mono text-[10px] font-bold uppercase tracking-[0.12em] text-starlight sm:text-[11px]">
-                            トランジット{aspect.transitLabel || planetLabel(aspect.planet)} × {aspect.usesSelectedNatalLabel ? aspect.natalLabel : `ネイタル${aspect.natalLabel || sky.selectedNatal.label}`}
+                            {aspect.usesSelectedNatalLabel ? aspect.natalLabel : `ネイタル${aspect.natalLabel || sky.selectedNatal.label}`} × 現行{aspect.transitLabel || planetLabel(aspect.planet)}
                           </span>
                           <span className="mt-1 block text-xs leading-5 text-mist sm:text-sm sm:leading-6">
                             実角度 {Number.isFinite(aspect.liveAngle) ? aspect.liveAngle.toFixed(1) : "-"}°
