@@ -11,7 +11,6 @@ import {
 import {
   DashboardDailyDetailContentLayer,
   DashboardV2HoroscopePage,
-  dashboardData as fallbackDashboardData,
 } from "./dashboard-shared.jsx";
 import forecastGalaxyBg from "./assets/daily-detail-galaxy-bg.jpg";
 
@@ -6596,7 +6595,8 @@ function ForecastDetailPage() {
   const annualTransitDayIndex = clamp(selectedAnnualDayIndex, 0, Math.max(0, annualTransitDays.length - 1));
   const dailyDetailData = useMemo(() => {
     const storedPayload = getStoredReadingResult({ allowStale: true }) || {};
-    const sourceDashboard = storedPayload.dashboard_data || storedPayload.dashboardData || fallbackDashboardData;
+    const sourceDashboard = storedPayload.dashboard_data || storedPayload.dashboardData || {};
+    const hasStoredDashboard = Boolean(storedPayload.dashboard_data || storedPayload.dashboardData);
     return {
       ...sourceDashboard,
       readings: storedPayload.readings || sourceDashboard.readings || [],
@@ -6604,12 +6604,15 @@ function ForecastDetailPage() {
       chart_data: storedPayload.chart_data || storedPayload.chartData || sourceDashboard.chart_data || {},
       yearly_forecast: forecast || storedPayload.yearly_forecast || storedPayload.yearlyForecast || sourceDashboard.yearly_forecast || null,
       reading_date:
-        sourceDashboard.reading_date ||
-        sourceDashboard.readingDate ||
-        forecast?.reading_date ||
-        forecast?.date ||
-        storedPayload.meta?.reading_date ||
-        storedPayload.meta?.date,
+        hasStoredDashboard
+          ? (
+              sourceDashboard.reading_date ||
+              sourceDashboard.readingDate ||
+              storedPayload.meta?.reading_date ||
+              storedPayload.meta?.date ||
+              ""
+            )
+          : "",
     };
   }, [forecast]);
   const handleCalculateYear = async () => {
