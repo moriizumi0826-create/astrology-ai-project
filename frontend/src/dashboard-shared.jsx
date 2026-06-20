@@ -2520,7 +2520,7 @@ function DashboardV2CountdownCard({ data, onSelectAspect = () => {} }) {
   );
 }
 
-function DashboardV2DailyFlowCard({ data }) {
+function DashboardV2DailyFlowCard({ data, displayDate = "" }) {
   const [hoveredPerformanceIndex, setHoveredPerformanceIndex] = useState(null);
   const [currentTime, setCurrentTime] = useState(() => new Date());
   useEffect(() => {
@@ -2564,6 +2564,9 @@ function DashboardV2DailyFlowCard({ data }) {
   const pad = 8;
   const currentHour = currentTime.getHours() + currentTime.getMinutes() / 60 + currentTime.getSeconds() / 3600;
   const currentX = pad + (Math.max(0, Math.min(24, currentHour)) / 24) * (width - pad * 2);
+  const chartDate = formatIsoDate(displayDate || dashboardDisplayDate(data));
+  const todayDate = formatIsoDate(currentTime);
+  const showCurrentTimeLine = Boolean(chartDate && todayDate && chartDate === todayDate);
   const pointsFor = (values, direction = "positive") => values
     .map((value, index) => {
       const x = pad + (index / Math.max(1, values.length - 1)) * (width - pad * 2);
@@ -2668,7 +2671,9 @@ function DashboardV2DailyFlowCard({ data }) {
             </linearGradient>
           </defs>
           {marsAreaPath ? <path d={marsAreaPath} fill="url(#dailyMarsArea)" opacity="0.95" /> : null}
-          <line x1={currentX} x2={currentX} y1={pad} y2={height - pad} stroke="#e9c349" strokeWidth="1.5" opacity="0.85" filter="drop-shadow(0 0 8px rgba(233,195,73,0.8))" />
+          {showCurrentTimeLine ? (
+            <line x1={currentX} x2={currentX} y1={pad} y2={height - pad} stroke="#e9c349" strokeWidth="1.5" opacity="0.85" filter="drop-shadow(0 0 8px rgba(233,195,73,0.8))" />
+          ) : null}
           <path d={focusPath} fill="none" stroke="#38bdf8" strokeWidth="3.4" strokeLinecap="round" strokeLinejoin="round" filter="drop-shadow(0 0 8px rgba(56,189,248,0.35))" />
           <path d={flowPath} fill="none" stroke="#34d399" strokeWidth="3.2" strokeLinecap="round" strokeLinejoin="round" filter="drop-shadow(0 0 8px rgba(52,211,153,0.3))" />
           <path d={inspirationPath} fill="none" stroke="#a78bfa" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" filter="drop-shadow(0 0 8px rgba(167,139,250,0.28))" />
@@ -3562,7 +3567,7 @@ function DashboardDailyDetailLayerBase({ data = dashboardData, className = "", i
           onSelectAspect={(key) => setFocusedAspect(key ? { key, token: Date.now() } : null)}
         />
       </div>
-      <DashboardV2DailyFlowCard data={activeDailyData} />
+      <DashboardV2DailyFlowCard data={activeDailyData} displayDate={displayDate} />
     </div>
   );
 }
