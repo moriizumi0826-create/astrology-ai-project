@@ -11,7 +11,6 @@ import {
 import {
   DashboardDailyDetailContentLayer,
   DashboardV2HoroscopePage,
-  dashboardData as fallbackDashboardData,
 } from "./dashboard-shared.jsx";
 import forecastGalaxyBg from "./assets/daily-detail-galaxy-bg.jpg";
 
@@ -54,7 +53,6 @@ const PLANET_SYMBOLS = {
 };
 const TRANSIT_PLANET_ORDER = ["SUN", "MOON", "MERCURY", "VENUS", "MARS", "JUPITER", "SATURN", "URANUS", "NEPTUNE", "PLUTO"];
 const NATAL_POINT_ORDER = ["SUN", "MOON", "MERCURY", "VENUS", "MARS", "JUPITER", "SATURN", "URANUS", "NEPTUNE", "PLUTO", "ASC", "MC"];
-const SENSITIVE_POINT_ORDER = ["ASC", "MC"];
 const ZODIAC_SIGN_NAMES = ["牡羊", "牡牛", "双子", "蟹", "獅子", "乙女", "天秤", "蠍", "射手", "山羊", "水瓶", "魚"];
 const ZODIAC_SIGNS = ["♈︎", "♉︎", "♊︎", "♋︎", "♌︎", "♍︎", "♎︎", "♏︎", "♐︎", "♑︎", "♒︎", "♓︎"];
 const PLANET_COLORS = {
@@ -76,10 +74,8 @@ const LIVE_ASPECT_DEFS = [
   { angle: 60, orb: 4 },
   { angle: 90, orb: 6 },
   { angle: 120, orb: 6 },
-  { angle: 150, orb: 3 },
   { angle: 180, orb: 8 },
 ];
-const ASPECT_ANGLE_FILTERS = LIVE_ASPECT_DEFS.map((item) => item.angle);
 const SOFT_ASPECT_LINE_COLOR = "#74d8ff";
 const HARD_ASPECT_LINE_COLOR = "#ff5757";
 const NEUTRAL_ASPECT_LINE_COLOR = "#e6c85f";
@@ -306,46 +302,6 @@ function addDays(value, days) {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
 }
 
-function monthKey(value) {
-  const monthMatch = String(value || "").match(/^(\d{4})[-/](\d{1,2})$/);
-  if (monthMatch) {
-    const [, year, month] = monthMatch;
-    return `${year}-${month.padStart(2, "0")}`;
-  }
-  const normalized = dateKey(value);
-  return normalized ? normalized.slice(0, 7) : "";
-}
-
-function addMonthsToMonthKey(value, months) {
-  const normalized = monthKey(value);
-  if (!normalized) return "";
-  const date = new Date(`${normalized}-01T00:00:00`);
-  if (Number.isNaN(date.getTime())) return "";
-  date.setMonth(date.getMonth() + Number(months || 0));
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
-}
-
-function monthLabel(value) {
-  const normalized = monthKey(value);
-  if (!normalized) return "";
-  const [year, month] = normalized.split("-");
-  return `${year}/${Number(month)}月`;
-}
-
-function calendarDaysForMonth(value) {
-  const normalized = monthKey(value);
-  if (!normalized) return [];
-  const first = new Date(`${normalized}-01T00:00:00`);
-  if (Number.isNaN(first.getTime())) return [];
-  const start = new Date(first);
-  start.setDate(first.getDate() - first.getDay());
-  return Array.from({ length: 42 }, (_, index) => {
-    const date = new Date(start);
-    date.setDate(start.getDate() + index);
-    return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
-  });
-}
-
 function tenMinuteTimeOptions() {
   return Array.from({ length: 24 * 6 }, (_, index) => {
     const minutes = index * 10;
@@ -371,21 +327,15 @@ const TRANSIT_PLAYBACK_RANGE_OPTIONS = [
 const ASPECT_LINE_SCOPE_OPTIONS = [
   { key: "transitNatal", label: "出生図との関係", shortLabel: "ネイタル×現行", title: "ネイタル天体×現行天体" },
   { key: "transitTransit", label: "現行天体同士", shortLabel: "現行×現行", title: "現行天体×現行天体" },
-  { key: "natalNatal", label: "ネイタル天体同士", shortLabel: "ネイタル×ネイタル", title: "ネイタル天体×ネイタル天体" },
-  { key: "composite", label: "複合アスペクト", shortLabel: "Tスクエア/グランドトライン", title: "複合アスペクト" },
 ];
 const ASPECT_DISPLAY_MODE_OPTIONS = [
   { key: "transitNatal", label: "出生図との関係", description: "ネイタル×現行" },
   { key: "transitTransit", label: "現行天体同士", description: "現行×現行" },
-  { key: "natalNatal", label: "ネイタル同士", description: "ネイタル×ネイタル" },
-  { key: "composite", label: "複合アスペクト", description: "Tスクエア/グランドトライン" },
   { key: "custom", label: "カスタム", description: "表示対象を選択" },
 ];
 const EMPTY_ASPECT_SELECTIONS = {
   transitNatal: { natal: [], transit: [] },
   transitTransit: { natal: [], transit: [] },
-  natalNatal: { natal: [], transit: [] },
-  composite: { natal: [], transit: [] },
 };
 
 function addMinutesToTransitDateTime(dateValue, timeValue, minutes) {
@@ -619,19 +569,11 @@ function updateAspectLinePositions(state) {
     const transitPosition = state.transitPositions.get(link.transitPlanet);
     const otherTransitPosition = link.transitPlanetB ? state.transitPositions.get(link.transitPlanetB) : null;
     const natalEntry = link.natalPlanet ? state.natalMeshes.get(link.natalPlanet) : null;
-    const otherNatalEntry = link.natalPlanetB ? state.natalMeshes.get(link.natalPlanetB) : null;
     const startPosition = otherTransitPosition ? transitPosition : natalEntry?.mesh?.position;
-    const endPosition = otherTransitPosition || otherNatalEntry?.mesh?.position || transitPosition;
+    const endPosition = otherTransitPosition || transitPosition;
     if (!startPosition || !endPosition) return;
-    const position = line.geometry?.attributes?.position;
-    if (position && position.count >= 2) {
-      position.setXYZ(0, startPosition.x, startPosition.y, startPosition.z);
-      position.setXYZ(1, endPosition.x, endPosition.y, endPosition.z);
-      position.needsUpdate = true;
-    } else {
-      line.geometry?.dispose?.();
-      line.geometry = new THREE.BufferGeometry().setFromPoints([startPosition.clone(), endPosition.clone()]);
-    }
+    line.geometry.dispose();
+    line.geometry = new THREE.BufferGeometry().setFromPoints([startPosition.clone(), endPosition.clone()]);
   });
 }
 
@@ -705,35 +647,11 @@ function liveTransitTransitAspectsFromChart(chart) {
   return transitTransitAspectsFromTransits(Array.isArray(chart?.transits) ? chart.transits : []);
 }
 
-function natalNatalAspectsFromPoints(natalPoints = []) {
-  const normalizedNatalPoints = natalPoints
-    .map((item) => ({
-      planet: normalizedPlanet(item?.planet || item?.name),
-      longitude: normalizeLongitude(item?.longitude),
-    }))
-    .filter((item) => NATAL_POINT_ORDER.includes(item.planet) && item.longitude !== null);
-  return normalizedNatalPoints.flatMap((fromNatal, fromIndex) => normalizedNatalPoints.slice(fromIndex + 1).map((toNatal) => {
-    const aspect = liveAspectForAngle(circularAngleDistance(fromNatal.longitude, toNatal.longitude));
-    if (!aspect) return null;
-    return {
-      scope: "natalNatal",
-      natalPlanet: fromNatal.planet,
-      natalPlanetB: toNatal.planet,
-      angle: aspect.angle,
-      orb: aspect.orb,
-      color: aspectLineColor(aspect.angle),
-    };
-  }).filter(Boolean));
-}
-
 function aspectMergeKey(aspect) {
   const scope = aspect?.scope || "transitNatal";
   const angle = normalizeAspectAngle(aspect?.angle);
   if (scope === "transitTransit") {
     return `tt-${aspect?.transitPlanet || ""}-${aspect?.transitPlanetB || ""}-${angle}`;
-  }
-  if (scope === "natalNatal") {
-    return `nn-${aspect?.natalPlanet || ""}-${aspect?.natalPlanetB || ""}-${angle}`;
   }
   return `tn-${aspect?.transitPlanet || aspect?.planet || ""}-${aspect?.natalPlanet || ""}-${angle}`;
 }
@@ -750,410 +668,34 @@ function mergeAspectSources(preferred = [], supplemental = []) {
   return merged;
 }
 
-function aspectEndpointIds(aspect) {
-  if (!aspect) return [];
-  if (aspect.scope === "transitTransit") {
-    return [`T:${aspect.transitPlanet}`, `T:${aspect.transitPlanetB}`].filter((value) => value && !value.endsWith(":undefined"));
-  }
-  if (aspect.scope === "natalNatal") {
-    return [`N:${aspect.natalPlanet}`, `N:${aspect.natalPlanetB}`].filter((value) => value && !value.endsWith(":undefined"));
-  }
-  return [`T:${aspect.transitPlanet || aspect.planet}`, `N:${aspect.natalPlanet}`].filter((value) => value && !value.endsWith(":undefined"));
-}
-
-function aspectEndpointLabel(id) {
-  const [type, planet] = String(id || "").split(":");
-  if (!planet) return "";
-  return `${type === "N" ? "ネイタル" : "現行"}${planetLabel(planet)}`;
-}
-
-function compoundAspectKey(ids, kind) {
-  return `${kind}-${ids.slice().sort().join("-")}`;
-}
-
-function combinations(items, size) {
-  const result = [];
-  const walk = (start, chosen) => {
-    if (chosen.length === size) {
-      result.push(chosen);
-      return;
-    }
-    for (let index = start; index <= items.length - (size - chosen.length); index += 1) {
-      walk(index + 1, [...chosen, items[index]]);
-    }
-  };
-  walk(0, []);
-  return result;
-}
-
-function aspectCount(edges = []) {
-  return edges.reduce((counts, edge) => {
-    const angle = normalizeAspectAngle(edge?.angle);
-    if (angle !== null) counts[angle] = (counts[angle] || 0) + 1;
-    return counts;
-  }, {});
-}
-
-function countMatches(counts, expected) {
-  return Object.entries(expected).every(([angle, count]) => (counts[angle] || 0) === count);
-}
-
-function existingEdgesForIds(ids, pairMap) {
-  return combinations(ids, 2)
-    .map(([a, b]) => pairMap.get([a, b].sort().join("|")))
-    .filter(Boolean);
-}
-
-function compoundNodeInfo(id) {
-  const [type, planet] = String(id || "").split(":");
-  return { type, planet: normalizedPlanet(planet) };
-}
-
-function isTenPlanetNode(id) {
-  const { planet } = compoundNodeInfo(id);
-  return TRANSIT_PLANET_ORDER.includes(planet);
-}
-
-function isNatalSensitiveNode(id) {
-  const { type, planet } = compoundNodeInfo(id);
-  return type === "N" && SENSITIVE_POINT_ORDER.includes(planet);
-}
-
-function isTransitSensitiveNode(id) {
-  const { type, planet } = compoundNodeInfo(id);
-  return type === "T" && SENSITIVE_POINT_ORDER.includes(planet);
-}
-
-function otherCompoundEndpoint(edge, targetId) {
-  const ids = Array.isArray(edge?.compoundEndpointIds) ? edge.compoundEndpointIds : aspectEndpointIds(edge);
-  return ids.find((id) => id !== targetId) || null;
-}
-
-function hasTransitHardToNatalSensitivePoint(edge, sensitiveId) {
-  const angle = normalizeAspectAngle(edge?.angle);
-  if (angle !== 90 && angle !== 180) return false;
-  const otherId = otherCompoundEndpoint(edge, sensitiveId);
-  if (!otherId) return false;
-  const { type } = compoundNodeInfo(otherId);
-  return type === "T" && isTenPlanetNode(otherId);
-}
-
-function shouldUseCompoundGroup({ ids = [], components = [], kind }) {
-  const normalizedIds = ids.filter(Boolean);
-  if (normalizedIds.some(isTransitSensitiveNode)) return false;
-  const sensitiveIds = normalizedIds.filter(isNatalSensitiveNode);
-  const planetCount = normalizedIds.filter(isTenPlanetNode).length;
-  if (planetCount < 2) return false;
-  if (!sensitiveIds.length) return true;
-  if (!["tSquare", "grandCross"].includes(kind)) return false;
-  return sensitiveIds.every((id) => components.some((edge) => {
-    const edgeIds = Array.isArray(edge?.compoundEndpointIds) ? edge.compoundEndpointIds : aspectEndpointIds(edge);
-    return edgeIds.includes(id) && hasTransitHardToNatalSensitivePoint(edge, id);
-  }));
-}
-
-function pushCompoundGroup(groups, { ids, components, kind, title, description, color }) {
-  if (!components?.length) return;
-  if (!shouldUseCompoundGroup({ ids, components, kind })) return;
-  const labels = ids.map(aspectEndpointLabel).filter(Boolean);
-  groups.push({
-    scope: "composite",
-    ids,
-    labels,
-    components,
-    orb: Math.max(...components.map((edge) => Math.abs(Number(edge.orb) || 0))),
-    key: compoundAspectKey(ids, kind),
-    kind,
-    title: `${title}: ${labels.join(" / ")}`,
-    description,
-    color,
-  });
-}
-
-function compoundKindLabel(kind) {
-  return ({
-    tSquare: "Tスクエア",
-    grandTrine: "グランド・トライン",
-    yod: "ヨッド",
-    miniGrandTrine: "小三角形 / ミニ・グランドトライン",
-    grandCross: "グランド・クロス",
-    kite: "カイト",
-    mysticRectangle: "ミスティック・レクタングル",
-    boomerang: "ブーメラン",
-    homeBase: "ホームベース",
-    grandSextile: "グランド・セクスタイル",
-  })[kind] || "複合アスペクト";
-}
-
-function compoundKindDetailText(kind) {
-  return ({
-    tSquare: "180°×1 / 90°×2",
-    grandTrine: "120°×3",
-    yod: "150°×2 / 60°×1",
-    miniGrandTrine: "120°×1 / 60°×2",
-    grandCross: "180°×2 / 90°×4",
-    kite: "180°×1 / 120°×3 / 60°×2",
-    mysticRectangle: "180°×2 / 120°×2 / 60°×2",
-    boomerang: "180°×1 / 150°×2 / 60°×1",
-    homeBase: "60°連続",
-    grandSextile: "180°×3 / 120°×6 / 60°×6",
-  })[kind] || "";
-}
-
-function compoundGroupCategory(group) {
-  const ids = Array.isArray(group?.ids) ? group.ids : [];
-  const hasNatal = ids.some((id) => String(id).startsWith("N:"));
-  const hasTransit = ids.some((id) => String(id).startsWith("T:"));
-  if (hasNatal && hasTransit) return "mixed";
-  if (hasTransit) return "transitOnly";
-  return "natalOnly";
-}
-
-function detectCompoundAspects(aspects = []) {
-  const pairMap = new Map();
-  const nodeSet = new Set();
-  aspects
-    .filter((aspect) => isRenderable3DAspectAngle(aspect.angle))
-    .forEach((aspect) => {
-      const angle = normalizeAspectAngle(aspect.angle);
-      if (![60, 90, 120, 150, 180].includes(angle)) return;
-      const ids = aspectEndpointIds(aspect);
-      if (ids.length !== 2 || ids[0] === ids[1]) return;
-      const sortedIds = ids.slice().sort();
-      sortedIds.forEach((id) => nodeSet.add(id));
-      const key = sortedIds.join("|");
-      const current = pairMap.get(key);
-      if (!current || Math.abs(Number(aspect.orb) || 99) < Math.abs(Number(current.orb) || 99)) {
-        pairMap.set(key, { ...aspect, angle, compoundEndpointIds: sortedIds });
-      }
-    });
-
-  const nodes = Array.from(nodeSet).sort();
-  const groups = [];
-  combinations(nodes, 3).forEach((ids) => {
-    const edges = existingEdgesForIds(ids, pairMap);
-    if (edges.length !== 3) return;
-    const counts = aspectCount(edges);
-    if (countMatches(counts, { 90: 2, 180: 1 })) {
-      pushCompoundGroup(groups, {
-        ids,
-        components: edges,
-        kind: "tSquare",
-        title: "Tスクエア",
-        description: "180度（オポジション）1本と90度（スクエア）2本で形成される複合アスペクトです。",
-        color: HARD_ASPECT_LINE_COLOR,
-      });
-    } else if (countMatches(counts, { 120: 3 })) {
-      pushCompoundGroup(groups, {
-        ids,
-        components: edges,
-        kind: "grandTrine",
-        title: "グランド・トライン",
-        description: "120度（トライン）3本で形成される複合アスペクトです。",
-        color: SOFT_ASPECT_LINE_COLOR,
-      });
-    } else if (countMatches(counts, { 60: 1, 150: 2 })) {
-      pushCompoundGroup(groups, {
-        ids,
-        components: edges,
-        kind: "yod",
-        title: "ヨッド",
-        description: "60度（セクスタイル）1本と150度（インコンジャンクション）2本で形成される複合アスペクトです。",
-        color: NEUTRAL_ASPECT_LINE_COLOR,
-      });
-    } else if (countMatches(counts, { 60: 2, 120: 1 })) {
-      pushCompoundGroup(groups, {
-        ids,
-        components: edges,
-        kind: "miniGrandTrine",
-        title: "小三角形 / ミニ・グランドトライン",
-        description: "120度1本と60度2本で形成される複合アスペクトです。",
-        color: SOFT_ASPECT_LINE_COLOR,
-      });
-    }
-  });
-
-  combinations(nodes, 4).forEach((ids) => {
-    const edges = existingEdgesForIds(ids, pairMap);
-    const counts = aspectCount(edges);
-    if (edges.length === 6 && countMatches(counts, { 90: 4, 180: 2 })) {
-      pushCompoundGroup(groups, {
-        ids,
-        components: edges,
-        kind: "grandCross",
-        title: "グランド・クロス",
-        description: "180度2本と90度4本で形成される複合アスペクトです。",
-        color: HARD_ASPECT_LINE_COLOR,
-      });
-    }
-    if (edges.length === 6 && countMatches(counts, { 60: 2, 120: 3, 180: 1 })) {
-      pushCompoundGroup(groups, {
-        ids,
-        components: edges,
-        kind: "kite",
-        title: "カイト",
-        description: "グランド・トラインに180度1本と60度2本が加わる複合アスペクトです。",
-        color: SOFT_ASPECT_LINE_COLOR,
-      });
-    }
-    if (edges.length === 6 && countMatches(counts, { 60: 2, 120: 2, 180: 2 })) {
-      pushCompoundGroup(groups, {
-        ids,
-        components: edges,
-        kind: "mysticRectangle",
-        title: "ミスティック・レクタングル",
-        description: "180度2本、120度2本、60度2本で形成される複合アスペクトです。",
-        color: SOFT_ASPECT_LINE_COLOR,
-      });
-    }
-    combinations(ids, 3).forEach((yodIds) => {
-      const yodEdges = existingEdgesForIds(yodIds, pairMap);
-      if (yodEdges.length !== 3 || !countMatches(aspectCount(yodEdges), { 60: 1, 150: 2 })) return;
-      const apexCandidates = yodIds.filter((id) => yodEdges.filter((edge) => normalizeAspectAngle(edge.angle) === 150 && edge.compoundEndpointIds?.includes(id)).length === 2);
-      const oppositeId = ids.find((id) => !yodIds.includes(id));
-      const apexId = apexCandidates.find((id) => pairMap.get([id, oppositeId].sort().join("|")) && normalizeAspectAngle(pairMap.get([id, oppositeId].sort().join("|")).angle) === 180);
-      if (!apexId) return;
-      pushCompoundGroup(groups, {
-        ids,
-        components: [...yodEdges, pairMap.get([apexId, oppositeId].sort().join("|"))],
-        kind: "boomerang",
-        title: "ブーメラン",
-        description: "ヨッドの頂点の真向かいに4つ目の天体がある複合アスペクトです。",
-        color: NEUTRAL_ASPECT_LINE_COLOR,
-      });
-    });
-  });
-
-  combinations(nodes, 5).forEach((ids) => {
-    const sextileEdges = existingEdgesForIds(ids, pairMap).filter((edge) => normalizeAspectAngle(edge.angle) === 60);
-    if (sextileEdges.length < 4) return;
-    const degree = new Map(ids.map((id) => [id, 0]));
-    sextileEdges.forEach((edge) => edge.compoundEndpointIds?.forEach((id) => degree.set(id, (degree.get(id) || 0) + 1)));
-    const endpoints = Array.from(degree.values()).filter((count) => count === 1).length;
-    const middles = Array.from(degree.values()).filter((count) => count >= 2).length;
-    if (endpoints >= 2 && middles >= 3) {
-      pushCompoundGroup(groups, {
-        ids,
-        components: sextileEdges,
-        kind: "homeBase",
-        title: "ホームベース",
-        description: "5つの天体が連続するセクスタイルを中心に形成する五角形型の複合アスペクトです。",
-        color: SOFT_ASPECT_LINE_COLOR,
-      });
-    }
-  });
-
-  combinations(nodes, 6).forEach((ids) => {
-    const edges = existingEdgesForIds(ids, pairMap);
-    const counts = aspectCount(edges);
-    if (countMatches(counts, { 60: 6, 120: 6, 180: 3 })) {
-      pushCompoundGroup(groups, {
-        ids,
-        components: edges.filter((edge) => [60, 120, 180].includes(normalizeAspectAngle(edge.angle))),
-        kind: "grandSextile",
-        title: "グランド・セクスタイル",
-        description: "6つの天体が六芒星を作る複合アスペクトです。",
-        color: SOFT_ASPECT_LINE_COLOR,
-      });
-    }
-  });
-  return groups.sort((a, b) => (a.kind === b.kind ? a.key.localeCompare(b.key) : a.kind.localeCompare(b.kind)));
-}
-
-function compoundAspectLineComponents(groups = []) {
-  return groups.flatMap((group) => group.components.map((component) => ({
-    ...component,
-    color: group.color || component.color,
-    compoundKey: group.key,
-    compoundKind: group.kind,
-    compoundDescription: group.description,
-    compoundGroupIds: group.ids,
-  })));
-}
-
-function playbackAspectCacheForChart(chart, natalPoints = []) {
-  const transitNatalAspects = liveAspectsFromChart(chart, natalPoints);
-  const transitTransitAspects = liveTransitTransitAspectsFromChart(chart);
-  const natalNatalAspects = natalNatalAspectsFromPoints(natalPoints);
-  const allAspects = [
-    ...transitNatalAspects,
-    ...transitTransitAspects,
-    ...natalNatalAspects,
-  ];
-  const compoundLineAspects = compoundAspectLineComponents(detectCompoundAspects(allAspects));
-  return {
-    allAspects,
-    compoundLineAspects,
-  };
-}
-
-function playbackAspectSourceForFrame(frame, mode) {
-  const cache = frame?.aspectCache;
-  if (!cache) return [];
-  if (mode === "composite") return cache.compoundLineAspects || [];
-  if (mode === "custom") return [
-    ...(cache.compoundLineAspects || []),
-    ...(cache.allAspects || []),
-  ];
-  return cache.allAspects || [];
-}
-
-function aspectMatchesFocus(aspect, focus) {
-  if (!focus?.type || !focus?.planet) return true;
-  if (Array.isArray(aspect.compoundGroupIds) && aspect.compoundGroupIds.length) {
-    return aspect.compoundGroupIds.includes(`${focus.type === "natal" ? "N" : "T"}:${focus.planet}`);
-  }
-  if (focus.type === "natal") return aspect.natalPlanet === focus.planet || aspect.natalPlanetB === focus.planet;
-  if (focus.type === "transit") return aspect.transitPlanet === focus.planet || aspect.transitPlanetB === focus.planet;
-  return true;
-}
-
-function filterAspectLinesForControls(aspects, { focus, selections, mode, enabledAngles = ASPECT_ANGLE_FILTERS }) {
-  const enabledAngleSet = new Set(enabledAngles);
-  const renderableAspects = aspects.filter((aspect) => {
-    const angle = normalizeAspectAngle(aspect.angle);
-    return isRenderable3DAspectAngle(angle) && enabledAngleSet.has(angle);
-  });
-  if (mode === "composite") {
-    return renderableAspects.filter((aspect) => Boolean(aspect.compoundKey) && aspectMatchesFocus(aspect, focus));
-  }
+function filterAspectLinesForControls(aspects, { focus, selections, mode }) {
+  const renderableAspects = aspects.filter((aspect) => isRenderable3DAspectAngle(aspect.angle));
   if (mode === "transitNatal") {
     return renderableAspects.filter((aspect) => {
       if ((aspect.scope || "transitNatal") !== "transitNatal") return false;
-      return aspectMatchesFocus(aspect, focus);
+      if (focus?.type === "natal") return aspect.natalPlanet === focus.planet;
+      if (focus?.type === "transit") return aspect.transitPlanet === focus.planet;
+      return true;
     });
   }
   if (mode === "transitTransit") {
     return renderableAspects.filter((aspect) => {
       if (aspect.scope !== "transitTransit") return false;
-      return aspectMatchesFocus(aspect, focus);
-    });
-  }
-  if (mode === "natalNatal") {
-    return renderableAspects.filter((aspect) => {
-      if (aspect.scope !== "natalNatal") return false;
-      return aspectMatchesFocus(aspect, focus);
+      if (focus?.type === "transit") return aspect.transitPlanet === focus.planet || aspect.transitPlanetB === focus.planet;
+      return true;
     });
   }
   const natalSelections = new Set(selections?.transitNatal?.natal || []);
   const transitSelections = new Set(selections?.transitNatal?.transit || []);
   const transitTransitSelections = new Set(selections?.transitTransit?.transit || []);
-  const natalNatalSelections = new Set(selections?.natalNatal?.natal || []);
-  const compositeNatalSelections = new Set(selections?.composite?.natal || []);
-  const compositeTransitSelections = new Set(selections?.composite?.transit || []);
-  return renderableAspects.filter((aspect) => {
-    const selectedByComposite = Boolean(aspect.compoundKey) && Array.isArray(aspect.compoundGroupIds) && aspect.compoundGroupIds.some((id) => {
-      const [type, planet] = String(id || "").split(":");
-      if (!planet) return false;
-      return type === "N" ? compositeNatalSelections.has(planet) : compositeTransitSelections.has(planet);
-    });
-    const selectedByCustom = aspect.scope === "transitTransit"
+  return renderableAspects.filter((aspect) => (
+    (aspect.scope === "transitTransit")
       ? transitTransitSelections.has(aspect.transitPlanet) || transitTransitSelections.has(aspect.transitPlanetB)
-      : aspect.scope === "natalNatal"
-        ? natalNatalSelections.has(aspect.natalPlanet) || natalNatalSelections.has(aspect.natalPlanetB)
-        : natalSelections.has(aspect.natalPlanet) || transitSelections.has(aspect.transitPlanet);
-    return (selectedByComposite || selectedByCustom) && aspectMatchesFocus(aspect, focus);
-  });
+      : (focus?.type === "natal" && aspect.natalPlanet === focus.planet)
+        || (focus?.type === "transit" && aspect.transitPlanet === focus.planet)
+        || natalSelections.has(aspect.natalPlanet)
+        || transitSelections.has(aspect.transitPlanet)
+  ));
 }
 
 function aspectImportance(aspect) {
@@ -1166,73 +708,36 @@ function aspectImportance(aspect) {
 
 function aspectInterpretationFallback(aspect) {
   if (aspect?.scope === "transitTransit") {
-    return "解釈文がありません。";
+    return "現行天体同士のアスペクトです。現在の空模様として働くため、全体的なムードや外側の流れとして確認してください。";
   }
   return "解釈文がありません。";
 }
 
-function aspectLineRenderSignature(state, aspects = [], showAll, transitLayerActive) {
-  const focus = state?.aspectLineFocus;
-  const focusKey = focus?.type && focus?.planet ? `${focus.type}:${focus.planet}` : "";
-  const lineKeys = [];
-  const seen = new Set();
-  aspects.forEach((aspect) => {
-    const key = aspectMergeKey(aspect);
-    if (seen.has(key)) return;
-    seen.add(key);
-    lineKeys.push(`${key}:${aspectLineColor(aspect.angle, aspect.color)}`);
-  });
-  return [
-    showAll ? "all" : "filtered",
-    transitLayerActive ? "transit-on" : "transit-off",
-    state?.natalLayerActive ? "natal-on" : "natal-off",
-    focusKey,
-    ...lineKeys.sort(),
-  ].join("|");
-}
-
 function renderAspectLines(state, aspects, showAll, transitLayerActive) {
   if (!state?.aspectGroup) return;
-  const nextSignature = aspectLineRenderSignature(state, aspects, showAll, transitLayerActive);
-  if (state.aspectLineRenderSignature === nextSignature) {
-    updateAspectLinePositions(state);
-    return;
-  }
-  state.aspectLineRenderSignature = nextSignature;
   while (state.aspectGroup.children.length) {
     const child = state.aspectGroup.children.pop();
     child.geometry?.dispose?.();
     child.material?.dispose?.();
   }
-  const renderedLineKeys = new Set();
   aspects.forEach((aspect) => {
-    const lineKey = aspectMergeKey(aspect);
-    if (renderedLineKeys.has(lineKey)) return;
-    renderedLineKeys.add(lineKey);
     const transitPosition = state.transitPositions.get(aspect.transitPlanet);
     const otherTransitPosition = aspect.scope === "transitTransit" ? state.transitPositions.get(aspect.transitPlanetB) : null;
     const natalEntry = aspect.scope === "transitTransit" ? null : state.natalMeshes.get(aspect.natalPlanet);
-    const otherNatalEntry = aspect.scope === "natalNatal" ? state.natalMeshes.get(aspect.natalPlanetB) : null;
     const startPosition = aspect.scope === "transitTransit" ? transitPosition : natalEntry?.mesh?.position;
-    const endPosition = aspect.scope === "transitTransit"
-      ? otherTransitPosition
-      : aspect.scope === "natalNatal"
-        ? otherNatalEntry?.mesh?.position
-        : transitPosition;
+    const endPosition = aspect.scope === "transitTransit" ? otherTransitPosition : transitPosition;
     if (!startPosition || !endPosition) return;
     const shouldHighlightLine = Boolean(state.aspectLineFocus);
-    const lineLayerActive = aspect.scope === "natalNatal" ? state.natalLayerActive : transitLayerActive;
     const aspectLine = new THREE.Line(
       new THREE.BufferGeometry().setFromPoints([startPosition.clone(), endPosition.clone()]),
       new THREE.LineBasicMaterial({
         color: new THREE.Color(aspectLineColor(aspect.angle, aspect.color)),
         transparent: true,
-        opacity: shouldHighlightLine ? 0.78 : showAll ? 0.34 : lineLayerActive ? 0.66 : 0.18,
+        opacity: shouldHighlightLine ? 0.78 : showAll ? 0.34 : transitLayerActive ? 0.66 : 0.18,
       })
     );
     aspectLine.userData.aspectLink = {
       natalPlanet: aspect.natalPlanet,
-      natalPlanetB: aspect.natalPlanetB,
       transitPlanet: aspect.transitPlanet,
       transitPlanetB: aspect.transitPlanetB,
     };
@@ -1242,7 +747,7 @@ function renderAspectLines(state, aspects, showAll, transitLayerActive) {
 
 function applyLiveAspectHighlights(state, aspects) {
   if (!state) return;
-  const natalHighlights = new Set((aspects || []).flatMap((aspect) => [aspect.natalPlanet, aspect.natalPlanetB]).filter(Boolean));
+  const natalHighlights = new Set((aspects || []).map((aspect) => aspect.natalPlanet).filter(Boolean));
   const transitHighlights = new Set((aspects || []).flatMap((aspect) => [aspect.transitPlanet, aspect.transitPlanetB]).filter(Boolean));
   if (state.aspectLineFocus?.type === "natal") {
     natalHighlights.add(state.aspectLineFocus.planet);
@@ -1308,11 +813,9 @@ function chartHouseCusps(chart) {
     .slice(0, 12);
 }
 
-function interpolatedTransitChart(fromFrame, toFrame, progress, dateValue, timeValue) {
-  const fromChart = fromFrame?.chart || fromFrame;
-  const toChart = toFrame?.chart || toFrame;
-  const fromTransits = fromFrame?.transitMap || chartTransitMap(fromChart);
-  const toTransits = toFrame?.transitMap || chartTransitMap(toChart);
+function interpolatedTransitChart(fromChart, toChart, progress, dateValue, timeValue) {
+  const fromTransits = chartTransitMap(fromChart);
+  const toTransits = chartTransitMap(toChart);
   const transits = (Array.isArray(toChart?.transits) ? toChart.transits : []).map((item) => {
     const startLongitude = fromTransits.get(item.planet);
     const targetLongitude = toTransits.get(item.planet);
@@ -1323,8 +826,8 @@ function interpolatedTransitChart(fromFrame, toFrame, progress, dateValue, timeV
         : interpolateLongitude(startLongitude, targetLongitude, progress),
     };
   });
-  const fromCusps = fromFrame?.houseCusps || chartHouseCusps(fromChart);
-  const toCusps = toFrame?.houseCusps || chartHouseCusps(toChart);
+  const fromCusps = chartHouseCusps(fromChart);
+  const toCusps = chartHouseCusps(toChart);
   const houseCusps = fromCusps.length >= 12 && toCusps.length >= 12
     ? fromCusps.map((longitude, index) => interpolateLongitude(longitude, toCusps[index], progress))
     : (Array.isArray(toChart?.house_cusps) ? toChart.house_cusps : []);
@@ -1337,70 +840,15 @@ function interpolatedTransitChart(fromFrame, toFrame, progress, dateValue, timeV
   };
 }
 
-function playbackHasCheckedAspectTargets(state) {
-  return Boolean(
-    (state?.aspectLineMode || "transitNatal") !== "custom"
-    ||
-    state?.aspectLineSelections?.transitNatal?.natal?.length
-    || state?.aspectLineSelections?.transitNatal?.transit?.length
-    || state?.aspectLineSelections?.transitTransit?.transit?.length
-    || state?.aspectLineSelections?.natalNatal?.natal?.length
-    || state?.aspectLineSelections?.composite?.natal?.length
-    || state?.aspectLineSelections?.composite?.transit?.length
-  );
-}
-
-function playbackAspectControlsKey(state, frame) {
-  const mode = state?.aspectLineMode || "transitNatal";
-  const focus = state?.aspectLineFocus;
-  return [
-    mode,
-    focus?.type || "",
-    focus?.planet || "",
-    (state?.enabledAspectAngles || ASPECT_ANGLE_FILTERS).join(","),
-    Object.entries(state?.aspectLineSelections || {})
-      .map(([scope, groups]) => `${scope}:${(groups?.natal || []).join(".")}:${(groups?.transit || []).join(".")}`)
-      .join("|"),
-    frame?.date || frame?.chart?.date || "",
-    frame?.time || frame?.chart?.time || "",
-  ].join(";");
-}
-
-function syncPlaybackAspectLines(state, frame, force = false) {
-  if (!state?.aspectGroup || !frame) return;
-  const hasCheckedAspectTargets = playbackHasCheckedAspectTargets(state);
-  if (!hasCheckedAspectTargets && !state.aspectLineFocus && (state.aspectLineMode || "transitNatal") === "custom") {
-    state.playbackAspectControlsKey = "";
-    renderAspectLines(state, [], false, state.transitLayerActive);
-    applyLiveAspectHighlights(state, []);
-    return;
-  }
-  const controlsKey = playbackAspectControlsKey(state, frame);
-  if (!force && state.playbackAspectControlsKey === controlsKey) return;
-  state.playbackAspectControlsKey = controlsKey;
-  const mode = state.aspectLineMode || "transitNatal";
-  const sourceAspects = playbackAspectSourceForFrame(frame, mode);
-  const filteredAspects = filterAspectLinesForControls(sourceAspects, {
-    focus: state.aspectLineFocus,
-    selections: state.aspectLineSelections,
-    mode,
-    enabledAngles: state.enabledAspectAngles || ASPECT_ANGLE_FILTERS,
-  });
-  renderAspectLines(state, filteredAspects, hasCheckedAspectTargets, state.transitLayerActive);
-  applyLiveAspectHighlights(state, filteredAspects);
-}
-
-function setTransitVisualsFromCharts(state, fromFrame, toFrame, progress) {
+function setTransitVisualsFromCharts(state, fromChart, toChart, progress) {
   if (!state?.transitVisuals) return;
-  const fromChart = fromFrame?.chart || fromFrame;
-  const toChart = toFrame?.chart || toFrame;
   const radii = state.mapRadii || {};
   const transitPlanetRadius = radii.transitPlanetRadius ?? 3.88;
   const transitHouseInnerRadius = radii.transitHouseInnerRadius ?? 3.28;
   const transitOrbitRadius = radii.transitOrbitRadius ?? 4.15;
   const transitHouseLabelRadius = radii.transitHouseLabelRadius ?? 3.72;
-  const fromTransits = fromFrame?.transitMap || chartTransitMap(fromChart);
-  const toTransits = toFrame?.transitMap || chartTransitMap(toChart);
+  const fromTransits = chartTransitMap(fromChart);
+  const toTransits = chartTransitMap(toChart);
   state.transitVisuals.forEach((visual, planet) => {
     const startLongitude = fromTransits.get(planet);
     const targetLongitude = toTransits.get(planet);
@@ -1411,29 +859,50 @@ function setTransitVisualsFromCharts(state, fromFrame, toFrame, progress) {
     visual.longitude = longitude;
     state.transitPositions.set(planet, position.clone());
   });
-  const fromCusps = fromFrame?.houseCusps || chartHouseCusps(fromChart);
-  const toCusps = toFrame?.houseCusps || chartHouseCusps(toChart);
+  const fromCusps = chartHouseCusps(fromChart);
+  const toCusps = chartHouseCusps(toChart);
   if (fromCusps.length >= 12 && toCusps.length >= 12) {
     const currentCusps = fromCusps.map((longitude, index) => interpolateLongitude(longitude, toCusps[index], progress));
     state.transitHouseLines.forEach(({ line, index }) => {
       const inner = longitudePosition(currentCusps[index], transitHouseInnerRadius, -0.03);
       const outer = longitudePosition(currentCusps[index], transitOrbitRadius, -0.03);
-      const position = line.geometry?.attributes?.position;
-      if (position && position.count >= 2) {
-        position.setXYZ(0, inner.x, inner.y, inner.z);
-        position.setXYZ(1, outer.x, outer.y, outer.z);
-        position.needsUpdate = true;
-      } else {
-        line.geometry?.dispose?.();
-        line.geometry = new THREE.BufferGeometry().setFromPoints([inner, outer]);
-      }
+      line.geometry.dispose();
+      line.geometry = new THREE.BufferGeometry().setFromPoints([inner, outer]);
     });
     state.transitHouseLabels.forEach(({ mesh, index }) => {
       const nextLongitude = currentCusps[(index + 1) % currentCusps.length];
       setOrbitTextPlaneTransform(mesh, midpointLongitude(currentCusps[index], nextLongitude), transitHouseLabelRadius, 0.07);
     });
   }
-  updateAspectLinePositions(state);
+  const hasCheckedAspectTargets = Boolean(
+    (state.aspectLineMode || "transitNatal") !== "custom"
+    ||
+    state.aspectLineSelections?.transitNatal?.natal?.length
+    || state.aspectLineSelections?.transitNatal?.transit?.length
+    || state.aspectLineSelections?.transitTransit?.transit?.length
+  );
+  if (hasCheckedAspectTargets || state.aspectLineFocus || (state.aspectLineMode || "transitNatal") !== "custom") {
+    const liveChart = interpolatedTransitChart(fromChart, toChart, progress, fromChart?.date, fromChart?.time);
+    const liveAspects = [
+      ...liveAspectsFromChart(liveChart, state.natalPoints),
+      ...liveTransitTransitAspectsFromChart(liveChart),
+    ];
+    const filteredAspects = filterAspectLinesForControls(liveAspects, {
+        focus: state.aspectLineFocus,
+        selections: state.aspectLineSelections,
+        mode: state.aspectLineMode || "transitNatal",
+      });
+    renderAspectLines(
+      state,
+      filteredAspects,
+      hasCheckedAspectTargets,
+      state.transitLayerActive
+    );
+    applyLiveAspectHighlights(state, filteredAspects);
+  } else {
+    updateAspectLinePositions(state);
+    applyLiveAspectHighlights(state, []);
+  }
 }
 
 function midpointLongitude(start, end) {
@@ -2581,184 +2050,28 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
   const [isAspectListPanelOpen, setIsAspectListPanelOpen] = useState(false);
   const [aspectLineSelections, setAspectLineSelections] = useState(EMPTY_ASPECT_SELECTIONS);
   const [aspectLineMode, setAspectLineMode] = useState("transitNatal");
-  const [enabledAspectAngles, setEnabledAspectAngles] = useState(ASPECT_ANGLE_FILTERS);
-  const selectedAspectDisplayMode = useMemo(
-    () => ASPECT_DISPLAY_MODE_OPTIONS.find((option) => option.key === aspectLineMode) || ASPECT_DISPLAY_MODE_OPTIONS[0],
-    [aspectLineMode]
-  );
   const [aspectInterpretationScope, setAspectInterpretationScope] = useState("all");
-  const [compoundAspectListCategory, setCompoundAspectListCategory] = useState("mixed");
-  const [tooltipCompositeTab, setTooltipCompositeTab] = useState("compound");
   const [openTooltipAspectKeys, setOpenTooltipAspectKeys] = useState(() => new Set());
   const [openAspectInterpretationKeys, setOpenAspectInterpretationKeys] = useState(() => new Set());
   const [aspectListPanelPosition, setAspectListPanelPosition] = useState({ x: 520, y: 104 });
   const [mobileAspectListPanelPosition, setMobileAspectListPanelPosition] = useState({ x: 10, y: 198 });
   const selectedDate = dateKey(day?.date);
-  const [isTransitCalendarOpen, setIsTransitCalendarOpen] = useState(false);
-  const [transitCalendarMonth, setTransitCalendarMonth] = useState(() => monthKey(day?.date));
   const displayedTransitDateTime = isTransitPlaybackActive && transitPlaybackCursor
     ? transitPlaybackCursor
     : { date: selectedDate, time: selectedTransitTime };
   const selectableDates = useMemo(() => availableDays.map((item) => dateKey(item?.date)).filter(Boolean), [availableDays]);
-  const selectableDateSet = useMemo(() => new Set(selectableDates), [selectableDates]);
   const minSelectableDate = selectableDates[0] || selectedDate || "";
   const maxSelectableDate = selectableDates[selectableDates.length - 1] || selectedDate || "";
-  useEffect(() => {
-    if (!isTransitCalendarOpen) {
-      setTransitCalendarMonth(monthKey(selectedDate));
-    }
-  }, [isTransitCalendarOpen, selectedDate]);
-  const commitTransitDate = (value) => {
+  const handleTransitDateChange = (event) => {
     setIsTransitPlaybackActive(false);
     setTransitPlaybackCursor(null);
     setPlaybackTransitChart(null);
-    const nextDate = dateKey(value);
+    const nextDate = dateKey(event.target.value);
     if (!nextDate || !onSelectDayIndex) return;
     const nextIndex = selectableDates.indexOf(nextDate);
     if (nextIndex >= 0) {
       onSelectDayIndex(nextIndex);
-      setIsTransitCalendarOpen(false);
-      setTransitCalendarMonth(monthKey(nextDate));
     }
-  };
-  const handleTransitDateChange = (event) => {
-    commitTransitDate(event.target.value);
-  };
-  const canMoveTransitCalendarMonth = (direction) => {
-    const nextMonth = addMonthsToMonthKey(transitCalendarMonth || selectedDate, direction);
-    if (!nextMonth) return false;
-    if (direction < 0 && minSelectableDate) return nextMonth >= monthKey(minSelectableDate);
-    if (direction > 0 && maxSelectableDate) return nextMonth <= monthKey(maxSelectableDate);
-    return true;
-  };
-  const moveTransitCalendarMonth = (direction) => {
-    const nextMonth = addMonthsToMonthKey(transitCalendarMonth || selectedDate, direction);
-    if (!nextMonth) return;
-    if (direction < 0 && minSelectableDate && nextMonth < monthKey(minSelectableDate)) return;
-    if (direction > 0 && maxSelectableDate && nextMonth > monthKey(maxSelectableDate)) return;
-    setTransitCalendarMonth(nextMonth);
-  };
-  const TransitDatePicker = ({ compact = false } = {}) => {
-    const currentMonth = transitCalendarMonth || monthKey(displayedTransitDateTime.date) || monthKey(selectedDate);
-    const calendarDays = calendarDaysForMonth(currentMonth);
-    const calendarId = compact ? "mobile-transit-date-calendar" : "desktop-transit-date-calendar";
-    const isDateSelectable = (date) => {
-      if (!date) return false;
-      if (selectableDateSet.has(date)) return true;
-      if (minSelectableDate && date < minSelectableDate) return false;
-      if (maxSelectableDate && date > maxSelectableDate) return false;
-      return Boolean(minSelectableDate && maxSelectableDate);
-    };
-    const selectDateFromCalendar = (event, date) => {
-      event.preventDefault();
-      event.stopPropagation();
-      commitTransitDate(date);
-    };
-    return (
-      <div className="relative z-[90]">
-        <button
-          type="button"
-          onClick={(event) => {
-            event.stopPropagation();
-            setIsTransitCalendarOpen((value) => !value);
-          }}
-          disabled={!onSelectDayIndex}
-          className={cx(
-            "inline-flex h-7 items-center gap-1 rounded-md border border-transparent bg-transparent font-semibold text-starlight outline-none transition hover:border-white/10 hover:bg-[#121414]/40 focus:border-gold/50 focus:bg-[#121414]/70 focus:ring-2 focus:ring-gold/25 disabled:pointer-events-none disabled:opacity-100",
-            compact ? "w-[82px] px-1 font-mono text-[10px]" : "px-1 text-xs sm:text-sm"
-          )}
-          aria-expanded={isTransitCalendarOpen}
-          aria-controls={calendarId}
-          aria-label="現行天体の計算日"
-          title="日付を選択"
-        >
-          <span>{compact ? compactDateLabel(displayedTransitDateTime.date) : displayedTransitDateTime.date}</span>
-          {!compact ? <CalendarDays size={13} className="text-mist/70" /> : null}
-        </button>
-        <div
-          id={calendarId}
-          onClick={(event) => event.stopPropagation()}
-          onPointerDown={(event) => event.stopPropagation()}
-          className={cx(
-            "absolute left-0 top-full z-[100] mt-1 w-[236px] overflow-hidden rounded-xl border border-white/10 bg-[#121414]/94 p-2 font-mono text-[10px] font-bold text-mist shadow-[0_18px_42px_rgba(0,0,0,0.42)] backdrop-blur-md transition",
-            isTransitCalendarOpen ? "pointer-events-auto translate-y-0 opacity-100" : "pointer-events-none -translate-y-1 opacity-0"
-          )}
-          aria-hidden={!isTransitCalendarOpen}
-        >
-          <div className="mb-2 flex items-center justify-between gap-2">
-            <button
-              type="button"
-              onClick={(event) => {
-                event.stopPropagation();
-                moveTransitCalendarMonth(-1);
-              }}
-              disabled={!canMoveTransitCalendarMonth(-1)}
-              className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-white/10 bg-white/[0.03] text-mist/75 transition hover:border-gold/35 hover:text-gold disabled:cursor-not-allowed disabled:opacity-30"
-              aria-label="前の月を表示"
-            >
-              ←
-            </button>
-            <p className="text-gold">{monthLabel(currentMonth)}</p>
-            <button
-              type="button"
-              onClick={(event) => {
-                event.stopPropagation();
-                moveTransitCalendarMonth(1);
-              }}
-              disabled={!canMoveTransitCalendarMonth(1)}
-              className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-white/10 bg-white/[0.03] text-mist/75 transition hover:border-gold/35 hover:text-gold disabled:cursor-not-allowed disabled:opacity-30"
-              aria-label="次の月を表示"
-            >
-              →
-            </button>
-          </div>
-          <div className="mb-1 grid grid-cols-7 gap-1 text-center text-[8px] text-mist/45">
-            {["日", "月", "火", "水", "木", "金", "土"].map((label) => <span key={label}>{label}</span>)}
-          </div>
-          <div className="grid grid-cols-7 gap-1">
-            {calendarDays.map((date) => {
-              const isCurrentMonth = monthKey(date) === currentMonth;
-              const isSelected = date === displayedTransitDateTime.date;
-              const isSelectable = isCurrentMonth && isDateSelectable(date);
-              return (
-                <button
-                  key={date}
-                  type="button"
-                  onPointerUp={(event) => {
-                    if (!isSelectable) return;
-                    event.currentTarget.dataset.pointerSelected = "true";
-                    selectDateFromCalendar(event, date);
-                  }}
-                  onClick={(event) => {
-                    if (event.currentTarget.dataset.pointerSelected === "true") {
-                      delete event.currentTarget.dataset.pointerSelected;
-                      event.preventDefault();
-                      event.stopPropagation();
-                      return;
-                    }
-                    if (isSelectable) selectDateFromCalendar(event, date);
-                  }}
-                  disabled={!isSelectable}
-                  className={cx(
-                    "h-7 rounded-md border text-[9px] transition",
-                    isSelected
-                      ? "border-gold/60 bg-gold/20 text-gold"
-                      : isSelectable
-                        ? "border-white/10 bg-white/[0.03] text-starlight hover:border-gold/35 hover:text-gold"
-                        : "border-transparent text-mist/18",
-                    !isCurrentMonth && "opacity-35"
-                  )}
-                  aria-pressed={isSelected}
-                  aria-label={`${date}を選択`}
-                >
-                  {Number(date.slice(8, 10))}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-      </div>
-    );
   };
   const timeOptions = useMemo(() => tenMinuteTimeOptions(), []);
   const dayWithTransitChart = useMemo(() => (
@@ -2795,68 +2108,32 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
     if (preciseTransits.length < 2) return [];
     return transitTransitAspectsFromTransits(preciseTransits);
   }, [aspectLineSky.transits]);
-  const transitNatalSourceAspects = useMemo(
-    () => livePlaybackAspects || mergeAspectSources(aspectLineSky.allAspects, currentLiveAspects),
-    [aspectLineSky.allAspects, currentLiveAspects, livePlaybackAspects]
-  );
-  const transitTransitSourceAspects = useMemo(
-    () => livePlaybackTransitTransitAspects || currentTransitTransitAspects,
-    [currentTransitTransitAspects, livePlaybackTransitTransitAspects]
-  );
-  const natalNatalSourceAspects = useMemo(
-    () => natalNatalAspectsFromPoints(aspectLineSky.natalPoints),
-    [aspectLineSky.natalPoints]
-  );
-  const aspectLineSourceAspects = useMemo(() => [
+  const transitNatalSourceAspects = livePlaybackAspects || mergeAspectSources(aspectLineSky.allAspects, currentLiveAspects);
+  const transitTransitSourceAspects = livePlaybackTransitTransitAspects || currentTransitTransitAspects;
+  const aspectLineSourceAspects = [
     ...transitNatalSourceAspects,
     ...transitTransitSourceAspects,
-  ], [transitNatalSourceAspects, transitTransitSourceAspects]);
-  const compoundAspectSourceAspects = useMemo(() => [
-    ...aspectLineSourceAspects,
-    ...natalNatalSourceAspects,
-  ], [aspectLineSourceAspects, natalNatalSourceAspects]);
-  const compoundAspectGroups = useMemo(() => detectCompoundAspects(compoundAspectSourceAspects), [compoundAspectSourceAspects]);
-  const compoundLineAspects = useMemo(() => compoundAspectLineComponents(compoundAspectGroups), [compoundAspectGroups]);
-  const aspectLineDisplaySourceAspects = useMemo(() => (
-    aspectLineMode === "composite"
-      ? compoundLineAspects
-      : aspectLineMode === "custom"
-        ? [...compoundLineAspects, ...aspectLineSourceAspects, ...natalNatalSourceAspects]
-        : [...aspectLineSourceAspects, ...natalNatalSourceAspects]
-  ), [aspectLineMode, aspectLineSourceAspects, compoundLineAspects, natalNatalSourceAspects]);
-  const activeAspectLineAspects = useMemo(() => filterAspectLinesForControls(aspectLineDisplaySourceAspects, {
+  ];
+  const activeAspectLineAspects = useMemo(() => filterAspectLinesForControls(aspectLineSourceAspects, {
     focus: aspectLineFocus,
     selections: aspectLineSelections,
     mode: aspectLineMode,
-    enabledAngles: enabledAspectAngles,
-  }), [aspectLineFocus, aspectLineSelections, aspectLineMode, aspectLineDisplaySourceAspects, enabledAspectAngles]);
+  }), [aspectLineFocus, aspectLineSelections, aspectLineMode, aspectLineSourceAspects]);
   const focusedNatalPlanets = useMemo(() => new Set(
-    activeAspectLineAspects.flatMap((aspect) => [aspect.natalPlanet, aspect.natalPlanetB]).filter(Boolean)
+    activeAspectLineAspects.map((aspect) => aspect.natalPlanet)
   ), [activeAspectLineAspects]);
   const focusedTransitPlanets = useMemo(() => new Set(
     activeAspectLineAspects.flatMap((aspect) => [aspect.transitPlanet, aspect.transitPlanetB]).filter(Boolean)
   ), [activeAspectLineAspects]);
-  const aspectInterpretationBuckets = useMemo(() => {
+  const aspectInterpretationItems = useMemo(() => {
     const descriptionLookup = new Map(
       aspectLineSky.allAspects.map((aspect) => [
         `${aspect.transitPlanet}-${aspect.natalPlanet}-${normalizeAspectAngle(aspect.angle)}`,
         aspect.description,
       ])
     );
-    const compoundItems = compoundAspectGroups.map((group) => ({
-        ...group,
-        liveAngle: null,
-        importance: aspectImportance(group),
-        scopeLabel: "複合アスペクト",
-        category: compoundGroupCategory(group),
-        detailText: compoundKindDetailText(group.kind),
-      }));
-    const filteredCompoundItems = compoundItems.filter((item) => item.category === compoundAspectListCategory);
-    const singleSourceAspects = aspectInterpretationScope === "composite" ? compoundLineAspects : aspectLineSourceAspects;
-    const singleItems = singleSourceAspects
+    return aspectLineSourceAspects
       .filter((aspect) => (
-        aspectInterpretationScope === "composite"
-        || 
         aspectInterpretationScope === "all"
         || (aspectInterpretationScope === "transitNatal" && (aspect.scope || "transitNatal") === "transitNatal")
         || (aspectInterpretationScope === "transitTransit" && aspect.scope === "transitTransit")
@@ -2873,8 +2150,8 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
         return {
           ...aspect,
           key: aspect.scope === "transitTransit"
-            ? `tt-${aspect.compoundKey || "single"}-${aspect.transitPlanet}-${aspect.transitPlanetB}-${aspect.angle}`
-            : `tn-${aspect.compoundKey || "single"}-${aspect.transitPlanet}-${aspect.natalPlanet}-${aspect.angle}`,
+            ? `tt-${aspect.transitPlanet}-${aspect.transitPlanetB}-${aspect.angle}`
+            : `tn-${aspect.transitPlanet}-${aspect.natalPlanet}-${aspect.angle}`,
           liveAngle,
           importance,
           description: aspect.description || descriptionLookup.get(descriptionKey) || aspectInterpretationFallback(aspect),
@@ -2885,19 +2162,7 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
         };
       })
       .sort((a, b) => (b.importance.score - a.importance.score) || Math.abs(Number(a.orb) || 99) - Math.abs(Number(b.orb) || 99));
-    const visibleItems = aspectInterpretationScope === "composite"
-      ? filteredCompoundItems
-      : aspectInterpretationScope === "all"
-        ? [...compoundItems, ...singleItems]
-        : singleItems;
-    return {
-      compoundItems,
-      filteredCompoundItems,
-      singleItems,
-      visibleItems,
-    };
-  }, [aspectInterpretationScope, compoundAspectListCategory, aspectLineSky.allAspects, aspectLineSky.natalPoints, aspectLineSky.transits, aspectLineSourceAspects, compoundAspectGroups, compoundLineAspects]);
-  const aspectInterpretationItems = aspectInterpretationBuckets.visibleItems;
+  }, [aspectInterpretationScope, aspectLineSky.allAspects, aspectLineSky.natalPoints, aspectLineSky.transits, aspectLineSourceAspects]);
   const toggleAspectLineSelection = (scope, group, planet) => {
     setAspectLineSelections((current) => {
       const next = {
@@ -2908,14 +2173,6 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
         transitTransit: {
           natal: [...(current?.transitTransit?.natal || [])],
           transit: [...(current?.transitTransit?.transit || [])],
-        },
-        natalNatal: {
-          natal: [...(current?.natalNatal?.natal || [])],
-          transit: [...(current?.natalNatal?.transit || [])],
-        },
-        composite: {
-          natal: [...(current?.composite?.natal || [])],
-          transit: [...(current?.composite?.transit || [])],
         },
       };
       const list = next?.[scope]?.[group];
@@ -2939,37 +2196,17 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
           natal: [...(current?.transitTransit?.natal || [])],
           transit: [...(current?.transitTransit?.transit || [])],
         },
-        natalNatal: {
-          natal: [...(current?.natalNatal?.natal || [])],
-          transit: [...(current?.natalNatal?.transit || [])],
-        },
-        composite: {
-          natal: [...(current?.composite?.natal || [])],
-          transit: [...(current?.composite?.transit || [])],
-        },
       };
       if (!next[scope]) return current;
       next[scope] = mode === "all"
         ? {
-          natal: scope === "transitNatal" || scope === "natalNatal" || scope === "composite" ? sky.natalPoints.map((item) => item.planet) : [],
-          transit: scope === "natalNatal" ? [] : sky.transits.map((item) => item.planet),
+          natal: scope === "transitNatal" ? sky.natalPoints.map((item) => item.planet) : [],
+          transit: sky.transits.map((item) => item.planet),
         }
         : { natal: [], transit: [] };
       return next;
     });
   };
-  const toggleAspectAngleFilter = (angle) => {
-    setEnabledAspectAngles((current) => (
-      current.includes(angle)
-        ? current.filter((item) => item !== angle)
-        : [...current, angle].sort((a, b) => a - b)
-    ));
-  };
-  useEffect(() => {
-    if (aspectLineMode === "composite") {
-      setEnabledAspectAngles(ASPECT_ANGLE_FILTERS);
-    }
-  }, [aspectLineMode]);
   const preserveCurrentMapView = React.useCallback(() => {
     const state = sceneStateRef.current;
     if (!state?.group) return;
@@ -3723,10 +2960,9 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
       isFlatMapView,
       natalLayerActive,
       transitLayerActive,
-    aspectLineMode,
-    aspectLineSelections,
-    enabledAspectAngles,
-  };
+      aspectLineMode,
+      aspectLineSelections,
+    };
     let dragging = false;
     let previousX = 0;
     let previousY = 0;
@@ -3959,8 +3195,7 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
         } else {
           let rawProgress = (now - playbackSequence.segmentStartedAt) / playbackSequence.segmentDuration;
           while (rawProgress >= 1 && nextKeyframe) {
-            setTransitVisualsFromCharts(currentSceneState, currentKeyframe, nextKeyframe, 1);
-            syncPlaybackAspectLines(currentSceneState, nextKeyframe, true);
+            setTransitVisualsFromCharts(currentSceneState, currentKeyframe.chart, nextKeyframe.chart, 1);
             playbackSequence.onFrame?.(nextKeyframe.chart);
             playbackSequence.index += 1;
             playbackSequence.segmentStartedAt += playbackSequence.segmentDuration;
@@ -3974,12 +3209,12 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
             playbackSequence.onComplete?.();
           } else {
             const progress = clamp(rawProgress, 0, 1);
-            setTransitVisualsFromCharts(currentSceneState, currentKeyframe, nextKeyframe, progress);
-            if (now - (playbackSequence.lastTableUpdateAt || 0) > 500) {
+            setTransitVisualsFromCharts(currentSceneState, currentKeyframe.chart, nextKeyframe.chart, progress);
+            if (now - (playbackSequence.lastTableUpdateAt || 0) > 140) {
               playbackSequence.lastTableUpdateAt = now;
               playbackSequence.onFrame?.(interpolatedTransitChart(
-                currentKeyframe,
-                nextKeyframe,
+                currentKeyframe.chart,
+                nextKeyframe.chart,
                 progress,
                 currentKeyframe.date,
                 currentKeyframe.time
@@ -3997,18 +3232,14 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
         camera.position.y = cameraYForTiltDegrees(tiltDegrees);
         camera.lookAt(0, 0, 0);
       }
-      if (!playbackSequence?.active) {
-        centerMapInViewport();
-      }
-      if (!playbackSequence?.active) {
-        spinningMeshes.forEach((item) => {
-          if (item.materialRotation && item.mesh.material) {
-            item.mesh.material.rotation = (item.mesh.material.rotation || 0) + item.speed;
-          } else {
-            item.mesh.rotation.y += item.speed;
-          }
-        });
-      }
+      centerMapInViewport();
+      spinningMeshes.forEach((item) => {
+        if (item.materialRotation && item.mesh.material) {
+          item.mesh.material.rotation = (item.mesh.material.rotation || 0) + item.speed;
+        } else {
+          item.mesh.rotation.y += item.speed;
+        }
+      });
       const cameraLocal = group.worldToLocal(camera.getWorldPosition(new THREE.Vector3()));
       const flatSymbolPlacements = [];
       symbolBillboards.forEach(({ sprite, target, offset, baseScale, avoidOverlap }) => {
@@ -4077,7 +3308,6 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
     state.aspectLineFocus = aspectLineFocus;
     state.aspectLineMode = aspectLineMode;
     state.aspectLineSelections = aspectLineSelections;
-    state.enabledAspectAngles = enabledAspectAngles;
     state.natalLayerActive = natalLayerActive;
     state.transitLayerActive = transitLayerActive;
     state.isFlatMapView = isFlatMapView;
@@ -4152,18 +3382,10 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
       aspectLineSelections?.transitNatal?.natal?.length
       || aspectLineSelections?.transitNatal?.transit?.length
       || aspectLineSelections?.transitTransit?.transit?.length
-      || aspectLineSelections?.natalNatal?.natal?.length
-      || aspectLineSelections?.composite?.natal?.length
-      || aspectLineSelections?.composite?.transit?.length
     );
-    if (!state.playbackSequence?.active) {
-      renderAspectLines(state, activeAspectLineAspects, hasCheckedAspectTargets, transitLayerActive);
-      applyLiveAspectHighlights(state, activeAspectLineAspects);
-    } else {
-      const playbackFrame = state.playbackSequence.keyframes?.[state.playbackSequence.index];
-      syncPlaybackAspectLines(state, playbackFrame, true);
-    }
-  }, [sky, natalLayerActive, transitLayerActive, isFlatMapView, aspectLineFocus, focusedNatalPlanets, activeAspectLineAspects, aspectLineSelections, aspectLineMode, enabledAspectAngles]);
+    renderAspectLines(state, activeAspectLineAspects, hasCheckedAspectTargets, transitLayerActive);
+    applyLiveAspectHighlights(state, activeAspectLineAspects);
+  }, [sky, natalLayerActive, transitLayerActive, isFlatMapView, aspectLineFocus, focusedNatalPlanets, activeAspectLineAspects, aspectLineSelections, aspectLineMode]);
 
   useEffect(() => {
     const state = sceneStateRef.current;
@@ -4199,27 +3421,12 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
   }, []);
 
   const focusedNatalTooltipAspects = aspectTooltip?.type === "natal"
-    ? activeAspectLineAspects
-      .filter((aspect) => (
-        ((aspect.scope || "transitNatal") === "transitNatal" && aspect.natalPlanet === aspectTooltip.planet)
-        || (aspect.scope === "natalNatal" && (aspect.natalPlanet === aspectTooltip.planet || aspect.natalPlanetB === aspectTooltip.planet))
-      ))
+    ? aspectLineSourceAspects
+      .filter((aspect) => (aspect.scope || "transitNatal") === "transitNatal" && aspect.natalPlanet === aspectTooltip.planet)
       .slice(0, 6)
       .map((aspect) => {
         const transit = aspectLineSky.transits.find((item) => item.planet === aspect.transitPlanet);
         const natal = aspectLineSky.natalPoints.find((item) => item.planet === aspect.natalPlanet);
-        const natalB = aspectLineSky.natalPoints.find((item) => item.planet === aspect.natalPlanetB);
-        if (aspect.scope === "natalNatal") {
-          return {
-            ...aspect,
-            planet: aspect.natalPlanet,
-            natalLabel: natal ? planetLabel(natal.planet) : planetLabel(aspect.natalPlanet),
-            natalBLabel: natalB ? planetLabel(natalB.planet) : planetLabel(aspect.natalPlanetB),
-            liveAngle: natal && natalB ? circularAngleDistance(natal.longitude, natalB.longitude) : null,
-            description: aspect.description || aspectInterpretationFallback(aspect),
-            title: `ネイタル${natal ? planetLabel(natal.planet) : planetLabel(aspect.natalPlanet)} × ネイタル${natalB ? planetLabel(natalB.planet) : planetLabel(aspect.natalPlanetB)}`,
-          };
-        }
         return {
           ...aspect,
           planet: aspect.transitPlanet,
@@ -4233,28 +3440,12 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
       })
     : [];
   const transitTooltipAspects = aspectTooltip?.type === "transit"
-    ? activeAspectLineAspects
-      .filter((aspect) => (
-        aspect.scope === "transitTransit"
-          ? aspect.transitPlanet === aspectTooltip.planet || aspect.transitPlanetB === aspectTooltip.planet
-          : aspect.transitPlanet === aspectTooltip.planet
-      ))
+    ? aspectLineSourceAspects
+      .filter((aspect) => aspect.transitPlanet === aspectTooltip.planet)
       .slice(0, 6)
       .map((aspect) => {
         const transit = aspectLineSky.transits.find((item) => item.planet === aspect.transitPlanet);
-        const transitB = aspectLineSky.transits.find((item) => item.planet === aspect.transitPlanetB);
         const natal = aspectLineSky.natalPoints.find((item) => item.planet === aspect.natalPlanet);
-        if (aspect.scope === "transitTransit") {
-          return {
-            ...aspect,
-            planet: aspect.transitPlanet,
-            transitLabel: transit ? transit.label : planetLabel(aspect.transitPlanet),
-            transitBLabel: transitB ? transitB.label : planetLabel(aspect.transitPlanetB),
-            liveAngle: transit && transitB ? circularAngleDistance(transit.longitude, transitB.longitude) : null,
-            description: aspect.description || aspectInterpretationFallback(aspect),
-            title: `現行${transit ? transit.label : planetLabel(aspect.transitPlanet)} × 現行${transitB ? transitB.label : planetLabel(aspect.transitPlanetB)}`,
-          };
-        }
         return {
           ...aspect,
           planet: aspect.transitPlanet,
@@ -4262,47 +3453,18 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
           transitLabel: transit ? transit.label : planetLabel(aspect.transitPlanet),
           liveAngle: transit && natal ? circularAngleDistance(transit.longitude, natal.longitude) : null,
           description: aspect.description || aspectInterpretationFallback(aspect),
-          title: `ネイタル${natal ? planetLabel(natal.planet) : planetLabel(aspect.natalPlanet)} × 現行${transit ? transit.label : planetLabel(aspect.transitPlanet)}`,
         };
       })
     : [];
   const tooltipAspects = aspectTooltip?.type === "transit"
     ? transitTooltipAspects
     : focusedNatalTooltipAspects;
-  const tooltipCompoundGroups = useMemo(() => {
-    if (aspectLineMode !== "composite" || !tooltipAspects.length) return [];
-    const grouped = new Map();
-    tooltipAspects.forEach((aspect) => {
-      if (!aspect.compoundKey) return;
-      const labels = aspect.compoundGroupIds?.map(aspectEndpointLabel).filter(Boolean) || [];
-      const baseTitle = compoundKindLabel(aspect.compoundKind);
-      const entry = grouped.get(aspect.compoundKey) || {
-        key: aspect.compoundKey,
-        title: baseTitle,
-        description: aspect.compoundDescription || "複合アスペクトです。",
-        color: aspect.color || NEUTRAL_ASPECT_LINE_COLOR,
-        compoundKind: aspect.compoundKind,
-        labels,
-        components: [],
-      };
-      entry.components.push(aspect);
-      grouped.set(aspect.compoundKey, entry);
-    });
-    return Array.from(grouped.values()).map((group) => ({
-      ...group,
-      detailText: compoundKindDetailText(group.compoundKind),
-    }));
-  }, [aspectLineMode, tooltipAspects]);
-  const tooltipDisplayItems = aspectLineMode === "composite" && tooltipCompoundGroups.length
-    ? (tooltipCompositeTab === "compound" ? tooltipCompoundGroups : tooltipAspects)
-    : tooltipAspects;
   const tooltipEmptyLabel = aspectTooltip?.type === "transit"
     ? `現行${planetLabel(aspectTooltip.planet)}から主要アスペクトはありません。`
     : `選択日に${planetLabel(aspectTooltip?.planet || sky.selectedNatal.planet)}への主要アスペクトはありません。`;
   useEffect(() => {
     setOpenTooltipAspectKeys(new Set());
-    setTooltipCompositeTab("compound");
-  }, [aspectTooltip?.type, aspectTooltip?.planet, aspectLineMode]);
+  }, [aspectTooltip?.type, aspectTooltip?.planet]);
   const toggleTooltipAspect = (key) => {
     setOpenTooltipAspectKeys((current) => {
       const next = new Set(current);
@@ -4418,17 +3580,11 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
       await preloadTransitChartsForDates(selectedTransitTime, playbackDates);
       setIsRotationPaused(true);
       const keyframes = playbackDates
-        .map((targetDate) => {
-          const chart = transitChartCacheRef.current.get(transitChartCacheKey(targetDate, selectedTransitTime));
-          return {
-            date: targetDate,
-            time: selectedTransitTime,
-            chart,
-            transitMap: chart ? chartTransitMap(chart) : null,
-            houseCusps: chart ? chartHouseCusps(chart) : [],
-            aspectCache: chart ? playbackAspectCacheForChart(chart, aspectLineSky.natalPoints) : null,
-          };
-        })
+        .map((targetDate) => ({
+          date: targetDate,
+          time: selectedTransitTime,
+          chart: transitChartCacheRef.current.get(transitChartCacheKey(targetDate, selectedTransitTime)),
+        }))
         .filter((item) => item.chart);
       if (keyframes.length < 2) {
         setTransitChartError("再生できる日次データが不足しています。");
@@ -4451,7 +3607,6 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
             commitTransitPlaybackPosition({ date: finalKeyframe.date, time: finalKeyframe.time });
           },
         };
-        syncPlaybackAspectLines(sceneStateRef.current, keyframes[0], true);
       }
       setTransitPlaybackCursor({ date: selectedDate, time: selectedTransitTime });
       setPlaybackTransitChart(keyframes[0].chart);
@@ -4561,9 +3716,23 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
               位置調整
             </button>
           </div>
-          <div className="absolute left-2 top-2 z-[90] grid gap-1 text-shadow-sm sm:hidden">
+          <div className="absolute left-2 top-2 z-30 grid gap-1 text-shadow-sm sm:hidden">
             <div className="flex items-center gap-0.5">
-              <TransitDatePicker compact />
+              <span className="relative inline-flex h-7 w-[82px] items-center rounded-md border border-transparent bg-transparent px-1 font-mono text-[10px] font-semibold text-starlight transition hover:border-white/10 hover:bg-[#121414]/40 focus-within:border-gold/50 focus-within:bg-[#121414]/70 focus-within:ring-2 focus-within:ring-gold/25">
+                <span className="pointer-events-none">{compactDateLabel(displayedTransitDateTime.date)}</span>
+                <input
+                  type="date"
+                  value={displayedTransitDateTime.date || ""}
+                  min={minSelectableDate || undefined}
+                  max={maxSelectableDate || undefined}
+                  onChange={handleTransitDateChange}
+                  onClick={(event) => event.currentTarget.showPicker?.()}
+                  disabled={!onSelectDayIndex}
+                  className="absolute inset-0 h-full w-full cursor-pointer appearance-none opacity-0 [color-scheme:dark] disabled:pointer-events-none [&::-webkit-calendar-picker-indicator]:hidden [&::-webkit-calendar-picker-indicator]:appearance-none"
+                  aria-label="現行天体の計算日"
+                  title="日付を選択"
+                />
+              </span>
               <select
                 value={displayedTransitDateTime.time || selectedTransitTime}
                 onChange={(event) => {
@@ -4622,48 +3791,22 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
             }}
             aria-hidden={!isAspectListPanelOpen}
           >
-            <button
-              type="button"
-              onClick={() => setIsAspectListPanelOpen(false)}
-              onPointerDown={(event) => event.stopPropagation()}
-              className="absolute right-1 top-1 z-10 inline-flex h-5 w-5 items-center justify-center rounded-md border border-white/10 bg-[#121414]/70 text-[11px] leading-none text-mist/70 transition hover:border-gold/35 hover:bg-gold/10 hover:text-gold focus:outline-none focus:ring-2 focus:ring-gold/35"
-              aria-label="アスペクト一覧を閉じる"
-              title="閉じる"
-            >
-              ×
-            </button>
             <div
-              className="mb-2 flex touch-none select-none items-center justify-between gap-2 rounded-lg border border-white/10 bg-white/[0.055] px-2.5 py-1.5 pr-14 text-starlight"
+              className="mb-2 flex cursor-move touch-none select-none items-center justify-between gap-2 rounded-lg border border-white/10 bg-white/[0.055] px-2.5 py-1.5 text-starlight"
               onPointerDown={beginMobileAspectListDrag}
               onPointerMove={moveMobileAspectListPanel}
               onPointerUp={endMobileAspectListDrag}
               onPointerCancel={endMobileAspectListDrag}
               title="ドラッグで移動"
             >
-              <span className="text-[10px]">アスペクト一覧</span>
-              <span className="truncate rounded border border-white/10 bg-white/[0.035] px-1.5 py-0.5 text-[8px] text-mist/65">
-                {displayedTransitDateTime.date} {displayedTransitDateTime.time || selectedTransitTime}
-              </span>
-              <button
-                type="button"
-                className="inline-flex h-5 w-5 shrink-0 cursor-move items-center justify-center text-starlight/85 transition hover:text-gold focus:outline-none focus:ring-2 focus:ring-gold/35"
-                onPointerDown={beginMobileAspectListDrag}
-                onPointerMove={moveMobileAspectListPanel}
-                onPointerUp={endMobileAspectListDrag}
-                onPointerCancel={endMobileAspectListDrag}
-                aria-label="アスペクト一覧を移動"
-                title="移動"
-              >
-                <Move size={11} aria-hidden="true" />
-              </button>
-              <span className="ml-auto" />
+              <span className="text-[10px]">アスペクト解釈</span>
+              <Move size={13} className="shrink-0 text-mist/65" aria-hidden="true" />
             </div>
-            <div className="mb-2 grid grid-cols-2 gap-1 rounded-lg border border-white/10 bg-white/[0.025] p-1">
+            <div className="mb-2 grid grid-cols-3 gap-1 rounded-lg border border-white/10 bg-white/[0.025] p-1">
               {[
-                ["all", "全て"],
+                ["all", "両方"],
                 ["transitNatal", "出生図との関係"],
                 ["transitTransit", "現行天体同士"],
-                ["composite", "複合アスペクト"],
               ].map(([value, label]) => (
                 <button
                   key={`mobile-map-interpretation-${value}`}
@@ -4676,30 +3819,6 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
                 </button>
               ))}
             </div>
-            {aspectInterpretationScope === "composite" ? (
-              <div className="mb-2 grid grid-cols-3 gap-1 rounded-lg border border-gold/15 bg-gold/[0.035] p-1">
-                {[
-                  ["mixed", "出生図絡み"],
-                  ["transitOnly", "現行天体同士"],
-                  ["natalOnly", "ネイタルのみ"],
-                ].map(([value, label]) => (
-                  <button
-                    key={`mobile-compound-category-${value}`}
-                    type="button"
-                    onClick={() => setCompoundAspectListCategory(value)}
-                    className={cx(
-                      "h-7 rounded-md px-1 text-[7px] transition",
-                      compoundAspectListCategory === value
-                        ? "bg-gold/18 text-gold ring-1 ring-gold/35"
-                        : "text-mist/65 hover:bg-white/10 hover:text-starlight"
-                    )}
-                    aria-pressed={compoundAspectListCategory === value}
-                  >
-                    {label}
-                  </button>
-                ))}
-              </div>
-            ) : null}
             <div className="grid max-h-[244px] grid-cols-[24px_1fr] gap-2 overflow-y-auto pr-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
               <div className="flex self-stretch flex-col gap-0">
                 <p className="shrink-0 text-center text-[7px] leading-none text-mist/65">影響度</p>
@@ -4728,14 +3847,14 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
                         <span className="min-w-0 flex-1">
                           <span className="block truncate text-[10px] text-starlight">{aspect.title}</span>
                           <span className="mt-0.5 block text-[8px] leading-4 text-mist/60">
-                            {aspect.detailText || `実角度 ${Number.isFinite(aspect.liveAngle) ? aspect.liveAngle.toFixed(1) : "-"}°`}
-                            {!aspect.detailText && Number.isFinite(aspect.orb) ? ` / オーブ ${aspect.orb.toFixed(2)}°` : ""}
+                            実角度 {Number.isFinite(aspect.liveAngle) ? aspect.liveAngle.toFixed(1) : "-"}°
+                            {Number.isFinite(aspect.orb) ? ` / オーブ ${aspect.orb.toFixed(2)}°` : ""}
                             {aspect.status ? ` / ${aspect.status}` : ""}
                           </span>
                         </span>
                         <span className="shrink-0 text-right">
                           <span className={cx("inline-flex rounded border px-1.5 py-0.5 text-[8px]", toneClass)}>{aspect.importance.label}</span>
-                          <span className="mt-1 block text-[8px] text-mist/60">{isOpen ? "閉じる" : ">>解釈"}</span>
+                          <span className="mt-1 block text-[8px] text-mist/60">{isOpen ? "閉じる" : "解釈"}</span>
                         </span>
                       </button>
                       {isOpen ? <p className="border-t border-white/10 bg-white/[0.025] px-3 py-3 text-xs font-medium leading-6 text-mist">{aspect.description}</p> : null}
@@ -4884,29 +4003,6 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
                 </div>
               </div>
             </div>
-            <div className="flex w-max items-center gap-1 rounded-xl border border-white/10 bg-[#121414]/68 p-1.5 font-mono text-[9px] font-bold text-mist shadow-[0_10px_26px_rgba(0,0,0,0.24)] backdrop-blur">
-              <span className="px-1 text-[8px] uppercase tracking-[0.12em] text-mist/55">角度</span>
-              {ASPECT_ANGLE_FILTERS.map((angle) => {
-                const checked = enabledAspectAngles.includes(angle);
-                return (
-                  <label
-                    key={`desktop-aspect-angle-global-${angle}`}
-                    className={cx(
-                      "flex h-6 min-w-8 cursor-pointer items-center justify-center rounded-md border px-1 transition",
-                      checked ? "border-gold/40 bg-gold/15 text-gold" : "border-white/10 bg-white/[0.03] text-mist/55 hover:text-starlight"
-                    )}
-                  >
-                    <input
-                      type="checkbox"
-                      checked={checked}
-                      onChange={() => toggleAspectAngleFilter(angle)}
-                      className="sr-only"
-                    />
-                    {angle}°
-                  </label>
-                );
-              })}
-            </div>
             <div className="flex items-start gap-1.5">
               <div className="flex items-center gap-1.5 rounded-xl border border-white/10 bg-[#121414]/68 p-1.5 shadow-[0_10px_26px_rgba(0,0,0,0.24)] backdrop-blur">
                 <button
@@ -4922,7 +4018,7 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
                   aria-controls="aspect-line-panel"
                 >
                   <span>{isAspectPanelOpen ? "<<" : ">>"}</span>
-                  <span>{isAspectPanelOpen ? "アスペクト表示" : selectedAspectDisplayMode.label}</span>
+                  <span>アスペクト表示</span>
                 </button>
               </div>
               <div
@@ -4936,7 +4032,7 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
                 )}
                 aria-hidden={!isAspectPanelOpen}
               >
-                <div className="grid grid-cols-5 gap-1">
+                <div className="grid grid-cols-3 gap-1">
                   {ASPECT_DISPLAY_MODE_OPTIONS.map((option) => (
                     <button
                       key={option.key}
@@ -4945,7 +4041,7 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
                       className={cx(
                         "grid min-h-10 content-center rounded-lg border px-2 py-1 text-left transition",
                         aspectLineMode === option.key
-                          ? "border-gold/60 bg-gold/18 text-gold shadow-[0_0_16px_rgba(245,211,107,0.18)] ring-1 ring-gold/35"
+                          ? "border-gold/40 bg-gold/15 text-gold"
                           : "border-white/10 bg-white/[0.03] text-mist/75 hover:border-white/20 hover:text-starlight"
                       )}
                       aria-pressed={aspectLineMode === option.key}
@@ -4982,32 +4078,30 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
                           </div>
                         </div>
                         <div className="grid gap-1">
-                          {option.key !== "natalNatal" ? (
-                            <div className="grid grid-cols-5 gap-1" aria-label={`${option.title}の現行天体`}>
-                              {sky.transits.map((item) => {
-                                const checked = aspectLineSelections[option.key].transit.includes(item.planet);
-                                return (
-                                  <label
-                                    key={`aspect-${option.key}-transit-${item.planet}`}
-                                    className={cx(
-                                      "flex h-6 cursor-pointer items-center justify-center rounded border text-[11px] transition",
-                                      checked ? "border-sky-300/45 bg-sky-300/15 text-sky-100" : "border-white/10 bg-white/[0.03] text-mist/65 hover:text-starlight"
-                                    )}
-                                    title={`現行${planetLabel(item.planet)}`}
-                                  >
-                                    <input
-                                      type="checkbox"
-                                      checked={checked}
-                                      onChange={() => toggleAspectLineSelection(option.key, "transit", item.planet)}
-                                      className="sr-only"
-                                    />
-                                    {PLANET_SYMBOLS[item.planet] || item.label}
-                                  </label>
-                                );
-                              })}
-                            </div>
-                          ) : null}
-                          {option.key !== "transitTransit" ? (
+                          <div className="grid grid-cols-5 gap-1" aria-label={`${option.title}の現行天体`}>
+                            {sky.transits.map((item) => {
+                              const checked = aspectLineSelections[option.key].transit.includes(item.planet);
+                              return (
+                                <label
+                                  key={`aspect-${option.key}-transit-${item.planet}`}
+                                  className={cx(
+                                    "flex h-6 cursor-pointer items-center justify-center rounded border text-[11px] transition",
+                                    checked ? "border-sky-300/45 bg-sky-300/15 text-sky-100" : "border-white/10 bg-white/[0.03] text-mist/65 hover:text-starlight"
+                                  )}
+                                  title={`現行${planetLabel(item.planet)}`}
+                                >
+                                  <input
+                                    type="checkbox"
+                                    checked={checked}
+                                    onChange={() => toggleAspectLineSelection(option.key, "transit", item.planet)}
+                                    className="sr-only"
+                                  />
+                                  {PLANET_SYMBOLS[item.planet] || item.label}
+                                </label>
+                              );
+                            })}
+                          </div>
+                          {option.key === "transitNatal" ? (
                             <div className="grid grid-cols-6 gap-1" aria-label={`${option.title}のネイタル天体`}>
                               {sky.natalPoints.map((item) => {
                                 const checked = aspectLineSelections[option.key].natal.includes(item.planet);
@@ -5054,7 +4148,7 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
                   aria-controls="aspect-interpretation-panel"
                 >
                   <span>{isAspectListPanelOpen ? "<<" : ">>"}</span>
-                  <span>アスペクト一覧</span>
+                  <span>アスペクト解釈</span>
                 </button>
               </div>
               <div
@@ -5071,48 +4165,22 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
                 }}
                 aria-hidden={!isAspectListPanelOpen}
               >
-                <button
-                  type="button"
-                  onClick={() => setIsAspectListPanelOpen(false)}
-                  onPointerDown={(event) => event.stopPropagation()}
-                  className="absolute right-1 top-1 z-10 inline-flex h-5 w-5 items-center justify-center rounded-md border border-white/10 bg-[#121414]/70 text-[11px] leading-none text-mist/70 transition hover:border-gold/35 hover:bg-gold/10 hover:text-gold focus:outline-none focus:ring-2 focus:ring-gold/35"
-                  aria-label="アスペクト一覧を閉じる"
-                  title="閉じる"
-                >
-                  ×
-                </button>
                 <div
-                  className="mb-2 flex select-none items-center justify-between gap-3 rounded-lg border border-white/10 bg-white/[0.035] px-3 py-2 pr-14 text-starlight"
+                  className="mb-2 flex cursor-move select-none items-center justify-between gap-3 rounded-lg border border-white/10 bg-white/[0.035] px-3 py-2 text-starlight"
                   onPointerDown={beginAspectListDrag}
                   onPointerMove={moveAspectListPanel}
                   onPointerUp={endAspectListDrag}
                   onPointerCancel={endAspectListDrag}
                   title="ドラッグで移動"
                 >
-                  <span className="text-[10px]">アスペクト一覧</span>
-                  <span className="truncate rounded border border-white/10 bg-white/[0.035] px-1.5 py-0.5 text-[8px] text-mist/65">
-                    {displayedTransitDateTime.date} {displayedTransitDateTime.time || selectedTransitTime}
-                  </span>
-              <button
-                type="button"
-                    className="inline-flex h-5 w-5 shrink-0 cursor-move items-center justify-center text-starlight/85 transition hover:text-gold focus:outline-none focus:ring-2 focus:ring-gold/35"
-                    onPointerDown={beginAspectListDrag}
-                    onPointerMove={moveAspectListPanel}
-                    onPointerUp={endAspectListDrag}
-                    onPointerCancel={endAspectListDrag}
-                    aria-label="アスペクト一覧を移動"
-                    title="移動"
-                  >
-                    <Move size={11} aria-hidden="true" />
-                  </button>
-                  <span className="ml-auto" />
+                  <span className="text-[10px]">アスペクト解釈</span>
+                  <Move size={13} className="shrink-0 text-mist/55" aria-hidden="true" />
                 </div>
-                <div className="mb-2 grid grid-cols-4 gap-1 rounded-lg border border-white/10 bg-white/[0.025] p-1">
+                <div className="mb-2 grid grid-cols-3 gap-1 rounded-lg border border-white/10 bg-white/[0.025] p-1">
                   {[
-                    ["all", "全て"],
+                    ["all", "両方"],
                     ["transitNatal", "出生図との関係"],
                     ["transitTransit", "現行天体同士"],
-                    ["composite", "複合アスペクト"],
                   ].map(([value, label]) => (
                     <button
                       key={value}
@@ -5130,30 +4198,6 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
                     </button>
                   ))}
                 </div>
-                {aspectInterpretationScope === "composite" ? (
-                  <div className="mb-2 grid grid-cols-3 gap-1 rounded-lg border border-gold/15 bg-gold/[0.035] p-1">
-                    {[
-                      ["mixed", "出生図絡み"],
-                      ["transitOnly", "現行天体同士"],
-                      ["natalOnly", "ネイタルのみ"],
-                    ].map(([value, label]) => (
-                      <button
-                        key={`desktop-compound-category-${value}`}
-                        type="button"
-                        onClick={() => setCompoundAspectListCategory(value)}
-                        className={cx(
-                          "h-7 rounded-md px-1 text-[8px] transition sm:text-[9px]",
-                          compoundAspectListCategory === value
-                            ? "bg-gold/18 text-gold ring-1 ring-gold/35"
-                            : "text-mist/65 hover:bg-white/10 hover:text-starlight"
-                        )}
-                        aria-pressed={compoundAspectListCategory === value}
-                      >
-                        {label}
-                      </button>
-                    ))}
-                  </div>
-                ) : null}
                 <div className="grid max-h-[360px] grid-cols-[24px_1fr] gap-2 overflow-y-auto pr-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                   <div className="flex self-stretch flex-col gap-0">
                     <p className="shrink-0 text-center text-[7px] leading-none text-mist/65">影響度</p>
@@ -5182,14 +4226,14 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
                             <span className="min-w-0 flex-1">
                               <span className="block truncate text-[10px] text-starlight sm:text-[11px]">{aspect.title}</span>
                               <span className="mt-0.5 block text-[8px] leading-4 text-mist/60">
-                                {aspect.detailText || `実角度 ${Number.isFinite(aspect.liveAngle) ? aspect.liveAngle.toFixed(1) : "-"}°`}
-                                {!aspect.detailText && Number.isFinite(aspect.orb) ? ` / オーブ ${aspect.orb.toFixed(2)}°` : ""}
+                                実角度 {Number.isFinite(aspect.liveAngle) ? aspect.liveAngle.toFixed(1) : "-"}°
+                                {Number.isFinite(aspect.orb) ? ` / オーブ ${aspect.orb.toFixed(2)}°` : ""}
                                 {aspect.status ? ` / ${aspect.status}` : ""}
                               </span>
                             </span>
                             <span className="shrink-0 text-right">
                               <span className={cx("inline-flex rounded border px-1.5 py-0.5 text-[8px]", toneClass)}>{aspect.importance.label}</span>
-                              <span className="mt-1 block text-[8px] text-mist/60">{isOpen ? "閉じる" : ">>解釈"}</span>
+                              <span className="mt-1 block text-[8px] text-mist/60">{isOpen ? "閉じる" : "解釈"}</span>
                             </span>
                           </button>
                           {isOpen ? (
@@ -5209,9 +4253,19 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
               </div>
             </div>
           </div>
-          <div className="absolute left-4 top-4 z-[90] hidden items-center gap-2 text-shadow-sm sm:flex">
+          <div className="absolute left-4 top-4 z-20 hidden items-center gap-2 text-shadow-sm sm:flex">
             <p className="font-mono text-[9px] font-bold uppercase tracking-[0.16em] text-gold">Transit Sky</p>
-            <TransitDatePicker />
+            <input
+              type="date"
+              value={displayedTransitDateTime.date || ""}
+              min={minSelectableDate || undefined}
+              max={maxSelectableDate || undefined}
+              onChange={handleTransitDateChange}
+              disabled={!onSelectDayIndex}
+              className="h-7 rounded-md border border-transparent bg-transparent px-1 text-xs font-semibold text-starlight outline-none transition hover:border-white/10 hover:bg-[#121414]/40 focus:border-gold/50 focus:bg-[#121414]/70 focus:ring-2 focus:ring-gold/25 disabled:pointer-events-none disabled:opacity-100 sm:text-sm"
+              aria-label="現行天体の計算日"
+              title="日付を選択"
+            />
             <select
               value={displayedTransitDateTime.time || selectedTransitTime}
               onChange={(event) => {
@@ -5482,33 +4536,8 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
                 ×
               </button>
               <div className="grid gap-2.5 pr-8">
-                {aspectLineMode === "composite" && tooltipCompoundGroups.length ? (
-                  <div className="grid grid-cols-2 gap-1 rounded-lg border border-gold/15 bg-gold/[0.035] p-1 font-mono text-[9px] font-bold">
-                    {[
-                      ["compound", "複合アスペクト"],
-                      ["single", "個別アスペクト"],
-                    ].map(([value, label]) => (
-                      <button
-                        key={`tooltip-composite-tab-${value}`}
-                        type="button"
-                        onClick={() => setTooltipCompositeTab(value)}
-                        className={cx(
-                          "h-8 rounded-md transition",
-                          tooltipCompositeTab === value
-                            ? "bg-gold/18 text-gold ring-1 ring-gold/35"
-                            : "text-mist/65 hover:bg-white/10 hover:text-starlight"
-                        )}
-                        aria-pressed={tooltipCompositeTab === value}
-                      >
-                        {label}
-                      </button>
-                    ))}
-                  </div>
-                ) : null}
-                {tooltipDisplayItems.length ? tooltipDisplayItems.map((aspect) => {
-                  const aspectKey = aspect.key || (aspect.scope === "transitTransit"
-                    ? `tt-${aspect.compoundKey || "single"}-${aspect.transitPlanet}-${aspect.transitPlanetB}-${aspect.angle}`
-                    : `tn-${aspect.compoundKey || "single"}-${aspect.transitPlanet || aspect.planet}-${aspect.natalPlanet || sky.selectedNatal.planet}-${aspect.angle}`);
+                {tooltipAspects.length ? tooltipAspects.map((aspect) => {
+                  const aspectKey = `${aspect.transitPlanet || aspect.planet}-${aspect.natalPlanet || sky.selectedNatal.planet}-${aspect.angle}`;
                   const isOpen = openTooltipAspectKeys.has(aspectKey);
                   return (
                     <article key={aspectKey} className="overflow-hidden rounded-xl border border-white/10 bg-white/[0.045]">
@@ -5521,17 +4550,17 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
                         <span className="mt-1 h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: aspect.color }} />
                         <span className="min-w-0 flex-1">
                           <span className="block font-mono text-[10px] font-bold uppercase tracking-[0.12em] text-starlight sm:text-[11px]">
-                            {aspect.title || `${aspect.usesSelectedNatalLabel ? aspect.natalLabel : `ネイタル${aspect.natalLabel || sky.selectedNatal.label}`} × 現行${aspect.transitLabel || planetLabel(aspect.planet)}`}
+                            {aspect.usesSelectedNatalLabel ? aspect.natalLabel : `ネイタル${aspect.natalLabel || sky.selectedNatal.label}`} × 現行{aspect.transitLabel || planetLabel(aspect.planet)}
                           </span>
                           <span className="mt-1 block text-xs leading-5 text-mist sm:text-sm sm:leading-6">
-                            {aspect.labels?.length ? aspect.labels.join(" / ") : aspect.detailText || `実角度 ${Number.isFinite(aspect.liveAngle) ? aspect.liveAngle.toFixed(1) : "-"}°`}
-                            {!aspect.detailText && !aspect.labels?.length && Number.isFinite(aspect.orb) ? ` / オーブ ${aspect.orb.toFixed(2)}°` : ""}
+                            実角度 {Number.isFinite(aspect.liveAngle) ? aspect.liveAngle.toFixed(1) : "-"}°
+                            {Number.isFinite(aspect.orb) ? ` / オーブ ${aspect.orb.toFixed(2)}°` : ""}
                             {aspect.status ? ` / ${aspect.status}` : ""}
                           </span>
                         </span>
                         <span className="shrink-0 text-right">
-                          <span className="block font-mono text-[10px] font-bold text-gold">{aspect.detailText || (aspect.angle !== null && aspect.angle !== undefined ? `${aspect.angle}°` : "")}</span>
-                          <span className="block font-mono text-[10px] font-bold text-mist/70">{isOpen ? "閉じる" : ">>解釈"}</span>
+                          <span className="block font-mono text-[10px] font-bold text-gold">{aspect.angle}°</span>
+                          <span className="mt-1 block font-mono text-[10px] font-bold text-mist/70">{isOpen ? "閉じる" : "解釈"}</span>
                         </span>
                       </button>
                       {isOpen ? (
@@ -5558,9 +4587,9 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
         <section className="-mx-3 grid gap-3 rounded-2xl border border-white/10 bg-[#121414]/76 p-2 shadow-[0_18px_42px_rgba(0,0,0,0.28)] backdrop-blur-md sm:hidden">
           <div className="grid grid-cols-3 gap-1 rounded-xl border border-white/10 bg-white/[0.035] p-1 font-mono text-[8px] font-bold text-mist">
             {[
-              ["display", "天体表示"],
+              ["display", "表示"],
               ["play", "再生"],
-              ["aspect", "アスペクト表示"],
+              ["aspect", "アスペクト"],
             ].map(([value, label]) => (
               <button
                 key={value}
@@ -5575,33 +4604,6 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
                 {label}
               </button>
             ))}
-          </div>
-          <div className="grid gap-1 rounded-xl border border-white/10 bg-white/[0.025] p-1 font-mono text-[9px] font-bold">
-            <div className="flex items-center gap-1">
-              <span className="shrink-0 px-1 text-[8px] text-mist/65">角度</span>
-              <div className="grid flex-1 grid-cols-6 gap-1">
-                {ASPECT_ANGLE_FILTERS.map((angle) => {
-                  const checked = enabledAspectAngles.includes(angle);
-                  return (
-                    <label
-                      key={`mobile-aspect-angle-global-${angle}`}
-                      className={cx(
-                        "flex h-7 cursor-pointer items-center justify-center rounded-md border transition",
-                        checked ? "border-gold/40 bg-gold/15 text-gold" : "border-white/10 bg-white/[0.03] text-mist/55"
-                      )}
-                    >
-                      <input
-                        type="checkbox"
-                        checked={checked}
-                        onChange={() => toggleAspectAngleFilter(angle)}
-                        className="sr-only"
-                      />
-                      {angle}°
-                    </label>
-                  );
-                })}
-              </div>
-            </div>
           </div>
 
           {mobileMapPanelTab === "display" ? (
@@ -5752,7 +4754,7 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
 
           {mobileMapPanelTab === "aspect" ? (
             <div className="grid gap-2 font-mono text-[9px] font-bold">
-              <div className="grid grid-cols-2 gap-1 rounded-xl border border-white/10 bg-white/[0.025] p-1">
+              <div className="grid grid-cols-3 gap-1 rounded-xl border border-white/10 bg-white/[0.025] p-1">
                 {ASPECT_DISPLAY_MODE_OPTIONS.map((option) => (
                   <button
                     key={`mobile-aspect-mode-${option.key}`}
@@ -5764,88 +4766,6 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
                   </button>
                 ))}
               </div>
-              {aspectLineMode === "custom" ? (
-                <div className="grid gap-2">
-                  {ASPECT_LINE_SCOPE_OPTIONS.map((option) => (
-                    <section key={`mobile-aspect-custom-${option.key}`} className="rounded-xl border border-white/10 bg-white/[0.025] p-2">
-                      <div className="mb-2 flex items-center justify-between gap-2">
-                        <div className="min-w-0">
-                          <p className="truncate text-[10px] text-starlight">{option.label}</p>
-                          <p className="truncate text-[8px] text-mist/50">{option.shortLabel}</p>
-                        </div>
-                        <div className="flex shrink-0 gap-1">
-                          <button
-                            type="button"
-                            onClick={() => setAspectLineGroupSelection(option.key, "all")}
-                            className="h-7 rounded-md border border-white/10 bg-white/[0.03] px-2 text-[8px] text-mist/70 transition hover:border-gold/35 hover:text-gold"
-                          >
-                            全選択
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => setAspectLineGroupSelection(option.key, "none")}
-                            className="h-7 rounded-md border border-white/10 bg-white/[0.03] px-2 text-[8px] text-mist/70 transition hover:border-gold/35 hover:text-gold"
-                          >
-                            全解除
-                          </button>
-                        </div>
-                      </div>
-                      <div className="grid gap-1">
-                        {option.key !== "natalNatal" ? (
-                          <div className="grid grid-cols-5 gap-1" aria-label={`${option.title}の現行天体`}>
-                            {sky.transits.map((item) => {
-                              const checked = aspectLineSelections[option.key].transit.includes(item.planet);
-                              return (
-                                <label
-                                  key={`mobile-aspect-${option.key}-transit-${item.planet}`}
-                                  className={cx(
-                                    "flex h-7 cursor-pointer items-center justify-center rounded-md border text-[12px] transition",
-                                    checked ? "border-sky-300/45 bg-sky-300/15 text-sky-100" : "border-white/10 bg-white/[0.03] text-mist/65"
-                                  )}
-                                  title={`現行${planetLabel(item.planet)}`}
-                                >
-                                  <input
-                                    type="checkbox"
-                                    checked={checked}
-                                    onChange={() => toggleAspectLineSelection(option.key, "transit", item.planet)}
-                                    className="sr-only"
-                                  />
-                                  {PLANET_SYMBOLS[item.planet] || item.label}
-                                </label>
-                              );
-                            })}
-                          </div>
-                        ) : null}
-                        {option.key !== "transitTransit" ? (
-                          <div className="grid grid-cols-6 gap-1" aria-label={`${option.title}のネイタル天体`}>
-                            {sky.natalPoints.map((item) => {
-                              const checked = aspectLineSelections[option.key].natal.includes(item.planet);
-                              return (
-                                <label
-                                  key={`mobile-aspect-${option.key}-natal-${item.planet}`}
-                                  className={cx(
-                                    "flex h-7 cursor-pointer items-center justify-center rounded-md border text-[11px] transition",
-                                    checked ? "border-gold/50 bg-gold/15 text-gold" : "border-white/10 bg-white/[0.03] text-mist/65"
-                                  )}
-                                  title={`ネイタル${planetLabel(item.planet)}`}
-                                >
-                                  <input
-                                    type="checkbox"
-                                    checked={checked}
-                                    onChange={() => toggleAspectLineSelection(option.key, "natal", item.planet)}
-                                    className="sr-only"
-                                  />
-                                  {PLANET_SYMBOLS[item.planet] || planetLabel(item.planet)}
-                                </label>
-                              );
-                            })}
-                          </div>
-                        ) : null}
-                      </div>
-                    </section>
-                  ))}
-                </div>
-              ) : null}
             </div>
           ) : null}
         </section>
@@ -7281,12 +6201,12 @@ function Matrix({
   const marsAspectItems = monthlyItems(marsAspectItemsFromForecast(forecast), activeYear, selectedMonth);
   const emptySummaryItems = [];
   const modeTitle = {
-    theme: "今月のテーマ",
-    lesson: "今月のアクション",
+    theme: "今月の主軸",
+    lesson: "今月の熱量",
     summary: "今月の総括",
-    test1: "太陽の時期",
-    test2: "火星の時期",
-  }[analysisMode] || "今月のテーマ";
+    test1: "test1",
+    test2: "test2",
+  }[analysisMode] || "今月の主軸";
   const toggleMonthlyAspect = (key) => {
     setOpenMonthlyAspectKeys((current) => {
       const next = new Set(current);
@@ -7328,11 +6248,11 @@ function Matrix({
           </div>
           <div className="ml-auto flex w-fit max-w-full shrink-0 rounded-full border border-white/10 bg-white/[0.04] p-1 font-mono text-[7px] font-bold text-mist sm:text-[10px]">
             {[
-              ["theme", "テーマ"],
-              ["lesson", "アクション"],
+              ["theme", "主軸"],
+              ["lesson", "熱量"],
               ["summary", "総括"],
-              ["test1", "太陽時期"],
-              ["test2", "火星時期"],
+              ["test1", "test1"],
+              ["test2", "test2"],
             ].map(([value, label]) => (
               <button
                 key={value}
