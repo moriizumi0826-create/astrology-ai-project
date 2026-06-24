@@ -1,0 +1,313 @@
+<!DOCTYPE html>
+<html class="light" lang="ja">
+  <head>
+    <meta charset="utf-8" />
+    <meta content="width=device-width, initial-scale=1.0" name="viewport" />
+    <title>The Celestial Atelier</title>
+    <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+    <link href="https://fonts.googleapis.com" rel="preconnect" />
+    <link crossorigin href="https://fonts.gstatic.com" rel="preconnect" />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Noto+Serif:ital,wght@0,300;0,400;0,700;1,400&family=Manrope:wght@300;400;500;700&family=Noto+Sans+JP:wght@300;400;500&display=swap"
+      rel="stylesheet"
+    />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap"
+      rel="stylesheet"
+    />
+    <script id="tailwind-config">
+      tailwind.config = {
+        theme: {
+          extend: {
+            colors: {
+              "primary-dim": "#53534d",
+              background: "#fafaf5",
+              primary: "#5f5f59",
+              secondary: "#6d5f07",
+              surface: "#fafaf5",
+              "surface-container": "#ecefe7",
+              "surface-container-low": "#f3f4ee",
+              "surface-container-lowest": "#ffffff",
+              "inverse-surface": "#0d0f0c",
+              "on-primary": "#faf8f0",
+              "on-surface": "#2e342d",
+              "on-surface-variant": "#5b6159",
+              "outline-variant": "#aeb4aa",
+            },
+            fontFamily: {
+              notoSerif: ["Noto Serif", "serif"],
+              manrope: ["Manrope", "sans-serif"],
+              notoSansJP: ["Noto Sans JP", "sans-serif"],
+            },
+          },
+        },
+      };
+    </script>
+    <style>
+      html {
+        scroll-behavior: smooth;
+      }
+      body {
+        font-family: "Manrope", "Noto Sans JP", sans-serif;
+      }
+      .numeric-input {
+        color: rgba(95, 95, 89, 0.38);
+      }
+      .numeric-input::placeholder {
+        color: rgba(95, 95, 89, 0.38);
+      }
+      .numeric-input.has-value {
+        color: #5f5f59;
+      }
+      .font-notoSerif {
+        font-family: "Noto Serif", serif;
+      }
+      .reveal {
+        opacity: 0;
+        transform: translateY(10px);
+        animation: fadeUp 0.8s cubic-bezier(0.2, 0, 0, 1) forwards;
+      }
+      @keyframes fadeUp {
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+    </style>
+    <script type="module" crossorigin src="./assets/main-DnJ_K76i.js"></script>
+    <link rel="modulepreload" crossorigin href="./assets/reading-storage-BXypZ-0R.js">
+  </head>
+  <body class="bg-surface text-on-surface selection:bg-[#f7e382]">
+    <nav class="fixed top-0 left-0 w-full z-50 bg-[#fafaf5]/80 backdrop-blur-md flex justify-between items-center px-6 md:px-12 py-6">
+      <div class="text-2xl font-normal font-notoSerif text-primary">The Celestial Atelier</div>
+      <div class="hidden md:flex gap-10 items-center font-notoSerif tracking-wider text-sm">
+        <a class="text-secondary border-b border-secondary pb-1" href="#home">Home</a>
+        <a class="text-primary hover:text-secondary transition-colors duration-500" href="#entry">Chart Entry</a>
+        <a class="text-primary hover:text-secondary transition-colors duration-500" href="#results">Readings</a>
+      </div>
+    </nav>
+
+    <main class="pt-28">
+      <section class="px-6 md:px-12 mb-32 md:mb-40" id="home">
+        <div class="grid grid-cols-1 md:grid-cols-12 gap-12 items-end">
+          <div class="md:col-span-7 lg:col-span-6 pb-12">
+            <h1 class="reveal text-6xl md:text-8xl font-notoSerif text-primary leading-tight tracking-tight mb-8">
+              A Sanctuary of Celestial Wisdom.
+            </h1>
+            <p class="text-xs uppercase tracking-[0.2em] text-secondary font-bold mb-12">星の知恵が宿る聖域</p>
+            <div class="flex flex-col gap-8 items-start">
+              <p class="text-on-surface-variant font-notoSansJP text-lg leading-relaxed max-w-md">
+                Stitch で構築したアトリエの世界観を残したまま、既存の Python 鑑定ロジックを呼び出すテスト運用版です。
+              </p>
+              <a
+                class="bg-primary text-on-primary px-10 py-5 text-sm uppercase tracking-widest hover:bg-primary-dim transition-all duration-500 font-notoSansJP"
+                href="#entry"
+              >
+                あなたの設計図を見つける
+              </a>
+            </div>
+          </div>
+          <div class="md:col-span-5 lg:col-span-6 relative aspect-[4/5] md:aspect-square overflow-hidden bg-surface-container">
+            <img
+              class="w-full h-full object-cover grayscale-[20%] opacity-90 transition-transform duration-1000 hover:scale-105"
+              alt="Minimalist interior"
+              src="https://lh3.googleusercontent.com/aida-public/AB6AXuAdoJ0HnsOnBF-TlRyY2fW-CbaAB4CU6UlkuEklzmdnlMfaLrSiYS1KYTZIrHQzUFXAfo45uig35H3h3O9rucGbM_rciSVbEma-o0MBN2K5a3rFzwRZfBMxwPVDxrJBRmg7WlIMC-nBuhyXWc39OkAodrzrVT2Dz4POAdbJixR7VdioghlTGjij4C_7MLC6yGhdPsb6cPeFB7YZZRej2CujUPxhUx6jGYZCe-gWYT74FLMAH0OQZ0wSwimjrNjTTbGH8HZp7QBim6cC"
+            />
+          </div>
+        </div>
+      </section>
+
+      <section class="py-24 md:py-32 bg-surface-container-low px-6 md:px-12">
+        <div class="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-16 md:gap-24 items-center">
+          <div class="order-2 md:order-1">
+            <img
+              class="w-full aspect-[3/4] object-cover"
+              alt="Star chart"
+              src="https://lh3.googleusercontent.com/aida-public/AB6AXuDRQYqUynl738bKL66wb2UC3B3wnD7XTBgKtDY4lLB2Em4AjCVT9t7tR2wZ-UhFrUqKf8n1k38XIqrssNWV0vgvB3tIr7eCO_xFqiToVRnbsXkJHcbV1Gzw0MhhLv6stWIHQykclKWOB_rvYWAh3R2jOLu6B1NBhhuUJjTRlFguM-n7b40R4Dbg3fV8zv0cp0i8tGRQjbdnDY-WYpzDTEgnpdcAb-1K-vCUh52JUpKP-mbVOctdqLV62J57XGbjalx9ZjZIeano2kmt"
+            />
+          </div>
+          <div class="order-1 md:order-2 flex flex-col gap-8">
+            <div class="flex flex-col gap-2">
+              <label class="text-[10px] uppercase tracking-[0.3em] text-secondary font-bold">Test Operation</label>
+              <span class="text-[10px] font-notoSansJP text-secondary/70">ローカル検証用 UI</span>
+            </div>
+            <h2 class="text-4xl md:text-5xl font-notoSerif text-primary leading-snug">
+              Astrology as an Artisanal Interface.
+            </h2>
+          </div>
+        </div>
+      </section>
+
+      <section class="px-6 md:px-12 py-24 md:py-32" id="entry">
+        <div class="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-12 lg:gap-20 items-start">
+          <div class="lg:col-span-5">
+            <p class="text-xs uppercase tracking-[0.3em] text-secondary font-bold mb-4">Chart Entry</p>
+            <h2 class="font-notoSerif text-4xl md:text-6xl text-primary leading-tight mb-8">
+              Enter the coordinates of your arrival.
+            </h2>
+            <p class="text-on-surface-variant leading-loose text-lg max-w-md">
+              テスト運用版のため、出生地名に加えて緯度・経度を扱います。タイムゾーンはバックグラウンドで補完されるため、UTC オフセットの入力は不要です。
+            </p>
+          </div>
+
+          <div class="lg:col-span-7 w-full bg-surface-container-lowest p-8 md:p-16 shadow-[0px_20px_40px_rgba(46,52,45,0.06)]">
+            <form class="space-y-10" id="reading-form">
+              <div class="group relative">
+                <label class="flex items-baseline gap-2 mb-2">
+                  <span class="block text-[10px] uppercase tracking-widest text-on-surface-variant font-semibold">Full Name</span>
+                  <span class="text-[9px] text-on-surface-variant/60 font-light tracking-wider">氏名</span>
+                </label>
+                <input class="w-full bg-transparent border-t-0 border-x-0 border-b border-outline-variant/30 py-3 text-primary font-notoSerif text-xl focus:ring-0 focus:border-secondary transition-all duration-500 placeholder:text-primary/20" name="full_name" placeholder="山田 太郎" required type="text" />
+              </div>
+
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-10">
+                <div>
+                  <label class="flex items-baseline gap-2 mb-2">
+                    <span class="block text-[10px] uppercase tracking-widest text-on-surface-variant font-semibold">Date of Birth</span>
+                    <span class="text-[9px] text-on-surface-variant/60 font-light tracking-wider">生年月日</span>
+                  </label>
+                  <input class="w-full bg-transparent border-t-0 border-x-0 border-b border-outline-variant/30 py-3 text-primary font-manrope text-lg focus:ring-0 focus:border-secondary transition-all duration-500" lang="ja" name="birth_date" required type="date" />
+                </div>
+                <div>
+                  <label class="flex items-baseline gap-2 mb-2">
+                    <span class="block text-[10px] uppercase tracking-widest text-on-surface-variant font-semibold">Birth Time</span>
+                    <span class="text-[9px] text-on-surface-variant/60 font-light tracking-wider">出生時刻</span>
+                  </label>
+                  <input class="w-full bg-transparent border-t-0 border-x-0 border-b border-outline-variant/30 py-3 text-primary font-manrope text-lg focus:ring-0 focus:border-secondary transition-all duration-500" id="birth-time-input" lang="ja" name="birth_time" required step="60" type="time" />
+                  <label class="mt-4 inline-flex items-center gap-3 text-sm text-on-surface-variant font-notoSansJP cursor-pointer">
+                    <input class="h-4 w-4 rounded border-outline-variant text-secondary focus:ring-secondary" id="birth-time-unknown" name="birth_time_unknown" type="checkbox" />
+                    <span>出生時間不明</span>
+                  </label>
+                  <p class="mt-2 text-[10px] text-on-surface-variant/70 font-notoSansJP">
+                    チェック時は 12:00 を仮の時刻として計算します。ASC / MC / ハウスは表示されません。
+                  </p>
+                </div>
+              </div>
+
+              <div>
+                <label class="flex items-baseline gap-2 mb-2">
+                  <span class="block text-[10px] uppercase tracking-widest text-on-surface-variant font-semibold">Place of Birth</span>
+                  <span class="text-[9px] text-on-surface-variant/60 font-light tracking-wider">出生地</span>
+                </label>
+                <div class="flex flex-col gap-4">
+                  <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label class="block text-[10px] uppercase tracking-widest text-on-surface-variant font-semibold mb-2">Prefecture</label>
+                      <select class="w-full bg-transparent border-t-0 border-x-0 border-b border-outline-variant/30 py-3 text-primary font-notoSansJP text-base focus:ring-0 focus:border-secondary transition-all duration-500" id="birth-prefecture" name="birth_prefecture" required>
+                        <option value="">都道府県を選択</option>
+                        <option value="Hokkaido">北海道</option>
+                        <option value="Aomori">青森県</option>
+                        <option value="Iwate">岩手県</option>
+                        <option value="Miyagi">宮城県</option>
+                        <option value="Akita">秋田県</option>
+                        <option value="Yamagata">山形県</option>
+                        <option value="Fukushima">福島県</option>
+                        <option value="Ibaraki">茨城県</option>
+                        <option value="Tochigi">栃木県</option>
+                        <option value="Gunma">群馬県</option>
+                        <option value="Saitama">埼玉県</option>
+                        <option value="Chiba">千葉県</option>
+                        <option value="Tokyo">東京都</option>
+                        <option value="Kanagawa">神奈川県</option>
+                        <option value="Niigata">新潟県</option>
+                        <option value="Toyama">富山県</option>
+                        <option value="Ishikawa">石川県</option>
+                        <option value="Fukui">福井県</option>
+                        <option value="Yamanashi">山梨県</option>
+                        <option value="Nagano">長野県</option>
+                        <option value="Gifu">岐阜県</option>
+                        <option value="Shizuoka">静岡県</option>
+                        <option value="Aichi">愛知県</option>
+                        <option value="Mie">三重県</option>
+                        <option value="Shiga">滋賀県</option>
+                        <option value="Kyoto">京都府</option>
+                        <option value="Osaka">大阪府</option>
+                        <option value="Hyogo">兵庫県</option>
+                        <option value="Nara">奈良県</option>
+                        <option value="Wakayama">和歌山県</option>
+                        <option value="Tottori">鳥取県</option>
+                        <option value="Shimane">島根県</option>
+                        <option value="Okayama">岡山県</option>
+                        <option value="Hiroshima">広島県</option>
+                        <option value="Yamaguchi">山口県</option>
+                        <option value="Tokushima">徳島県</option>
+                        <option value="Kagawa">香川県</option>
+                        <option value="Ehime">愛媛県</option>
+                        <option value="Kochi">高知県</option>
+                        <option value="Fukuoka">福岡県</option>
+                        <option value="Saga">佐賀県</option>
+                        <option value="Nagasaki">長崎県</option>
+                        <option value="Kumamoto">熊本県</option>
+                        <option value="Oita">大分県</option>
+                        <option value="Miyazaki">宮崎県</option>
+                        <option value="Kagoshima">鹿児島県</option>
+                        <option value="Okinawa">沖縄県</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label class="block text-[9px] uppercase tracking-[0.14em] text-on-surface-variant font-semibold mb-2">City / Area</label>
+                      <input class="w-full bg-transparent border-t-0 border-x-0 border-b border-outline-variant/30 py-3 text-primary font-notoSerif text-lg focus:ring-0 focus:border-secondary transition-all duration-500 placeholder:text-primary/20" id="birthplace-input" name="birthplace" placeholder="世田谷区 / 札幌市 / Yokohama" required type="text" />
+                    </div>
+                  </div>
+                  <div class="flex flex-col md:flex-row md:items-end gap-4">
+                    <button class="shrink-0 bg-primary px-5 py-3 text-xs tracking-[0.18em] text-on-primary hover:bg-primary-dim transition-colors duration-500" id="search-location-button" type="button">
+                      検索する
+                    </button>
+                  </div>
+                  <p class="text-[11px] text-on-surface-variant/80 font-notoSansJP leading-relaxed">
+                    先に都道府県を選び、市区町村やエリア名を入れて検索すると、緯度・経度とその日時の UTC オフセットを自動入力します。
+                  </p>
+                  <div class="hidden bg-surface-container-low px-4 py-3 text-sm text-on-surface-variant font-notoSansJP" id="location-search-status"></div>
+                  <div class="hidden flex-col gap-3" id="location-search-results"></div>
+                </div>
+              </div>
+
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-10">
+                <div>
+                  <label class="flex items-baseline gap-2 mb-2">
+                    <span class="block text-[10px] uppercase tracking-widest text-on-surface-variant font-semibold">Latitude</span>
+                    <span class="text-[9px] text-on-surface-variant/60 font-light tracking-wider">緯度</span>
+                  </label>
+                  <input class="numeric-input w-full bg-transparent border-t-0 border-x-0 border-b border-outline-variant/30 py-3 font-manrope text-lg focus:ring-0 focus:border-secondary transition-all duration-500" name="latitude" placeholder="35.6812" step="0.0001" type="number" />
+                </div>
+                <div>
+                  <label class="flex items-baseline gap-2 mb-2">
+                    <span class="block text-[10px] uppercase tracking-widest text-on-surface-variant font-semibold">Longitude</span>
+                    <span class="text-[9px] text-on-surface-variant/60 font-light tracking-wider">経度</span>
+                  </label>
+                  <input class="numeric-input w-full bg-transparent border-t-0 border-x-0 border-b border-outline-variant/30 py-3 font-manrope text-lg focus:ring-0 focus:border-secondary transition-all duration-500" name="longitude" placeholder="139.7671" step="0.0001" type="number" />
+                </div>
+              </div>
+              <input name="timezone_offset" type="hidden" />
+
+              <div class="pt-6">
+                <button class="w-full bg-primary text-on-primary py-5 px-10 text-sm uppercase tracking-[0.2em] font-semibold hover:bg-primary-dim transition-all duration-700 ease-[cubic-bezier(0.2,0,0,1)] flex justify-between items-center group" type="submit">
+                  <span id="submit-label">ホロスコープを算出する</span>
+                  <span class="material-symbols-outlined group-hover:translate-x-2 transition-transform duration-700">arrow_forward</span>
+                </button>
+                <p class="mt-6 text-center text-[10px] text-on-surface-variant italic opacity-60">
+                  出力はテスト運用向けです。API 接続先は環境変数から切り替えられます。
+                </p>
+              </div>
+            </form>
+
+            <div class="hidden mt-8 bg-[#f3ede0] text-[#5f5f59] px-6 py-5 font-notoSansJP text-sm leading-relaxed" id="error-box"></div>
+          </div>
+        </div>
+      </section>
+
+    </main>
+
+    <footer class="w-full py-20 px-6 md:px-12 border-t-[0.5px] border-[#5f5f59]/10 bg-[#fafaf5]">
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-12 max-w-7xl mx-auto font-notoSerif text-sm tracking-tight text-[#5f5f59]">
+        <div class="flex flex-col gap-8">
+          <div class="text-xl font-normal text-[#5f5f59]">The Celestial Atelier</div>
+          <p class="font-notoSansJP text-on-surface-variant leading-relaxed max-w-xs">
+            デザインを保ったまま Python 鑑定を API 化した、テスト運用向けの分離構成です。
+          </p>
+        </div>
+      </div>
+    </footer>
+
+  </body>
+</html>
