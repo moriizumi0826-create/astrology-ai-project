@@ -79,7 +79,8 @@ const LIVE_ASPECT_DEFS = [
   { angle: 150, orb: 3 },
   { angle: 180, orb: 8 },
 ];
-const ASPECT_ANGLE_FILTERS = LIVE_ASPECT_DEFS.map((item) => item.angle);
+const RENDERABLE_3D_ASPECT_ANGLES = [0, 60, 90, 120, 180];
+const COMPOUND_ASPECT_ANGLES = [60, 90, 120, 150, 180];
 const SOFT_ASPECT_LINE_COLOR = "#74d8ff";
 const HARD_ASPECT_LINE_COLOR = "#ff5757";
 const NEUTRAL_ASPECT_LINE_COLOR = "#e6c85f";
@@ -92,7 +93,7 @@ function normalizeAspectAngle(angle) {
 
 function isRenderable3DAspectAngle(angle) {
   const normalizedAngle = normalizeAspectAngle(angle);
-  return normalizedAngle !== null && LIVE_ASPECT_DEFS.some((aspect) => aspect.angle === normalizedAngle);
+  return normalizedAngle !== null && RENDERABLE_3D_ASPECT_ANGLES.includes(normalizedAngle);
 }
 
 function aspectLineColor(angle, fallback = NEUTRAL_ASPECT_LINE_COLOR) {
@@ -372,7 +373,6 @@ const ASPECT_LINE_SCOPE_OPTIONS = [
   { key: "transitNatal", label: "出生図との関係", shortLabel: "ネイタル×現行", title: "ネイタル天体×現行天体" },
   { key: "transitTransit", label: "現行天体同士", shortLabel: "現行×現行", title: "現行天体×現行天体" },
   { key: "natalNatal", label: "ネイタル天体同士", shortLabel: "ネイタル×ネイタル", title: "ネイタル天体×ネイタル天体" },
-  { key: "composite", label: "複合アスペクト", shortLabel: "Tスクエア/グランドトライン", title: "複合アスペクト" },
 ];
 const ASPECT_DISPLAY_MODE_OPTIONS = [
   { key: "transitNatal", label: "出生図との関係", description: "ネイタル×現行" },
@@ -385,7 +385,6 @@ const EMPTY_ASPECT_SELECTIONS = {
   transitNatal: { natal: [], transit: [] },
   transitTransit: { natal: [], transit: [] },
   natalNatal: { natal: [], transit: [] },
-  composite: { natal: [], transit: [] },
 };
 
 function addMinutesToTransitDateTime(dateValue, timeValue, minutes) {
@@ -605,6 +604,16 @@ function longitudePosition(longitude, radius, y = 0) {
   return new THREE.Vector3(Math.cos(angle) * radius, y, Math.sin(angle) * radius);
 }
 
+function positionTubeBetweenPoints(mesh, startPosition, endPosition) {
+  if (!mesh || !startPosition || !endPosition) return;
+  const direction = endPosition.clone().sub(startPosition);
+  const distance = direction.length();
+  if (!distance) return;
+  mesh.position.copy(startPosition).add(endPosition).multiplyScalar(0.5);
+  mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), direction.normalize());
+  mesh.scale.set(1, distance, 1);
+}
+
 function interpolateLongitude(start, end, progress) {
   const delta = ((Number(end) - Number(start) + 540) % 360) - 180;
   const longitude = normalizeLongitude(Number(start) + delta * progress);
@@ -623,6 +632,10 @@ function updateAspectLinePositions(state) {
     const startPosition = otherTransitPosition ? transitPosition : natalEntry?.mesh?.position;
     const endPosition = otherTransitPosition || otherNatalEntry?.mesh?.position || transitPosition;
     if (!startPosition || !endPosition) return;
+    if (line.userData?.aspectGlowTube) {
+      positionTubeBetweenPoints(line, startPosition, endPosition);
+      return;
+    }
     const position = line.geometry?.attributes?.position;
     if (position && position.count >= 2) {
       position.setXYZ(0, startPosition.x, startPosition.y, startPosition.z);
@@ -738,6 +751,20 @@ function aspectMergeKey(aspect) {
   return `tn-${aspect?.transitPlanet || aspect?.planet || ""}-${aspect?.natalPlanet || ""}-${angle}`;
 }
 
+function aspectLineHighlightKey(aspect) {
+  if (!aspect) return "";
+  if (Array.isArray(aspect.components) && aspect.key) return `compound:${aspect.key}`;
+  return `line:${aspectMergeKey(aspect)}`;
+}
+
+function aspectMatchesLineHighlight(aspect, highlightKey) {
+  if (!aspect || !highlightKey) return false;
+  if (highlightKey.startsWith("compound:")) {
+    return aspect.compoundKey === highlightKey.slice("compound:".length);
+  }
+  return highlightKey === aspectLineHighlightKey(aspect);
+}
+
 function mergeAspectSources(preferred = [], supplemental = []) {
   const merged = [];
   const seen = new Set();
@@ -764,7 +791,7 @@ function aspectEndpointIds(aspect) {
 function aspectEndpointLabel(id) {
   const [type, planet] = String(id || "").split(":");
   if (!planet) return "";
-  return `${type === "N" ? "ネイタル" : "現行"}${planetLabel(planet)}`;
+  return `${type === "N" ? "N" : "T"}${planetLabel(planet)}`;
 }
 
 function compoundAspectKey(ids, kind) {
@@ -824,18 +851,29 @@ function isTransitSensitiveNode(id) {
   return type === "T" && SENSITIVE_POINT_ORDER.includes(planet);
 }
 
-function otherCompoundEndpoint(edge, targetId) {
-  const ids = Array.isArray(edge?.compoundEndpointIds) ? edge.compoundEndpointIds : aspectEndpointIds(edge);
-  return ids.find((id) => id !== targetId) || null;
+function tSquareAllowsNatalSensitivePoint(ids = [], components = []) {
+  const opposition = components.find((edge) => normalizeAspectAngle(edge?.angle) === 180);
+  const baseIds = Array.isArray(opposition?.compoundEndpointIds) ? opposition.compoundEndpointIds : aspectEndpointIds(opposition);
+  if (baseIds.length !== 2) return false;
+  const apexId = ids.find((id) => !baseIds.includes(id));
+  const apexInfo = compoundNodeInfo(apexId);
+  if (apexInfo.type !== "T" || !isTenPlanetNode(apexId)) return false;
+  return ids.filter(isNatalSensitiveNode).every((id) => baseIds.includes(id));
 }
 
-function hasTransitHardToNatalSensitivePoint(edge, sensitiveId) {
-  const angle = normalizeAspectAngle(edge?.angle);
-  if (angle !== 90 && angle !== 180) return false;
-  const otherId = otherCompoundEndpoint(edge, sensitiveId);
-  if (!otherId) return false;
-  const { type } = compoundNodeInfo(otherId);
-  return type === "T" && isTenPlanetNode(otherId);
+function sensitivePointsAreOnOppositionAxes(ids = [], components = []) {
+  const oppositionEdges = components.filter((edge) => normalizeAspectAngle(edge?.angle) === 180);
+  return ids.filter(isNatalSensitiveNode).every((id) => oppositionEdges.some((edge) => {
+    const edgeIds = Array.isArray(edge?.compoundEndpointIds) ? edge.compoundEndpointIds : aspectEndpointIds(edge);
+    return edgeIds.includes(id);
+  }));
+}
+
+function boomerangAllowsNatalSensitivePoint(ids = [], components = []) {
+  const sextileEdge = components.find((edge) => normalizeAspectAngle(edge?.angle) === 60);
+  const sextileIds = Array.isArray(sextileEdge?.compoundEndpointIds) ? sextileEdge.compoundEndpointIds : aspectEndpointIds(sextileEdge);
+  if (sextileIds.length !== 2) return false;
+  return ids.filter(isNatalSensitiveNode).every((id) => !sextileIds.includes(id));
 }
 
 function shouldUseCompoundGroup({ ids = [], components = [], kind }) {
@@ -845,26 +883,29 @@ function shouldUseCompoundGroup({ ids = [], components = [], kind }) {
   const planetCount = normalizedIds.filter(isTenPlanetNode).length;
   if (planetCount < 2) return false;
   if (!sensitiveIds.length) return true;
-  if (!["tSquare", "grandCross"].includes(kind)) return false;
-  return sensitiveIds.every((id) => components.some((edge) => {
-    const edgeIds = Array.isArray(edge?.compoundEndpointIds) ? edge.compoundEndpointIds : aspectEndpointIds(edge);
-    return edgeIds.includes(id) && hasTransitHardToNatalSensitivePoint(edge, id);
-  }));
+  if (kind === "grandTrine" || kind === "miniGrandTrine") return false;
+  if (kind === "kite") return false;
+  if (kind === "tSquare") return tSquareAllowsNatalSensitivePoint(normalizedIds, components);
+  if (kind === "grandCross" || kind === "mysticRectangle") return sensitivePointsAreOnOppositionAxes(normalizedIds, components);
+  if (kind === "boomerang") return boomerangAllowsNatalSensitivePoint(normalizedIds, components);
+  return false;
 }
 
 function pushCompoundGroup(groups, { ids, components, kind, title, description, color }) {
   if (!components?.length) return;
   if (!shouldUseCompoundGroup({ ids, components, kind })) return;
   const labels = ids.map(aspectEndpointLabel).filter(Boolean);
+  const key = compoundAspectKey(ids, kind);
+  if (groups.some((group) => group.key === key)) return;
   groups.push({
     scope: "composite",
     ids,
     labels,
     components,
     orb: Math.max(...components.map((edge) => Math.abs(Number(edge.orb) || 0))),
-    key: compoundAspectKey(ids, kind),
+    key,
     kind,
-    title: `${title}: ${labels.join(" / ")}`,
+    title: `${title}: ${labels.join(" × ")}`,
     description,
     color,
   });
@@ -909,14 +950,14 @@ function compoundGroupCategory(group) {
   return "natalOnly";
 }
 
-function detectCompoundAspects(aspects = []) {
+function detectCompoundAspects(aspects = [], { realtimeOnly = false } = {}) {
   const pairMap = new Map();
   const nodeSet = new Set();
+  const allowedAngles = realtimeOnly ? [90, 120, 180] : COMPOUND_ASPECT_ANGLES;
   aspects
-    .filter((aspect) => isRenderable3DAspectAngle(aspect.angle))
     .forEach((aspect) => {
       const angle = normalizeAspectAngle(aspect.angle);
-      if (![60, 90, 120, 150, 180].includes(angle)) return;
+      if (!allowedAngles.includes(angle)) return;
       const ids = aspectEndpointIds(aspect);
       if (ids.length !== 2 || ids[0] === ids[1]) return;
       const sortedIds = ids.slice().sort();
@@ -952,7 +993,7 @@ function detectCompoundAspects(aspects = []) {
         description: "120度（トライン）3本で形成される複合アスペクトです。",
         color: SOFT_ASPECT_LINE_COLOR,
       });
-    } else if (countMatches(counts, { 60: 1, 150: 2 })) {
+    } else if (!realtimeOnly && countMatches(counts, { 60: 1, 150: 2 })) {
       pushCompoundGroup(groups, {
         ids,
         components: edges,
@@ -961,7 +1002,7 @@ function detectCompoundAspects(aspects = []) {
         description: "60度（セクスタイル）1本と150度（インコンジャンクション）2本で形成される複合アスペクトです。",
         color: NEUTRAL_ASPECT_LINE_COLOR,
       });
-    } else if (countMatches(counts, { 60: 2, 120: 1 })) {
+    } else if (!realtimeOnly && countMatches(counts, { 60: 2, 120: 1 })) {
       pushCompoundGroup(groups, {
         ids,
         components: edges,
@@ -972,50 +1013,94 @@ function detectCompoundAspects(aspects = []) {
       });
     }
   });
+  if (realtimeOnly) {
+    return groups.sort((a, b) => (a.kind === b.kind ? a.key.localeCompare(b.key) : a.kind.localeCompare(b.kind)));
+  }
 
-  combinations(nodes, 4).forEach((ids) => {
-    const edges = existingEdgesForIds(ids, pairMap);
-    const counts = aspectCount(edges);
-    if (edges.length === 6 && countMatches(counts, { 90: 4, 180: 2 })) {
+  const edgeBetween = (a, b) => pairMap.get([a, b].sort().join("|")) || null;
+  const edgeHasAngle = (edge, angle) => normalizeAspectAngle(edge?.angle) === angle;
+  const baseGroupsByKind = (kind) => groups.filter((group) => group.kind === kind);
+  const uniqueComponents = (edges = []) => {
+    const seen = new Set();
+    return edges.filter((edge) => {
+      const key = aspectMergeKey(edge);
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+  };
+  const matchingOppositionEdges = (aIds = [], bIds = []) => {
+    const walk = (remainingA, remainingB, chosen) => {
+      if (!remainingA.length) return chosen;
+      const [currentA, ...nextA] = remainingA;
+      for (const currentB of remainingB) {
+        const edge = edgeBetween(currentA, currentB);
+        if (!edgeHasAngle(edge, 180)) continue;
+        const nextB = remainingB.filter((id) => id !== currentB);
+        const result = walk(nextA, nextB, [...chosen, edge]);
+        if (result) return result;
+      }
+      return null;
+    };
+    return walk(aIds, bIds, []);
+  };
+
+  baseGroupsByKind("tSquare").forEach((group) => {
+    const apexId = group.ids.find((id) => (
+      group.components.filter((edge) => edgeHasAngle(edge, 90) && edge.compoundEndpointIds?.includes(id)).length === 2
+    ));
+    if (!apexId) return;
+    const baseIds = group.ids.filter((id) => id !== apexId);
+    nodes.forEach((extraId) => {
+      if (group.ids.includes(extraId)) return;
+      const apexOpposition = edgeBetween(apexId, extraId);
+      const squareA = edgeBetween(extraId, baseIds[0]);
+      const squareB = edgeBetween(extraId, baseIds[1]);
+      if (!edgeHasAngle(apexOpposition, 180) || !edgeHasAngle(squareA, 90) || !edgeHasAngle(squareB, 90)) return;
       pushCompoundGroup(groups, {
-        ids,
-        components: edges,
+        ids: [...group.ids, extraId].sort(),
+        components: [...group.components, apexOpposition, squareA, squareB],
         kind: "grandCross",
         title: "グランド・クロス",
         description: "180度2本と90度4本で形成される複合アスペクトです。",
         color: HARD_ASPECT_LINE_COLOR,
       });
-    }
-    if (edges.length === 6 && countMatches(counts, { 60: 2, 120: 3, 180: 1 })) {
-      pushCompoundGroup(groups, {
-        ids,
-        components: edges,
-        kind: "kite",
-        title: "カイト",
-        description: "グランド・トラインに180度1本と60度2本が加わる複合アスペクトです。",
-        color: SOFT_ASPECT_LINE_COLOR,
+    });
+  });
+
+  baseGroupsByKind("grandTrine").forEach((group) => {
+    group.ids.forEach((anchorId) => {
+      const sideIds = group.ids.filter((id) => id !== anchorId);
+      nodes.forEach((extraId) => {
+        if (group.ids.includes(extraId)) return;
+        const opposition = edgeBetween(anchorId, extraId);
+        const sextileA = edgeBetween(extraId, sideIds[0]);
+        const sextileB = edgeBetween(extraId, sideIds[1]);
+        if (!edgeHasAngle(opposition, 180) || !edgeHasAngle(sextileA, 60) || !edgeHasAngle(sextileB, 60)) return;
+        pushCompoundGroup(groups, {
+          ids: [...group.ids, extraId].sort(),
+          components: [...group.components, opposition, sextileA, sextileB],
+          kind: "kite",
+          title: "カイト",
+          description: "グランド・トラインに180度1本と60度2本が加わる複合アスペクトです。",
+          color: SOFT_ASPECT_LINE_COLOR,
+        });
       });
-    }
-    if (edges.length === 6 && countMatches(counts, { 60: 2, 120: 2, 180: 2 })) {
+    });
+  });
+
+  baseGroupsByKind("yod").forEach((group) => {
+    const apexId = group.ids.find((id) => (
+      group.components.filter((edge) => edgeHasAngle(edge, 150) && edge.compoundEndpointIds?.includes(id)).length === 2
+    ));
+    if (!apexId) return;
+    nodes.forEach((extraId) => {
+      if (group.ids.includes(extraId)) return;
+      const opposition = edgeBetween(apexId, extraId);
+      if (!edgeHasAngle(opposition, 180)) return;
       pushCompoundGroup(groups, {
-        ids,
-        components: edges,
-        kind: "mysticRectangle",
-        title: "ミスティック・レクタングル",
-        description: "180度2本、120度2本、60度2本で形成される複合アスペクトです。",
-        color: SOFT_ASPECT_LINE_COLOR,
-      });
-    }
-    combinations(ids, 3).forEach((yodIds) => {
-      const yodEdges = existingEdgesForIds(yodIds, pairMap);
-      if (yodEdges.length !== 3 || !countMatches(aspectCount(yodEdges), { 60: 1, 150: 2 })) return;
-      const apexCandidates = yodIds.filter((id) => yodEdges.filter((edge) => normalizeAspectAngle(edge.angle) === 150 && edge.compoundEndpointIds?.includes(id)).length === 2);
-      const oppositeId = ids.find((id) => !yodIds.includes(id));
-      const apexId = apexCandidates.find((id) => pairMap.get([id, oppositeId].sort().join("|")) && normalizeAspectAngle(pairMap.get([id, oppositeId].sort().join("|")).angle) === 180);
-      if (!apexId) return;
-      pushCompoundGroup(groups, {
-        ids,
-        components: [...yodEdges, pairMap.get([apexId, oppositeId].sort().join("|"))],
+        ids: [...group.ids, extraId].sort(),
+        components: [...group.components, opposition],
         kind: "boomerang",
         title: "ブーメラン",
         description: "ヨッドの頂点の真向かいに4つ目の天体がある複合アスペクトです。",
@@ -1024,38 +1109,64 @@ function detectCompoundAspects(aspects = []) {
     });
   });
 
-  combinations(nodes, 5).forEach((ids) => {
-    const sextileEdges = existingEdgesForIds(ids, pairMap).filter((edge) => normalizeAspectAngle(edge.angle) === 60);
-    if (sextileEdges.length < 4) return;
-    const degree = new Map(ids.map((id) => [id, 0]));
-    sextileEdges.forEach((edge) => edge.compoundEndpointIds?.forEach((id) => degree.set(id, (degree.get(id) || 0) + 1)));
-    const endpoints = Array.from(degree.values()).filter((count) => count === 1).length;
-    const middles = Array.from(degree.values()).filter((count) => count >= 2).length;
-    if (endpoints >= 2 && middles >= 3) {
-      pushCompoundGroup(groups, {
-        ids,
-        components: sextileEdges,
-        kind: "homeBase",
-        title: "ホームベース",
-        description: "5つの天体が連続するセクスタイルを中心に形成する五角形型の複合アスペクトです。",
-        color: SOFT_ASPECT_LINE_COLOR,
-      });
-    }
+  const oppositionEdges = Array.from(pairMap.values()).filter((edge) => edgeHasAngle(edge, 180));
+  combinations(oppositionEdges, 2).forEach(([firstOpposition, secondOpposition]) => {
+    const firstIds = firstOpposition.compoundEndpointIds || aspectEndpointIds(firstOpposition);
+    const secondIds = secondOpposition.compoundEndpointIds || aspectEndpointIds(secondOpposition);
+    const ids = [...firstIds, ...secondIds].sort();
+    if (new Set(ids).size !== 4) return;
+    const softEdges = existingEdgesForIds(ids, pairMap)
+      .filter((edge) => [60, 120].includes(normalizeAspectAngle(edge.angle)));
+    const counts = aspectCount(softEdges);
+    if (softEdges.length !== 4 || !countMatches(counts, { 60: 2, 120: 2 })) return;
+    pushCompoundGroup(groups, {
+      ids,
+      components: [firstOpposition, secondOpposition, ...softEdges],
+      kind: "mysticRectangle",
+      title: "ミスティック・レクタングル",
+      description: "180度2本、120度2本、60度2本で形成される複合アスペクトです。",
+      color: SOFT_ASPECT_LINE_COLOR,
+    });
   });
 
-  combinations(nodes, 6).forEach((ids) => {
-    const edges = existingEdgesForIds(ids, pairMap);
-    const counts = aspectCount(edges);
-    if (countMatches(counts, { 60: 6, 120: 6, 180: 3 })) {
-      pushCompoundGroup(groups, {
-        ids,
-        components: edges.filter((edge) => [60, 120, 180].includes(normalizeAspectAngle(edge.angle))),
-        kind: "grandSextile",
-        title: "グランド・セクスタイル",
-        description: "6つの天体が六芒星を作る複合アスペクトです。",
-        color: SOFT_ASPECT_LINE_COLOR,
+  baseGroupsByKind("mysticRectangle").forEach((group) => {
+    const trineEdges = group.components.filter((edge) => edgeHasAngle(edge, 120));
+    trineEdges.forEach((trineEdge) => {
+      const trineIds = trineEdge.compoundEndpointIds || aspectEndpointIds(trineEdge);
+      if (trineIds.length !== 2) return;
+      nodes.forEach((extraId) => {
+        if (group.ids.includes(extraId)) return;
+        const sextileA = edgeBetween(extraId, trineIds[0]);
+        const sextileB = edgeBetween(extraId, trineIds[1]);
+        if (!edgeHasAngle(sextileA, 60) || !edgeHasAngle(sextileB, 60)) return;
+        const ids = [...group.ids, extraId].sort();
+        pushCompoundGroup(groups, {
+          ids,
+          components: uniqueComponents([...group.components, sextileA, sextileB]),
+          kind: "homeBase",
+          title: "ホームベース",
+          description: "ミスティック・レクタングルの長辺に60度2本が加わる五角形型の複合アスペクトです。",
+          color: SOFT_ASPECT_LINE_COLOR,
+        });
       });
-    }
+    });
+  });
+
+  combinations(baseGroupsByKind("grandTrine"), 2).forEach(([firstTrine, secondTrine]) => {
+    const ids = [...firstTrine.ids, ...secondTrine.ids].sort();
+    if (new Set(ids).size !== 6) return;
+    const oppositionMatches = matchingOppositionEdges(firstTrine.ids, secondTrine.ids);
+    if (!oppositionMatches || oppositionMatches.length !== 3) return;
+    const displayEdges = existingEdgesForIds(ids, pairMap)
+      .filter((edge) => [60, 120, 180].includes(normalizeAspectAngle(edge.angle)));
+    pushCompoundGroup(groups, {
+      ids,
+      components: uniqueComponents([...firstTrine.components, ...secondTrine.components, ...oppositionMatches, ...displayEdges]),
+      kind: "grandSextile",
+      title: "グランド・セクスタイル",
+      description: "6つの天体が六芒星を作る複合アスペクトです。",
+      color: SOFT_ASPECT_LINE_COLOR,
+    });
   });
   return groups.sort((a, b) => (a.kind === b.kind ? a.key.localeCompare(b.key) : a.kind.localeCompare(b.kind)));
 }
@@ -1071,7 +1182,7 @@ function compoundAspectLineComponents(groups = []) {
   })));
 }
 
-function playbackAspectCacheForChart(chart, natalPoints = []) {
+function playbackAspectCacheForChart(chart, natalPoints = [], includeCompound = false, realtimeCompoundOnly = false) {
   const transitNatalAspects = liveAspectsFromChart(chart, natalPoints);
   const transitTransitAspects = liveTransitTransitAspectsFromChart(chart);
   const natalNatalAspects = natalNatalAspectsFromPoints(natalPoints);
@@ -1080,10 +1191,9 @@ function playbackAspectCacheForChart(chart, natalPoints = []) {
     ...transitTransitAspects,
     ...natalNatalAspects,
   ];
-  const compoundLineAspects = compoundAspectLineComponents(detectCompoundAspects(allAspects));
   return {
     allAspects,
-    compoundLineAspects,
+    compoundLineAspects: includeCompound ? compoundAspectLineComponents(detectCompoundAspects(allAspects, { realtimeOnly: realtimeCompoundOnly })) : [],
   };
 }
 
@@ -1091,10 +1201,6 @@ function playbackAspectSourceForFrame(frame, mode) {
   const cache = frame?.aspectCache;
   if (!cache) return [];
   if (mode === "composite") return cache.compoundLineAspects || [];
-  if (mode === "custom") return [
-    ...(cache.compoundLineAspects || []),
-    ...(cache.allAspects || []),
-  ];
   return cache.allAspects || [];
 }
 
@@ -1108,12 +1214,10 @@ function aspectMatchesFocus(aspect, focus) {
   return true;
 }
 
-function filterAspectLinesForControls(aspects, { focus, selections, mode, enabledAngles = ASPECT_ANGLE_FILTERS }) {
-  const enabledAngleSet = new Set(enabledAngles);
-  const renderableAspects = aspects.filter((aspect) => {
-    const angle = normalizeAspectAngle(aspect.angle);
-    return isRenderable3DAspectAngle(angle) && enabledAngleSet.has(angle);
-  });
+function filterAspectLinesForControls(aspects, { focus, selections, mode }) {
+  const renderableAspects = mode === "composite"
+    ? aspects.filter((aspect) => COMPOUND_ASPECT_ANGLES.includes(normalizeAspectAngle(aspect.angle)))
+    : aspects.filter((aspect) => isRenderable3DAspectAngle(aspect.angle));
   if (mode === "composite") {
     return renderableAspects.filter((aspect) => Boolean(aspect.compoundKey) && aspectMatchesFocus(aspect, focus));
   }
@@ -1139,20 +1243,13 @@ function filterAspectLinesForControls(aspects, { focus, selections, mode, enable
   const transitSelections = new Set(selections?.transitNatal?.transit || []);
   const transitTransitSelections = new Set(selections?.transitTransit?.transit || []);
   const natalNatalSelections = new Set(selections?.natalNatal?.natal || []);
-  const compositeNatalSelections = new Set(selections?.composite?.natal || []);
-  const compositeTransitSelections = new Set(selections?.composite?.transit || []);
   return renderableAspects.filter((aspect) => {
-    const selectedByComposite = Boolean(aspect.compoundKey) && Array.isArray(aspect.compoundGroupIds) && aspect.compoundGroupIds.some((id) => {
-      const [type, planet] = String(id || "").split(":");
-      if (!planet) return false;
-      return type === "N" ? compositeNatalSelections.has(planet) : compositeTransitSelections.has(planet);
-    });
     const selectedByCustom = aspect.scope === "transitTransit"
       ? transitTransitSelections.has(aspect.transitPlanet) || transitTransitSelections.has(aspect.transitPlanetB)
       : aspect.scope === "natalNatal"
         ? natalNatalSelections.has(aspect.natalPlanet) || natalNatalSelections.has(aspect.natalPlanetB)
         : natalSelections.has(aspect.natalPlanet) || transitSelections.has(aspect.transitPlanet);
-    return (selectedByComposite || selectedByCustom) && aspectMatchesFocus(aspect, focus);
+    return selectedByCustom && aspectMatchesFocus(aspect, focus);
   });
 }
 
@@ -1187,6 +1284,7 @@ function aspectLineRenderSignature(state, aspects = [], showAll, transitLayerAct
     transitLayerActive ? "transit-on" : "transit-off",
     state?.natalLayerActive ? "natal-on" : "natal-off",
     focusKey,
+    state?.selectedAspectLineHighlightKey || "",
     ...lineKeys.sort(),
   ].join("|");
 }
@@ -1222,14 +1320,52 @@ function renderAspectLines(state, aspects, showAll, transitLayerActive) {
     if (!startPosition || !endPosition) return;
     const shouldHighlightLine = Boolean(state.aspectLineFocus);
     const lineLayerActive = aspect.scope === "natalNatal" ? state.natalLayerActive : transitLayerActive;
+    const colorValue = aspectLineColor(aspect.angle, aspect.color);
+    const lineColor = new THREE.Color(colorValue);
+    const isLineHighlighted = aspectMatchesLineHighlight(aspect, state.selectedAspectLineHighlightKey);
+    const shouldDimUnrelatedLines = String(state.selectedAspectLineHighlightKey || "").startsWith("compound:");
+    const baseLineOpacity = shouldDimUnrelatedLines && !isLineHighlighted
+      ? 0.12
+      : shouldHighlightLine ? 0.78 : showAll ? 0.34 : lineLayerActive ? 0.66 : 0.18;
+    if (isLineHighlighted) {
+      [
+        { radius: 0.038, opacity: 0.3 },
+        { radius: 0.074, opacity: 0.13 },
+      ].forEach((glow, glowIndex) => {
+        const glowLine = new THREE.Mesh(
+          new THREE.CylinderGeometry(glow.radius, glow.radius, 1, 16, 1, true),
+          new THREE.MeshBasicMaterial({
+            color: lineColor.clone(),
+            transparent: true,
+            opacity: glow.opacity,
+            blending: THREE.AdditiveBlending,
+            depthWrite: false,
+            depthTest: false,
+            side: THREE.DoubleSide,
+          })
+        );
+        positionTubeBetweenPoints(glowLine, startPosition, endPosition);
+        glowLine.renderOrder = 8 + glowIndex;
+        glowLine.userData.aspectLink = {
+          natalPlanet: aspect.natalPlanet,
+          natalPlanetB: aspect.natalPlanetB,
+          transitPlanet: aspect.transitPlanet,
+          transitPlanetB: aspect.transitPlanetB,
+        };
+        glowLine.userData.aspectGlowTube = true;
+        glowLine.userData.aspectGlowBaseOpacity = glow.opacity;
+        state.aspectGroup.add(glowLine);
+      });
+    }
     const aspectLine = new THREE.Line(
       new THREE.BufferGeometry().setFromPoints([startPosition.clone(), endPosition.clone()]),
       new THREE.LineBasicMaterial({
-        color: new THREE.Color(aspectLineColor(aspect.angle, aspect.color)),
+        color: lineColor,
         transparent: true,
-        opacity: shouldHighlightLine ? 0.78 : showAll ? 0.34 : lineLayerActive ? 0.66 : 0.18,
+        opacity: isLineHighlighted ? 0.98 : baseLineOpacity,
       })
     );
+    aspectLine.renderOrder = isLineHighlighted ? 10 : 1;
     aspectLine.userData.aspectLink = {
       natalPlanet: aspect.natalPlanet,
       natalPlanetB: aspect.natalPlanetB,
@@ -1345,8 +1481,6 @@ function playbackHasCheckedAspectTargets(state) {
     || state?.aspectLineSelections?.transitNatal?.transit?.length
     || state?.aspectLineSelections?.transitTransit?.transit?.length
     || state?.aspectLineSelections?.natalNatal?.natal?.length
-    || state?.aspectLineSelections?.composite?.natal?.length
-    || state?.aspectLineSelections?.composite?.transit?.length
   );
 }
 
@@ -1357,7 +1491,6 @@ function playbackAspectControlsKey(state, frame) {
     mode,
     focus?.type || "",
     focus?.planet || "",
-    (state?.enabledAspectAngles || ASPECT_ANGLE_FILTERS).join(","),
     Object.entries(state?.aspectLineSelections || {})
       .map(([scope, groups]) => `${scope}:${(groups?.natal || []).join(".")}:${(groups?.transit || []).join(".")}`)
       .join("|"),
@@ -1384,7 +1517,6 @@ function syncPlaybackAspectLines(state, frame, force = false) {
     focus: state.aspectLineFocus,
     selections: state.aspectLineSelections,
     mode,
-    enabledAngles: state.enabledAspectAngles || ASPECT_ANGLE_FILTERS,
   });
   renderAspectLines(state, filteredAspects, hasCheckedAspectTargets, state.transitLayerActive);
   applyLiveAspectHighlights(state, filteredAspects);
@@ -2549,6 +2681,7 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
   const preservedMapViewRef = React.useRef(null);
   const aspectListDragRef = React.useRef(null);
   const mobileAspectListDragRef = React.useRef(null);
+  const playbackUiUpdateEnabledRef = React.useRef(true);
   const hasManualMapPositionRef = React.useRef(false);
   const [selectedNatalPlanet, setSelectedNatalPlanet] = useState("SUN");
   const [selectedTransitTime, setSelectedTransitTime] = useState(() => currentTenMinuteTime());
@@ -2581,7 +2714,6 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
   const [isAspectListPanelOpen, setIsAspectListPanelOpen] = useState(false);
   const [aspectLineSelections, setAspectLineSelections] = useState(EMPTY_ASPECT_SELECTIONS);
   const [aspectLineMode, setAspectLineMode] = useState("transitNatal");
-  const [enabledAspectAngles, setEnabledAspectAngles] = useState(ASPECT_ANGLE_FILTERS);
   const selectedAspectDisplayMode = useMemo(
     () => ASPECT_DISPLAY_MODE_OPTIONS.find((option) => option.key === aspectLineMode) || ASPECT_DISPLAY_MODE_OPTIONS[0],
     [aspectLineMode]
@@ -2591,14 +2723,21 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
   const [tooltipCompositeTab, setTooltipCompositeTab] = useState("compound");
   const [openTooltipAspectKeys, setOpenTooltipAspectKeys] = useState(() => new Set());
   const [openAspectInterpretationKeys, setOpenAspectInterpretationKeys] = useState(() => new Set());
+  const [selectedAspectLineHighlightKey, setSelectedAspectLineHighlightKey] = useState("");
   const [aspectListPanelPosition, setAspectListPanelPosition] = useState({ x: 520, y: 104 });
-  const [mobileAspectListPanelPosition, setMobileAspectListPanelPosition] = useState({ x: 10, y: 198 });
+  const [mobileAspectListPanelPosition, setMobileAspectListPanelPosition] = useState({ x: 10, y: 132 });
+  const [isMobileAspectListDetached, setIsMobileAspectListDetached] = useState(false);
   const selectedDate = dateKey(day?.date);
   const [isTransitCalendarOpen, setIsTransitCalendarOpen] = useState(false);
   const [transitCalendarMonth, setTransitCalendarMonth] = useState(() => monthKey(day?.date));
   const displayedTransitDateTime = isTransitPlaybackActive && transitPlaybackCursor
     ? transitPlaybackCursor
-    : { date: selectedDate, time: selectedTransitTime };
+    : playbackTransitChart
+      ? {
+        date: dateKey(playbackTransitChart.date) || selectedDate,
+        time: playbackTransitChart.time || selectedTransitTime,
+      }
+      : { date: selectedDate, time: selectedTransitTime };
   const selectableDates = useMemo(() => availableDays.map((item) => dateKey(item?.date)).filter(Boolean), [availableDays]);
   const selectableDateSet = useMemo(() => new Set(selectableDates), [selectableDates]);
   const minSelectableDate = selectableDates[0] || selectedDate || "";
@@ -2774,7 +2913,7 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
       : dayWithTransitChart
   ), [day, dayWithTransitChart, playbackTransitChart]);
   const tableSky = useMemo(() => transitSkyMapData(tableDay, forecast, selectedNatalPlanet), [tableDay, forecast, selectedNatalPlanet]);
-  const aspectLineSky = isTransitPlaybackActive && playbackTransitChart ? tableSky : sky;
+  const aspectLineSky = playbackTransitChart ? tableSky : sky;
   const livePlaybackAspects = useMemo(
     () => (isTransitPlaybackActive && playbackTransitChart
       ? liveAspectsFromChart(playbackTransitChart, tableSky.natalPoints)
@@ -2811,25 +2950,28 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
     ...transitNatalSourceAspects,
     ...transitTransitSourceAspects,
   ], [transitNatalSourceAspects, transitTransitSourceAspects]);
-  const compoundAspectSourceAspects = useMemo(() => [
-    ...aspectLineSourceAspects,
-    ...natalNatalSourceAspects,
-  ], [aspectLineSourceAspects, natalNatalSourceAspects]);
-  const compoundAspectGroups = useMemo(() => detectCompoundAspects(compoundAspectSourceAspects), [compoundAspectSourceAspects]);
+  const shouldComputeCompoundAspects = aspectLineMode === "composite" || aspectInterpretationScope === "composite";
+  const compoundAspectSourceAspects = useMemo(() => (
+    shouldComputeCompoundAspects
+      ? [...aspectLineSourceAspects, ...natalNatalSourceAspects]
+      : []
+  ), [shouldComputeCompoundAspects, aspectLineSourceAspects, natalNatalSourceAspects]);
+  const compoundAspectGroups = useMemo(() => (
+    shouldComputeCompoundAspects ? detectCompoundAspects(compoundAspectSourceAspects, { realtimeOnly: isTransitPlaybackActive }) : []
+  ), [shouldComputeCompoundAspects, compoundAspectSourceAspects, isTransitPlaybackActive]);
   const compoundLineAspects = useMemo(() => compoundAspectLineComponents(compoundAspectGroups), [compoundAspectGroups]);
   const aspectLineDisplaySourceAspects = useMemo(() => (
     aspectLineMode === "composite"
       ? compoundLineAspects
       : aspectLineMode === "custom"
-        ? [...compoundLineAspects, ...aspectLineSourceAspects, ...natalNatalSourceAspects]
+        ? [...aspectLineSourceAspects, ...natalNatalSourceAspects]
         : [...aspectLineSourceAspects, ...natalNatalSourceAspects]
   ), [aspectLineMode, aspectLineSourceAspects, compoundLineAspects, natalNatalSourceAspects]);
   const activeAspectLineAspects = useMemo(() => filterAspectLinesForControls(aspectLineDisplaySourceAspects, {
     focus: aspectLineFocus,
     selections: aspectLineSelections,
     mode: aspectLineMode,
-    enabledAngles: enabledAspectAngles,
-  }), [aspectLineFocus, aspectLineSelections, aspectLineMode, aspectLineDisplaySourceAspects, enabledAspectAngles]);
+  }), [aspectLineFocus, aspectLineSelections, aspectLineMode, aspectLineDisplaySourceAspects]);
   const focusedNatalPlanets = useMemo(() => new Set(
     activeAspectLineAspects.flatMap((aspect) => [aspect.natalPlanet, aspect.natalPlanetB]).filter(Boolean)
   ), [activeAspectLineAspects]);
@@ -2854,6 +2996,7 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
     const filteredCompoundItems = compoundItems.filter((item) => item.category === compoundAspectListCategory);
     const singleSourceAspects = aspectInterpretationScope === "composite" ? compoundLineAspects : aspectLineSourceAspects;
     const singleItems = singleSourceAspects
+      .filter((aspect) => aspectInterpretationScope === "composite" || isRenderable3DAspectAngle(aspect.angle))
       .filter((aspect) => (
         aspectInterpretationScope === "composite"
         || 
@@ -2888,7 +3031,7 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
     const visibleItems = aspectInterpretationScope === "composite"
       ? filteredCompoundItems
       : aspectInterpretationScope === "all"
-        ? [...compoundItems, ...singleItems]
+        ? singleItems
         : singleItems;
     return {
       compoundItems,
@@ -2898,6 +3041,12 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
     };
   }, [aspectInterpretationScope, compoundAspectListCategory, aspectLineSky.allAspects, aspectLineSky.natalPoints, aspectLineSky.transits, aspectLineSourceAspects, compoundAspectGroups, compoundLineAspects]);
   const aspectInterpretationItems = aspectInterpretationBuckets.visibleItems;
+  const selectAspectLineMode = (mode) => {
+    setAspectLineMode(mode);
+    if (mode === "custom") return;
+    setAspectInterpretationScope(mode);
+    setIsAspectListPanelOpen(true);
+  };
   const toggleAspectLineSelection = (scope, group, planet) => {
     setAspectLineSelections((current) => {
       const next = {
@@ -2912,10 +3061,6 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
         natalNatal: {
           natal: [...(current?.natalNatal?.natal || [])],
           transit: [...(current?.natalNatal?.transit || [])],
-        },
-        composite: {
-          natal: [...(current?.composite?.natal || [])],
-          transit: [...(current?.composite?.transit || [])],
         },
       };
       const list = next?.[scope]?.[group];
@@ -2943,33 +3088,17 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
           natal: [...(current?.natalNatal?.natal || [])],
           transit: [...(current?.natalNatal?.transit || [])],
         },
-        composite: {
-          natal: [...(current?.composite?.natal || [])],
-          transit: [...(current?.composite?.transit || [])],
-        },
       };
       if (!next[scope]) return current;
       next[scope] = mode === "all"
         ? {
-          natal: scope === "transitNatal" || scope === "natalNatal" || scope === "composite" ? sky.natalPoints.map((item) => item.planet) : [],
+          natal: scope === "transitNatal" || scope === "natalNatal" ? sky.natalPoints.map((item) => item.planet) : [],
           transit: scope === "natalNatal" ? [] : sky.transits.map((item) => item.planet),
         }
         : { natal: [], transit: [] };
       return next;
     });
   };
-  const toggleAspectAngleFilter = (angle) => {
-    setEnabledAspectAngles((current) => (
-      current.includes(angle)
-        ? current.filter((item) => item !== angle)
-        : [...current, angle].sort((a, b) => a - b)
-    ));
-  };
-  useEffect(() => {
-    if (aspectLineMode === "composite") {
-      setEnabledAspectAngles(ASPECT_ANGLE_FILTERS);
-    }
-  }, [aspectLineMode]);
   const preserveCurrentMapView = React.useCallback(() => {
     const state = sceneStateRef.current;
     if (!state?.group) return;
@@ -2984,6 +3113,15 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
   useEffect(() => {
     aspectLineFocusRef.current = aspectLineFocus;
   }, [aspectLineFocus]);
+
+  useEffect(() => {
+    playbackUiUpdateEnabledRef.current = Boolean(
+      !isTransitTableCollapsed
+      || !isNatalTableCollapsed
+      || isAspectListPanelOpen
+      || aspectTooltip
+    );
+  }, [isTransitTableCollapsed, isNatalTableCollapsed, isAspectListPanelOpen, aspectTooltip]);
 
   useEffect(() => {
     if (!aspectLineFocus) return;
@@ -3717,6 +3855,7 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
       transitVisuals,
       mapRadii,
       aspectGroup,
+      selectedAspectLineHighlightKey,
       selectedPulseMesh: null,
       selectedPulseBaseScale: 1,
       isRotationPaused,
@@ -3725,7 +3864,6 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
       transitLayerActive,
     aspectLineMode,
     aspectLineSelections,
-    enabledAspectAngles,
   };
     let dragging = false;
     let previousX = 0;
@@ -4036,6 +4174,11 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
       if (selectedPulseMesh) {
         selectedPulseMesh.scale.setScalar(selectedPulseBaseScale * (1 + Math.sin(Date.now() * 0.004) * 0.055));
       }
+      currentSceneState?.aspectGroup?.children?.forEach((line) => {
+        const baseOpacity = line.userData?.aspectGlowBaseOpacity;
+        if (!baseOpacity || !line.material) return;
+        line.material.opacity = baseOpacity * (0.72 + Math.sin(now * 0.006) * 0.28);
+      });
       renderer.render(scene, camera);
     };
     animate();
@@ -4075,9 +4218,9 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
     const state = sceneStateRef.current;
     if (!state) return;
     state.aspectLineFocus = aspectLineFocus;
+    state.selectedAspectLineHighlightKey = selectedAspectLineHighlightKey;
     state.aspectLineMode = aspectLineMode;
     state.aspectLineSelections = aspectLineSelections;
-    state.enabledAspectAngles = enabledAspectAngles;
     state.natalLayerActive = natalLayerActive;
     state.transitLayerActive = transitLayerActive;
     state.isFlatMapView = isFlatMapView;
@@ -4153,8 +4296,6 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
       || aspectLineSelections?.transitNatal?.transit?.length
       || aspectLineSelections?.transitTransit?.transit?.length
       || aspectLineSelections?.natalNatal?.natal?.length
-      || aspectLineSelections?.composite?.natal?.length
-      || aspectLineSelections?.composite?.transit?.length
     );
     if (!state.playbackSequence?.active) {
       renderAspectLines(state, activeAspectLineAspects, hasCheckedAspectTargets, transitLayerActive);
@@ -4163,7 +4304,7 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
       const playbackFrame = state.playbackSequence.keyframes?.[state.playbackSequence.index];
       syncPlaybackAspectLines(state, playbackFrame, true);
     }
-  }, [sky, natalLayerActive, transitLayerActive, isFlatMapView, aspectLineFocus, focusedNatalPlanets, activeAspectLineAspects, aspectLineSelections, aspectLineMode, enabledAspectAngles]);
+  }, [sky, natalLayerActive, transitLayerActive, isFlatMapView, aspectLineFocus, selectedAspectLineHighlightKey, focusedNatalPlanets, activeAspectLineAspects, aspectLineSelections, aspectLineMode]);
 
   useEffect(() => {
     const state = sceneStateRef.current;
@@ -4303,7 +4444,12 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
     setOpenTooltipAspectKeys(new Set());
     setTooltipCompositeTab("compound");
   }, [aspectTooltip?.type, aspectTooltip?.planet, aspectLineMode]);
-  const toggleTooltipAspect = (key) => {
+  const selectAspectLineHighlight = (aspect) => {
+    const key = aspectLineHighlightKey(aspect);
+    if (key) setSelectedAspectLineHighlightKey(key);
+  };
+  const toggleTooltipAspect = (key, aspect = null) => {
+    selectAspectLineHighlight(aspect);
     setOpenTooltipAspectKeys((current) => {
       const next = new Set(current);
       if (next.has(key)) {
@@ -4314,7 +4460,8 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
       return next;
     });
   };
-  const toggleAspectInterpretation = (key) => {
+  const toggleAspectInterpretation = (key, aspect = null) => {
+    selectAspectLineHighlight(aspect);
     setOpenAspectInterpretationKeys((current) => {
       const next = new Set(current);
       if (next.has(key)) {
@@ -4363,7 +4510,7 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
     if (!drag || !frame) return;
     const rect = frame.getBoundingClientRect();
     const panelWidth = Math.min(330, Math.max(280, rect.width - 24));
-    const panelHeight = 300;
+    const panelHeight = 380;
     setMobileAspectListPanelPosition({
       x: clamp(event.clientX - rect.left - drag.offsetX, 8, Math.max(8, rect.width - panelWidth - 8)),
       y: clamp(event.clientY - rect.top - drag.offsetY, 48, Math.max(48, rect.height - panelHeight - 8)),
@@ -4382,15 +4529,10 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
     }
     const cachedChart = transitChartCacheRef.current.get(transitChartCacheKey(cursor.date, cursor.time));
     if (cachedChart) {
-      setTransitChart(cachedChart);
-    }
-    if (cursor.date !== selectedDate && onSelectDayIndex) {
-      const nextIndex = selectableDates.indexOf(cursor.date);
-      if (nextIndex >= 0) onSelectDayIndex(nextIndex);
+      setPlaybackTransitChart(cachedChart);
     }
     setSelectedTransitTime(cursor.time);
     setTransitPlaybackCursor(null);
-    setPlaybackTransitChart(null);
   };
   const toggleTransitPlayback = async () => {
     if (isTransitPlaybackPreloading) return;
@@ -4407,9 +4549,10 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
     try {
       setIsTransitPlaybackPreloading(true);
       setTransitChartError("");
-      const startIndex = Math.max(0, selectableDates.indexOf(selectedDate));
+      const playbackStartDate = displayedTransitDateTime.date || selectedDate;
+      const startIndex = Math.max(0, selectableDates.indexOf(playbackStartDate));
       const rangeOption = TRANSIT_PLAYBACK_RANGE_OPTIONS.find((option) => option.key === transitPlaybackRange) || TRANSIT_PLAYBACK_RANGE_OPTIONS[0];
-      const remainingDates = (selectableDates.length ? selectableDates.slice(startIndex, startIndex + rangeOption.days) : [selectedDate]).filter(Boolean);
+      const remainingDates = (selectableDates.length ? selectableDates.slice(startIndex, startIndex + rangeOption.days) : [playbackStartDate]).filter(Boolean);
       const playbackDates = remainingDates.filter((_, index) => index % transitPlaybackStepDays === 0);
       const finalRemainingDate = remainingDates[remainingDates.length - 1];
       if (finalRemainingDate && playbackDates.length === 1 && finalRemainingDate !== playbackDates[0]) {
@@ -4417,6 +4560,7 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
       }
       await preloadTransitChartsForDates(selectedTransitTime, playbackDates);
       setIsRotationPaused(true);
+      const shouldPrecomputePlaybackCompound = aspectLineMode === "composite" && transitPlaybackRange === "month";
       const keyframes = playbackDates
         .map((targetDate) => {
           const chart = transitChartCacheRef.current.get(transitChartCacheKey(targetDate, selectedTransitTime));
@@ -4426,7 +4570,7 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
             chart,
             transitMap: chart ? chartTransitMap(chart) : null,
             houseCusps: chart ? chartHouseCusps(chart) : [],
-            aspectCache: chart ? playbackAspectCacheForChart(chart, aspectLineSky.natalPoints) : null,
+            aspectCache: chart ? playbackAspectCacheForChart(chart, aspectLineSky.natalPoints, shouldPrecomputePlaybackCompound, true) : null,
           };
         })
         .filter((item) => item.chart);
@@ -4444,7 +4588,9 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
           segmentDuration: 1000,
           lastTableUpdateAt: 0,
           onAdvance: (cursor) => setTransitPlaybackCursor(cursor),
-          onFrame: (chart) => setPlaybackTransitChart(chart),
+          onFrame: (chart) => {
+            if (playbackUiUpdateEnabledRef.current) setPlaybackTransitChart(chart);
+          },
           onComplete: () => {
             const finalKeyframe = keyframes[keyframes.length - 1];
             setIsTransitPlaybackActive(false);
@@ -4453,8 +4599,10 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
         };
         syncPlaybackAspectLines(sceneStateRef.current, keyframes[0], true);
       }
-      setTransitPlaybackCursor({ date: selectedDate, time: selectedTransitTime });
-      setPlaybackTransitChart(keyframes[0].chart);
+      setTransitPlaybackCursor({ date: playbackStartDate, time: selectedTransitTime });
+      if (playbackUiUpdateEnabledRef.current) {
+        setPlaybackTransitChart(keyframes[0].chart);
+      }
       setIsTransitPlaybackActive(true);
     } catch (error) {
       setTransitChartError(readableErrorMessage(error, "現行天体の再生データ読み込みに失敗しました。"));
@@ -4612,14 +4760,18 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
           <div
             id="mobile-aspect-interpretation-panel"
             className={cx(
-              "absolute z-30 max-h-[300px] overflow-hidden rounded-xl border border-white/10 bg-[#121414]/48 p-2 font-mono text-[9px] font-bold text-mist shadow-[0_18px_42px_rgba(0,0,0,0.24)] backdrop-blur-sm transition-opacity duration-300 sm:hidden",
+              "z-30 flex flex-col overflow-hidden rounded-xl border border-white/10 bg-[#121414]/48 p-2 font-mono text-[9px] font-bold text-mist shadow-[0_18px_42px_rgba(0,0,0,0.24)] backdrop-blur-sm transition-opacity duration-300 sm:hidden",
+              isMobileAspectListDetached ? "fixed inset-x-3 bottom-3 z-[120]" : "absolute",
               isAspectListPanelOpen ? "opacity-100" : "pointer-events-none border-transparent opacity-0"
             )}
-            style={{
-              left: `${mobileAspectListPanelPosition.x}px`,
-              top: `${mobileAspectListPanelPosition.y}px`,
-              width: "min(330px, calc(100% - 24px))",
-            }}
+            style={isMobileAspectListDetached
+              ? { height: "min(70vh, 520px)" }
+              : {
+                left: `${mobileAspectListPanelPosition.x}px`,
+                top: `${mobileAspectListPanelPosition.y}px`,
+                width: "min(330px, calc(100% - 24px))",
+                height: `min(380px, calc(100% - ${mobileAspectListPanelPosition.y + 12}px))`,
+              }}
             aria-hidden={!isAspectListPanelOpen}
           >
             <button
@@ -4633,12 +4785,12 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
               ×
             </button>
             <div
-              className="mb-2 flex touch-none select-none items-center justify-between gap-2 rounded-lg border border-white/10 bg-white/[0.055] px-2.5 py-1.5 pr-14 text-starlight"
-              onPointerDown={beginMobileAspectListDrag}
-              onPointerMove={moveMobileAspectListPanel}
-              onPointerUp={endMobileAspectListDrag}
-              onPointerCancel={endMobileAspectListDrag}
-              title="ドラッグで移動"
+              className="mb-2 flex touch-none select-none items-center justify-between gap-2 rounded-lg border border-white/10 bg-white/[0.055] px-2.5 py-1.5 pr-20 text-starlight"
+              onPointerDown={isMobileAspectListDetached ? undefined : beginMobileAspectListDrag}
+              onPointerMove={isMobileAspectListDetached ? undefined : moveMobileAspectListPanel}
+              onPointerUp={isMobileAspectListDetached ? undefined : endMobileAspectListDrag}
+              onPointerCancel={isMobileAspectListDetached ? undefined : endMobileAspectListDrag}
+              title={isMobileAspectListDetached ? "マップ外に表示中" : "ドラッグで移動"}
             >
               <span className="text-[10px]">アスペクト一覧</span>
               <span className="truncate rounded border border-white/10 bg-white/[0.035] px-1.5 py-0.5 text-[8px] text-mist/65">
@@ -4646,13 +4798,26 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
               </span>
               <button
                 type="button"
-                className="inline-flex h-5 w-5 shrink-0 cursor-move items-center justify-center text-starlight/85 transition hover:text-gold focus:outline-none focus:ring-2 focus:ring-gold/35"
-                onPointerDown={beginMobileAspectListDrag}
-                onPointerMove={moveMobileAspectListPanel}
-                onPointerUp={endMobileAspectListDrag}
-                onPointerCancel={endMobileAspectListDrag}
+                onClick={() => setIsMobileAspectListDetached((value) => !value)}
+                onPointerDown={(event) => event.stopPropagation()}
+                className="inline-flex h-5 shrink-0 items-center justify-center rounded border border-white/10 bg-white/[0.04] px-1.5 text-[8px] text-mist/80 transition hover:border-gold/35 hover:bg-gold/10 hover:text-gold focus:outline-none focus:ring-2 focus:ring-gold/35"
+                aria-label={isMobileAspectListDetached ? "アスペクト一覧をマップ内に戻す" : "アスペクト一覧をマップ外へ出す"}
+                title={isMobileAspectListDetached ? "マップ内に戻す" : "マップ外へ"}
+              >
+                {isMobileAspectListDetached ? "戻す" : "外へ"}
+              </button>
+              <button
+                type="button"
+                className={cx(
+                  "inline-flex h-5 w-5 shrink-0 items-center justify-center text-starlight/85 transition hover:text-gold focus:outline-none focus:ring-2 focus:ring-gold/35",
+                  isMobileAspectListDetached ? "opacity-35" : "cursor-move"
+                )}
+                onPointerDown={isMobileAspectListDetached ? undefined : beginMobileAspectListDrag}
+                onPointerMove={isMobileAspectListDetached ? undefined : moveMobileAspectListPanel}
+                onPointerUp={isMobileAspectListDetached ? undefined : endMobileAspectListDrag}
+                onPointerCancel={isMobileAspectListDetached ? undefined : endMobileAspectListDrag}
                 aria-label="アスペクト一覧を移動"
-                title="移動"
+                title={isMobileAspectListDetached ? "マップ外表示中は固定" : "移動"}
               >
                 <Move size={11} aria-hidden="true" />
               </button>
@@ -4700,7 +4865,7 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
                 ))}
               </div>
             ) : null}
-            <div className="grid max-h-[244px] grid-cols-[24px_1fr] gap-2 overflow-y-auto pr-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            <div className="grid min-h-0 flex-1 grid-cols-[24px_1fr] gap-2 overflow-y-auto overscroll-contain pb-3 pr-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
               <div className="flex self-stretch flex-col gap-0">
                 <p className="shrink-0 text-center text-[7px] leading-none text-mist/65">影響度</p>
                 <div className="relative flex min-h-0 flex-1 flex-col items-center justify-between rounded-full bg-gradient-to-b from-[#ff5c68] via-gold/45 to-white/10 py-0 text-[7px] leading-none text-gold shadow-[0_0_14px_rgba(255,92,104,0.22)]">
@@ -4711,16 +4876,21 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
               <div className="grid gap-1.5">
                 {aspectInterpretationItems.length ? aspectInterpretationItems.map((aspect) => {
                   const isOpen = openAspectInterpretationKeys.has(aspect.key);
+                  const isLineHighlighted = selectedAspectLineHighlightKey === aspectLineHighlightKey(aspect);
                   const toneClass = aspect.importance.tone === "high"
                     ? "border-gold/35 bg-gold/[0.09] text-gold"
                     : aspect.importance.tone === "mid"
                       ? "border-sky-300/25 bg-sky-300/[0.07] text-sky-100"
                       : "border-white/10 bg-white/[0.025] text-mist/70";
                   return (
-                    <article key={`mobile-map-${aspect.key}`} className="overflow-hidden rounded-lg border border-white/10 bg-white/[0.025] backdrop-blur-[2px]">
+                    <article
+                      key={`mobile-map-${aspect.key}`}
+                      className={cx("overflow-hidden rounded-lg border bg-white/[0.025] backdrop-blur-[2px]", isLineHighlighted ? "border-current" : "border-white/10")}
+                      style={isLineHighlighted ? { color: aspect.color, boxShadow: `0 0 18px ${aspect.color}44` } : undefined}
+                    >
                       <button
                         type="button"
-                        onClick={() => toggleAspectInterpretation(aspect.key)}
+                        onClick={() => toggleAspectInterpretation(aspect.key, aspect)}
                         className="flex w-full items-start gap-2 px-2.5 py-2 text-left transition hover:bg-white/[0.035] focus:outline-none focus:ring-2 focus:ring-gold/35"
                         aria-expanded={isOpen}
                       >
@@ -4884,29 +5054,6 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
                 </div>
               </div>
             </div>
-            <div className="flex w-max items-center gap-1 rounded-xl border border-white/10 bg-[#121414]/68 p-1.5 font-mono text-[9px] font-bold text-mist shadow-[0_10px_26px_rgba(0,0,0,0.24)] backdrop-blur">
-              <span className="px-1 text-[8px] uppercase tracking-[0.12em] text-mist/55">角度</span>
-              {ASPECT_ANGLE_FILTERS.map((angle) => {
-                const checked = enabledAspectAngles.includes(angle);
-                return (
-                  <label
-                    key={`desktop-aspect-angle-global-${angle}`}
-                    className={cx(
-                      "flex h-6 min-w-8 cursor-pointer items-center justify-center rounded-md border px-1 transition",
-                      checked ? "border-gold/40 bg-gold/15 text-gold" : "border-white/10 bg-white/[0.03] text-mist/55 hover:text-starlight"
-                    )}
-                  >
-                    <input
-                      type="checkbox"
-                      checked={checked}
-                      onChange={() => toggleAspectAngleFilter(angle)}
-                      className="sr-only"
-                    />
-                    {angle}°
-                  </label>
-                );
-              })}
-            </div>
             <div className="flex items-start gap-1.5">
               <div className="flex items-center gap-1.5 rounded-xl border border-white/10 bg-[#121414]/68 p-1.5 shadow-[0_10px_26px_rgba(0,0,0,0.24)] backdrop-blur">
                 <button
@@ -4941,7 +5088,7 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
                     <button
                       key={option.key}
                       type="button"
-                      onClick={() => setAspectLineMode(option.key)}
+                      onClick={() => selectAspectLineMode(option.key)}
                       className={cx(
                         "grid min-h-10 content-center rounded-lg border px-2 py-1 text-left transition",
                         aspectLineMode === option.key
@@ -5165,16 +5312,21 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
                   <div className="grid gap-1.5">
                     {aspectInterpretationItems.length ? aspectInterpretationItems.map((aspect) => {
                       const isOpen = openAspectInterpretationKeys.has(aspect.key);
+                      const isLineHighlighted = selectedAspectLineHighlightKey === aspectLineHighlightKey(aspect);
                       const toneClass = aspect.importance.tone === "high"
                         ? "border-gold/35 bg-gold/[0.09] text-gold"
                         : aspect.importance.tone === "mid"
                           ? "border-sky-300/25 bg-sky-300/[0.07] text-sky-100"
                           : "border-white/10 bg-white/[0.025] text-mist/70";
                       return (
-                        <article key={aspect.key} className="overflow-hidden rounded-lg border border-white/10 bg-white/[0.035]">
+                        <article
+                          key={aspect.key}
+                          className={cx("overflow-hidden rounded-lg border bg-white/[0.035]", isLineHighlighted ? "border-current" : "border-white/10")}
+                          style={isLineHighlighted ? { color: aspect.color, boxShadow: `0 0 18px ${aspect.color}44` } : undefined}
+                        >
                           <button
                             type="button"
-                            onClick={() => toggleAspectInterpretation(aspect.key)}
+                            onClick={() => toggleAspectInterpretation(aspect.key, aspect)}
                             className="flex w-full items-start gap-2 px-2.5 py-2 text-left transition hover:bg-white/[0.035] focus:outline-none focus:ring-2 focus:ring-gold/35"
                             aria-expanded={isOpen}
                           >
@@ -5510,11 +5662,16 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
                     ? `tt-${aspect.compoundKey || "single"}-${aspect.transitPlanet}-${aspect.transitPlanetB}-${aspect.angle}`
                     : `tn-${aspect.compoundKey || "single"}-${aspect.transitPlanet || aspect.planet}-${aspect.natalPlanet || sky.selectedNatal.planet}-${aspect.angle}`);
                   const isOpen = openTooltipAspectKeys.has(aspectKey);
+                  const isLineHighlighted = selectedAspectLineHighlightKey === aspectLineHighlightKey(aspect);
                   return (
-                    <article key={aspectKey} className="overflow-hidden rounded-xl border border-white/10 bg-white/[0.045]">
+                    <article
+                      key={aspectKey}
+                      className={cx("overflow-hidden rounded-xl border bg-white/[0.045]", isLineHighlighted ? "border-current" : "border-white/10")}
+                      style={isLineHighlighted ? { color: aspect.color, boxShadow: `0 0 18px ${aspect.color}44` } : undefined}
+                    >
                       <button
                         type="button"
-                        onClick={() => toggleTooltipAspect(aspectKey)}
+                        onClick={() => toggleTooltipAspect(aspectKey, aspect)}
                         className="flex w-full items-start gap-2 px-3 py-2.5 text-left transition hover:bg-white/[0.035] focus:outline-none focus:ring-2 focus:ring-gold/35"
                         aria-expanded={isOpen}
                       >
@@ -5524,7 +5681,7 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
                             {aspect.title || `${aspect.usesSelectedNatalLabel ? aspect.natalLabel : `ネイタル${aspect.natalLabel || sky.selectedNatal.label}`} × 現行${aspect.transitLabel || planetLabel(aspect.planet)}`}
                           </span>
                           <span className="mt-1 block text-xs leading-5 text-mist sm:text-sm sm:leading-6">
-                            {aspect.labels?.length ? aspect.labels.join(" / ") : aspect.detailText || `実角度 ${Number.isFinite(aspect.liveAngle) ? aspect.liveAngle.toFixed(1) : "-"}°`}
+                            {aspect.labels?.length ? aspect.labels.join(" × ") : aspect.detailText || `実角度 ${Number.isFinite(aspect.liveAngle) ? aspect.liveAngle.toFixed(1) : "-"}°`}
                             {!aspect.detailText && !aspect.labels?.length && Number.isFinite(aspect.orb) ? ` / オーブ ${aspect.orb.toFixed(2)}°` : ""}
                             {aspect.status ? ` / ${aspect.status}` : ""}
                           </span>
@@ -5576,34 +5733,6 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
               </button>
             ))}
           </div>
-          <div className="grid gap-1 rounded-xl border border-white/10 bg-white/[0.025] p-1 font-mono text-[9px] font-bold">
-            <div className="flex items-center gap-1">
-              <span className="shrink-0 px-1 text-[8px] text-mist/65">角度</span>
-              <div className="grid flex-1 grid-cols-6 gap-1">
-                {ASPECT_ANGLE_FILTERS.map((angle) => {
-                  const checked = enabledAspectAngles.includes(angle);
-                  return (
-                    <label
-                      key={`mobile-aspect-angle-global-${angle}`}
-                      className={cx(
-                        "flex h-7 cursor-pointer items-center justify-center rounded-md border transition",
-                        checked ? "border-gold/40 bg-gold/15 text-gold" : "border-white/10 bg-white/[0.03] text-mist/55"
-                      )}
-                    >
-                      <input
-                        type="checkbox"
-                        checked={checked}
-                        onChange={() => toggleAspectAngleFilter(angle)}
-                        className="sr-only"
-                      />
-                      {angle}°
-                    </label>
-                  );
-                })}
-              </div>
-            </div>
-          </div>
-
           {mobileMapPanelTab === "display" ? (
             <div className="grid gap-2">
               <div className="grid grid-cols-2 gap-1 rounded-xl border border-white/10 bg-white/[0.025] p-1 font-mono text-[9px] font-bold">
@@ -5757,7 +5886,7 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
                   <button
                     key={`mobile-aspect-mode-${option.key}`}
                     type="button"
-                    onClick={() => setAspectLineMode(option.key)}
+                    onClick={() => selectAspectLineMode(option.key)}
                     className={cx("min-h-9 rounded-lg px-1 transition", aspectLineMode === option.key ? "bg-gold/18 text-gold ring-1 ring-gold/35" : "text-mist/65")}
                   >
                     {option.label}
@@ -6269,6 +6398,98 @@ function dailyDataForMonth(forecast, year, index) {
     scores: { total: 0, general: 0, work: 0, love: 0, money: 0 },
     text_description: "",
   }));
+}
+
+function dateRangesOverlap(firstStart, firstEnd, secondStart, secondEnd) {
+  return Boolean(firstStart && firstEnd && secondStart && secondEnd && firstStart <= secondEnd && secondStart <= firstEnd);
+}
+
+function itemOverlapsDateRange(item, startDate, endDate) {
+  return dateRangesOverlap(item?.startDate, item?.endDate, startDate, endDate);
+}
+
+function compoundKindIsFullyCoveredBy(lowerKind, upperKind) {
+  return {
+    tSquare: ["grandCross"],
+    grandTrine: ["kite", "grandSextile"],
+    yod: ["boomerang"],
+    mysticRectangle: ["homeBase"],
+  }[lowerKind]?.includes(upperKind);
+}
+
+function compoundIdsSubset(lowerIds = [], upperIds = []) {
+  const upperSet = new Set(upperIds);
+  return lowerIds.length > 0 && lowerIds.every((id) => upperSet.has(id));
+}
+
+function removeCoveredCompoundItems(items = []) {
+  return items.filter((item) => !items.some((candidate) => (
+    candidate.key !== item.key
+    && compoundKindIsFullyCoveredBy(item.kind, candidate.kind)
+    && compoundIdsSubset(item.ids, candidate.ids)
+    && itemOverlapsDateRange(item, candidate.startDate, candidate.endDate)
+  )));
+}
+
+function compoundAspectItemsForMonth(forecast, year, monthIndexValue) {
+  const source = Array.isArray(forecast?.yearly_data) ? forecast.yearly_data : [];
+  const days = source.length ? source : dailyDataForYear(forecast, year);
+  const byAspect = new Map();
+  days.forEach((day) => {
+    const sky = transitSkyMapData(day, forecast, "SUN");
+    const preciseTransits = sky.transits.filter((item) => !item.estimated);
+    const transits = preciseTransits.length ? preciseTransits : sky.transits;
+    const transitNatalAspects = liveAspectsFromChart({ transits }, sky.natalPoints);
+    const transitTransitAspects = transitTransitAspectsFromTransits(transits);
+    const natalNatalAspects = natalNatalAspectsFromPoints(sky.natalPoints);
+    const groups = detectCompoundAspects([
+      ...transitNatalAspects,
+      ...transitTransitAspects,
+      ...natalNatalAspects,
+    ]);
+    groups.forEach((group) => {
+      const date = dateKey(day?.date);
+      if (!date) return;
+      const current = byAspect.get(group.key) || {
+        kind: group.kind,
+        ids: group.ids || [],
+        dates: [],
+        item: {
+          key: group.key,
+          label: group.title,
+          title: group.title,
+          description: group.description || "複合アスペクトです。",
+          startDate: date,
+          endDate: date,
+          color: group.color,
+          detailText: compoundKindDetailText(group.kind),
+          kind: group.kind,
+          ids: group.ids || [],
+        },
+      };
+      current.dates.push(date);
+      byAspect.set(group.key, current);
+    });
+  });
+
+  const monthStart = `${year}-${String(monthIndexValue + 1).padStart(2, "0")}-01`;
+  const monthEnd = `${year}-${String(monthIndexValue + 1).padStart(2, "0")}-${String(new Date(year, monthIndexValue + 1, 0).getDate()).padStart(2, "0")}`;
+  const rangedItems = [];
+  byAspect.forEach(({ dates, item }) => {
+    const sortedDates = Array.from(new Set(dates)).sort();
+    sortedDates.forEach((date) => {
+      const previous = rangedItems[rangedItems.length - 1];
+      if (previous && previous.key === item.key && addDays(previous.endDate, 1) === date) {
+        previous.endDate = date;
+        return;
+      }
+      rangedItems.push({ ...item, startDate: date, endDate: date });
+    });
+  });
+
+  return removeCoveredCompoundItems(rangedItems)
+    .filter((item) => itemOverlapsDateRange(item, monthStart, monthEnd))
+    .sort((a, b) => a.startDate.localeCompare(b.startDate) || a.label.localeCompare(b.label));
 }
 
 function dailyDataForYear(forecast, year) {
@@ -7279,7 +7500,10 @@ function Matrix({
   const marsThemeItems = monthlyItems(monthlyThemeItemsFromForecast(forecast, "monthly_mars_themes"), activeYear, selectedMonth);
   const sunAspectItems = monthlyItems(sunAspectItemsFromForecast(forecast), activeYear, selectedMonth);
   const marsAspectItems = monthlyItems(marsAspectItemsFromForecast(forecast), activeYear, selectedMonth);
-  const emptySummaryItems = [];
+  const monthlyCompoundAspectItems = useMemo(
+    () => compoundAspectItemsForMonth(forecast, activeYear, selectedMonth),
+    [forecast, activeYear, selectedMonth]
+  );
   const modeTitle = {
     theme: "今月のテーマ",
     lesson: "今月のアクション",
@@ -7356,9 +7580,7 @@ function Matrix({
           <MonthlyArticleList items={marsThemeItems.length ? marsThemeItems : fallbackItems} />
         ) : null}
         {analysisMode === "summary" ? (
-          <div className="mt-3 grid min-h-0 flex-1 gap-3 overflow-y-auto [scrollbar-color:#e9c349_rgba(255,255,255,0.08)] [scrollbar-width:thin] sm:mt-6 sm:gap-5 sm:pr-1">
-            <MonthlyArticleList items={emptySummaryItems} />
-          </div>
+          <TransitAspectList items={monthlyCompoundAspectItems} openKeys={openMonthlyAspectKeys} onToggle={toggleMonthlyAspect} prefix="monthly-compound" />
         ) : null}
         {analysisMode === "test1" ? (
           <TransitAspectList items={sunAspectItems} openKeys={openMonthlyAspectKeys} onToggle={toggleMonthlyAspect} prefix="monthly-sun" />
