@@ -4785,26 +4785,26 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
               ×
             </button>
             <div
-              className="mb-2 flex touch-none select-none items-center justify-between gap-2 rounded-lg border border-white/10 bg-white/[0.055] px-2.5 py-1.5 pr-20 text-starlight"
+              className="mb-2 flex touch-none select-none flex-nowrap items-center gap-1.5 rounded-lg border border-white/10 bg-white/[0.055] px-2 py-1.5 pr-7 text-starlight"
               onPointerDown={isMobileAspectListDetached ? undefined : beginMobileAspectListDrag}
               onPointerMove={isMobileAspectListDetached ? undefined : moveMobileAspectListPanel}
               onPointerUp={isMobileAspectListDetached ? undefined : endMobileAspectListDrag}
               onPointerCancel={isMobileAspectListDetached ? undefined : endMobileAspectListDrag}
-              title={isMobileAspectListDetached ? "マップ外に表示中" : "ドラッグで移動"}
+              title={isMobileAspectListDetached ? "画面外表示中" : "ドラッグで移動"}
             >
-              <span className="text-[10px]">アスペクト一覧</span>
-              <span className="truncate rounded border border-white/10 bg-white/[0.035] px-1.5 py-0.5 text-[8px] text-mist/65">
+              <span className="shrink-0 whitespace-nowrap text-[9px]">アスペクト一覧</span>
+              <span className="shrink-0 whitespace-nowrap rounded border border-white/10 bg-white/[0.035] px-1 py-0.5 text-[7px] text-mist/70">
                 {displayedTransitDateTime.date} {displayedTransitDateTime.time || selectedTransitTime}
               </span>
               <button
                 type="button"
                 onClick={() => setIsMobileAspectListDetached((value) => !value)}
                 onPointerDown={(event) => event.stopPropagation()}
-                className="inline-flex h-5 shrink-0 items-center justify-center rounded border border-white/10 bg-white/[0.04] px-1.5 text-[8px] text-mist/80 transition hover:border-gold/35 hover:bg-gold/10 hover:text-gold focus:outline-none focus:ring-2 focus:ring-gold/35"
-                aria-label={isMobileAspectListDetached ? "アスペクト一覧をマップ内に戻す" : "アスペクト一覧をマップ外へ出す"}
-                title={isMobileAspectListDetached ? "マップ内に戻す" : "マップ外へ"}
+                className="inline-flex h-5 shrink-0 items-center justify-center whitespace-nowrap rounded border border-white/10 bg-white/[0.04] px-1 text-[7px] text-mist/80 transition hover:border-gold/35 hover:bg-gold/10 hover:text-gold focus:outline-none focus:ring-2 focus:ring-gold/35"
+                aria-label={isMobileAspectListDetached ? "アスペクト一覧をマップ内表示に戻す" : "アスペクト一覧を画面外表示にする"}
+                title={isMobileAspectListDetached ? "マップ内表示" : "画面外表示"}
               >
-                {isMobileAspectListDetached ? "戻す" : "外へ"}
+                {isMobileAspectListDetached ? "マップ内表示" : "画面外表示"}
               </button>
               <button
                 type="button"
@@ -4821,9 +4821,8 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
               >
                 <Move size={11} aria-hidden="true" />
               </button>
-              <span className="ml-auto" />
             </div>
-            <div className="mb-2 grid grid-cols-2 gap-1 rounded-lg border border-white/10 bg-white/[0.025] p-1">
+            <div className="mb-2 flex flex-nowrap gap-1 rounded-lg border border-white/10 bg-white/[0.025] p-1">
               {[
                 ["all", "全て"],
                 ["transitNatal", "出生図との関係"],
@@ -4834,7 +4833,7 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
                   key={`mobile-map-interpretation-${value}`}
                   type="button"
                   onClick={() => setAspectInterpretationScope(value)}
-                  className={cx("h-7 rounded-md px-1 text-[8px] transition", aspectInterpretationScope === value ? "bg-gold/18 text-gold ring-1 ring-gold/35" : "text-mist/65 hover:bg-white/10 hover:text-starlight")}
+                  className={cx("h-7 min-w-0 flex-1 rounded-md px-1 text-[7px] leading-none transition", aspectInterpretationScope === value ? "bg-gold/18 text-gold ring-1 ring-gold/35" : "text-mist/65 hover:bg-white/10 hover:text-starlight")}
                   aria-pressed={aspectInterpretationScope === value}
                 >
                   {label}
@@ -4877,6 +4876,7 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
                 {aspectInterpretationItems.length ? aspectInterpretationItems.map((aspect) => {
                   const isOpen = openAspectInterpretationKeys.has(aspect.key);
                   const isLineHighlighted = selectedAspectLineHighlightKey === aspectLineHighlightKey(aspect);
+                  const isCompoundAspectItem = aspect.scope === "composite";
                   const toneClass = aspect.importance.tone === "high"
                     ? "border-gold/35 bg-gold/[0.09] text-gold"
                     : aspect.importance.tone === "mid"
@@ -4896,9 +4896,11 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
                       >
                         <span className="mt-1 h-2.5 w-1.5 shrink-0 rounded-full" style={{ backgroundColor: aspect.color }} />
                         <span className="min-w-0 flex-1">
-                          <span className="block truncate text-[10px] text-starlight">{aspect.title}</span>
+                          <span className="block truncate text-[10px] text-starlight">
+                            {isCompoundAspectItem ? `${compoundKindLabel(aspect.kind)}: ${aspect.detailText}` : aspect.title}
+                          </span>
                           <span className="mt-0.5 block text-[8px] leading-4 text-mist/60">
-                            {aspect.detailText || `実角度 ${Number.isFinite(aspect.liveAngle) ? aspect.liveAngle.toFixed(1) : "-"}°`}
+                            {isCompoundAspectItem ? aspect.labels?.join(" × ") : aspect.detailText || `実角度 ${Number.isFinite(aspect.liveAngle) ? aspect.liveAngle.toFixed(1) : "-"}°`}
                             {!aspect.detailText && Number.isFinite(aspect.orb) ? ` / オーブ ${aspect.orb.toFixed(2)}°` : ""}
                             {aspect.status ? ` / ${aspect.status}` : ""}
                           </span>
