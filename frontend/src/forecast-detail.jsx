@@ -4549,18 +4549,22 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
     try {
       setIsTransitPlaybackPreloading(true);
       setTransitChartError("");
+      const isMobilePlayback = isMobileViewport();
       const playbackStartDate = displayedTransitDateTime.date || selectedDate;
       const startIndex = Math.max(0, selectableDates.indexOf(playbackStartDate));
-      const rangeOption = TRANSIT_PLAYBACK_RANGE_OPTIONS.find((option) => option.key === transitPlaybackRange) || TRANSIT_PLAYBACK_RANGE_OPTIONS[0];
+      const rangeOption = isMobilePlayback
+        ? TRANSIT_PLAYBACK_RANGE_OPTIONS.find((option) => option.key === "year")
+        : TRANSIT_PLAYBACK_RANGE_OPTIONS.find((option) => option.key === transitPlaybackRange) || TRANSIT_PLAYBACK_RANGE_OPTIONS[0];
       const remainingDates = (selectableDates.length ? selectableDates.slice(startIndex, startIndex + rangeOption.days) : [playbackStartDate]).filter(Boolean);
-      const playbackDates = remainingDates.filter((_, index) => index % transitPlaybackStepDays === 0);
+      const playbackStepDays = isMobilePlayback ? 1 : transitPlaybackStepDays;
+      const playbackDates = remainingDates.filter((_, index) => index % playbackStepDays === 0);
       const finalRemainingDate = remainingDates[remainingDates.length - 1];
       if (finalRemainingDate && playbackDates.length === 1 && finalRemainingDate !== playbackDates[0]) {
         playbackDates.push(finalRemainingDate);
       }
       await preloadTransitChartsForDates(selectedTransitTime, playbackDates);
       setIsRotationPaused(true);
-      const shouldPrecomputePlaybackCompound = aspectLineMode === "composite" && transitPlaybackRange === "month";
+      const shouldPrecomputePlaybackCompound = aspectLineMode === "composite" && (isMobilePlayback || transitPlaybackRange === "month");
       const keyframes = playbackDates
         .map((targetDate) => {
           const chart = transitChartCacheRef.current.get(transitChartCacheKey(targetDate, selectedTransitTime));
@@ -4735,8 +4739,24 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
             <div className="inline-flex w-max items-center gap-1 rounded-xl border border-white/10 bg-[#121414]/72 p-1 shadow-[0_10px_26px_rgba(0,0,0,0.28)] backdrop-blur">
               <button type="button" onClick={zoomOutMap} disabled={mapZoom <= minimumMapZoom()} className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-mist transition hover:bg-white/10 hover:text-gold disabled:opacity-35" aria-label="3Dマップを縮小" title="縮小"><Minus size={15} /></button>
               <button type="button" onClick={zoomInMap} disabled={mapZoom >= 1.35} className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-mist transition hover:bg-white/10 hover:text-gold disabled:opacity-35" aria-label="3Dマップを拡大" title="拡大"><Plus size={15} /></button>
-              <button type="button" onClick={() => setIsRotationPaused((value) => !value)} className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-mist transition hover:bg-white/10 hover:text-gold" aria-label={isRotationPaused ? "3Dマップの回転を再開" : "3Dマップの回転を停止"} title={isRotationPaused ? "回転再開" : "回転停止"}>{isRotationPaused ? <Play size={14} /> : <Pause size={14} />}</button>
+              <button type="button" onClick={() => setIsRotationPaused((value) => !value)} className="inline-flex h-8 w-9 items-center justify-center rounded-lg font-mono text-[7px] font-bold leading-[0.95] text-mist transition hover:bg-white/10 hover:text-gold" aria-label={isRotationPaused ? "3Dマップの回転を再開" : "3Dマップの回転を停止"} title={isRotationPaused ? "回転再開" : "回転停止"}>
+                <span>{isRotationPaused ? <>回転<br />再開</> : <>回転<br />停止</>}</span>
+              </button>
               <button type="button" onClick={toggleFlatMapView} className="inline-flex h-8 w-8 items-center justify-center rounded-lg font-mono text-[9px] font-bold text-mist transition hover:bg-white/10 hover:text-gold" aria-label={isFlatMapView ? "3Dマップを立体表示に戻す" : "3Dマップを平面表示で見る"} title={isFlatMapView ? "3D表示" : "平面表示"}>{isFlatMapView ? "3D" : "2D"}</button>
+              <button
+                type="button"
+                onClick={toggleTransitPlayback}
+                className={cx(
+                  "inline-flex h-8 w-8 items-center justify-center rounded-lg text-mist transition hover:bg-white/10 hover:text-gold disabled:cursor-wait disabled:opacity-70",
+                  isTransitPlaybackActive ? "text-gold" : "text-cyan-200/85 hover:text-cyan-100"
+                )}
+                disabled={isTransitPlaybackPreloading}
+                aria-pressed={isTransitPlaybackActive}
+                aria-label={isTransitPlaybackActive ? "現行天体の再生を停止" : "現行天体を再生"}
+                title={isTransitPlaybackPreloading ? "読込中" : isTransitPlaybackActive ? "再生停止" : "再生"}
+              >
+                {isTransitPlaybackPreloading ? <span className="font-mono text-[7px] font-bold leading-none">読込</span> : isTransitPlaybackActive ? <Pause size={14} /> : <Play size={14} />}
+              </button>
             </div>
           </div>
           <div className="absolute right-2 top-2 z-30 sm:hidden">
@@ -4761,11 +4781,11 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
             id="mobile-aspect-interpretation-panel"
             className={cx(
               "z-30 flex flex-col overflow-hidden rounded-xl border border-white/10 bg-[#121414]/48 p-2 font-mono text-[9px] font-bold text-mist shadow-[0_18px_42px_rgba(0,0,0,0.24)] backdrop-blur-sm transition-opacity duration-300 sm:hidden",
-              isMobileAspectListDetached ? "fixed inset-x-3 bottom-3 z-[120]" : "absolute",
+              isMobileAspectListDetached ? "fixed inset-x-3 bottom-[132px] z-[120]" : "absolute",
               isAspectListPanelOpen ? "opacity-100" : "pointer-events-none border-transparent opacity-0"
             )}
             style={isMobileAspectListDetached
-              ? { height: "min(70vh, 520px)" }
+              ? { height: "min(46vh, 420px)" }
               : {
                 left: `${mobileAspectListPanelPosition.x}px`,
                 top: `${mobileAspectListPanelPosition.y}px`,
@@ -5715,10 +5735,9 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
           ) : null}
         </div>
         <section className="-mx-3 grid gap-3 rounded-2xl border border-white/10 bg-[#121414]/76 p-2 shadow-[0_18px_42px_rgba(0,0,0,0.28)] backdrop-blur-md sm:hidden">
-          <div className="grid grid-cols-3 gap-1 rounded-xl border border-white/10 bg-white/[0.035] p-1 font-mono text-[8px] font-bold text-mist">
+          <div className="grid grid-cols-2 gap-1 rounded-xl border border-white/10 bg-white/[0.035] p-1 font-mono text-[8px] font-bold text-mist">
             {[
               ["display", "天体表示"],
-              ["play", "再生"],
               ["aspect", "アスペクト表示"],
             ].map(([value, label]) => (
               <button
@@ -5831,53 +5850,6 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
                   </div>
                 </div>
               )}
-            </div>
-          ) : null}
-
-          {mobileMapPanelTab === "play" ? (
-            <div className="grid gap-2 font-mono text-[9px] font-bold">
-              <button
-                type="button"
-                onClick={toggleTransitPlayback}
-                className={cx("h-10 rounded-xl border transition disabled:cursor-wait disabled:opacity-70", isTransitPlaybackActive ? "border-gold/35 bg-gold/15 text-gold" : "border-white/10 bg-white/[0.035] text-cyan-200/85")}
-                disabled={isTransitPlaybackPreloading}
-              >
-                {isTransitPlaybackPreloading ? "読込中" : isTransitPlaybackActive ? "停止" : "▶ 再生"}
-              </button>
-              <div className="grid grid-cols-2 gap-2">
-                <div className="rounded-xl border border-white/10 bg-white/[0.025] p-2">
-                  <p className="mb-1 text-[8px] text-mist/70">期間</p>
-                  <div className="grid grid-cols-2 gap-1">
-                    {TRANSIT_PLAYBACK_RANGE_OPTIONS.map((option) => (
-                      <button
-                        key={option.key}
-                        type="button"
-                        onClick={() => setTransitPlaybackRange(option.key)}
-                        className={cx("h-8 rounded-lg border", transitPlaybackRange === option.key ? "border-gold/40 bg-gold/15 text-gold" : "border-white/10 text-mist/70")}
-                        disabled={isTransitPlaybackActive || isTransitPlaybackPreloading}
-                      >
-                        {option.label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-                <div className="rounded-xl border border-white/10 bg-white/[0.025] p-2">
-                  <p className="mb-1 text-[8px] text-mist/70">速度</p>
-                  <div className="grid grid-cols-2 gap-1">
-                    {TRANSIT_PLAYBACK_STEP_OPTIONS.map((option) => (
-                      <button
-                        key={option.days}
-                        type="button"
-                        onClick={() => setTransitPlaybackStepDays(option.days)}
-                        className={cx("h-8 rounded-lg border", transitPlaybackStepDays === option.days ? "border-gold/40 bg-gold/15 text-gold" : "border-white/10 text-mist/70")}
-                        disabled={isTransitPlaybackActive || isTransitPlaybackPreloading}
-                      >
-                        {option.label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              </div>
             </div>
           ) : null}
 
