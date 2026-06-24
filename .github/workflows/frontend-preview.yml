@@ -11,6 +11,8 @@ on:
 
 permissions:
   contents: write
+  pages: write
+  id-token: write
 
 concurrency:
   group: frontend-preview-${{ github.ref_name }}
@@ -62,6 +64,24 @@ jobs:
           destination_dir: ${{ env.PREVIEW_PATH }}
           keep_files: true
           commit_message: "Deploy frontend preview for ${{ github.ref_name }}"
+
+      - name: Checkout preview site
+        uses: actions/checkout@v4
+        with:
+          ref: gh-pages
+          path: pages-site
+
+      - name: Configure Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: pages-site
+
+      - name: Deploy Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
 
       - name: Preview URL
         run: |
