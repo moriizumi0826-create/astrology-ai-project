@@ -4781,11 +4781,11 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
             id="mobile-aspect-interpretation-panel"
             className={cx(
               "z-30 flex flex-col overflow-hidden rounded-xl border border-white/10 bg-[#121414]/48 p-2 font-mono text-[9px] font-bold text-mist shadow-[0_18px_42px_rgba(0,0,0,0.24)] backdrop-blur-sm transition-opacity duration-300 sm:hidden",
-              isMobileAspectListDetached ? "fixed inset-x-3 bottom-[132px] z-[120]" : "absolute",
+              isMobileAspectListDetached ? "hidden" : "absolute",
               isAspectListPanelOpen ? "opacity-100" : "pointer-events-none border-transparent opacity-0"
             )}
             style={isMobileAspectListDetached
-              ? { height: "min(46vh, 420px)" }
+              ? undefined
               : {
                 left: `${mobileAspectListPanelPosition.x}px`,
                 top: `${mobileAspectListPanelPosition.y}px`,
@@ -5734,6 +5734,133 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
             </p>
           ) : null}
         </div>
+        {isMobileAspectListDetached && isAspectListPanelOpen ? (
+          <div
+            id="mobile-aspect-interpretation-panel-detached"
+            className="relative -mx-3 mb-3 flex max-h-[46vh] min-h-[260px] flex-col overflow-hidden rounded-xl border border-white/10 bg-[#121414]/72 p-2 font-mono text-[9px] font-bold text-mist shadow-[0_18px_42px_rgba(0,0,0,0.24)] backdrop-blur-sm sm:hidden"
+          >
+            <button
+              type="button"
+              onClick={() => setIsAspectListPanelOpen(false)}
+              onPointerDown={(event) => event.stopPropagation()}
+              className="absolute right-1 top-1 z-10 inline-flex h-5 w-5 items-center justify-center rounded-md border border-white/10 bg-[#121414]/70 text-[11px] leading-none text-mist/70 transition hover:border-gold/35 hover:bg-gold/10 hover:text-gold focus:outline-none focus:ring-2 focus:ring-gold/35"
+              aria-label="アスペクト一覧を閉じる"
+              title="閉じる"
+            >
+              ×
+            </button>
+            <div className="relative mb-2 flex select-none flex-nowrap items-center gap-1.5 rounded-lg border border-white/10 bg-white/[0.055] px-2 py-1.5 pr-7 text-starlight">
+              <span className="shrink-0 whitespace-nowrap text-[9px]">アスペクト一覧</span>
+              <span className="shrink-0 whitespace-nowrap rounded border border-white/10 bg-white/[0.035] px-1 py-0.5 text-[7px] text-mist/70">
+                {displayedTransitDateTime.date} {displayedTransitDateTime.time || selectedTransitTime}
+              </span>
+              <button
+                type="button"
+                onClick={() => setIsMobileAspectListDetached(false)}
+                onPointerDown={(event) => event.stopPropagation()}
+                className="inline-flex h-5 shrink-0 items-center justify-center whitespace-nowrap rounded border border-white/10 bg-white/[0.04] px-1 text-[7px] text-mist/80 transition hover:border-gold/35 hover:bg-gold/10 hover:text-gold focus:outline-none focus:ring-2 focus:ring-gold/35"
+                aria-label="アスペクト一覧をマップ内表示に戻す"
+                title="マップ内表示"
+              >
+                マップ内表示
+              </button>
+            </div>
+            <div className="mb-2 flex flex-nowrap gap-1 rounded-lg border border-white/10 bg-white/[0.025] p-1">
+              {[
+                ["all", "全て"],
+                ["transitNatal", "出生図との関係"],
+                ["transitTransit", "現行天体同士"],
+                ["composite", "複合アスペクト"],
+              ].map(([value, label]) => (
+                <button
+                  key={`mobile-detached-interpretation-${value}`}
+                  type="button"
+                  onClick={() => setAspectInterpretationScope(value)}
+                  className={cx("h-7 min-w-0 flex-1 rounded-md px-1 text-[7px] leading-none transition", aspectInterpretationScope === value ? "bg-gold/18 text-gold ring-1 ring-gold/35" : "text-mist/65 hover:bg-white/10 hover:text-starlight")}
+                  aria-pressed={aspectInterpretationScope === value}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+            {aspectInterpretationScope === "composite" ? (
+              <div className="mb-2 grid grid-cols-3 gap-1 rounded-lg border border-gold/15 bg-gold/[0.035] p-1">
+                {[
+                  ["mixed", "出生図絡み"],
+                  ["transitOnly", "現行天体同士"],
+                  ["natalOnly", "ネイタルのみ"],
+                ].map(([value, label]) => (
+                  <button
+                    key={`mobile-detached-compound-category-${value}`}
+                    type="button"
+                    onClick={() => setCompoundAspectListCategory(value)}
+                    className={cx(
+                      "h-7 rounded-md px-1 text-[7px] transition",
+                      compoundAspectListCategory === value
+                        ? "bg-gold/18 text-gold ring-1 ring-gold/35"
+                        : "text-mist/65 hover:bg-white/10 hover:text-starlight"
+                    )}
+                    aria-pressed={compoundAspectListCategory === value}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            ) : null}
+            <div className="grid min-h-0 flex-1 grid-cols-[24px_1fr] gap-2 overflow-y-auto overscroll-contain pb-3 pr-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+              <div className="flex self-stretch flex-col gap-0">
+                <p className="shrink-0 text-center text-[7px] leading-none text-mist/65">影響度</p>
+                <div className="relative flex min-h-0 flex-1 flex-col items-center justify-between rounded-full bg-gradient-to-b from-[#ff5c68] via-gold/45 to-white/10 py-0 text-[7px] leading-none text-gold shadow-[0_0_14px_rgba(255,92,104,0.22)]">
+                  <span className="writing-mode-vertical-rl [writing-mode:vertical-rl] text-[#ffb4ab]">高</span>
+                  <span className="writing-mode-vertical-rl [writing-mode:vertical-rl] text-mist/55">低</span>
+                </div>
+              </div>
+              <div className="grid gap-1.5">
+                {aspectInterpretationItems.length ? aspectInterpretationItems.map((aspect) => {
+                  const isOpen = openAspectInterpretationKeys.has(aspect.key);
+                  const isLineHighlighted = selectedAspectLineHighlightKey === aspectLineHighlightKey(aspect);
+                  const isCompoundAspectItem = aspect.scope === "composite";
+                  const toneClass = aspect.importance.tone === "high"
+                    ? "border-gold/35 bg-gold/[0.09] text-gold"
+                    : aspect.importance.tone === "mid"
+                      ? "border-sky-300/25 bg-sky-300/[0.07] text-sky-100"
+                      : "border-white/10 bg-white/[0.025] text-mist/70";
+                  return (
+                    <article
+                      key={`mobile-detached-${aspect.key}`}
+                      className={cx("overflow-hidden rounded-lg border bg-white/[0.025] backdrop-blur-[2px]", isLineHighlighted ? "border-current" : "border-white/10")}
+                      style={isLineHighlighted ? { color: aspect.color, boxShadow: `0 0 18px ${aspect.color}44` } : undefined}
+                    >
+                      <button
+                        type="button"
+                        onClick={() => toggleAspectInterpretation(aspect.key, aspect)}
+                        className="flex w-full items-start gap-2 px-2.5 py-2 text-left transition hover:bg-white/[0.035] focus:outline-none focus:ring-2 focus:ring-gold/35"
+                        aria-expanded={isOpen}
+                      >
+                        <span className="mt-1 h-2.5 w-1.5 shrink-0 rounded-full" style={{ backgroundColor: aspect.color }} />
+                        <span className="min-w-0 flex-1">
+                          <span className="block truncate text-[10px] text-starlight">
+                            {isCompoundAspectItem ? `${compoundKindLabel(aspect.kind)}: ${aspect.detailText}` : aspect.title}
+                          </span>
+                          <span className="mt-0.5 block text-[8px] leading-4 text-mist/60">
+                            {isCompoundAspectItem ? aspect.labels?.join(" × ") : aspect.detailText || `実角度 ${Number.isFinite(aspect.liveAngle) ? aspect.liveAngle.toFixed(1) : "-"}°`}
+                            {!aspect.detailText && Number.isFinite(aspect.orb) ? ` / オーブ ${aspect.orb.toFixed(2)}°` : ""}
+                            {aspect.status ? ` / ${aspect.status}` : ""}
+                          </span>
+                        </span>
+                        <span className="shrink-0 text-right">
+                          <span className={cx("inline-flex rounded border px-1.5 py-0.5 text-[8px]", toneClass)}>{aspect.importance.label}</span>
+                          <span className="mt-1 block text-[8px] text-mist/60">{isOpen ? "閉じる" : ">>解釈"}</span>
+                        </span>
+                      </button>
+                      {isOpen ? <p className="border-t border-white/10 bg-white/[0.025] px-3 py-3 text-xs font-medium leading-6 text-mist">{aspect.description}</p> : null}
+                    </article>
+                  );
+                }) : <p className="rounded-lg border border-white/10 bg-white/[0.035] px-3 py-4 text-xs leading-6 text-mist">このタイミングの主要アスペクトはありません。</p>}
+              </div>
+            </div>
+          </div>
+        ) : null}
         <section className="-mx-3 grid gap-3 rounded-2xl border border-white/10 bg-[#121414]/76 p-2 shadow-[0_18px_42px_rgba(0,0,0,0.28)] backdrop-blur-md sm:hidden">
           <div className="grid grid-cols-2 gap-1 rounded-xl border border-white/10 bg-white/[0.035] p-1 font-mono text-[8px] font-bold text-mist">
             {[
