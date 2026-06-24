@@ -2691,6 +2691,7 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
   const [transitChartError, setTransitChartError] = useState("");
   const [isTransitPlaybackActive, setIsTransitPlaybackActive] = useState(false);
   const [isTransitPlaybackPreloading, setIsTransitPlaybackPreloading] = useState(false);
+  const [transitPlaybackPreloadProgress, setTransitPlaybackPreloadProgress] = useState(0);
   const [transitPlaybackCursor, setTransitPlaybackCursor] = useState(null);
   const [transitPlaybackStepDays, setTransitPlaybackStepDays] = useState(1);
   const [transitPlaybackRange, setTransitPlaybackRange] = useState("month");
@@ -3190,13 +3191,15 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
     return payload;
   }, []);
 
-  const preloadTransitChartsForDates = React.useCallback(async (targetTime, targetDates = null) => {
+  const preloadTransitChartsForDates = React.useCallback(async (targetTime, targetDates = null, onProgress = null) => {
     const dates = Array.isArray(targetDates) && targetDates.length
       ? targetDates
       : selectableDates.length ? selectableDates : [selectedDate].filter(Boolean);
+    onProgress?.(0, dates.length);
     for (let index = 0; index < dates.length; index += 4) {
       const batch = dates.slice(index, index + 4);
       await Promise.all(batch.map((targetDate) => fetchTransitChartFor(targetDate, targetTime)));
+      onProgress?.(Math.min(index + batch.length, dates.length), dates.length);
     }
   }, [fetchTransitChartFor, selectableDates, selectedDate]);
 
@@ -4548,6 +4551,7 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
     }
     try {
       setIsTransitPlaybackPreloading(true);
+      setTransitPlaybackPreloadProgress(0);
       setTransitChartError("");
       const isMobilePlayback = isMobileViewport();
       const playbackStartDate = displayedTransitDateTime.date || selectedDate;
@@ -4562,7 +4566,9 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
       if (finalRemainingDate && playbackDates.length === 1 && finalRemainingDate !== playbackDates[0]) {
         playbackDates.push(finalRemainingDate);
       }
-      await preloadTransitChartsForDates(selectedTransitTime, playbackDates);
+      await preloadTransitChartsForDates(selectedTransitTime, playbackDates, (completed, total) => {
+        setTransitPlaybackPreloadProgress(total ? Math.round((completed / total) * 100) : 100);
+      });
       setIsRotationPaused(true);
       const shouldPrecomputePlaybackCompound = aspectLineMode === "composite" && (isMobilePlayback || transitPlaybackRange === "month");
       const keyframes = playbackDates
@@ -4614,6 +4620,7 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
       setPlaybackTransitChart(null);
     } finally {
       setIsTransitPlaybackPreloading(false);
+      setTransitPlaybackPreloadProgress(0);
     }
   };
   const toggleMapFullscreen = async () => {
@@ -4747,7 +4754,7 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
                 type="button"
                 onClick={toggleTransitPlayback}
                 className={cx(
-                  "inline-flex h-8 w-8 items-center justify-center rounded-lg text-mist transition hover:bg-white/10 hover:text-gold disabled:cursor-wait disabled:opacity-70",
+                  "relative inline-flex h-8 w-12 items-center justify-center overflow-hidden rounded-lg text-mist transition hover:bg-white/10 hover:text-gold disabled:cursor-wait disabled:opacity-90",
                   isTransitPlaybackActive ? "text-gold" : "text-cyan-200/85 hover:text-cyan-100"
                 )}
                 disabled={isTransitPlaybackPreloading}
@@ -4755,7 +4762,16 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
                 aria-label={isTransitPlaybackActive ? "現行天体の再生を停止" : "現行天体を再生"}
                 title={isTransitPlaybackPreloading ? "読込中" : isTransitPlaybackActive ? "再生停止" : "再生"}
               >
-                {isTransitPlaybackPreloading ? <span className="font-mono text-[7px] font-bold leading-none">読込</span> : isTransitPlaybackActive ? <Pause size={14} /> : <Play size={14} />}
+                {isTransitPlaybackPreloading ? (
+                  <>
+                    <span
+                      className="absolute inset-y-0 left-0 bg-cyan-300/25 transition-[width] duration-200"
+                      style={{ width: `${Math.max(4, transitPlaybackPreloadProgress)}%` }}
+                      aria-hidden="true"
+                    />
+                    <span className="relative z-10 whitespace-nowrap font-mono text-[8px] font-bold leading-none text-cyan-100">読込中</span>
+                  </>
+                ) : isTransitPlaybackActive ? <Pause size={14} /> : <Play size={14} />}
               </button>
             </div>
           </div>
