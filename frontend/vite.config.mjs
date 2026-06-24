@@ -11,6 +11,7 @@ export default defineConfig(({ mode }) => {
 
   return {
     plugins: [react()],
+    base: "./",
     define: {
       __APP_API_BASE_URL__: JSON.stringify(
         rootEnv.VITE_API_BASE_URL || ""

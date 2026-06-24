@@ -1,0 +1,69 @@
+name: Frontend Preview
+
+on:
+  push:
+    branches:
+      - main
+      - "codex/**"
+      - "preview/**"
+      - "feature/**"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: frontend-preview-${{ github.ref_name }}
+  cancel-in-progress: true
+
+jobs:
+  deploy-preview:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    env:
+      VITE_API_BASE_URL: ${{ vars.VITE_API_BASE_URL }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+
+      - name: Prepare preview path
+        shell: bash
+        run: |
+          SAFE_BRANCH="${GITHUB_REF_NAME//\//-}"
+          if [ "$GITHUB_REF_NAME" = "main" ]; then
+            PREVIEW_PATH="main"
+          else
+            PREVIEW_PATH="previews/$SAFE_BRANCH"
+          fi
+          echo "PREVIEW_PATH=$PREVIEW_PATH" >> "$GITHUB_ENV"
+          echo "SAFE_BRANCH=$SAFE_BRANCH" >> "$GITHUB_ENV"
+
+      - name: Publish to gh-pages
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_branch: gh-pages
+          publish_dir: frontend/dist
+          destination_dir: ${{ env.PREVIEW_PATH }}
+          keep_files: true
+          commit_message: "Deploy frontend preview for ${{ github.ref_name }}"
+
+      - name: Preview URL
+        run: |
+          echo "Preview URL:"
+          echo "https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/${{ env.PREVIEW_PATH }}/forecast-detail.html"
