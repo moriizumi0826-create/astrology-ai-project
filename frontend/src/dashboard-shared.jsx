@@ -1,5 +1,5 @@
 ﻿import React, { useEffect, useState } from "react";
-import { getStoredReadingForm, getStoredReadingResult, getStoredReadingResultAsync } from "./reading-storage.js";
+import { currentTokyoDate, getStoredReadingForm, getStoredReadingResult, getStoredReadingResultAsync } from "./reading-storage.js";
 import {
   BatteryMedium,
   BriefcaseBusiness,
@@ -539,17 +539,16 @@ function formatIsoDate(value) {
 }
 
 function dashboardDisplayDate(data = {}) {
-  return formatIsoDate(
+  const date = formatIsoDate(
     data.readingDate ||
       data.reading_date ||
       data.date ||
       data.timelineDate ||
       data.timelineDays?.[0]?.date ||
-      data.yearlyForecast?.reading_date ||
-      data.yearly_forecast?.reading_date ||
       data.meta?.reading_date ||
       data.meta?.date
   );
+  return date || currentTokyoDate();
 }
 
 function addDaysToIsoDate(value, days) {
@@ -599,10 +598,13 @@ function dashboardDataFromReadingPayload(payload, fallbackData = {}) {
       payload.dashboard_data.readingDate ||
       payload.dashboard_data.timelineDate ||
       payload.dashboard_data.timeline_date ||
-      yearlyForecast?.reading_date ||
-      yearlyForecast?.date ||
+      fallbackData.reading_date ||
+      fallbackData.readingDate ||
+      fallbackData.timelineDate ||
       payload.meta?.reading_date ||
-      payload.meta?.date,
+      payload.meta?.date ||
+      fallbackData.meta?.reading_date ||
+      fallbackData.meta?.date,
   };
 }
 
@@ -2444,26 +2446,22 @@ function DashboardV2CountdownCard({ data, onSelectAspect = () => {} }) {
   const slide = candidates[visibleEventIndex] || {};
   const days = countdownDaysUntil(slide, displayDate);
   const hasEvent = eventCount > 0;
+  const slideFocusKey = aspectFocusKey(slide);
+  const weeklyAspects = Array.isArray(data.weekly_aspects)
+    ? data.weekly_aspects
+    : Array.isArray(data.weeklyAspects)
+      ? data.weeklyAspects
+      : [];
+  const hasLinkedWeeklyAspect = hasEvent && weeklyAspects.some((item) => aspectFocusKey(item) === slideFocusKey);
   const title = hasEvent ? (slide.title || slide.countdown_label || "カウントダウン") : "30日以内のイベントはありません";
   const handleSelectEvent = () => {
-    if (!hasEvent) return;
-    onSelectAspect(aspectFocusKey(slide));
+    if (!hasEvent || !hasLinkedWeeklyAspect) return;
+    onSelectAspect(slideFocusKey);
   };
   return (
     <DashboardV2Card className="h-[185px]" bodyClassName="p-5">
       <div
-        role="button"
-        tabIndex={hasEvent ? 0 : -1}
-        onClick={handleSelectEvent}
-        onKeyDown={(event) => {
-          if (!hasEvent) return;
-          if (event.key === "Enter" || event.key === " ") {
-            event.preventDefault();
-            handleSelectEvent();
-          }
-        }}
-        className={cx("flex h-full w-full flex-col justify-between text-left", hasEvent ? "cursor-pointer" : "cursor-default")}
-        aria-label={hasEvent ? "対応するカウントダウン1のアスペクトへ移動" : undefined}
+        className="flex h-full w-full flex-col justify-between text-left"
       >
         <div>
           <div className="flex items-center justify-between gap-3">
@@ -2503,7 +2501,18 @@ function DashboardV2CountdownCard({ data, onSelectAspect = () => {} }) {
           <div className="mt-3 grid grid-cols-[1fr_auto] items-end gap-4">
             <div>
               <p className="line-clamp-2 font-notoSerif text-lg font-black leading-tight text-[#f3f3f0]">{title}</p>
-              <p className="mt-1 text-xs text-[#c7c6cc]">Current transit focus</p>
+              {hasLinkedWeeklyAspect ? (
+                <button
+                  type="button"
+                  onClick={handleSelectEvent}
+                  className="mt-1 text-xs font-bold text-[#c7c6cc] transition hover:text-[#e9c349] focus:outline-none focus:ring-2 focus:ring-[#e9c349]/35"
+                  aria-label="対応するカウントダウン1のアスペクトへ移動"
+                >
+                  {">>Click"}
+                </button>
+              ) : (
+                <p className="mt-1 text-xs text-[#c7c6cc]">...Coming soon</p>
+              )}
             </div>
             <p className="font-mono text-xl font-black leading-none text-[#e9c349]">{hasEvent && Number.isFinite(days) ? `${days}日` : "-"}</p>
           </div>
@@ -2520,6 +2529,210 @@ function DashboardV2CountdownCard({ data, onSelectAspect = () => {} }) {
   );
 }
 
+const DAILY_ASPECT_PLANET_LABELS = {
+  SUN: "太陽",
+  MOON: "月",
+  MERCURY: "水星",
+  VENUS: "金星",
+  MARS: "火星",
+  JUPITER: "木星",
+  SATURN: "土星",
+  URANUS: "天王星",
+  NEPTUNE: "海王星",
+  PLUTO: "冥王星",
+  ASC: "ASC",
+  MC: "MC",
+};
+const DAILY_PERFORMANCE_TOTAL_HOURS = 72;
+const DAILY_PERFORMANCE_SAMPLE_STEP_HOURS = 3;
+const DAILY_PERFORMANCE_SAMPLE_HOURS = Array.from(
+  { length: DAILY_PERFORMANCE_TOTAL_HOURS / DAILY_PERFORMANCE_SAMPLE_STEP_HOURS + 1 },
+  (_, index) => index * DAILY_PERFORMANCE_SAMPLE_STEP_HOURS
+);
+
+function dailyAspectHour(point, index = 0) {
+  const hour = Number(point?.hour);
+  if (Number.isFinite(hour)) return Math.max(0, Math.min(DAILY_PERFORMANCE_TOTAL_HOURS, hour));
+  const parsed = Number(String(point?.time || "").slice(0, 2));
+  if (Number.isFinite(parsed)) {
+    const dayOffset = Number(point?.dayOffset ?? point?.day_offset ?? 0);
+    const cumulativeHour = parsed + (Number.isFinite(dayOffset) ? dayOffset * 24 : 0);
+    return Math.max(0, Math.min(DAILY_PERFORMANCE_TOTAL_HOURS, cumulativeHour));
+  }
+  return Math.max(0, Math.min(DAILY_PERFORMANCE_TOTAL_HOURS, index * DAILY_PERFORMANCE_SAMPLE_STEP_HOURS));
+}
+
+function dailyPerformanceTimeLabel(point, index = 0) {
+  const hour = dailyAspectHour(point, index);
+  const dayOffset = Math.floor(hour / 24);
+  const clockHour = hour % 24;
+  const clockLabel = `${String(clockHour).padStart(2, "0")}:00`;
+  return dayOffset > 0 ? `+${dayOffset}日 ${clockLabel}` : clockLabel;
+}
+
+function dailyAspectStrength(aspect = {}) {
+  const impact = Math.abs(Number(aspect.scoreImpact ?? aspect.score_impact ?? 0));
+  const priority = Number(aspect.priority ?? 0);
+  const orb = Number(aspect.orb ?? 5);
+  const dignity = Math.abs(Number(aspect.essentialDignityScore ?? aspect.essential_dignity_score ?? 0));
+  const orbBoost = Number.isFinite(orb) ? Math.max(0, 5 - orb) * 8 : 0;
+  return impact + priority * 0.25 + orbBoost + dignity * 0.2;
+}
+
+function dailyAspectLabel(aspect = {}) {
+  const transitPlanetKey = String(aspect.t_planet || aspect.tPlanet || "").toUpperCase();
+  const natalPlanetKey = String(aspect.n_planet || aspect.nPlanet || "").toUpperCase();
+  const transitPlanet = DAILY_ASPECT_PLANET_LABELS[transitPlanetKey] || transitPlanetKey || "Transit";
+  const natalPlanet = DAILY_ASPECT_PLANET_LABELS[natalPlanetKey] || natalPlanetKey || "Natal";
+  const angle = Number(aspect.angle);
+  const angleLabel = Number.isFinite(angle) ? `${angle}°` : "";
+  return `ネイタル${natalPlanet} × トランジット${transitPlanet}${angleLabel ? ` ${angleLabel}` : ""}`;
+}
+
+function dailyAspectDetail(aspect = {}, strength = 0) {
+  return {
+    label: dailyAspectLabel(aspect),
+    score: Number(aspect.scoreImpact ?? aspect.score_impact ?? 0),
+    impact: Math.abs(Number(aspect.scoreImpact ?? aspect.score_impact ?? 0)),
+    priority: Number(aspect.priority ?? 0),
+    orb: Number(aspect.orb),
+    orbStatus: String(aspect.orbStatus ?? aspect.orb_status ?? "").trim(),
+    category: String(aspect.category || "").trim(),
+    description: String(aspect.description || "").trim(),
+    advisedTask: String(aspect.advisedTask || aspect.advised_task || aspect.recommendedAction || "").trim(),
+    strength,
+  };
+}
+
+const DAILY_TRANSIT_ASPECT_CONFIGS = [
+  { planet: "MOON", camelKey: "moonAspects", snakeKey: "moon_aspects", fallbackLabel: "月アスペクト", limit: 5, colors: ["#e9c349", "#38bdf8", "#34d399", "#a78bfa", "#ff5c68"] },
+  { planet: "MERCURY", camelKey: "mercuryAspects", snakeKey: "mercury_aspects", fallbackLabel: "水星アスペクト", limit: 3, colors: ["#38bdf8", "#67e8f9", "#93c5fd"] },
+  { planet: "VENUS", camelKey: "venusAspects", snakeKey: "venus_aspects", fallbackLabel: "金星アスペクト", limit: 3, colors: ["#ff8fb3", "#f9a8d4", "#ffb4ab"] },
+];
+
+function dailyTransitAspectCandidates(point = {}, planet = "MOON", camelKey = "moonAspects", snakeKey = "moon_aspects") {
+  const explicitAspects = Array.isArray(point[camelKey])
+    ? point[camelKey]
+    : Array.isArray(point[snakeKey])
+      ? point[snakeKey]
+      : [];
+  const sourceAspects = explicitAspects.length
+    ? explicitAspects
+    : Array.isArray(point.sourceAspects)
+      ? point.sourceAspects
+      : Array.isArray(point.source_aspects)
+        ? point.source_aspects
+        : [];
+  return sourceAspects.filter((aspect) => String(aspect.t_planet || aspect.tPlanet || "").toUpperCase() === planet);
+}
+
+function rangesOverlap(a, b) {
+  return a.start < b.end && b.start < a.end;
+}
+
+function buildDailyTransitAspectLanes(chartPerformance = [], config = DAILY_TRANSIT_ASPECT_CONFIGS[0]) {
+  const aspectMap = new Map();
+  chartPerformance.forEach((point, pointIndex) => {
+    const hour = dailyAspectHour(point, pointIndex);
+    dailyTransitAspectCandidates(point, config.planet, config.camelKey, config.snakeKey).forEach((aspect) => {
+      const tPlanet = String(aspect.t_planet || aspect.tPlanet || config.planet).toUpperCase();
+      const nPlanet = String(aspect.n_planet || aspect.nPlanet || "").toUpperCase();
+      const angle = Number(aspect.angle);
+      const key = `${tPlanet}-${nPlanet}-${Number.isFinite(angle) ? angle : "x"}-${aspect.category || ""}`;
+      const strength = dailyAspectStrength(aspect);
+      const existing = aspectMap.get(key) || {
+        key,
+        label: dailyAspectLabel(aspect),
+        angle,
+        maxStrength: 0,
+        peakHour: hour,
+        slots: new Map(),
+        slotDetails: new Map(),
+      };
+      const previousSlotStrength = existing.slots.get(hour) || 0;
+      existing.slots.set(hour, Math.max(previousSlotStrength, strength));
+      if (strength >= previousSlotStrength) {
+        existing.slotDetails.set(hour, dailyAspectDetail(aspect, strength));
+      }
+      if (strength > existing.maxStrength) {
+        existing.maxStrength = strength;
+        existing.peakHour = hour;
+      }
+      aspectMap.set(key, existing);
+    });
+  });
+
+  const aspectBlocks = Array.from(aspectMap.values())
+    .filter((item) => item.maxStrength > 0)
+    .sort((a, b) => b.maxStrength - a.maxStrength)
+    .flatMap((item, index) => {
+      const color = config.colors[index % config.colors.length] || config.colors[0] || "#e9c349";
+      const segments = Array.from({ length: DAILY_PERFORMANCE_TOTAL_HOURS / DAILY_PERFORMANCE_SAMPLE_STEP_HOURS }, (_, segmentIndex) => {
+        const start = segmentIndex * DAILY_PERFORMANCE_SAMPLE_STEP_HOURS;
+        const slotStrength = item.slots.get(start) || 0;
+        const directRatio = item.maxStrength ? slotStrength / item.maxStrength : 0;
+        const opacity = directRatio > 0 ? Math.max(0.16, Math.min(0.92, directRatio)) : 0;
+        const detail = item.slotDetails.get(start) || null;
+        return {
+          start,
+          active: directRatio > 0,
+          width: 100 / (DAILY_PERFORMANCE_TOTAL_HOURS / DAILY_PERFORMANCE_SAMPLE_STEP_HOURS),
+          opacity,
+          detail,
+          strength: slotStrength,
+        };
+      });
+      const activeSegments = segments.filter((segment) => segment.active);
+      const blocks = [];
+      activeSegments.forEach((segment) => {
+        const previous = blocks[blocks.length - 1];
+        if (previous && Math.abs(previous.end - segment.start) < 0.001) {
+          previous.end = segment.start + DAILY_PERFORMANCE_SAMPLE_STEP_HOURS;
+          previous.opacity = Math.max(previous.opacity, segment.opacity);
+          if ((segment.detail?.strength || 0) >= (previous.detail?.strength || 0)) {
+            previous.detail = segment.detail;
+          }
+          previous.includesPeak = previous.includesPeak || Math.abs(segment.start - item.peakHour) < DAILY_PERFORMANCE_SAMPLE_STEP_HOURS / 2;
+          return;
+        }
+        blocks.push({
+          start: segment.start,
+          end: segment.start + DAILY_PERFORMANCE_SAMPLE_STEP_HOURS,
+          opacity: segment.opacity,
+          detail: segment.detail,
+          includesPeak: Math.abs(segment.start - item.peakHour) < DAILY_PERFORMANCE_SAMPLE_STEP_HOURS / 2,
+        });
+      });
+      return blocks.map((block) => ({
+        ...block,
+        key: `${item.key}-${block.start}`,
+        label: item.label,
+        color,
+        detail: block.detail,
+        left: (block.start / DAILY_PERFORMANCE_TOTAL_HOURS) * 100,
+        width: ((block.end - block.start) / DAILY_PERFORMANCE_TOTAL_HOURS) * 100,
+        score: item.maxStrength,
+      }));
+    });
+
+  const lanes = Array.from({ length: config.limit }, () => []);
+  aspectBlocks
+    .sort((a, b) => (a.start === b.start ? b.score - a.score : a.start - b.start))
+    .forEach((block) => {
+      const lane = lanes.find((candidate) => candidate.every((existing) => !rangesOverlap(existing, block)));
+      if (lane) lane.push(block);
+    });
+
+  return lanes.map((lane) => lane.sort((a, b) => a.start - b.start));
+}
+
+function buildDailyTransitAspectGroups(chartPerformance = []) {
+  return DAILY_TRANSIT_ASPECT_CONFIGS.map((config) => ({
+    ...config,
+    lanes: buildDailyTransitAspectLanes(chartPerformance, config),
+  }));
+}
+
 function DashboardV2DailyFlowCard({ data, displayDate = "" }) {
   const [hoveredPerformanceIndex, setHoveredPerformanceIndex] = useState(null);
   const [currentTime, setCurrentTime] = useState(() => new Date());
@@ -2534,9 +2747,9 @@ function DashboardV2DailyFlowCard({ data, displayDate = "" }) {
     : Array.isArray(data.daily_performance)
       ? data.daily_performance
       : [];
-  const dailyPerformanceHourOrder = [0, 3, 6, 9, 12, 15, 18, 21, 24];
+  const dailyPerformanceHourOrder = DAILY_PERFORMANCE_SAMPLE_HOURS;
   const dailyPerformanceOrderIndex = new Map(dailyPerformanceHourOrder.map((hour, index) => [hour, index]));
-  const fallbackPerformance = [
+  const fallbackPattern = [
     { time: "00:00", hour: 0, drive: 34, flow: 44, inspiration: 55, friction: 22, marsActivity: 12 },
     { time: "03:00", hour: 3, drive: 45, flow: 51, inspiration: 48, friction: 34, marsActivity: 18 },
     { time: "06:00", hour: 6, drive: 40, flow: 47, inspiration: 38, friction: 28, marsActivity: 14 },
@@ -2545,15 +2758,24 @@ function DashboardV2DailyFlowCard({ data, displayDate = "" }) {
     { time: "15:00", hour: 15, drive: 56, flow: 66, inspiration: 61, friction: 54, marsActivity: 42 },
     { time: "18:00", hour: 18, drive: 70, flow: 60, inspiration: 57, friction: 36, marsActivity: 30 },
     { time: "21:00", hour: 21, drive: 64, flow: 68, inspiration: 49, friction: 42, marsActivity: 34 },
-    { time: "00:00", hour: 24, drive: 34, flow: 44, inspiration: 55, friction: 22, marsActivity: 12 },
   ];
+  const fallbackPerformance = DAILY_PERFORMANCE_SAMPLE_HOURS.map((hour) => {
+    const base = fallbackPattern.find((point) => point.hour === hour % 24) || fallbackPattern[0];
+    return {
+      ...base,
+      hour,
+      dayOffset: Math.floor(hour / 24),
+      time: `${String(hour % 24).padStart(2, "0")}:00`,
+    };
+  });
   const chartPerformance = (performanceData.length ? performanceData : fallbackPerformance)
     .slice()
     .sort((a, b) => {
-      const aHour = Number(a.hour ?? String(a.time || "00:00").slice(0, 2));
-      const bHour = Number(b.hour ?? String(b.time || "00:00").slice(0, 2));
+      const aHour = dailyAspectHour(a);
+      const bHour = dailyAspectHour(b);
       return (dailyPerformanceOrderIndex.get(aHour) ?? 99) - (dailyPerformanceOrderIndex.get(bHour) ?? 99);
     });
+  const transitAspectGroups = buildDailyTransitAspectGroups(chartPerformance);
   const focusPoints = chartPerformance.map((point) => Number(point.drive ?? 0));
   const flowPoints = chartPerformance.map((point) => Number(point.flow ?? 0));
   const inspirationPoints = chartPerformance.map((point) => Number(point.inspiration ?? 0));
@@ -2562,11 +2784,16 @@ function DashboardV2DailyFlowCard({ data, displayDate = "" }) {
   const width = 720;
   const height = 160;
   const pad = 8;
-  const currentHour = currentTime.getHours() + currentTime.getMinutes() / 60 + currentTime.getSeconds() / 3600;
-  const currentX = pad + (Math.max(0, Math.min(24, currentHour)) / 24) * (width - pad * 2);
   const chartDate = formatIsoDate(displayDate || dashboardDisplayDate(data));
-  const todayDate = formatIsoDate(currentTime);
-  const showCurrentTimeLine = Boolean(chartDate && todayDate && chartDate === todayDate);
+  const chartStartDate = dateKeyToLocalDate(chartDate);
+  const chartStartMidnight = chartStartDate
+    ? new Date(chartStartDate.getFullYear(), chartStartDate.getMonth(), chartStartDate.getDate())
+    : null;
+  const currentTimeOffsetHours = chartStartMidnight
+    ? ((currentTime.getTime() - chartStartMidnight.getTime()) / 3600000)
+    : NaN;
+  const currentX = pad + (Math.max(0, Math.min(DAILY_PERFORMANCE_TOTAL_HOURS, currentTimeOffsetHours)) / DAILY_PERFORMANCE_TOTAL_HOURS) * (width - pad * 2);
+  const showCurrentTimeLine = Number.isFinite(currentTimeOffsetHours) && currentTimeOffsetHours >= 0 && currentTimeOffsetHours <= DAILY_PERFORMANCE_TOTAL_HOURS;
   const pointsFor = (values, direction = "positive") => values
     .map((value, index) => {
       const x = pad + (index / Math.max(1, values.length - 1)) * (width - pad * 2);
@@ -2615,7 +2842,7 @@ function DashboardV2DailyFlowCard({ data, displayDate = "" }) {
     setHoveredPerformanceIndex(index);
   };
   return (
-    <DashboardV2Card className="h-[245px]" bodyClassName="!px-3 !pb-1 !pt-2">
+    <DashboardV2Card className="h-[520px] sm:h-[532px]" bodyClassName="!px-3 !pb-2 !pt-2">
       <div className="mb-1 flex items-center justify-between gap-3">
         <div className="group relative flex items-center gap-2">
           <h2 className="font-sans text-base font-black tracking-tight text-[#f3f3f0]">デイリーパフォーマンス</h2>
@@ -2644,7 +2871,7 @@ function DashboardV2DailyFlowCard({ data, displayDate = "" }) {
               className="pointer-events-none absolute top-2 z-20 min-w-[156px] -translate-x-1/2 rounded-xl border border-white/10 bg-[#0d0e0f]/95 px-3 py-2 font-mono text-[10px] font-bold text-[#e2e2e2] shadow-[0_18px_50px_rgba(0,0,0,0.42)]"
               style={{ left: hoveredTooltipLeft }}
             >
-              <p className="mb-1 text-[#e9c349]">{hoveredPerformance.time || "--:--"}</p>
+              <p className="mb-1 text-[#e9c349]">{dailyPerformanceTimeLabel(hoveredPerformance, hoveredPerformanceIndex)}</p>
               <div className="grid gap-1">
                 <span className="flex items-center justify-between gap-4"><span className="text-[#fb923c]">Mars</span><span>{Math.round(Number(hoveredPerformance.marsActivity ?? 0))}</span></span>
                 <span className="flex items-center justify-between gap-4"><span className="text-[#38bdf8]">Drive</span><span>{Math.round(Number(hoveredPerformance.drive ?? 0))}</span></span>
@@ -2707,7 +2934,65 @@ function DashboardV2DailyFlowCard({ data, displayDate = "" }) {
         </svg>
         </div>
         <div className="flex justify-between font-mono text-xs leading-none text-[#909096]">
-          {["00:00", "06:00", "12:00", "18:00", "00:00"].map((time, index) => <span key={`${time}-${index}`}>{time}</span>)}
+          {["00:00", "+24h", "+48h", "+72h"].map((time, index) => <span key={`${time}-${index}`}>{time}</span>)}
+        </div>
+        <div className="mt-3 grid gap-2 border-t border-white/10 pt-2">
+          {transitAspectGroups.map((group) => (
+            <div key={group.planet} className="grid gap-1.5">
+              {group.lanes.map((lane, laneIndex) => (
+                <div key={`${group.planet}-${laneIndex}`} className="relative h-4">
+                  <div className="absolute inset-0">
+                    {lane.map((block) => {
+                      const detail = block.detail || {};
+                      const score = Number(detail.score || 0);
+                      return (
+                      <button
+                        type="button"
+                        key={block.key}
+                        className="group absolute top-0 h-full text-left focus:outline-none"
+                        style={{
+                          left: `${block.left}%`,
+                          width: `${block.width}%`,
+                        }}
+                        aria-label={block.label}
+                      >
+                        <span
+                          className="flex h-full w-full items-center overflow-hidden rounded-full"
+                          style={{
+                          backgroundColor: block.color,
+                          opacity: block.opacity,
+                          boxShadow: block.includesPeak
+                            ? `0 0 16px ${block.color}`
+                            : "none",
+                          }}
+                        >
+                          <span className="block truncate px-2 text-[9px] font-black leading-none text-[#f3f3f0] drop-shadow-[0_1px_4px_rgba(0,0,0,0.9)] sm:text-[10px]">
+                            {block.label}
+                          </span>
+                        </span>
+                        <span className="pointer-events-none absolute bottom-full left-0 z-50 mb-2 hidden w-[280px] rounded-2xl border border-white/10 bg-[#0d0e0f]/95 px-4 py-3 text-slate-200 shadow-[0_18px_50px_rgba(0,0,0,0.55)] backdrop-blur-sm group-hover:block group-focus:block">
+                          <span className="mb-2 flex items-start justify-between gap-3">
+                            <span className="min-w-0 break-words text-xs font-bold leading-5 text-slate-200">
+                              {detail.label || block.label}
+                            </span>
+                            <span className={cx("shrink-0 text-xs font-black", score >= 0 ? "text-sky-200" : "text-rose-200")}>
+                              {score > 0 ? "+" : ""}{Number.isFinite(score) ? score : 0}
+                            </span>
+                          </span>
+                          {detail.description ? (
+                            <span className="block break-words text-xs font-light leading-6 text-slate-300">
+                              {detail.description}
+                            </span>
+                          ) : null}
+                        </span>
+                      </button>
+                    );
+                    })}
+                  </div>
+                </div>
+              ))}
+            </div>
+          ))}
         </div>
       </div>
     </DashboardV2Card>
@@ -2721,13 +3006,13 @@ function DailyPerformanceDeveloperView({ data = dashboardData }) {
     : Array.isArray(data.daily_performance)
       ? data.daily_performance
       : [];
-  const dailyPerformanceHourOrder = [0, 3, 6, 9, 12, 15, 18, 21, 24];
+  const dailyPerformanceHourOrder = DAILY_PERFORMANCE_SAMPLE_HOURS;
   const orderIndex = new Map(dailyPerformanceHourOrder.map((hour, index) => [hour, index]));
   const rows = performanceData
     .slice()
     .sort((a, b) => {
-      const aHour = Number(a.hour ?? String(a.time || "00:00").slice(0, 2));
-      const bHour = Number(b.hour ?? String(b.time || "00:00").slice(0, 2));
+      const aHour = dailyAspectHour(a);
+      const bHour = dailyAspectHour(b);
       return (orderIndex.get(aHour) ?? 99) - (orderIndex.get(bHour) ?? 99);
     });
   const selected = rows[selectedIndex] || rows[0] || {};

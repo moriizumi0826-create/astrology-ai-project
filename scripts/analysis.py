@@ -872,7 +872,7 @@ def integrate_chart_evidence(
         row = house_master_index.get(str(house))
         if not isinstance(row, dict):
             continue
-        for key in ("意味", "テーマ", "サブテーマ1"):
+        for key in ("人生テーマ文", "補足文", "意味", "テーマ", "サブテーマ1"):
             value = clean_text(row.get(key, ""))
             if value:
                 house_focus_texts.append(value)

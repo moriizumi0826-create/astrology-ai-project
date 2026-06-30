@@ -3,6 +3,7 @@ import { createRoot } from "react-dom/client";
 import { CalendarDays, CircleDot, Eye, EyeOff, Maximize2, Menu, Minimize2, Minus, Move, Pause, Play, Plus, Shield, SlidersHorizontal, Sparkles } from "lucide-react";
 import * as THREE from "three";
 import {
+  currentTokyoDate,
   getStoredReadingForm,
   getStoredReadingResult,
   getStoredReadingResultAsync,
@@ -378,7 +379,8 @@ const ASPECT_DISPLAY_MODE_OPTIONS = [
   { key: "transitNatal", label: "出生図との関係", description: "ネイタル×現行" },
   { key: "transitTransit", label: "現行天体同士", description: "現行×現行" },
   { key: "natalNatal", label: "ネイタル同士", description: "ネイタル×ネイタル" },
-  { key: "composite", label: "複合アスペクト", description: "Tスクエア/グランドトライン" },
+  { key: "compositeTransit", label: "現行天体", description: "複合アスペクト" },
+  { key: "compositeTransitNatal", label: "ネイタル×現行", description: "複合アスペクト" },
   { key: "custom", label: "カスタム", description: "表示対象を選択" },
 ];
 const EMPTY_ASPECT_SELECTIONS = {
@@ -576,7 +578,7 @@ function demoForecast() {
   }));
   return {
     summary: "2026年の運勢推移を、主要カテゴリごとのスコア変化として可視化します。",
-    reading_date: "2026-05-20",
+    reading_date: currentTokyoDate(),
     yearly_data,
     milestones: [
       { date: "2026-03-15", title: "成長テーマの加速", score: 88 },
@@ -950,6 +952,16 @@ function compoundGroupCategory(group) {
   return "natalOnly";
 }
 
+function isCompoundAspectMode(mode) {
+  return ["composite", "compositeTransit", "compositeTransitNatal"].includes(mode);
+}
+
+function compoundCategoryForAspectMode(mode) {
+  if (mode === "compositeTransit") return "transitOnly";
+  if (mode === "compositeTransitNatal") return "mixed";
+  return "";
+}
+
 function detectCompoundAspects(aspects = [], { realtimeOnly = false } = {}) {
   const pairMap = new Map();
   const nodeSet = new Set();
@@ -1177,6 +1189,7 @@ function compoundAspectLineComponents(groups = []) {
     color: group.color || component.color,
     compoundKey: group.key,
     compoundKind: group.kind,
+    compoundCategory: compoundGroupCategory(group),
     compoundDescription: group.description,
     compoundGroupIds: group.ids,
   })));
@@ -1200,7 +1213,7 @@ function playbackAspectCacheForChart(chart, natalPoints = [], includeCompound = 
 function playbackAspectSourceForFrame(frame, mode) {
   const cache = frame?.aspectCache;
   if (!cache) return [];
-  if (mode === "composite") return cache.compoundLineAspects || [];
+  if (isCompoundAspectMode(mode)) return cache.compoundLineAspects || [];
   return cache.allAspects || [];
 }
 
@@ -1215,11 +1228,17 @@ function aspectMatchesFocus(aspect, focus) {
 }
 
 function filterAspectLinesForControls(aspects, { focus, selections, mode }) {
-  const renderableAspects = mode === "composite"
+  const isCompoundMode = isCompoundAspectMode(mode);
+  const renderableAspects = isCompoundMode
     ? aspects.filter((aspect) => COMPOUND_ASPECT_ANGLES.includes(normalizeAspectAngle(aspect.angle)))
     : aspects.filter((aspect) => isRenderable3DAspectAngle(aspect.angle));
-  if (mode === "composite") {
-    return renderableAspects.filter((aspect) => Boolean(aspect.compoundKey) && aspectMatchesFocus(aspect, focus));
+  if (isCompoundMode) {
+    const compoundCategory = compoundCategoryForAspectMode(mode);
+    return renderableAspects.filter((aspect) => (
+      Boolean(aspect.compoundKey)
+      && (!compoundCategory || aspect.compoundCategory === compoundCategory)
+      && aspectMatchesFocus(aspect, focus)
+    ));
   }
   if (mode === "transitNatal") {
     return renderableAspects.filter((aspect) => {
@@ -2489,14 +2508,13 @@ function ChartPositionColumns({ item, houseCusps, className = "" }) {
 
 function ChartPositionCompact({ item, houseCusps, className = "" }) {
   const position = chartPositionParts(item, houseCusps);
-  const houseNumber = position.house.replace("ハウス", "");
   return (
-    <span className={cx("grid min-w-0 grid-cols-[2.55rem_1.35rem_0.9rem] items-center gap-0.5 whitespace-nowrap tabular-nums", className)}>
+    <span className={cx("grid min-w-0 grid-cols-[2.7rem_1.45rem_2.05rem] items-center gap-1 whitespace-nowrap tabular-nums", className)}>
       <span className="min-w-0 truncate text-left">
         {position.signName} <span className="text-violet-300">{position.signSymbol}</span>
       </span>
       <span className="text-right">{position.degree}</span>
-      <span className="text-right">{houseNumber}</span>
+      <span className="text-right">{position.house}</span>
     </span>
   );
 }
@@ -2681,6 +2699,8 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
   const preservedMapViewRef = React.useRef(null);
   const aspectListDragRef = React.useRef(null);
   const mobileAspectListDragRef = React.useRef(null);
+  const aspectTooltipPanelRef = React.useRef(null);
+  const aspectTooltipDragRef = React.useRef(null);
   const playbackUiUpdateEnabledRef = React.useRef(true);
   const hasManualMapPositionRef = React.useRef(false);
   const [selectedNatalPlanet, setSelectedNatalPlanet] = useState("SUN");
@@ -2714,7 +2734,7 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
   const [isAspectPanelOpen, setIsAspectPanelOpen] = useState(false);
   const [isAspectListPanelOpen, setIsAspectListPanelOpen] = useState(false);
   const [aspectLineSelections, setAspectLineSelections] = useState(EMPTY_ASPECT_SELECTIONS);
-  const [aspectLineMode, setAspectLineMode] = useState("transitNatal");
+  const [aspectLineMode, setAspectLineMode] = useState("transitTransit");
   const selectedAspectDisplayMode = useMemo(
     () => ASPECT_DISPLAY_MODE_OPTIONS.find((option) => option.key === aspectLineMode) || ASPECT_DISPLAY_MODE_OPTIONS[0],
     [aspectLineMode]
@@ -2725,6 +2745,7 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
   const [openTooltipAspectKeys, setOpenTooltipAspectKeys] = useState(() => new Set());
   const [openAspectInterpretationKeys, setOpenAspectInterpretationKeys] = useState(() => new Set());
   const [selectedAspectLineHighlightKey, setSelectedAspectLineHighlightKey] = useState("");
+  const [aspectTooltipPanelPosition, setAspectTooltipPanelPosition] = useState(null);
   const [aspectListPanelPosition, setAspectListPanelPosition] = useState({ x: 520, y: 104 });
   const [mobileAspectListPanelPosition, setMobileAspectListPanelPosition] = useState({ x: 10, y: 132 });
   const [isMobileAspectListDetached, setIsMobileAspectListDetached] = useState(false);
@@ -2951,7 +2972,9 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
     ...transitNatalSourceAspects,
     ...transitTransitSourceAspects,
   ], [transitNatalSourceAspects, transitTransitSourceAspects]);
-  const shouldComputeCompoundAspects = aspectLineMode === "composite" || aspectInterpretationScope === "composite";
+  const compoundModeCategory = compoundCategoryForAspectMode(aspectLineMode);
+  const activeCompoundAspectListCategory = compoundModeCategory || compoundAspectListCategory;
+  const shouldComputeCompoundAspects = isCompoundAspectMode(aspectLineMode) || aspectInterpretationScope === "composite";
   const compoundAspectSourceAspects = useMemo(() => (
     shouldComputeCompoundAspects
       ? [...aspectLineSourceAspects, ...natalNatalSourceAspects]
@@ -2962,7 +2985,7 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
   ), [shouldComputeCompoundAspects, compoundAspectSourceAspects, isTransitPlaybackActive]);
   const compoundLineAspects = useMemo(() => compoundAspectLineComponents(compoundAspectGroups), [compoundAspectGroups]);
   const aspectLineDisplaySourceAspects = useMemo(() => (
-    aspectLineMode === "composite"
+    isCompoundAspectMode(aspectLineMode)
       ? compoundLineAspects
       : aspectLineMode === "custom"
         ? [...aspectLineSourceAspects, ...natalNatalSourceAspects]
@@ -2994,7 +3017,7 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
         category: compoundGroupCategory(group),
         detailText: compoundKindDetailText(group.kind),
       }));
-    const filteredCompoundItems = compoundItems.filter((item) => item.category === compoundAspectListCategory);
+    const filteredCompoundItems = compoundItems.filter((item) => item.category === activeCompoundAspectListCategory);
     const singleSourceAspects = aspectInterpretationScope === "composite" ? compoundLineAspects : aspectLineSourceAspects;
     const singleItems = singleSourceAspects
       .filter((aspect) => aspectInterpretationScope === "composite" || isRenderable3DAspectAngle(aspect.angle))
@@ -3040,12 +3063,20 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
       singleItems,
       visibleItems,
     };
-  }, [aspectInterpretationScope, compoundAspectListCategory, aspectLineSky.allAspects, aspectLineSky.natalPoints, aspectLineSky.transits, aspectLineSourceAspects, compoundAspectGroups, compoundLineAspects]);
+  }, [aspectInterpretationScope, activeCompoundAspectListCategory, aspectLineSky.allAspects, aspectLineSky.natalPoints, aspectLineSky.transits, aspectLineSourceAspects, compoundAspectGroups, compoundLineAspects]);
   const aspectInterpretationItems = aspectInterpretationBuckets.visibleItems;
   const selectAspectLineMode = (mode) => {
     setAspectLineMode(mode);
     if (mode === "custom") return;
-    setAspectInterpretationScope(mode);
+    if (mode === "compositeTransit") {
+      setCompoundAspectListCategory("transitOnly");
+      setAspectInterpretationScope("composite");
+    } else if (mode === "compositeTransitNatal") {
+      setCompoundAspectListCategory("mixed");
+      setAspectInterpretationScope("composite");
+    } else {
+      setAspectInterpretationScope(mode);
+    }
     setIsAspectListPanelOpen(true);
   };
   const toggleAspectLineSelection = (scope, group, planet) => {
@@ -4414,7 +4445,7 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
     ? transitTooltipAspects
     : focusedNatalTooltipAspects;
   const tooltipCompoundGroups = useMemo(() => {
-    if (aspectLineMode !== "composite" || !tooltipAspects.length) return [];
+    if (!isCompoundAspectMode(aspectLineMode) || !tooltipAspects.length) return [];
     const grouped = new Map();
     tooltipAspects.forEach((aspect) => {
       if (!aspect.compoundKey) return;
@@ -4432,12 +4463,15 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
       entry.components.push(aspect);
       grouped.set(aspect.compoundKey, entry);
     });
-    return Array.from(grouped.values()).map((group) => ({
-      ...group,
-      detailText: compoundKindDetailText(group.compoundKind),
-    }));
+    const compoundCategory = compoundCategoryForAspectMode(aspectLineMode);
+    return Array.from(grouped.values())
+      .filter((group) => !compoundCategory || compoundGroupCategory(group) === compoundCategory)
+      .map((group) => ({
+        ...group,
+        detailText: compoundKindDetailText(group.compoundKind),
+      }));
   }, [aspectLineMode, tooltipAspects]);
-  const tooltipDisplayItems = aspectLineMode === "composite" && tooltipCompoundGroups.length
+  const tooltipDisplayItems = isCompoundAspectMode(aspectLineMode) && tooltipCompoundGroups.length
     ? (tooltipCompositeTab === "compound" ? tooltipCompoundGroups : tooltipAspects)
     : tooltipAspects;
   const tooltipEmptyLabel = aspectTooltip?.type === "transit"
@@ -4450,6 +4484,16 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
   const selectAspectLineHighlight = (aspect) => {
     const key = aspectLineHighlightKey(aspect);
     if (key) setSelectedAspectLineHighlightKey(key);
+  };
+  const aspectModeForListItem = (aspect) => {
+    if (!aspect) return "";
+    if (aspect.scope === "composite") {
+      if (aspect.category === "transitOnly") return "compositeTransit";
+      return "compositeTransitNatal";
+    }
+    if (aspect.scope === "transitTransit") return "transitTransit";
+    if (aspect.scope === "natalNatal") return "natalNatal";
+    return "transitNatal";
   };
   const toggleTooltipAspect = (key, aspect = null) => {
     selectAspectLineHighlight(aspect);
@@ -4464,6 +4508,22 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
     });
   };
   const toggleAspectInterpretation = (key, aspect = null) => {
+    const nextMode = aspectModeForListItem(aspect);
+    if (nextMode) {
+      aspectLineFocusRef.current = null;
+      setAspectLineFocus(null);
+      setAspectTooltip(null);
+      setAspectLineMode(nextMode);
+      if (nextMode === "compositeTransit") {
+        setCompoundAspectListCategory("transitOnly");
+        setAspectInterpretationScope("composite");
+      } else if (nextMode === "compositeTransitNatal") {
+        setCompoundAspectListCategory("mixed");
+        setAspectInterpretationScope("composite");
+      } else {
+        setAspectInterpretationScope(nextMode === "natalNatal" ? "all" : nextMode);
+      }
+    }
     selectAspectLineHighlight(aspect);
     setOpenAspectInterpretationKeys((current) => {
       const next = new Set(current);
@@ -4523,6 +4583,38 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
     mobileAspectListDragRef.current = null;
     event.currentTarget.releasePointerCapture?.(event.pointerId);
   };
+  const beginAspectTooltipDrag = (event) => {
+    if (event.button !== 0) return;
+    const frame = frameRef.current;
+    const panel = aspectTooltipPanelRef.current;
+    if (!frame || !panel) return;
+    const frameRect = frame.getBoundingClientRect();
+    const panelRect = panel.getBoundingClientRect();
+    const currentX = aspectTooltipPanelPosition?.x ?? (panelRect.left - frameRect.left);
+    const currentY = aspectTooltipPanelPosition?.y ?? (panelRect.top - frameRect.top);
+    aspectTooltipDragRef.current = {
+      offsetX: event.clientX - frameRect.left - currentX,
+      offsetY: event.clientY - frameRect.top - currentY,
+    };
+    event.currentTarget.setPointerCapture?.(event.pointerId);
+  };
+  const moveAspectTooltipPanel = (event) => {
+    const drag = aspectTooltipDragRef.current;
+    const frame = frameRef.current;
+    const panel = aspectTooltipPanelRef.current;
+    if (!drag || !frame || !panel) return;
+    const frameRect = frame.getBoundingClientRect();
+    const panelWidth = panel.offsetWidth || Math.min(520, Math.max(300, frameRect.width - 16));
+    const panelHeight = Math.min(panel.offsetHeight || 360, frameRect.height - 16);
+    setAspectTooltipPanelPosition({
+      x: clamp(event.clientX - frameRect.left - drag.offsetX, 8, Math.max(8, frameRect.width - panelWidth - 8)),
+      y: clamp(event.clientY - frameRect.top - drag.offsetY, 8, Math.max(8, frameRect.height - panelHeight - 8)),
+    });
+  };
+  const endAspectTooltipDrag = (event) => {
+    aspectTooltipDragRef.current = null;
+    event.currentTarget.releasePointerCapture?.(event.pointerId);
+  };
   const commitTransitPlaybackPosition = (cursor) => {
     preserveCurrentMapView();
     if (!cursor?.date || !cursor?.time) {
@@ -4570,7 +4662,7 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
         setTransitPlaybackPreloadProgress(total ? Math.round((completed / total) * 100) : 100);
       });
       setIsRotationPaused(true);
-      const shouldPrecomputePlaybackCompound = aspectLineMode === "composite" && (isMobilePlayback || transitPlaybackRange === "month");
+      const shouldPrecomputePlaybackCompound = isCompoundAspectMode(aspectLineMode) && (isMobilePlayback || transitPlaybackRange === "month");
       const keyframes = playbackDates
         .map((targetDate) => {
           const chart = transitChartCacheRef.current.get(transitChartCacheKey(targetDate, selectedTransitTime));
@@ -5121,7 +5213,7 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
                 )}
                 aria-hidden={!isAspectPanelOpen}
               >
-                <div className="grid grid-cols-5 gap-1">
+                <div className="grid grid-cols-6 gap-1">
                   {ASPECT_DISPLAY_MODE_OPTIONS.map((option) => (
                     <button
                       key={option.key}
@@ -5659,7 +5751,19 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
           </div>
           {aspectTooltip ? (
             <div
-              className="absolute inset-x-2 top-[104px] z-30 max-h-[360px] overflow-y-auto rounded-2xl border border-gold/25 bg-[#121414]/82 p-4 shadow-[0_22px_54px_rgba(0,0,0,0.48)] backdrop-blur-md [scrollbar-width:none] sm:inset-x-auto sm:right-8 sm:top-[42%] sm:w-[min(520px,calc(100%-40px))] sm:-translate-y-1/2 sm:bg-[#121414]/86 sm:p-5 lg:right-12 xl:right-16 [&::-webkit-scrollbar]:hidden"
+              ref={aspectTooltipPanelRef}
+              className={cx(
+                "absolute z-30 max-h-[360px] overflow-y-auto rounded-2xl border border-gold/25 bg-[#121414]/82 p-3 shadow-[0_22px_54px_rgba(0,0,0,0.48)] backdrop-blur-md [scrollbar-width:none] sm:bg-[#121414]/86 sm:p-4 [&::-webkit-scrollbar]:hidden",
+                aspectTooltipPanelPosition
+                  ? "w-[min(520px,calc(100%-16px))]"
+                  : "inset-x-2 top-[104px] sm:inset-x-auto sm:right-8 sm:top-[42%] sm:w-[min(520px,calc(100%-40px))] sm:-translate-y-1/2 lg:right-12 xl:right-16"
+              )}
+              style={aspectTooltipPanelPosition
+                ? {
+                  left: `${aspectTooltipPanelPosition.x}px`,
+                  top: `${aspectTooltipPanelPosition.y}px`,
+                }
+                : undefined}
             >
               <button
                 type="button"
@@ -5671,8 +5775,21 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
               >
                 ×
               </button>
-              <div className="grid gap-2.5 pr-8">
-                {aspectLineMode === "composite" && tooltipCompoundGroups.length ? (
+              <div
+                className="mb-2 flex touch-none select-none items-center gap-2 rounded-lg border border-white/10 bg-white/[0.055] px-2 py-1.5 pr-8 font-mono text-[9px] font-bold text-starlight"
+                onPointerDown={beginAspectTooltipDrag}
+                onPointerMove={moveAspectTooltipPanel}
+                onPointerUp={endAspectTooltipDrag}
+                onPointerCancel={endAspectTooltipDrag}
+                title="ドラッグで移動"
+              >
+                <Move size={11} aria-hidden="true" className="shrink-0 text-gold/85" />
+                <span className="min-w-0 truncate">
+                  {aspectTooltip.type === "transit" ? `現行${planetLabel(aspectTooltip.planet)}` : `ネイタル${planetLabel(aspectTooltip.planet)}`}
+                </span>
+              </div>
+              <div className="grid gap-2.5 pr-1">
+                {isCompoundAspectMode(aspectLineMode) && tooltipCompoundGroups.length ? (
                   <div className="grid grid-cols-2 gap-1 rounded-lg border border-gold/15 bg-gold/[0.035] p-1 font-mono text-[9px] font-bold">
                     {[
                       ["compound", "複合アスペクト"],
@@ -5929,7 +6046,7 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
                     {transitLayerActive ? <Eye size={13} /> : <EyeOff size={13} />}
                     現行天体
                   </button>
-                  <div className="mb-1 grid grid-cols-[0.5rem_2.45rem_2.55rem_1.35rem_0.9rem] items-center gap-0.5 px-1 font-mono text-[8px] font-bold text-mist/45">
+                  <div className="mb-1 grid grid-cols-[0.5rem_2.45rem_2.7rem_1.45rem_2.05rem] items-center gap-1 px-1 font-mono text-[8px] font-bold text-mist/45">
                     <span />
                     <span>天体</span>
                     <span>星座</span>
@@ -5966,7 +6083,7 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
                     {natalLayerActive ? <Eye size={13} /> : <EyeOff size={13} />}
                     ネイタル天体
                   </button>
-                  <div className="mb-1 grid grid-cols-[0.5rem_2.45rem_2.55rem_1.35rem_0.9rem] items-center gap-0.5 px-1 font-mono text-[8px] font-bold text-mist/45">
+                  <div className="mb-1 grid grid-cols-[0.5rem_2.45rem_2.7rem_1.45rem_2.05rem] items-center gap-1 px-1 font-mono text-[8px] font-bold text-mist/45">
                     <span />
                     <span>天体</span>
                     <span>星座</span>
@@ -7027,7 +7144,7 @@ function formatHeaderCalendarDate(value) {
 }
 
 function OraclePanel({ stats, forecast }) {
-  const [analysisMode, setAnalysisMode] = useState("theme");
+  const [analysisMode, setAnalysisMode] = useState("summary");
   const [openTransitAspectKeys, setOpenTransitAspectKeys] = useState(() => new Set());
   const themeItems = themeItemsFromForecast(forecast);
   const lessonItems = lessonItemsFromForecast(forecast);
@@ -7040,7 +7157,7 @@ function OraclePanel({ stats, forecast }) {
     summary: "総括",
     test1: "test1",
     test2: "test2",
-  }[analysisMode] || "幸運拡大";
+  }[analysisMode] || "総括";
   const fallbackThemeItems = [
     { color: "#e9c349", label: "THEME 01", body: "作成中" },
     { color: "#d3bcf9", label: "THEME 02", body: "作成中" },
@@ -7084,9 +7201,9 @@ function OraclePanel({ stats, forecast }) {
           </div>
           <div className="flex w-full overflow-x-auto rounded-full border border-white/10 bg-white/[0.04] p-1 font-mono text-[7px] font-bold text-mist [scrollbar-width:none] sm:w-auto sm:shrink-0 sm:text-[10px]">
             {[ 
+              ["summary", "総括"],
               ["theme", "幸運拡大"],
               ["lesson", "成長課題"],
-              ["summary", "総括"],
               ["test1", "test1"],
               ["test2", "test2"],
             ].map(([value, label]) => (
@@ -8013,7 +8130,7 @@ function ForecastDetailPage() {
   }, [annualTransitDays]);
   const annualTransitDayIndex = clamp(selectedAnnualDayIndex, 0, Math.max(0, annualTransitDays.length - 1));
   const dailyDetailData = useMemo(() => {
-    const storedPayload = getStoredReadingResult({ allowStale: true }) || {};
+    const storedPayload = getStoredReadingResult() || {};
     const sourceDashboard = storedPayload.dashboard_data || storedPayload.dashboardData || {};
     const hasStoredDashboard = Boolean(storedPayload.dashboard_data || storedPayload.dashboardData);
     return {

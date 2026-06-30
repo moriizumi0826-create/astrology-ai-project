@@ -29,12 +29,12 @@ def _pick_row_text(row: Optional[Dict[str, Any]], *extra_keys: str) -> str:
     return clean_text(
         get_first(
             row,
+            *extra_keys,
             "解釈文",
             "要約",
             "核となる意味",
             "テーマ",
             "意味",
-            *extra_keys,
         )
     )
 
@@ -150,7 +150,10 @@ def build_aspect_fallback(
         return row_text
 
     aspect_type_row = aspect_type_en.get(a.aspect_en, {})
-    return _pick_row_text(aspect_type_row) or f"{a.planet1_ja}と{a.planet2_ja}の{a.aspect_ja}です。"
+    return (
+        _pick_row_text(aspect_type_row, "行動パターン文", "統合ヒント", "注意ニュアンス")
+        or f"{a.planet1_ja}と{a.planet2_ja}の{a.aspect_ja}です。"
+    )
 
 def build_motion_fallback(planet_name: str, retrograde: str, motion_index: Dict[Tuple[str, str], Dict[str, Any]]) -> str:
     if not retrograde:

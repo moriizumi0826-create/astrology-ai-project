@@ -5,7 +5,7 @@ const RESULT_DB_VERSION = 1;
 const RESULT_STORE_NAME = "reading-results";
 const LATEST_RESULT_ID = "latest";
 
-function currentTokyoDate() {
+export function currentTokyoDate() {
   const parts = new Intl.DateTimeFormat("en-US", {
     timeZone: "Asia/Tokyo",
     year: "numeric",

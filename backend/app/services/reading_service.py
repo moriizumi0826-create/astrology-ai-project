@@ -518,6 +518,19 @@ PLANET_LABELS = {
     "MC": "MC",
 }
 
+PLANET_LABELS.update({
+    "SUN": "太陽",
+    "MOON": "月",
+    "MERCURY": "水星",
+    "VENUS": "金星",
+    "MARS": "火星",
+    "JUPITER": "木星",
+    "SATURN": "土星",
+    "URANUS": "天王星",
+    "NEPTUNE": "海王星",
+    "PLUTO": "冥王星",
+})
+
 
 def _planet_label(value: Any) -> str:
     normalized = _normalize_planet(value)
@@ -1097,6 +1110,8 @@ def _hero_aspect_label(row: dict[str, Any]) -> str:
     transit_label = _planet_label(row.get("T_Planet"))
     natal_label = _planet_label(row.get("N_Planet"))
     angle = _safe_number(row, "Aspect_Angle")
+    if transit_label and natal_label and angle is not None:
+        return f"ネイタル{natal_label} × トランジット{transit_label} {angle}°"
     if transit_label and natal_label and angle is not None:
         return f"ネイタル{natal_label} × トランジット{transit_label} {angle}°"
     return _safe_text(row, "Aspect_Logic_ID") or "アスペクト"
@@ -2226,7 +2241,7 @@ TIMELINE_SLOT_DEFS = [
     {"id": "NIGHT", "label": "00:00 - 06:00 (Night)", "time_range": "00:00-06:00", "sample_hour": 3, "day_offset": 1},
 ]
 
-DAILY_PERFORMANCE_SAMPLE_HOURS = (0, 3, 6, 9, 12, 15, 18, 21, 24)
+DAILY_PERFORMANCE_SAMPLE_HOURS = tuple(range(0, 73, 3))
 DAILY_PERFORMANCE_DRIVE_ANGLES = {0, 60, 120}
 DAILY_PERFORMANCE_FRICTION_ANGLES = {90, 150, 180}
 DAILY_PERFORMANCE_DECISION_PLANETS = {"SUN", "MERCURY", "SATURN"}
@@ -2963,8 +2978,10 @@ def _build_daily_performance(
     if not birth_input:
         return [
             {
-                "time": f"{0 if hour == 24 else hour:02d}:00",
+                "time": f"{hour % 24:02d}:00",
                 "hour": hour,
+                "dayOffset": hour // 24,
+                "date": (target_date + timedelta(days=hour // 24)).isoformat(),
                 "drive": 50,
                 "flow": 50,
                 "inspiration": 50,
@@ -2978,15 +2995,14 @@ def _build_daily_performance(
 
     natal_rows = _build_natal_planet_rows(birth_input)
     for hour in DAILY_PERFORMANCE_SAMPLE_HOURS:
-        sample_hour = 0 if hour == 24 else hour
+        day_offset = hour // 24
+        sample_hour = hour % 24
         slot_def = {
             "id": f"DAILY_PERFORMANCE_{hour:02d}",
             "label": f"{sample_hour:02d}:00",
             "sample_hour": sample_hour,
         }
-        slot_date = target_date
-        if hour == 24:
-            slot_date = target_date + timedelta(days=1)
+        slot_date = target_date + timedelta(days=day_offset)
         rows = _build_slot_interpretations(
             birth_input,
             slot_def,
@@ -3151,10 +3167,35 @@ def _build_daily_performance(
             mars_friction=mars_friction,
         )
         ranked_sources = _rank_timeline_rows(source_rows)[:5]
+        ranked_transit_sources = {
+            planet: _rank_timeline_rows([
+                row for row in source_rows
+                if _normalize_planet(row.get("T_Planet")) == planet
+            ])[:limit]
+            for planet, limit in (("MOON", 5), ("MERCURY", 3), ("VENUS", 3))
+        }
+
+        def transit_aspect_payload(row: dict[str, Any]) -> dict[str, Any]:
+            return {
+                "label": _hero_aspect_label(row),
+                "t_planet": _normalize_planet(row.get("T_Planet")),
+                "n_planet": _normalize_planet(row.get("N_Planet")),
+                "angle": _safe_number(row, "Aspect_Angle"),
+                "category": _safe_text(row, "Category", "General"),
+                "scoreImpact": _safe_number(row, "Score_Impact"),
+                "essentialDignityScore": _daily_performance_dignity(row),
+                "priority": _safe_number(row, "Priority"),
+                "orb": round(_extract_current_orb(row), 2),
+                "orbStatus": _safe_text(row, "_orb_status", _safe_text(row, "Orb_Status")),
+                "description": _safe_text(row, "Text_Description"),
+                "advisedTask": _safe_text(row, "Advised_Task"),
+            }
 
         points.append({
             "time": f"{sample_hour:02d}:00",
             "hour": hour,
+            "dayOffset": day_offset,
+            "date": slot_date.isoformat(),
             "drive": drive,
             "flow": flow,
             "inspiration": inspiration,
@@ -3174,6 +3215,18 @@ def _build_daily_performance(
                     "orb": _extract_current_orb(row),
                 }
                 for row in ranked_sources
+            ],
+            "moonAspects": [
+                transit_aspect_payload(row)
+                for row in ranked_transit_sources["MOON"]
+            ],
+            "mercuryAspects": [
+                transit_aspect_payload(row)
+                for row in ranked_transit_sources["MERCURY"]
+            ],
+            "venusAspects": [
+                transit_aspect_payload(row)
+                for row in ranked_transit_sources["VENUS"]
             ],
         })
 
