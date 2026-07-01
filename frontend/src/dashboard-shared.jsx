@@ -2323,12 +2323,17 @@ function dailyAspectHour(point, index = 0) {
   return Math.max(0, Math.min(DAILY_PERFORMANCE_TOTAL_HOURS, index * DAILY_PERFORMANCE_SAMPLE_STEP_HOURS));
 }
 
-function dailyPerformanceTimeLabel(point, index = 0) {
+function dailyPerformanceTimeLabel(point, index = 0, baseDate = "") {
   const hour = dailyAspectHour(point, index);
   const dayOffset = Math.floor(hour / 24);
   const clockHour = hour % 24;
   const clockLabel = `${String(clockHour).padStart(2, "0")}:00`;
-  return dayOffset > 0 ? `+${dayOffset}日 ${clockLabel}` : clockLabel;
+  if (dayOffset > 0) {
+    const date = formatIsoDate(point?.date) || formatIsoDate(addDaysToIsoDate(baseDate, dayOffset));
+    const [, month = "", day = ""] = date.match(/^\d{4}-(\d{2})-(\d{2})$/) || [];
+    return month && day ? `${Number(month)}/${Number(day)} ${clockLabel}` : clockLabel;
+  }
+  return clockLabel;
 }
 
 function dailyPerformanceAxisTick(baseDate, hour) {
@@ -2728,7 +2733,7 @@ function DashboardV2DailyFlowCard({ data, displayDate = "" }) {
               className="pointer-events-none absolute top-2 z-20 min-w-[156px] -translate-x-1/2 rounded-xl border border-white/10 bg-[#0d0e0f]/95 px-3 py-2 font-mono text-[10px] font-bold text-[#e2e2e2] shadow-[0_18px_50px_rgba(0,0,0,0.42)]"
               style={{ left: hoveredTooltipLeft }}
             >
-              <p className="mb-1 text-[#e9c349]">{dailyPerformanceTimeLabel(hoveredPerformance, hoveredPerformanceIndex)}</p>
+              <p className="mb-1 text-[#e9c349]">{dailyPerformanceTimeLabel(hoveredPerformance, hoveredPerformanceIndex, chartDate)}</p>
               <div className="grid gap-1">
                 <span className="flex items-center justify-between gap-4"><span className="text-[#fb923c]">Mars</span><span>{Math.round(Number(hoveredPerformance.marsActivity ?? 0))}</span></span>
                 <span className="flex items-center justify-between gap-4"><span className="text-[#38bdf8]">Drive</span><span>{Math.round(Number(hoveredPerformance.drive ?? 0))}</span></span>
@@ -2821,7 +2826,7 @@ function DashboardV2DailyFlowCard({ data, displayDate = "" }) {
             <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
               <div className="flex min-w-0 flex-wrap items-center gap-2">
                 <span className="rounded-full border border-[#e9c349]/25 bg-[#e9c349]/10 px-2.5 py-1 font-mono text-[10px] font-black text-[#e9c349]">
-                  {dailyPerformanceTimeLabel(selectedPerformance, effectiveSelectedPerformanceIndex)}
+                  {dailyPerformanceTimeLabel(selectedPerformance, effectiveSelectedPerformanceIndex, chartDate)}
                 </span>
                 <span className="min-w-0 truncate text-xs font-black text-[#f3f3f0]">
                   {selectedAdvice.headline || "行動アドバイス"}
