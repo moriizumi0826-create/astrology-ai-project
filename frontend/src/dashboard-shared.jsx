@@ -2545,10 +2545,54 @@ const DAILY_ASPECT_PLANET_LABELS = {
 };
 const DAILY_PERFORMANCE_TOTAL_HOURS = 72;
 const DAILY_PERFORMANCE_SAMPLE_STEP_HOURS = 3;
+const DAILY_PERFORMANCE_AXIS_STEP_HOURS = 6;
+const DAILY_ASPECT_TOOLTIP_WIDTH = 320;
+const DAILY_ASPECT_TOOLTIP_HEIGHT = 180;
+const DAILY_ASPECT_TOOLTIP_GAP = 12;
 const DAILY_PERFORMANCE_SAMPLE_HOURS = Array.from(
   { length: DAILY_PERFORMANCE_TOTAL_HOURS / DAILY_PERFORMANCE_SAMPLE_STEP_HOURS + 1 },
   (_, index) => index * DAILY_PERFORMANCE_SAMPLE_STEP_HOURS
 );
+const DAILY_PERFORMANCE_AXIS_HOURS = Array.from(
+  { length: DAILY_PERFORMANCE_TOTAL_HOURS / DAILY_PERFORMANCE_AXIS_STEP_HOURS + 1 },
+  (_, index) => index * DAILY_PERFORMANCE_AXIS_STEP_HOURS
+);
+
+function clampDailyTooltipValue(value, min, max) {
+  return Math.max(min, Math.min(max, value));
+}
+
+function dailyAspectTooltipPosition(event) {
+  if (typeof window === "undefined") {
+    return {
+      left: DAILY_ASPECT_TOOLTIP_GAP,
+      top: DAILY_ASPECT_TOOLTIP_GAP,
+      width: DAILY_ASPECT_TOOLTIP_WIDTH,
+      height: DAILY_ASPECT_TOOLTIP_HEIGHT,
+    };
+  }
+
+  const rect = event.currentTarget.getBoundingClientRect();
+  const anchorX = event.clientX || rect.left + rect.width / 2;
+  const anchorY = event.clientY || rect.top + rect.height / 2;
+  const width = Math.min(DAILY_ASPECT_TOOLTIP_WIDTH, Math.max(240, window.innerWidth - DAILY_ASPECT_TOOLTIP_GAP * 2));
+  const height = Math.min(DAILY_ASPECT_TOOLTIP_HEIGHT, Math.max(140, window.innerHeight - DAILY_ASPECT_TOOLTIP_GAP * 2));
+  let left = anchorX + DAILY_ASPECT_TOOLTIP_GAP;
+  if (left + width > window.innerWidth - DAILY_ASPECT_TOOLTIP_GAP) {
+    left = anchorX - width - DAILY_ASPECT_TOOLTIP_GAP;
+  }
+  let top = anchorY - height - DAILY_ASPECT_TOOLTIP_GAP;
+  if (top < DAILY_ASPECT_TOOLTIP_GAP) {
+    top = anchorY + DAILY_ASPECT_TOOLTIP_GAP;
+  }
+
+  return {
+    left: clampDailyTooltipValue(left, DAILY_ASPECT_TOOLTIP_GAP, window.innerWidth - width - DAILY_ASPECT_TOOLTIP_GAP),
+    top: clampDailyTooltipValue(top, DAILY_ASPECT_TOOLTIP_GAP, window.innerHeight - height - DAILY_ASPECT_TOOLTIP_GAP),
+    width,
+    height,
+  };
+}
 
 function dailyAspectHour(point, index = 0) {
   const hour = Number(point?.hour);
@@ -2570,6 +2614,18 @@ function dailyPerformanceTimeLabel(point, index = 0) {
   return dayOffset > 0 ? `+${dayOffset}日 ${clockLabel}` : clockLabel;
 }
 
+function dailyPerformanceAxisTick(baseDate, hour) {
+  const clockHour = hour % 24;
+  const date = clockHour === 0 ? formatIsoDate(addDaysToIsoDate(baseDate, hour / 24)) : "";
+  const [, month = "", day = ""] = date.match(/^\d{4}-(\d{2})-(\d{2})$/) || [];
+  return {
+    hour,
+    time: `${String(clockHour).padStart(2, "0")}:00`,
+    dateLabel: date ? `${Number(month)}/${Number(day)}` : "",
+    left: (hour / DAILY_PERFORMANCE_TOTAL_HOURS) * 100,
+  };
+}
+
 function dailyAspectStrength(aspect = {}) {
   const impact = Math.abs(Number(aspect.scoreImpact ?? aspect.score_impact ?? 0));
   const priority = Number(aspect.priority ?? 0);
@@ -2587,6 +2643,16 @@ function dailyAspectLabel(aspect = {}) {
   const angle = Number(aspect.angle);
   const angleLabel = Number.isFinite(angle) ? `${angle}°` : "";
   return `ネイタル${natalPlanet} × トランジット${transitPlanet}${angleLabel ? ` ${angleLabel}` : ""}`;
+}
+
+function dailyAspectBarLabel(aspect = {}) {
+  const transitPlanetKey = String(aspect.t_planet || aspect.tPlanet || "").toUpperCase();
+  const natalPlanetKey = String(aspect.n_planet || aspect.nPlanet || "").toUpperCase();
+  const transitPlanet = DAILY_ASPECT_PLANET_LABELS[transitPlanetKey] || transitPlanetKey || "T";
+  const natalPlanet = DAILY_ASPECT_PLANET_LABELS[natalPlanetKey] || natalPlanetKey || "N";
+  const angle = Number(aspect.angle);
+  const angleLabel = Number.isFinite(angle) ? `${angle}°` : "";
+  return `N${natalPlanet} × T${transitPlanet}${angleLabel ? ` ${angleLabel}` : ""}`;
 }
 
 function dailyAspectDetail(aspect = {}, strength = 0) {
@@ -2609,6 +2675,19 @@ const DAILY_TRANSIT_ASPECT_CONFIGS = [
   { planet: "MERCURY", camelKey: "mercuryAspects", snakeKey: "mercury_aspects", fallbackLabel: "水星アスペクト", limit: 3, colors: ["#38bdf8", "#67e8f9", "#93c5fd"] },
   { planet: "VENUS", camelKey: "venusAspects", snakeKey: "venus_aspects", fallbackLabel: "金星アスペクト", limit: 3, colors: ["#ff8fb3", "#f9a8d4", "#ffb4ab"] },
 ];
+const DAILY_PERFORMANCE_METRIC_LABELS = {
+  MARS_ACTIVITY: "Mars",
+  DRIVE: "Drive",
+  FLOW: "Flow",
+  INSPIRATION: "Inspiration",
+  FRICTION: "Friction",
+};
+
+function dailyPerformanceActionAdvice(point = {}) {
+  const advice = point.actionAdvice || point.action_advice || null;
+  if (advice && typeof advice === "object") return advice;
+  return null;
+}
 
 function dailyTransitAspectCandidates(point = {}, planet = "MOON", camelKey = "moonAspects", snakeKey = "moon_aspects") {
   const explicitAspects = Array.isArray(point[camelKey])
@@ -2642,7 +2721,7 @@ function buildDailyTransitAspectLanes(chartPerformance = [], config = DAILY_TRAN
       const strength = dailyAspectStrength(aspect);
       const existing = aspectMap.get(key) || {
         key,
-        label: dailyAspectLabel(aspect),
+        label: dailyAspectBarLabel(aspect),
         angle,
         maxStrength: 0,
         peakHour: hour,
@@ -2735,6 +2814,8 @@ function buildDailyTransitAspectGroups(chartPerformance = []) {
 
 function DashboardV2DailyFlowCard({ data, displayDate = "" }) {
   const [hoveredPerformanceIndex, setHoveredPerformanceIndex] = useState(null);
+  const [selectedPerformanceIndex, setSelectedPerformanceIndex] = useState(null);
+  const [activeAspectTooltip, setActiveAspectTooltip] = useState(null);
   const [currentTime, setCurrentTime] = useState(() => new Date());
   useEffect(() => {
     const timer = window.setInterval(() => {
@@ -2785,6 +2866,7 @@ function DashboardV2DailyFlowCard({ data, displayDate = "" }) {
   const height = 160;
   const pad = 8;
   const chartDate = formatIsoDate(displayDate || dashboardDisplayDate(data));
+  const axisTicks = DAILY_PERFORMANCE_AXIS_HOURS.map((hour) => dailyPerformanceAxisTick(chartDate, hour));
   const chartStartDate = dateKeyToLocalDate(chartDate);
   const chartStartMidnight = chartStartDate
     ? new Date(chartStartDate.getFullYear(), chartStartDate.getMonth(), chartStartDate.getDate())
@@ -2830,19 +2912,45 @@ function DashboardV2DailyFlowCard({ data, displayDate = "" }) {
   const hoveredPerformance = Number.isInteger(hoveredPerformanceIndex)
     ? chartPerformance[hoveredPerformanceIndex]
     : null;
+  const selectedPerformance = Number.isInteger(selectedPerformanceIndex)
+    ? chartPerformance[selectedPerformanceIndex]
+    : null;
+  const selectedAdvice = dailyPerformanceActionAdvice(selectedPerformance);
   const hoveredX = Number.isInteger(hoveredPerformanceIndex)
     ? pad + (hoveredPerformanceIndex / Math.max(1, chartPerformance.length - 1)) * (width - pad * 2)
     : null;
+  const selectedX = Number.isInteger(selectedPerformanceIndex)
+    ? pad + (selectedPerformanceIndex / Math.max(1, chartPerformance.length - 1)) * (width - pad * 2)
+    : null;
   const hoveredTooltipLeft = hoveredX === null ? 0 : `${(hoveredX / width) * 100}%`;
-  const handlePerformancePointerMove = (event) => {
+  const performanceIndexFromPointer = (event) => {
     const bounds = event.currentTarget.getBoundingClientRect();
     const svgX = ((event.clientX - bounds.left) / bounds.width) * width;
     const ratio = Math.max(0, Math.min(1, (svgX - pad) / Math.max(1, width - pad * 2)));
-    const index = Math.round(ratio * Math.max(0, chartPerformance.length - 1));
-    setHoveredPerformanceIndex(index);
+    return Math.round(ratio * Math.max(0, chartPerformance.length - 1));
+  };
+  const handlePerformancePointerMove = (event) => {
+    setHoveredPerformanceIndex(performanceIndexFromPointer(event));
+  };
+  const handlePerformanceClick = (event) => {
+    setSelectedPerformanceIndex(performanceIndexFromPointer(event));
+  };
+  const handleTransitAspectClick = (event, block, detail, score) => {
+    const position = dailyAspectTooltipPosition(event);
+    setActiveAspectTooltip((current) => (
+      current?.key === block.key
+        ? null
+        : {
+            key: block.key,
+            label: detail.label || block.label,
+            description: detail.description || "",
+            score,
+            position,
+          }
+    ));
   };
   return (
-    <DashboardV2Card className="h-[520px] sm:h-[532px]" bodyClassName="!px-3 !pb-2 !pt-2">
+    <DashboardV2Card className="h-[610px] sm:h-[622px]" bodyClassName="!px-3 !pb-2 !pt-2">
       <div className="mb-1 flex items-center justify-between gap-3">
         <div className="group relative flex items-center gap-2">
           <h2 className="font-sans text-base font-black tracking-tight text-[#f3f3f0]">デイリーパフォーマンス</h2>
@@ -2889,6 +2997,7 @@ function DashboardV2DailyFlowCard({ data, displayDate = "" }) {
             aria-label="デイリーパフォーマンスグラフ"
             onMouseMove={handlePerformancePointerMove}
             onMouseLeave={() => setHoveredPerformanceIndex(null)}
+            onClick={handlePerformanceClick}
           >
           <defs>
             <linearGradient id="dailyMarsArea" x1="0" x2="0" y1="0" y2="1">
@@ -2905,6 +3014,9 @@ function DashboardV2DailyFlowCard({ data, displayDate = "" }) {
           <path d={flowPath} fill="none" stroke="#34d399" strokeWidth="3.2" strokeLinecap="round" strokeLinejoin="round" filter="drop-shadow(0 0 8px rgba(52,211,153,0.3))" />
           <path d={inspirationPath} fill="none" stroke="#a78bfa" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" filter="drop-shadow(0 0 8px rgba(167,139,250,0.28))" />
           <path d={hazardPath} fill="none" stroke="#ff5c68" strokeWidth="2.8" strokeDasharray="8 8" strokeLinecap="round" strokeLinejoin="round" opacity="0.95" filter="drop-shadow(0 0 8px rgba(255,92,104,0.28))" />
+          {selectedX !== null ? (
+            <line x1={selectedX} x2={selectedX} y1={pad} y2={height - pad} stroke="#f3f3f0" strokeWidth="1.5" opacity="0.8" strokeDasharray="4 4" />
+          ) : null}
           {hoveredX !== null ? (
             <>
               <line x1={hoveredX} x2={hoveredX} y1={pad} y2={height - pad} stroke="rgba(255,255,255,0.35)" strokeWidth="1" strokeDasharray="3 5" />
@@ -2933,9 +3045,49 @@ function DashboardV2DailyFlowCard({ data, displayDate = "" }) {
           <rect x={pad} y={pad} width={width - pad * 2} height={height - pad * 2} fill="transparent" pointerEvents="all" />
         </svg>
         </div>
-        <div className="flex justify-between font-mono text-xs leading-none text-[#909096]">
-          {["00:00", "+24h", "+48h", "+72h"].map((time, index) => <span key={`${time}-${index}`}>{time}</span>)}
+        <div className="relative h-8 font-mono text-[8px] font-bold leading-none text-[#909096] sm:text-[10px]">
+          {axisTicks.map((tick) => (
+            <span
+              key={`daily-axis-${tick.hour}`}
+              className={cx(
+                "absolute top-0 flex min-w-[2.35rem] flex-col gap-1",
+                tick.hour === 0
+                  ? "translate-x-0 items-start text-left"
+                  : tick.hour === DAILY_PERFORMANCE_TOTAL_HOURS
+                    ? "-translate-x-full items-end text-right"
+                    : "-translate-x-1/2 items-center text-center"
+              )}
+              style={{ left: `${tick.left}%` }}
+            >
+              <span className="h-3 text-[8px] text-[#e9c349]/80 sm:text-[9px]">{tick.dateLabel}</span>
+              <span>{tick.time}</span>
+            </span>
+          ))}
         </div>
+        {selectedPerformance && selectedAdvice ? (
+          <div className="mt-2 rounded-2xl border border-white/10 bg-white/[0.045] px-3 py-2.5 shadow-[0_12px_34px_rgba(0,0,0,0.18)]">
+            <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+              <div className="flex min-w-0 flex-wrap items-center gap-2">
+                <span className="rounded-full border border-[#e9c349]/25 bg-[#e9c349]/10 px-2.5 py-1 font-mono text-[10px] font-black text-[#e9c349]">
+                  {dailyPerformanceTimeLabel(selectedPerformance, selectedPerformanceIndex)}
+                </span>
+                <span className="min-w-0 truncate text-xs font-black text-[#f3f3f0]">
+                  {selectedAdvice.headline || "行動アドバイス"}
+                </span>
+              </div>
+              <div className="flex shrink-0 items-center gap-1.5 font-mono text-[9px] font-bold text-[#909096]">
+                <span>{DAILY_PERFORMANCE_METRIC_LABELS[selectedAdvice.highMetric] || selectedAdvice.highMetric}: {selectedAdvice.highScore}</span>
+                <span>/</span>
+                <span>{DAILY_PERFORMANCE_METRIC_LABELS[selectedAdvice.lowMetric] || selectedAdvice.lowMetric}: {selectedAdvice.lowScore}</span>
+              </div>
+            </div>
+            <div className="grid gap-1.5 text-[11px] leading-5 text-[#c7c6cc] sm:grid-cols-3">
+              {selectedAdvice.recommendedAction ? <p>{selectedAdvice.recommendedAction}</p> : null}
+              {selectedAdvice.thinkingStyle ? <p>{selectedAdvice.thinkingStyle}</p> : null}
+              {selectedAdvice.restGuidance ? <p>{selectedAdvice.restGuidance}</p> : null}
+            </div>
+          </div>
+        ) : null}
         <div className="mt-3 grid gap-2 border-t border-white/10 pt-2">
           {transitAspectGroups.map((group) => (
             <div key={group.planet} className="grid gap-1.5">
@@ -2945,16 +3097,19 @@ function DashboardV2DailyFlowCard({ data, displayDate = "" }) {
                     {lane.map((block) => {
                       const detail = block.detail || {};
                       const score = Number(detail.score || 0);
+                      const isTooltipOpen = activeAspectTooltip?.key === block.key;
                       return (
                       <button
                         type="button"
                         key={block.key}
-                        className="group absolute top-0 h-full text-left focus:outline-none"
+                        className="absolute top-0 h-full text-left focus:outline-none"
                         style={{
                           left: `${block.left}%`,
                           width: `${block.width}%`,
                         }}
                         aria-label={block.label}
+                        aria-expanded={isTooltipOpen}
+                        onClick={(event) => handleTransitAspectClick(event, block, detail, score)}
                       >
                         <span
                           className="flex h-full w-full items-center overflow-hidden rounded-full"
@@ -2970,21 +3125,7 @@ function DashboardV2DailyFlowCard({ data, displayDate = "" }) {
                             {block.label}
                           </span>
                         </span>
-                        <span className="pointer-events-none absolute bottom-full left-0 z-50 mb-2 hidden w-[280px] rounded-2xl border border-white/10 bg-[#0d0e0f]/95 px-4 py-3 text-slate-200 shadow-[0_18px_50px_rgba(0,0,0,0.55)] backdrop-blur-sm group-hover:block group-focus:block">
-                          <span className="mb-2 flex items-start justify-between gap-3">
-                            <span className="min-w-0 break-words text-xs font-bold leading-5 text-slate-200">
-                              {detail.label || block.label}
-                            </span>
-                            <span className={cx("shrink-0 text-xs font-black", score >= 0 ? "text-sky-200" : "text-rose-200")}>
-                              {score > 0 ? "+" : ""}{Number.isFinite(score) ? score : 0}
-                            </span>
-                          </span>
-                          {detail.description ? (
-                            <span className="block break-words text-xs font-light leading-6 text-slate-300">
-                              {detail.description}
-                            </span>
-                          ) : null}
-                        </span>
+
                       </button>
                     );
                     })}
@@ -2994,6 +3135,45 @@ function DashboardV2DailyFlowCard({ data, displayDate = "" }) {
             </div>
           ))}
         </div>
+        {activeAspectTooltip ? (
+          <div
+            className="fixed z-[80] overflow-hidden rounded-2xl border border-white/10 bg-[#0d0e0f]/95 text-slate-200 shadow-[0_18px_50px_rgba(0,0,0,0.55)] backdrop-blur-sm"
+            style={{
+              left: `${activeAspectTooltip.position.left}px`,
+              top: `${activeAspectTooltip.position.top}px`,
+              width: `${activeAspectTooltip.position.width}px`,
+              height: `${activeAspectTooltip.position.height}px`,
+            }}
+          >
+            <div className="flex h-full flex-col">
+              <div className="flex shrink-0 items-start justify-between gap-3 border-b border-white/10 px-4 py-3">
+                <span className="min-w-0 break-words text-xs font-bold leading-5 text-slate-200">
+                  {activeAspectTooltip.label}
+                </span>
+                <span className={cx("shrink-0 text-xs font-black", activeAspectTooltip.score >= 0 ? "text-sky-200" : "text-rose-200")}>
+                  {activeAspectTooltip.score > 0 ? "+" : ""}{Number.isFinite(activeAspectTooltip.score) ? activeAspectTooltip.score : 0}
+                </span>
+                <button
+                  type="button"
+                  className="-mr-1 -mt-1 shrink-0 rounded-full px-1.5 py-0.5 text-xs font-black text-slate-400 transition hover:bg-white/10 hover:text-slate-100 focus:outline-none focus:ring-2 focus:ring-[#e9c349]/35"
+                  aria-label="ツールチップを閉じる"
+                  onClick={() => setActiveAspectTooltip(null)}
+                >
+                  ×
+                </button>
+              </div>
+              <div className="min-h-0 flex-1 overflow-y-auto px-4 py-3 [scrollbar-width:thin]">
+                {activeAspectTooltip.description ? (
+                  <p className="break-words text-xs font-light leading-6 text-slate-300">
+                    {activeAspectTooltip.description}
+                  </p>
+                ) : (
+                  <p className="text-xs font-light leading-6 text-slate-400">説明はありません。</p>
+                )}
+              </div>
+            </div>
+          </div>
+        ) : null}
       </div>
     </DashboardV2Card>
   );

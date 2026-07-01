@@ -70,6 +70,7 @@ MASTER_CSV_FILES = {
     "basic": "M_Basic_Interpretation.csv",
     "daily_vibe": "M_Daily_Vibe_Logic.csv",
     "daily_star_vibe": "M_Daily_Star_Vibe.csv",
+    "daily_performance_action_advice": "M_Daily_Performance_Action_Advice.csv",
     "countdown": "M_Countdown_Master.csv",
     "timeline_advice": "M_Timeline_Advice.csv",
     "transit_calendar": "M_Transit_Calendar_2026.csv",
@@ -2241,7 +2242,8 @@ TIMELINE_SLOT_DEFS = [
     {"id": "NIGHT", "label": "00:00 - 06:00 (Night)", "time_range": "00:00-06:00", "sample_hour": 3, "day_offset": 1},
 ]
 
-DAILY_PERFORMANCE_SAMPLE_HOURS = tuple(range(0, 73, 3))
+DAILY_PERFORMANCE_SAMPLE_STEP_HOURS = 3
+DAILY_PERFORMANCE_SAMPLE_HOURS = tuple(range(0, 73, DAILY_PERFORMANCE_SAMPLE_STEP_HOURS))
 DAILY_PERFORMANCE_DRIVE_ANGLES = {0, 60, 120}
 DAILY_PERFORMANCE_FRICTION_ANGLES = {90, 150, 180}
 DAILY_PERFORMANCE_DECISION_PLANETS = {"SUN", "MERCURY", "SATURN"}
@@ -2263,6 +2265,13 @@ DAILY_PERFORMANCE_TRANSIT_WEIGHTS = {
     "NEPTUNE": 0.22,
     "PLUTO": 0.20,
 }
+DAILY_PERFORMANCE_ADVICE_METRICS = {
+    "MARS_ACTIVITY": "marsActivity",
+    "DRIVE": "drive",
+    "FLOW": "flow",
+    "INSPIRATION": "inspiration",
+    "FRICTION": "friction",
+}
 DAILY_PERFORMANCE_ENVIRONMENT_RATIO = 0.20
 DAILY_PERFORMANCE_ENVIRONMENT_PLANETS = (
     "MERCURY",
@@ -2279,6 +2288,79 @@ DAILY_PERFORMANCE_MARS_HARD_ENVIRONMENT_PLANETS = ("SATURN", "URANUS", "NEPTUNE"
 
 def _timeline_advice_rows() -> pd.DataFrame:
     return MASTER_DATAFRAMES.get("timeline_advice", pd.DataFrame())
+
+
+def _daily_performance_action_advice_rows() -> pd.DataFrame:
+    return MASTER_DATAFRAMES.get("daily_performance_action_advice", pd.DataFrame())
+
+
+def _daily_performance_metric_extremes(point: dict[str, Any]) -> tuple[str, float, str, float]:
+    values = {
+        metric: float(point.get(field) or 0)
+        for metric, field in DAILY_PERFORMANCE_ADVICE_METRICS.items()
+    }
+    high_metric, high_score = max(values.items(), key=lambda item: item[1])
+    low_metric, low_score = min(values.items(), key=lambda item: item[1])
+    return high_metric, high_score, low_metric, low_score
+
+
+def _daily_performance_action_advice(point: dict[str, Any], hour: int) -> dict[str, Any]:
+    advice_df = _daily_performance_action_advice_rows()
+    high_metric, high_score, low_metric, low_score = _daily_performance_metric_extremes(point)
+    fallback = {
+        "adviceId": "",
+        "timeBlock": "ANY",
+        "highMetric": high_metric,
+        "highScore": round(high_score),
+        "lowMetric": low_metric,
+        "lowScore": round(low_score),
+        "actionMode": "Balanced",
+        "headline": "負荷を見ながら整える時間",
+        "recommendedAction": "大きく広げすぎず、今の状態に合わせて作業量を調整してください。",
+        "thinkingStyle": "一つの作業に絞り、反応を見ながら進める使い方が向いています。",
+        "restGuidance": "疲れを感じる場合は短い休憩を先に入れてください。",
+        "variant": "fallback",
+    }
+    if advice_df.empty:
+        return fallback
+
+    rows = advice_df.copy()
+    rows["_high"] = rows["High_Metric"].map(lambda value: str(value).strip().upper())
+    rows["_low"] = rows["Low_Metric"].map(lambda value: str(value).strip().upper())
+    rows["_time"] = rows["Time_Block"].map(lambda value: str(value).strip().upper())
+    metric_rows = rows[
+        (rows["_high"] == high_metric)
+        & (rows["_low"] == low_metric)
+        & (rows["_time"].isin({"ANY", f"{hour % 24:02d}:00"}))
+    ]
+    threshold_rows = metric_rows[
+        (metric_rows["High_Min"].map(lambda value: _normalize_int(value) or 0) <= high_score)
+        & (metric_rows["Low_Max"].map(lambda value: _normalize_int(value) or 100) >= low_score)
+    ]
+    candidates = threshold_rows if not threshold_rows.empty else metric_rows
+    if candidates.empty:
+        return fallback
+
+    candidates = candidates.sort_values(
+        by=["Priority", "Advice_ID"],
+        ascending=[False, True],
+        kind="stable",
+    ).reset_index(drop=True)
+    row = dict(candidates.iloc[(hour // DAILY_PERFORMANCE_SAMPLE_STEP_HOURS) % len(candidates)])
+    return {
+        "adviceId": _safe_text(row, "Advice_ID"),
+        "timeBlock": _safe_text(row, "Time_Block", "ANY"),
+        "highMetric": high_metric,
+        "highScore": round(high_score),
+        "lowMetric": low_metric,
+        "lowScore": round(low_score),
+        "actionMode": _safe_text(row, "Action_Mode"),
+        "headline": _safe_text(row, "Headline"),
+        "recommendedAction": _safe_text(row, "Recommended_Action"),
+        "thinkingStyle": _safe_text(row, "Thinking_Style"),
+        "restGuidance": _safe_text(row, "Rest_Guidance"),
+        "variant": _safe_text(row, "Variant"),
+    }
 
 
 def _timeline_target_score(slot_id: str) -> int:
@@ -2976,8 +3058,9 @@ def _build_daily_performance(
     mars_vibe_bonus = _daily_performance_mars_bonus(daily_vibe)
 
     if not birth_input:
-        return [
-            {
+        fallback_points = []
+        for hour in DAILY_PERFORMANCE_SAMPLE_HOURS:
+            point = {
                 "time": f"{hour % 24:02d}:00",
                 "hour": hour,
                 "dayOffset": hour // 24,
@@ -2990,8 +3073,9 @@ def _build_daily_performance(
                 "breakdown": {"mars": [], "drive": [], "flow": [], "inspiration": [], "friction": []},
                 "sourceAspects": [],
             }
-            for hour in DAILY_PERFORMANCE_SAMPLE_HOURS
-        ]
+            point["actionAdvice"] = _daily_performance_action_advice(point, hour)
+            fallback_points.append(point)
+        return fallback_points
 
     natal_rows = _build_natal_planet_rows(birth_input)
     for hour in DAILY_PERFORMANCE_SAMPLE_HOURS:
@@ -3191,7 +3275,7 @@ def _build_daily_performance(
                 "advisedTask": _safe_text(row, "Advised_Task"),
             }
 
-        points.append({
+        point = {
             "time": f"{sample_hour:02d}:00",
             "hour": hour,
             "dayOffset": day_offset,
@@ -3228,7 +3312,9 @@ def _build_daily_performance(
                 transit_aspect_payload(row)
                 for row in ranked_transit_sources["VENUS"]
             ],
-        })
+        }
+        point["actionAdvice"] = _daily_performance_action_advice(point, hour)
+        points.append(point)
 
     return points
 
