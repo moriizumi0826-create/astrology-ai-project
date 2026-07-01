@@ -83,26 +83,6 @@ export const dashboardData = {
       },
     ],
   },
-  timeline: [
-    {
-      label: "08:00-12:00",
-      score: 84,
-      recommendation: "複雑な判断向き",
-      detail: "判断速度と整合性が噛み合いやすく、設計や分析の骨子づくりに向く時間帯です。",
-    },
-    {
-      label: "13:00-17:00",
-      score: 61,
-      recommendation: "単純作業向き",
-      detail: "集中の波がやや分散しやすいため、整理やレビューのような粒度の揃った作業が安定します。",
-    },
-    {
-      label: "18:00-22:00",
-      score: 72,
-      recommendation: "対話と振り返り向き",
-      detail: "感情と言語化が連動しやすく、面談準備や日報、関係調整のメモ作成に向いています。",
-    },
-  ],
   topics: [
     {
       title: "仕事優位性",
@@ -136,7 +116,6 @@ export const dashboardData = {
     personalReading: { logic: "", sources: [] },
     diagnostic: { logic: "", sources: [] },
     countdown: { logic: "", sources: [] },
-    timeline: { logic: "", sources: [] },
     topics: { logic: "", sources: [] },
   },
 };
@@ -310,115 +289,6 @@ function PersonalReadingDeveloperBlock({ data, meta, className = "" }) {
   );
 }
 
-function TimelineTextSourceList({ slot }) {
-  if (!slot) return null;
-
-  const textSources = [];
-  const timelineAspects = Array.isArray(slot.timelineAspects) && slot.timelineAspects.length
-    ? slot.timelineAspects
-    : slot.sourceRow
-      ? [{
-          planetLabel: slot.sourceAspect?.t_planet || "",
-          sourceRow: slot.sourceRow,
-          sourceAspect: slot.sourceAspect,
-          recommendedAction: slot.recommendedAction,
-          description: slot.description || slot.detail,
-        }]
-      : [];
-
-  if (timelineAspects.length) {
-    timelineAspects.forEach((aspect) => {
-      const sourceRow = aspect.sourceRow || {};
-      const csv = sourceRow._csv_file || "CSV不明";
-      const row = sourceRow._csv_row;
-      const key = sourceRow.Aspect_Logic_ID || aspect.sourceAspect?.t_planet || "";
-      const prefix = aspect.planetLabel ? `${aspect.planetLabel} / ` : "";
-      if (aspect.recommendedAction) {
-        textSources.push({
-          label: `${prefix}推奨アクション`,
-          csv,
-          row,
-          key,
-          column: "Recommended_Action / Advised_Task",
-          text: aspect.recommendedAction,
-        });
-      }
-      if (aspect.description) {
-        textSources.push({
-          label: `${prefix}説明文`,
-          csv,
-          row,
-          key,
-          column: "Text_Description",
-          text: aspect.description,
-        });
-      }
-    });
-  } else if (slot.timelineAdviceRow) {
-    const csv = slot.timelineAdviceRow._csv_file || "CSV不明";
-    const row = slot.timelineAdviceRow._csv_row;
-    const key = slot.timelineAdviceRow.Time_Slot_ID || slot.label || "";
-    if (slot.recommendedAction) {
-      textSources.push({
-        label: "推奨アクション",
-        csv,
-        row,
-        key,
-        column: "Status_Label",
-        text: slot.recommendedAction,
-      });
-    }
-    if (slot.description || slot.detail) {
-      textSources.push({
-        label: "説明文",
-        csv,
-        row,
-        key,
-        column: "Status_Label",
-        text: slot.description || slot.detail,
-      });
-    }
-  }
-
-  if (!textSources.length) return null;
-
-  return (
-    <div className="mb-3 space-y-2">
-      <p className="text-[11px] font-bold text-slate-700">表示中の文章の出典</p>
-      {textSources.map((source, index) => (
-        <div
-          key={`${source.label}-${source.csv}-${source.row || index}`}
-          className="rounded-2xl border border-[#D4AF37]/20 bg-white/70 px-3 py-3"
-        >
-          <p className="text-[11px] font-semibold text-[#0A192F]">
-            {source.label}: {source.csv}
-            {source.row ? ` / 行 ${source.row}` : ""}
-            {source.key ? ` / ${source.key}` : ""}
-          </p>
-          <p className="mt-1 text-[11px] leading-5 text-slate-600">参照列: {source.column}</p>
-          <p className="mt-1 text-[11px] leading-5 text-slate-500">{source.text}</p>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-function TimelineDeveloperBlock({ entry, slot }) {
-    if (!entry) return null;
-  
-    return (
-      <div className="mt-4 rounded-2xl border border-dashed border-[#D4AF37]/30 bg-[#fffaf0] p-3">
-        <div className="mb-2 flex items-center gap-2 text-[#0A192F]">
-          <Code2 size={14} className="text-[#D4AF37]" />
-          <p className="text-xs font-bold">この時間帯の根拠</p>
-        </div>
-        <TimelineTextSourceList slot={slot} />
-        {entry.logic ? <p className="mb-3 text-xs leading-6 text-slate-700">{entry.logic}</p> : null}
-        <DeveloperSourceList sources={entry.sources || []} />
-      </div>
-    );
-  }
-
 function Hero({ data }) {
   return (
     <Panel title="ユーザーステータス" eyebrow="Today Overview" className="overflow-hidden">
@@ -543,8 +413,6 @@ function dashboardDisplayDate(data = {}) {
     data.readingDate ||
       data.reading_date ||
       data.date ||
-      data.timelineDate ||
-      data.timelineDays?.[0]?.date ||
       data.meta?.reading_date ||
       data.meta?.date
   );
@@ -596,11 +464,8 @@ function dashboardDataFromReadingPayload(payload, fallbackData = {}) {
     reading_date:
       payload.dashboard_data.reading_date ||
       payload.dashboard_data.readingDate ||
-      payload.dashboard_data.timelineDate ||
-      payload.dashboard_data.timeline_date ||
       fallbackData.reading_date ||
       fallbackData.readingDate ||
-      fallbackData.timelineDate ||
       payload.meta?.reading_date ||
       payload.meta?.date ||
       fallbackData.meta?.reading_date ||
@@ -1730,155 +1595,6 @@ function LunarCountdownWidget({ data, items = [], groups = {}, developerMode = f
     </div>
   );
 }
-function formatTimelineDate(value) {
-  const date = new Date(`${value || ""}T00:00:00`);
-  if (Number.isNaN(date.getTime())) return value || "";
-  return `${date.getFullYear()}/${date.getMonth() + 1}/${date.getDate()}`;
-}
-
-function Timeline({ data, date, days = [], developerMode = false, developerMeta = {} }) {
-  const timelineDays = Array.isArray(days) && days.length
-    ? days
-    : [{ date, timeline: Array.isArray(data) && data.length ? data : dashboardData.timeline }];
-  const initialDate = date || timelineDays[1]?.date || timelineDays[0]?.date || "";
-  const [activeDate, setActiveDate] = useState(initialDate);
-  const activeDay = timelineDays.find((item) => item.date === activeDate) || timelineDays[0];
-  const slots = Array.isArray(activeDay?.timeline) && activeDay.timeline.length
-    ? activeDay.timeline
-    : Array.isArray(data) && data.length
-      ? data
-      : dashboardData.timeline;
-  const slotEntries = Array.isArray(developerMeta.sources) ? developerMeta.sources : [];
-
-  return (
-      <Panel
-        title="リソース最適化・タイムライン"
-        eyebrow="Work / Action"
-        bodyClassName="!px-0 py-5 md:!px-0 md:py-6"
-        headerAction={
-          timelineDays.length ? (
-            <div className="grid grid-cols-3 gap-1 rounded-full border border-slate-200 bg-slate-50 p-1 text-xs font-bold text-slate-500">
-              {timelineDays.map((item) => {
-                const isActive = item.date === activeDay?.date;
-                return (
-                  <button
-                    key={item.date}
-                    type="button"
-                    onClick={() => setActiveDate(item.date)}
-                    className={cx(
-                      "rounded-full transition-colors",
-                      isActive
-                        ? "bg-white px-3 py-1.5 text-xs text-[#0A192F] shadow-sm"
-                        : "px-2 py-1 text-[10px] text-slate-400 hover:bg-white/70 hover:text-[#0A192F]"
-                    )}
-                  >
-                    {formatTimelineDate(item.date)}
-                  </button>
-                );
-              })}
-            </div>
-          ) : null
-        }
-      >
-        <div className="flex snap-x snap-mandatory gap-4 overflow-x-auto xl:grid xl:grid-cols-4 xl:overflow-visible">
-          {slots.map((slot) => {
-            const score = Math.max(0, Math.min(100, Number(slot.score) || 0));
-            const title = slot.title || slot.phase || slot.recommendation || "Action Timing";
-            const timelineAspects = Array.isArray(slot.timelineAspects) && slot.timelineAspects.length
-              ? slot.timelineAspects
-              : [{
-                  planetLabel: slot.sourceAspect?.t_planet || "",
-                  timelineLabel: slot.timelineLabel || "",
-                  recommendedAction: slot.recommendedAction || slot.recommendation || "",
-                  description: slot.description || slot.detail || "",
-                }];
-            const recommendedAction = timelineAspects
-              .map((aspect) => aspect.recommendedAction)
-              .filter(Boolean)
-              .join(" / ");
-            const isPeak = score >= 80;
-            const developerEntry = activeDay?.date === date ? slotEntries.find((entry) => entry.slot === slot.label) : null;
-
-            return (
-            <article
-              key={`${slot.label}-${title}`}
-            className={cx(
-              "w-[calc(100%-40px)] shrink-0 snap-start rounded-3xl border p-5 transition-all duration-500 xl:w-auto",
-              isPeak
-                ? "border-amber-300/40 bg-amber-500/20 shadow-[0_18px_50px_rgba(217,174,74,0.18)]"
-                : "border-slate-200 bg-gradient-to-b from-white to-[#f7fafc]"
-            )}
-            title={recommendedAction}
-          >
-            <div className="mb-5 flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div
-                  className={cx(
-                    "rounded-2xl p-3",
-                    isPeak ? "bg-amber-400/20 text-amber-700" : "bg-[#0A192F]/5 text-[#0A192F]"
-                  )}
-                >
-                  <Clock3 size={18} />
-                </div>
-                <div>
-                  <p className="text-sm font-extrabold tracking-wide text-[#0A192F]">{slot.label}</p>
-                  <p className="text-xs uppercase tracking-[0.18em] text-slate-500">
-                    {title}
-                  </p>
-                </div>
-              </div>
-              <span className="text-2xl font-extrabold text-[#D4AF37]">{score}%</span>
-            </div>
-
-            <div className="mb-4 h-3 overflow-hidden rounded-full bg-slate-100">
-              <div
-                className="h-full rounded-full bg-gradient-to-r from-[#203a59] via-[#355d87] to-[#D4AF37] transition-all duration-700 ease-out"
-                style={{ width: `${score}%` }}
-              />
-            </div>
-
-              <div className="space-y-3">
-                {timelineAspects.map((aspect, aspectIndex) => {
-                  const aspectKey = `${aspect.planet || aspect.planetLabel || "aspect"}-${aspect.sourceAspect?.n_planet || aspectIndex}-${aspect.sourceAspect?.angle || aspectIndex}`;
-                  const aspectDescription = aspect.description || "";
-                  return (
-                    <div key={aspectKey} className="rounded-2xl border border-slate-200 bg-white/70 px-3 py-3">
-                      <div className="mb-2 flex flex-wrap items-center gap-2">
-                        {aspect.planetLabel ? (
-                          <span className="rounded-full bg-[#D4AF37]/15 px-2.5 py-1 text-[11px] font-extrabold text-[#8a6a08]">
-                            {aspect.planetLabel}
-                          </span>
-                        ) : null}
-                        {aspect.timelineLabel ? (
-                          <span className="rounded-full bg-[#0A192F]/5 px-3 py-1 text-xs font-bold text-[#0A192F]">
-                            {aspect.timelineLabel}
-                          </span>
-                        ) : null}
-                      </div>
-                      {aspect.recommendedAction ? (
-                        <p className="text-sm leading-7 text-slate-600">{aspect.recommendedAction}</p>
-                      ) : null}
-                      {aspectDescription ? (
-                        <details className="mt-2 rounded-xl border border-slate-200 bg-slate-50/70 px-3 py-2">
-                          <summary className="cursor-pointer text-xs font-bold text-[#0A192F]">
-                            アスペクト
-                          </summary>
-                          <p className="mt-2 text-sm leading-7 text-slate-600">{aspectDescription}</p>
-                        </details>
-                      ) : null}
-                    </div>
-                  );
-                })}
-              </div>
-                {developerMode ? <TimelineDeveloperBlock entry={developerEntry} slot={slot} /> : null}
-              </article>
-              );
-            })}
-        </div>
-      </Panel>
-    );
-  }
-
 function TopicGrid({ data, developerMode = false, developerMeta = {} }) {
   const palette = {
     gold: "bg-[#D4AF37]/14 text-[#D4AF37] border-[#D4AF37]/30",
@@ -2682,6 +2398,38 @@ const DAILY_PERFORMANCE_METRIC_LABELS = {
   INSPIRATION: "Inspiration",
   FRICTION: "Friction",
 };
+const DAILY_PERFORMANCE_MARS_STATE_LABELS = {
+  HIGH: "高",
+  LOW: "低",
+  NEUTRAL: "中",
+};
+const DAILY_PERFORMANCE_FRICTION_STATE_LABELS = {
+  SPIKE: "強警戒",
+  HIGH: "高",
+  LOW: "低",
+  NEUTRAL: "中",
+};
+const DAILY_PERFORMANCE_PATTERN_LABELS = {
+  PAIR_HIGH_LOW: "強弱あり",
+  DUAL_HIGH: "強み2つ",
+  DUAL_LOW: "弱み2つ",
+  BALANCED: "平均的",
+  ALL_HIGH: "全体高め",
+  ALL_LOW: "全体低め",
+  FRICTION_SPIKE: "摩擦強",
+  FRICTION_WITH_HIGH: "摩擦注意",
+  FRICTION_HIGH_ALL_HIGH: "高出力注意",
+  FRICTION_HIGH_ALL_LOW: "低調注意",
+};
+
+function dailyPerformanceMetricLabel(metric) {
+  return DAILY_PERFORMANCE_METRIC_LABELS[metric] || metric || "";
+}
+
+function dailyPerformanceMetricPairLabel(primary, secondary) {
+  const labels = [primary, secondary].filter(Boolean).map(dailyPerformanceMetricLabel);
+  return labels.join(" + ");
+}
 
 function dailyPerformanceActionAdvice(point = {}) {
   if (!point) return null;
@@ -2877,6 +2625,22 @@ function DashboardV2DailyFlowCard({ data, displayDate = "" }) {
     : NaN;
   const currentX = pad + (Math.max(0, Math.min(DAILY_PERFORMANCE_TOTAL_HOURS, currentTimeOffsetHours)) / DAILY_PERFORMANCE_TOTAL_HOURS) * (width - pad * 2);
   const showCurrentTimeLine = Number.isFinite(currentTimeOffsetHours) && currentTimeOffsetHours >= 0 && currentTimeOffsetHours <= DAILY_PERFORMANCE_TOTAL_HOURS;
+  const defaultPerformanceIndex = chartPerformance.length
+    ? Math.max(
+        0,
+        Math.min(
+          chartPerformance.length - 1,
+          Math.round(
+            (Number.isFinite(currentTimeOffsetHours)
+              ? Math.max(0, Math.min(DAILY_PERFORMANCE_TOTAL_HOURS, currentTimeOffsetHours))
+              : 0) / DAILY_PERFORMANCE_SAMPLE_STEP_HOURS
+          )
+        )
+      )
+    : null;
+  const effectiveSelectedPerformanceIndex = Number.isInteger(selectedPerformanceIndex)
+    ? Math.max(0, Math.min(chartPerformance.length - 1, selectedPerformanceIndex))
+    : defaultPerformanceIndex;
   const pointsFor = (values, direction = "positive") => values
     .map((value, index) => {
       const x = pad + (index / Math.max(1, values.length - 1)) * (width - pad * 2);
@@ -2914,14 +2678,16 @@ function DashboardV2DailyFlowCard({ data, displayDate = "" }) {
     ? chartPerformance[hoveredPerformanceIndex]
     : null;
   const selectedPerformance = Number.isInteger(selectedPerformanceIndex)
-    ? chartPerformance[selectedPerformanceIndex]
+    ? chartPerformance[effectiveSelectedPerformanceIndex]
+    : Number.isInteger(effectiveSelectedPerformanceIndex)
+      ? chartPerformance[effectiveSelectedPerformanceIndex]
     : null;
   const selectedAdvice = dailyPerformanceActionAdvice(selectedPerformance);
   const hoveredX = Number.isInteger(hoveredPerformanceIndex)
     ? pad + (hoveredPerformanceIndex / Math.max(1, chartPerformance.length - 1)) * (width - pad * 2)
     : null;
-  const selectedX = Number.isInteger(selectedPerformanceIndex)
-    ? pad + (selectedPerformanceIndex / Math.max(1, chartPerformance.length - 1)) * (width - pad * 2)
+  const selectedX = Number.isInteger(effectiveSelectedPerformanceIndex)
+    ? pad + (effectiveSelectedPerformanceIndex / Math.max(1, chartPerformance.length - 1)) * (width - pad * 2)
     : null;
   const hoveredTooltipLeft = hoveredX === null ? 0 : `${(hoveredX / width) * 100}%`;
   const performanceIndexFromPointer = (event) => {
@@ -2936,7 +2702,11 @@ function DashboardV2DailyFlowCard({ data, displayDate = "" }) {
   const handlePerformanceClick = (event) => {
     setSelectedPerformanceIndex(performanceIndexFromPointer(event));
   };
+  const performanceIndexFromHour = (hour) => (
+    Math.max(0, Math.min(chartPerformance.length - 1, Math.round(hour / DAILY_PERFORMANCE_SAMPLE_STEP_HOURS)))
+  );
   const handleTransitAspectClick = (event, block, detail, score) => {
+    setSelectedPerformanceIndex(performanceIndexFromHour(block.start));
     const position = dailyAspectTooltipPosition(event);
     setActiveAspectTooltip((current) => (
       current?.key === block.key
@@ -3046,7 +2816,10 @@ function DashboardV2DailyFlowCard({ data, displayDate = "" }) {
           <rect x={pad} y={pad} width={width - pad * 2} height={height - pad * 2} fill="transparent" pointerEvents="all" />
         </svg>
         </div>
-        <div className="relative h-8 font-mono text-[8px] font-bold leading-none text-[#909096] sm:text-[10px]">
+        <div
+          className="relative h-8 cursor-pointer font-mono text-[8px] font-bold leading-none text-[#909096] sm:text-[10px]"
+          onClick={handlePerformanceClick}
+        >
           {axisTicks.map((tick) => (
             <span
               key={`daily-axis-${tick.hour}`}
@@ -3070,17 +2843,31 @@ function DashboardV2DailyFlowCard({ data, displayDate = "" }) {
             <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
               <div className="flex min-w-0 flex-wrap items-center gap-2">
                 <span className="rounded-full border border-[#e9c349]/25 bg-[#e9c349]/10 px-2.5 py-1 font-mono text-[10px] font-black text-[#e9c349]">
-                  {dailyPerformanceTimeLabel(selectedPerformance, selectedPerformanceIndex)}
+                  {dailyPerformanceTimeLabel(selectedPerformance, effectiveSelectedPerformanceIndex)}
                 </span>
                 <span className="min-w-0 truncate text-xs font-black text-[#f3f3f0]">
                   {selectedAdvice.headline || "行動アドバイス"}
                 </span>
               </div>
-              <div className="flex shrink-0 items-center gap-1.5 font-mono text-[9px] font-bold text-[#909096]">
-                <span>{DAILY_PERFORMANCE_METRIC_LABELS[selectedAdvice.highMetric] || selectedAdvice.highMetric}: {selectedAdvice.highScore}</span>
-                <span>/</span>
-                <span>{DAILY_PERFORMANCE_METRIC_LABELS[selectedAdvice.lowMetric] || selectedAdvice.lowMetric}: {selectedAdvice.lowScore}</span>
-              </div>
+            </div>
+            <div className="mb-2 flex flex-wrap gap-1.5 font-mono text-[9px] font-bold">
+              <span className="rounded-full border border-[#38bdf8]/25 bg-[#38bdf8]/10 px-2 py-1 text-[#9bdcff]">
+                主状態: {DAILY_PERFORMANCE_PATTERN_LABELS[selectedAdvice.patternType] || selectedAdvice.patternType || "通常"}
+                {selectedAdvice.primaryHighMetric ? ` / 高 ${dailyPerformanceMetricPairLabel(selectedAdvice.primaryHighMetric, selectedAdvice.secondaryHighMetric)}` : ""}
+                {selectedAdvice.primaryLowMetric ? ` / 低 ${dailyPerformanceMetricPairLabel(selectedAdvice.primaryLowMetric, selectedAdvice.secondaryLowMetric)}` : ""}
+              </span>
+              {Number.isFinite(Number(selectedAdvice.frictionScore)) ? (
+                <span className="rounded-full border border-[#ff5c68]/25 bg-[#ff5c68]/10 px-2 py-1 text-[#ff9aa3]">
+                  注意: Friction {selectedAdvice.frictionScore}
+                  {selectedAdvice.frictionState ? ` ${DAILY_PERFORMANCE_FRICTION_STATE_LABELS[selectedAdvice.frictionState] || selectedAdvice.frictionState}` : ""}
+                </span>
+              ) : null}
+              {Number.isFinite(Number(selectedAdvice.marsScore)) ? (
+                <span className="rounded-full border border-[#fb923c]/25 bg-[#fb923c]/10 px-2 py-1 text-[#fbbf8b]">
+                  補助: Mars {selectedAdvice.marsScore}
+                  {selectedAdvice.marsState ? ` ${DAILY_PERFORMANCE_MARS_STATE_LABELS[selectedAdvice.marsState] || selectedAdvice.marsState}` : ""}
+                </span>
+              ) : null}
             </div>
             <div className="grid gap-1.5 text-[11px] leading-5 text-[#c7c6cc] sm:grid-cols-3">
               {selectedAdvice.recommendedAction ? <p>{selectedAdvice.recommendedAction}</p> : null}
@@ -3213,7 +3000,7 @@ function DailyPerformanceDeveloperView({ data = dashboardData }) {
               <p className="font-mono text-[11px] font-black uppercase tracking-[0.22em] text-[#e9c349]">Developer View</p>
               <h1 className="mt-1 font-notoSerif text-2xl font-semibold">デイリーパフォーマンス検証</h1>
             </div>
-            <p className="font-mono text-xs text-[#909096]">{data.reading_date || data.readingDate || data.timelineDate || ""}</p>
+            <p className="font-mono text-xs text-[#909096]">{data.reading_date || data.readingDate || ""}</p>
           </div>
           <DashboardV2DailyFlowCard data={data} />
           <div className="mt-4 grid grid-cols-4 gap-2">
@@ -4054,9 +3841,3 @@ export function Dashboard({ data = dashboardData, embedded = false, developerMod
   }
   return <DashboardV2 data={data} embedded={embedded} developerMode={developerMode} />;
 }
-
-
-
-
-
-

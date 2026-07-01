@@ -51,11 +51,6 @@ DIAGNOSTIC_DAILY_LOVE_WEIGHT = 0.50
 DIAGNOSTIC_NOISE_NEGATIVE_WEIGHT = 0.25
 DIAGNOSTIC_NOISE_POSITIVE_WEIGHT = 0.10
 DIAGNOSTIC_SAFETY_WEIGHT = 0.50
-TIMELINE_CONDITION_MULTIPLIERS = {
-    "OVER": 1.08,
-    "MATCH": 1.0,
-    "UNDER": 0.92,
-}
 SAFETY_LEVEL_MODIFIERS = {
     "HIGH": 5,
     "MEDIUM": -4,
@@ -72,7 +67,6 @@ MASTER_CSV_FILES = {
     "daily_star_vibe": "M_Daily_Star_Vibe.csv",
     "daily_performance_action_advice": "M_Daily_Performance_Action_Advice.csv",
     "countdown": "M_Countdown_Master.csv",
-    "timeline_advice": "M_Timeline_Advice.csv",
     "transit_calendar": "M_Transit_Calendar_2026.csv",
     "retrograde_calendar": "M_Retrograde_Calendar.generated.csv",
 }
@@ -990,32 +984,6 @@ def _dashboard_target_date(current_dt: datetime | date | None) -> date:
     return _app_today()
 
 
-def _build_timeline_days(
-    rows: list[dict[str, Any]],
-    baseline_score: int,
-    *,
-    birth_input: BirthInput | None,
-    current_dt: datetime | date | None,
-    daily_modifier: int,
-    is_noise_heavy: bool,
-) -> list[dict[str, Any]]:
-    target_date = _dashboard_target_date(current_dt)
-    return [
-        {
-            "date": (target_date + timedelta(days=offset)).isoformat(),
-            "timeline": _build_timeline_from_interpretations(
-                rows,
-                baseline_score,
-                birth_input=birth_input,
-                current_dt=target_date + timedelta(days=offset),
-                daily_modifier=daily_modifier,
-                is_noise_heavy=is_noise_heavy,
-            ),
-        }
-        for offset in (-1, 0, 1)
-    ]
-
-
 def build_dashboard_data_from_aspect(row: dict[str, Any]) -> dict[str, Any]:
     return build_dashboard_data_from_interpretations([row] if row else [], {"modifier": 0, "raw_modifier": 0, "items": []})
 
@@ -1529,172 +1497,12 @@ def _build_topics_from_interpretations(rows: list[dict[str, Any]], final_score: 
     ]
 
 
-def _timeline_row_key(row: dict[str, Any]) -> tuple[str, str, int, str]:
-    return (
-        _safe_text(row, "T_Planet"),
-        _safe_text(row, "N_Planet"),
-        _safe_number(row, "Aspect_Angle"),
-        _safe_text(row, "Category", "General"),
-    )
-
-
-def _pick_timeline_row(
-    primary_rows: list[dict[str, Any]],
-    fallback_rows: list[dict[str, Any]],
-    slot_index: int,
-    used_keys: set[tuple[str, str, int, str]],
-) -> dict[str, Any] | None:
-    for pool in (primary_rows, fallback_rows):
-        if not pool:
-            continue
-        ordered = pool[slot_index:] + pool[:slot_index]
-        for row in ordered:
-            key = _timeline_row_key(row)
-            if key not in used_keys:
-                used_keys.add(key)
-                return row
-    pool = primary_rows or fallback_rows
-    return pool[slot_index % len(pool)] if pool else None
-
-
-def _ordered_timeline_pool(rows: list[dict[str, Any]], slot_index: int) -> list[dict[str, Any]]:
-    if not rows:
-        return []
-    return rows[slot_index:] + rows[:slot_index]
-
-
-def _pick_timeline_row_for_planet(
-    pools: list[list[dict[str, Any]]],
-    planet: str | None,
-    slot_index: int,
-    used_keys: set[tuple[str, str, int, str]],
-    allow_used: bool = False,
-) -> dict[str, Any] | None:
-    for pool in pools:
-        for row in _ordered_timeline_pool(pool, slot_index):
-            if planet is not None and _normalize_planet(row.get("T_Planet")) != planet:
-                continue
-            if not allow_used and _timeline_row_key(row) in used_keys:
-                continue
-            return row
-    return None
-
-
-def _select_timeline_display_rows(
-    primary_rows: list[dict[str, Any]],
-    fallback_rows: list[dict[str, Any]],
-    slot_index: int,
-    used_keys: set[tuple[str, str, int, str]],
-) -> list[dict[str, Any]]:
-    pools = [primary_rows, fallback_rows]
-
-    def pick_pair(first_planet: str, second_planet: str, allow_used: bool = False) -> list[dict[str, Any]]:
-        first = _pick_timeline_row_for_planet(pools, first_planet, slot_index, used_keys, allow_used)
-        second = _pick_timeline_row_for_planet(pools, second_planet, slot_index, used_keys, allow_used)
-        if not first or not second:
-            return []
-        if _timeline_row_key(first) == _timeline_row_key(second):
-            return []
-        return [first, second]
-
-    def pick_single(planet: str, allow_used: bool = False) -> list[dict[str, Any]]:
-        row = _pick_timeline_row_for_planet(pools, planet, slot_index, used_keys, allow_used)
-        return [row] if row else []
-
-    def pick_other(allow_used: bool = False) -> list[dict[str, Any]]:
-        excluded = {"MOON", "SUN", "MERCURY"}
-        for pool in pools:
-            for row in _ordered_timeline_pool(pool, slot_index):
-                if _normalize_planet(row.get("T_Planet")) in excluded:
-                    continue
-                if not allow_used and _timeline_row_key(row) in used_keys:
-                    continue
-                return [row]
-        return []
-
-    for allow_used in (False, True):
-        selected = (
-            pick_pair("MOON", "MERCURY", allow_used)
-            or pick_pair("SUN", "MERCURY", allow_used)
-            or pick_single("MOON", allow_used)
-            or pick_single("MERCURY", allow_used)
-            or pick_other(allow_used)
-        )
-        if selected:
-            for row in selected:
-                used_keys.add(_timeline_row_key(row))
-            return selected
-    return []
-
-
-def _timeline_aspect_entry(row: dict[str, Any] | None) -> dict[str, Any]:
-    if not row:
-        return {}
-    recommended_action = _safe_text(row, "Recommended_Action") or _safe_text(row, "Advised_Task")
-    return {
-        "planet": _normalize_planet(row.get("T_Planet")),
-        "planetLabel": _planet_label(row.get("T_Planet")),
-        "timelineLabel": _safe_text(row, "timeline_Label"),
-        "recommendedAction": recommended_action,
-        "description": _safe_text(row, "Text_Description"),
-        "sourceRow": row,
-        "sourceAspect": {
-            "t_planet": _normalize_planet(row.get("T_Planet")),
-            "n_planet": _normalize_planet(row.get("N_Planet")),
-            "angle": _safe_number(row or {}, "Aspect_Angle"),
-            "category": _safe_text(row, "Category", "General"),
-        },
-    }
-
-
-def _rank_timeline_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+def _rank_aspect_influence_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return sorted(
         rows,
         key=lambda row: (_safe_number(row, "Priority"), abs(_safe_number(row, "Score_Impact"))),
         reverse=True,
     )
-
-
-def _has_timeline_planet(rows: list[dict[str, Any]], planet: str) -> bool:
-    return any(_normalize_planet(row.get("T_Planet")) == planet for row in rows)
-
-
-def _build_prioritized_slot_interpretations(
-    birth_input: BirthInput,
-    slot_def: dict[str, Any],
-    target_date: date,
-) -> list[dict[str, Any]]:
-    rows = _build_slot_interpretations(
-        birth_input,
-        slot_def,
-        target_date,
-        transit_planets=("MOON", "MERCURY"),
-    )
-    has_moon = _has_timeline_planet(rows, "MOON")
-    has_mercury = _has_timeline_planet(rows, "MERCURY")
-    if has_moon and has_mercury:
-        return _rank_timeline_rows(rows)
-    if has_mercury and not has_moon:
-        rows.extend(
-            _build_slot_interpretations(
-                birth_input,
-                slot_def,
-                target_date,
-                transit_planets=("SUN",),
-            )
-        )
-        return _rank_timeline_rows(rows)
-    if has_moon:
-        return _rank_timeline_rows(rows)
-    rows.extend(
-        _build_slot_interpretations(
-            birth_input,
-            slot_def,
-            target_date,
-            transit_planets=tuple(planet for planet in TRANSIT_PLANET_ORDER if planet not in {"MOON", "SUN", "MERCURY"}),
-        )
-    )
-    return _rank_timeline_rows(rows)
 
 
 def _select_countdown_target(rows: list[dict[str, Any]]) -> dict[str, Any] | None:
@@ -2235,13 +2043,6 @@ def build_countdown_data(
     }
 
 
-TIMELINE_SLOT_DEFS = [
-    {"id": "MORNING", "label": "06:00 - 12:00 (Morning)", "time_range": "06:00-12:00", "sample_hour": 9},
-    {"id": "AFTERNOON", "label": "12:00 - 18:00 (Afternoon)", "time_range": "12:00-18:00", "sample_hour": 15},
-    {"id": "EVENING", "label": "18:00 - 24:00 (Evening)", "time_range": "18:00-24:00", "sample_hour": 21},
-    {"id": "NIGHT", "label": "00:00 - 06:00 (Night)", "time_range": "00:00-06:00", "sample_hour": 3, "day_offset": 1},
-]
-
 DAILY_PERFORMANCE_SAMPLE_STEP_HOURS = 3
 DAILY_PERFORMANCE_SAMPLE_HOURS = tuple(range(0, 73, DAILY_PERFORMANCE_SAMPLE_STEP_HOURS))
 DAILY_PERFORMANCE_DRIVE_ANGLES = {0, 60, 120}
@@ -2266,12 +2067,20 @@ DAILY_PERFORMANCE_TRANSIT_WEIGHTS = {
     "PLUTO": 0.20,
 }
 DAILY_PERFORMANCE_ADVICE_METRICS = {
-    "MARS_ACTIVITY": "marsActivity",
     "DRIVE": "drive",
     "FLOW": "flow",
     "INSPIRATION": "inspiration",
-    "FRICTION": "friction",
 }
+DAILY_PERFORMANCE_FRICTION_ADVICE_FIELD = "friction"
+DAILY_PERFORMANCE_MARS_ADVICE_FIELD = "marsActivity"
+DAILY_PERFORMANCE_HIGH_THRESHOLD = 70
+DAILY_PERFORMANCE_LOW_THRESHOLD = 35
+DAILY_PERFORMANCE_BALANCED_SPREAD = 10
+DAILY_PERFORMANCE_DUAL_DELTA = 5
+DAILY_PERFORMANCE_DUAL_HIGH_MIN = 60
+DAILY_PERFORMANCE_DUAL_LOW_MAX = 45
+DAILY_PERFORMANCE_FRICTION_HIGH_THRESHOLD = 65
+DAILY_PERFORMANCE_FRICTION_SPIKE_THRESHOLD = 80
 DAILY_PERFORMANCE_ENVIRONMENT_RATIO = 0.20
 DAILY_PERFORMANCE_ENVIRONMENT_PLANETS = (
     "MERCURY",
@@ -2284,10 +2093,6 @@ DAILY_PERFORMANCE_ENVIRONMENT_PLANETS = (
     "PLUTO",
 )
 DAILY_PERFORMANCE_MARS_HARD_ENVIRONMENT_PLANETS = ("SATURN", "URANUS", "NEPTUNE", "PLUTO")
-
-
-def _timeline_advice_rows() -> pd.DataFrame:
-    return MASTER_DATAFRAMES.get("timeline_advice", pd.DataFrame())
 
 
 def _daily_performance_action_advice_rows() -> pd.DataFrame:
@@ -2304,16 +2109,190 @@ def _daily_performance_metric_extremes(point: dict[str, Any]) -> tuple[str, floa
     return high_metric, high_score, low_metric, low_score
 
 
+def _daily_performance_mars_context(point: dict[str, Any]) -> tuple[float, str]:
+    score = float(point.get(DAILY_PERFORMANCE_MARS_ADVICE_FIELD) or 0)
+    if score >= 70:
+        return score, "HIGH"
+    if score <= 35:
+        return score, "LOW"
+    return score, "NEUTRAL"
+
+
+def _daily_performance_friction_context(point: dict[str, Any]) -> tuple[float, str]:
+    score = float(point.get(DAILY_PERFORMANCE_FRICTION_ADVICE_FIELD) or 0)
+    if score >= DAILY_PERFORMANCE_FRICTION_SPIKE_THRESHOLD:
+        return score, "SPIKE"
+    if score >= DAILY_PERFORMANCE_FRICTION_HIGH_THRESHOLD:
+        return score, "HIGH"
+    if score <= DAILY_PERFORMANCE_LOW_THRESHOLD:
+        return score, "LOW"
+    return score, "NEUTRAL"
+
+
+def _daily_performance_action_pattern(point: dict[str, Any]) -> dict[str, Any]:
+    scores = {
+        metric: float(point.get(field) or 0)
+        for metric, field in DAILY_PERFORMANCE_ADVICE_METRICS.items()
+    }
+    ordered_high = sorted(scores.items(), key=lambda item: item[1], reverse=True)
+    ordered_low = sorted(scores.items(), key=lambda item: item[1])
+    primary_high, high_score = ordered_high[0]
+    secondary_high, secondary_high_score = ordered_high[1]
+    primary_low, low_score = ordered_low[0]
+    secondary_low, secondary_low_score = ordered_low[1]
+    spread = high_score - low_score
+    average_score = sum(scores.values()) / max(1, len(scores))
+    friction_score, friction_state = _daily_performance_friction_context(point)
+    mars_score, mars_state = _daily_performance_mars_context(point)
+
+    all_high = min(scores.values()) >= DAILY_PERFORMANCE_HIGH_THRESHOLD
+    all_low = max(scores.values()) <= DAILY_PERFORMANCE_LOW_THRESHOLD
+    is_balanced = spread < DAILY_PERFORMANCE_BALANCED_SPREAD
+    is_dual_high = (
+        abs(high_score - secondary_high_score) <= DAILY_PERFORMANCE_DUAL_DELTA
+        and min(high_score, secondary_high_score) >= DAILY_PERFORMANCE_DUAL_HIGH_MIN
+    )
+    is_dual_low = (
+        abs(low_score - secondary_low_score) <= DAILY_PERFORMANCE_DUAL_DELTA
+        and max(low_score, secondary_low_score) <= DAILY_PERFORMANCE_DUAL_LOW_MAX
+    )
+
+    if friction_state == "SPIKE":
+        pattern_type = "FRICTION_SPIKE"
+    elif friction_state == "HIGH" and all_low:
+        pattern_type = "FRICTION_HIGH_ALL_LOW"
+    elif friction_state == "HIGH" and all_high:
+        pattern_type = "FRICTION_HIGH_ALL_HIGH"
+    elif friction_state == "HIGH":
+        pattern_type = "FRICTION_WITH_HIGH"
+    elif all_low:
+        pattern_type = "ALL_LOW"
+    elif all_high:
+        pattern_type = "ALL_HIGH"
+    elif is_balanced:
+        pattern_type = "BALANCED"
+    elif is_dual_high:
+        pattern_type = "DUAL_HIGH"
+    elif is_dual_low:
+        pattern_type = "DUAL_LOW"
+    else:
+        pattern_type = "PAIR_HIGH_LOW"
+
+    if all_high:
+        overall_level = "HIGH"
+    elif all_low:
+        overall_level = "LOW"
+    elif is_balanced and average_score >= 58:
+        overall_level = "SLIGHT_POSITIVE"
+    elif is_balanced and average_score <= 42:
+        overall_level = "SLIGHT_HEAVY"
+    elif is_balanced:
+        overall_level = "NEUTRAL"
+    else:
+        overall_level = "MIXED"
+
+    return {
+        "patternType": pattern_type,
+        "primaryHighMetric": primary_high,
+        "secondaryHighMetric": secondary_high if pattern_type in {"DUAL_HIGH", "ALL_HIGH", "FRICTION_HIGH_ALL_HIGH"} else "",
+        "primaryLowMetric": primary_low,
+        "secondaryLowMetric": secondary_low if pattern_type in {"DUAL_LOW", "ALL_LOW", "FRICTION_HIGH_ALL_LOW"} else "",
+        "highMetric": primary_high,
+        "highScore": high_score,
+        "lowMetric": primary_low,
+        "lowScore": low_score,
+        "overallLevel": overall_level,
+        "spread": spread,
+        "averageScore": average_score,
+        "frictionScore": friction_score,
+        "frictionState": friction_state,
+        "marsScore": mars_score,
+        "marsState": mars_state,
+    }
+
+
+def _daily_advice_column(row: dict[str, Any], column: str) -> str:
+    return _safe_text(row, column).strip().upper()
+
+
+def _daily_advice_matches(value: str, expected: str) -> bool:
+    if pd.isna(value):
+        return True
+    normalized_value = str(value or "").strip().upper()
+    normalized_expected = str(expected or "").strip().upper()
+    return not normalized_value or normalized_value == normalized_expected
+
+
+def _daily_performance_pattern_rows(rows: pd.DataFrame, pattern: dict[str, Any], hour: int) -> pd.DataFrame:
+    if rows.empty or "Pattern_Type" not in rows.columns:
+        return pd.DataFrame()
+
+    working = rows.copy()
+    for column in (
+        "Pattern_Type",
+        "Primary_High_Metric",
+        "Secondary_High_Metric",
+        "Primary_Low_Metric",
+        "Secondary_Low_Metric",
+        "Overall_Level",
+        "Friction_State",
+        "Mars_State",
+        "Time_Block",
+    ):
+        if column not in working.columns:
+            working[column] = ""
+
+    filtered = working[
+        (working["Pattern_Type"].map(lambda value: str(value).strip().upper()) == pattern["patternType"])
+        & (working["Time_Block"].map(lambda value: str(value).strip().upper()).isin({"", "ANY", f"{hour % 24:02d}:00"}))
+    ]
+    if filtered.empty:
+        return filtered
+
+    checks = (
+        ("Primary_High_Metric", pattern["primaryHighMetric"]),
+        ("Secondary_High_Metric", pattern["secondaryHighMetric"]),
+        ("Primary_Low_Metric", pattern["primaryLowMetric"]),
+        ("Secondary_Low_Metric", pattern["secondaryLowMetric"]),
+        ("Overall_Level", pattern["overallLevel"]),
+        ("Friction_State", pattern["frictionState"]),
+        ("Mars_State", pattern["marsState"]),
+    )
+    for column, expected in checks:
+        filtered = filtered[filtered[column].map(lambda value, expected=expected: _daily_advice_matches(value, expected))]
+        if filtered.empty:
+            break
+    return filtered
+
+
 def _daily_performance_action_advice(point: dict[str, Any], hour: int) -> dict[str, Any]:
     advice_df = _daily_performance_action_advice_rows()
-    high_metric, high_score, low_metric, low_score = _daily_performance_metric_extremes(point)
+    pattern = _daily_performance_action_pattern(point)
+    high_metric = pattern["highMetric"]
+    high_score = pattern["highScore"]
+    low_metric = pattern["lowMetric"]
+    low_score = pattern["lowScore"]
+    mars_score = pattern["marsScore"]
+    mars_state = pattern["marsState"]
+    friction_score = pattern["frictionScore"]
+    friction_state = pattern["frictionState"]
     fallback = {
         "adviceId": "",
         "timeBlock": "ANY",
+        "patternType": pattern["patternType"],
+        "primaryHighMetric": pattern["primaryHighMetric"],
+        "secondaryHighMetric": pattern["secondaryHighMetric"],
+        "primaryLowMetric": pattern["primaryLowMetric"],
+        "secondaryLowMetric": pattern["secondaryLowMetric"],
+        "overallLevel": pattern["overallLevel"],
         "highMetric": high_metric,
         "highScore": round(high_score),
         "lowMetric": low_metric,
         "lowScore": round(low_score),
+        "frictionScore": round(friction_score),
+        "frictionState": friction_state,
+        "marsScore": round(mars_score),
+        "marsState": mars_state,
         "actionMode": "Balanced",
         "headline": "負荷を見ながら整える時間",
         "recommendedAction": "大きく広げすぎず、今の状態に合わせて作業量を調整してください。",
@@ -2325,19 +2304,24 @@ def _daily_performance_action_advice(point: dict[str, Any], hour: int) -> dict[s
         return fallback
 
     rows = advice_df.copy()
+    candidates = _daily_performance_pattern_rows(rows, pattern, hour)
+    if candidates.empty:
+        candidates = pd.DataFrame()
+
     rows["_high"] = rows["High_Metric"].map(lambda value: str(value).strip().upper())
     rows["_low"] = rows["Low_Metric"].map(lambda value: str(value).strip().upper())
     rows["_time"] = rows["Time_Block"].map(lambda value: str(value).strip().upper())
-    metric_rows = rows[
-        (rows["_high"] == high_metric)
-        & (rows["_low"] == low_metric)
-        & (rows["_time"].isin({"ANY", f"{hour % 24:02d}:00"}))
-    ]
-    threshold_rows = metric_rows[
-        (metric_rows["High_Min"].map(lambda value: _normalize_int(value) or 0) <= high_score)
-        & (metric_rows["Low_Max"].map(lambda value: _normalize_int(value) or 100) >= low_score)
-    ]
-    candidates = threshold_rows if not threshold_rows.empty else metric_rows
+    if candidates.empty:
+        metric_rows = rows[
+            (rows["_high"] == high_metric)
+            & (rows["_low"] == low_metric)
+            & (rows["_time"].isin({"ANY", f"{hour % 24:02d}:00"}))
+        ]
+        threshold_rows = metric_rows[
+            (metric_rows["High_Min"].map(lambda value: _normalize_int(value) or 0) <= high_score)
+            & (metric_rows["Low_Max"].map(lambda value: _normalize_int(value) or 100) >= low_score)
+        ]
+        candidates = threshold_rows if not threshold_rows.empty else metric_rows
     if candidates.empty:
         return fallback
 
@@ -2350,10 +2334,20 @@ def _daily_performance_action_advice(point: dict[str, Any], hour: int) -> dict[s
     return {
         "adviceId": _safe_text(row, "Advice_ID"),
         "timeBlock": _safe_text(row, "Time_Block", "ANY"),
+        "patternType": pattern["patternType"],
+        "primaryHighMetric": pattern["primaryHighMetric"],
+        "secondaryHighMetric": pattern["secondaryHighMetric"],
+        "primaryLowMetric": pattern["primaryLowMetric"],
+        "secondaryLowMetric": pattern["secondaryLowMetric"],
+        "overallLevel": pattern["overallLevel"],
         "highMetric": high_metric,
         "highScore": round(high_score),
         "lowMetric": low_metric,
         "lowScore": round(low_score),
+        "frictionScore": round(friction_score),
+        "frictionState": friction_state,
+        "marsScore": round(mars_score),
+        "marsState": mars_state,
         "actionMode": _safe_text(row, "Action_Mode"),
         "headline": _safe_text(row, "Headline"),
         "recommendedAction": _safe_text(row, "Recommended_Action"),
@@ -2361,48 +2355,6 @@ def _daily_performance_action_advice(point: dict[str, Any], hour: int) -> dict[s
         "restGuidance": _safe_text(row, "Rest_Guidance"),
         "variant": _safe_text(row, "Variant"),
     }
-
-
-def _timeline_target_score(slot_id: str) -> int:
-    advice_df = _timeline_advice_rows()
-    if advice_df.empty:
-        return 50
-    slot_rows = advice_df[advice_df["Time_Slot_ID"].map(lambda value: str(value).strip().upper()) == slot_id.upper()]
-    if slot_rows.empty:
-        return 50
-    return _normalize_int(slot_rows.iloc[0].get("Target_Score")) or 50
-
-
-def _get_timeline_advice(slot_id: str, additive_score: int) -> dict[str, Any]:
-    fallback = {
-        "Target_Score": 50,
-        "Condition": "MATCH",
-        "Status_Label": "螳牙ｮ壽耳遘ｻ",
-        "Action_Type": "Focus",
-    }
-    advice_df = _timeline_advice_rows()
-    if advice_df.empty:
-        return fallback
-    slot_rows = advice_df[advice_df["Time_Slot_ID"].map(lambda value: str(value).strip().upper()) == slot_id.upper()]
-    if slot_rows.empty:
-        return fallback
-    target_score = _normalize_int(slot_rows.iloc[0].get("Target_Score")) or 50
-    delta = additive_score - target_score
-    over_row = slot_rows[slot_rows["Condition"].map(lambda value: str(value).strip().upper()) == "OVER"]
-    under_row = slot_rows[slot_rows["Condition"].map(lambda value: str(value).strip().upper()) == "UNDER"]
-    match_row = slot_rows[slot_rows["Condition"].map(lambda value: str(value).strip().upper()) == "MATCH"]
-    if not over_row.empty and delta >= (_normalize_int(over_row.iloc[0].get("Condition_Threshold")) or 999):
-        return dict(over_row.iloc[0])
-    if not under_row.empty and delta <= (_normalize_int(under_row.iloc[0].get("Condition_Threshold")) or -999):
-        return dict(under_row.iloc[0])
-    if not match_row.empty:
-        return dict(match_row.iloc[0])
-    return dict(slot_rows.iloc[0])
-
-
-def _timeline_condition_multiplier(condition: Any) -> float:
-    normalized_condition = str(condition or "").strip().upper()
-    return TIMELINE_CONDITION_MULTIPLIERS.get(normalized_condition, 1.0)
 
 
 def _build_natal_planet_rows(birth_input: BirthInput) -> list[dict[str, Any]]:
@@ -3250,9 +3202,9 @@ def _build_daily_performance(
             noise_sum=noise_sum,
             mars_friction=mars_friction,
         )
-        ranked_sources = _rank_timeline_rows(source_rows)[:5]
+        ranked_sources = _rank_aspect_influence_rows(source_rows)[:5]
         ranked_transit_sources = {
-            planet: _rank_timeline_rows([
+            planet: _rank_aspect_influence_rows([
                 row for row in source_rows
                 if _normalize_planet(row.get("T_Planet")) == planet
             ])[:limit]
@@ -3319,132 +3271,6 @@ def _build_daily_performance(
     return points
 
 
-def _build_timeline_slot_from_rows(
-    slot_def: dict[str, Any],
-    slot_rows: list[dict[str, Any]],
-    fallback_row: dict[str, Any] | None = None,
-    daily_modifier: int = 0,
-    is_noise_heavy: bool = False,
-) -> dict[str, Any]:
-    target_score = _timeline_target_score(slot_def["id"])
-    total_impact = sum(_safe_number(row, "Score_Impact") for row in slot_rows)
-    dominant_candidates = slot_rows or ([fallback_row] if fallback_row else [])
-    dominant_row = max(dominant_candidates, key=lambda row: (_safe_number(row, "Score_Impact"), _safe_number(row, "Priority"))) if dominant_candidates else None
-    additive_score = _clamp(target_score + total_impact + daily_modifier, 0, 100)
-    advice_row = _get_timeline_advice(slot_def["id"], additive_score)
-    condition = _safe_text(advice_row, "Condition", "MATCH")
-    multiplier = _timeline_condition_multiplier(condition)
-    final_score = _clamp(round(additive_score * multiplier), 0, 100)
-
-    aspect_recommended_action = _safe_text(dominant_row, "Recommended_Action")
-    aspect_action = _safe_text(dominant_row, "Advised_Task")
-    timeline_label = _safe_text(dominant_row, "timeline_Label")
-    detail = _safe_text(dominant_row, "Text_Description")
-    timeline_aspects = [_timeline_aspect_entry(row) for row in dominant_candidates if row]
-
-    advice_status = _safe_text(advice_row, "Status_Label", slot_def["id"])
-
-    combined_recommendation = aspect_recommended_action or aspect_action
-
-    LOGGER.info(
-        "Timeline score: slot=%s target=%s impact=%s daily=%s additive=%s final=%s condition=%s multiplier=%s",
-        slot_def["id"],
-        target_score,
-        total_impact,
-        daily_modifier,
-        additive_score,
-        final_score,
-        condition,
-        multiplier,
-    )
-
-    return {
-        "label": slot_def["label"],
-        "title": advice_status,
-        "score": final_score,
-        "timelineLabel": timeline_label,
-        "timelineAspects": timeline_aspects,
-        "recommendedAction": combined_recommendation,
-        "description": detail,
-        "recommendation": combined_recommendation,
-        "detail": detail,
-        "statusLabel": advice_status,
-        "actionType": _safe_text(advice_row, "Action_Type"),
-        "condition": condition,
-        "targetScore": target_score,
-        "scoreImpactTotal": total_impact,
-        "dailyModifier": daily_modifier,
-        "additiveScore": additive_score,
-        "multiplier": multiplier,
-        "sourceRow": dominant_row,
-        "timelineAdviceRow": advice_row,
-        "sourceAspect": {
-            "t_planet": _normalize_planet(dominant_row.get("T_Planet")) if dominant_row else "",
-            "n_planet": _normalize_planet(dominant_row.get("N_Planet")) if dominant_row else "",
-            "angle": _safe_number(dominant_row or {}, "Aspect_Angle"),
-            "category": _safe_text(dominant_row, "Category", "General"),
-        },
-    }
-
-
-def _build_timeline_from_interpretations(
-    rows: list[dict[str, Any]],
-    baseline_score: int = 50,
-    birth_input: BirthInput | None = None,
-    current_dt: datetime | date | None = None,
-    daily_modifier: int = 0,
-    is_noise_heavy: bool = False,
-) -> list[dict[str, Any]]:
-    ranked = _rank_timeline_rows(rows)
-
-    if birth_input is not None and swe is not None:
-        target_date = current_dt.date() if isinstance(current_dt, datetime) else current_dt or _app_today()
-        used_keys: set[tuple[str, str, int, str]] = set()
-        timeline: list[dict[str, Any]] = []
-        for index, slot_def in enumerate(TIMELINE_SLOT_DEFS):
-            slot_rows = _build_prioritized_slot_interpretations(birth_input, slot_def, target_date)
-            display_rows = _select_timeline_display_rows(slot_rows, ranked, index, used_keys)
-            fallback_row = display_rows[0] if display_rows else None
-            timeline.append(_build_timeline_slot_from_rows(slot_def, display_rows, fallback_row, daily_modifier=daily_modifier, is_noise_heavy=is_noise_heavy))
-        return timeline
-
-    used_keys: set[tuple[str, str, int, str]] = set()
-    timeline: list[dict[str, Any]] = []
-    for index, slot_def in enumerate(TIMELINE_SLOT_DEFS):
-        slot_rows = _select_timeline_display_rows(ranked, [], index, used_keys)
-        fallback_row = slot_rows[0] if slot_rows else None
-        if not slot_rows and fallback_row is None:
-            target_score = _timeline_target_score(slot_def["id"])
-            additive_score = _clamp(target_score + daily_modifier, 0, 100)
-            advice_row = _get_timeline_advice(slot_def["id"], additive_score)
-            condition = _safe_text(advice_row, "Condition", "MATCH")
-            multiplier = _timeline_condition_multiplier(condition)
-            final_score = _clamp(round(additive_score * multiplier), 0, 100)
-            timeline.append({
-                "label": slot_def["label"],
-                "title": _safe_text(advice_row, "Status_Label", slot_def["id"]),
-                "score": final_score,
-                "recommendedAction": "予定を詰め込みすぎず、整える時間を優先してください。",
-                "description": "強いアスペクトが少ないため、無理に動くより日常のリズムを整える時間帯です。",
-                "recommendation": "穏やかな調整",
-                "detail": "強いアスペクトが少ないため、無理に動くより日常のリズムを整える時間帯です。",
-                "statusLabel": _safe_text(advice_row, "Status_Label"),
-                "actionType": _safe_text(advice_row, "Action_Type"),
-                "condition": condition,
-                "targetScore": target_score,
-                "scoreImpactTotal": 0,
-                "dailyModifier": daily_modifier,
-                "additiveScore": additive_score,
-                "multiplier": multiplier,
-                "sourceRow": None,
-                "timelineAdviceRow": advice_row,
-                "sourceAspect": {"t_planet": "", "n_planet": "", "angle": 0, "category": "General"},
-                "timelineAspects": [],
-            })
-            continue
-        timeline.append(_build_timeline_slot_from_rows(slot_def, slot_rows, fallback_row, daily_modifier=daily_modifier, is_noise_heavy=is_noise_heavy))
-    return timeline
-
 
 def _build_developer_meta(
     hero_row: dict[str, Any] | None,
@@ -3452,7 +3278,6 @@ def _build_developer_meta(
     basic_interpretations: list[dict[str, Any]] | None,
     daily_vibe: dict[str, Any],
     countdown_data: dict[str, Any] | None,
-    timeline: list[dict[str, Any]],
     topics: list[dict[str, Any]],
     final_score: int,
     average_score: int | float,
@@ -3519,51 +3344,6 @@ def _build_developer_meta(
         ),
         limit=5,
     )
-
-    timeline_sources: list[dict[str, Any]] = []
-    for slot in timeline:
-        slot_sources: list[dict[str, Any]] = []
-        aspect_source = _source_reference(
-            slot.get("sourceRow"),
-            columns=[
-                "Aspect_Logic_ID",
-                "T_Planet",
-                "N_Planet",
-                "Aspect_Angle",
-                "Recommended_Action",
-                "timeline_Label",
-                "Text_Description",
-                "Advised_Task",
-                "Score_Impact",
-                "Priority",
-            ],
-            note=(
-                f"{slot.get('label')} の本文に使った主アスペクトです。"
-                f"基準値 {slot.get('targetScore')} + アスペクト合計 {slot.get('scoreImpactTotal')} + "
-                f"日運補正 {slot.get('dailyModifier')} = 加算後 {slot.get('additiveScore')}"
-            ),
-        )
-        if aspect_source:
-            slot_sources.append(aspect_source)
-        advice_source = _source_reference(
-            slot.get("timelineAdviceRow"),
-            columns=["Time_Slot_ID", "Target_Score", "Condition", "Condition_Threshold", "Status_Label", "Action_Type"],
-            note=f"{slot.get('label')} の Condition={slot.get('condition')} を判定したタイムラインマスタです。",
-        )
-        if advice_source:
-            slot_sources.append(advice_source)
-        timeline_sources.append(
-            {
-                "slot": slot.get("label"),
-                "logic": (
-                    f"計算式は (基準値 {slot.get('targetScore')} + アスペクト合計 {slot.get('scoreImpactTotal')} + "
-                    f"日運補正 {slot.get('dailyModifier')}) × 条件倍率 {slot.get('multiplier')} です。"
-                    f"今回は ({slot.get('targetScore')} + {slot.get('scoreImpactTotal')} + {slot.get('dailyModifier')}) × "
-                    f"{slot.get('multiplier')} = {slot.get('score')} として算出しています。"
-                ),
-                "sources": slot_sources,
-            }
-        )
 
     topic_sources: list[dict[str, Any]] = []
     for topic in topics:
@@ -3710,10 +3490,6 @@ def _build_developer_meta(
             "logic": countdown_logic,
             "sources": countdown_sources,
         },
-        "timeline": {
-            "logic": "各時間帯では、主アスペクト 1 件を選び、M_Timeline_Advice の基準値にアスペクト合計と日運補正を加えた後、Condition に応じた倍率を掛けてスコアを出しています。",
-            "sources": timeline_sources,
-        },
         "topics": {
             "logic": "トピック強化カードは Category ごとに候補をまとめ、その中で Score_Impact が最も高い 1 行だけを採用しています。",
             "sources": topic_sources,
@@ -3740,9 +3516,6 @@ def build_dashboard_data_from_interpretations(
         }
         hero = _apply_basic_to_hero(hero, basic_interpretations, None, [])
         diagnostic = _build_diagnostic_data([], daily_vibe, None)
-        is_noise_heavy = any(str(item.get("Safety_Level", "")).strip().upper() == "LOW" for item in daily_vibe.get("items", []))
-        timeline = _build_timeline_from_interpretations([], final_score, birth_input=birth_input, current_dt=current_dt, daily_modifier=daily_modifier, is_noise_heavy=is_noise_heavy)
-        timeline_days = _build_timeline_days([], final_score, birth_input=birth_input, current_dt=current_dt, daily_modifier=daily_modifier, is_noise_heavy=is_noise_heavy)
         daily_performance = _build_daily_performance(birth_input, current_dt, daily_vibe)
         topics = _build_topics_from_interpretations([], final_score)
         return _to_json_compatible({
@@ -3750,9 +3523,6 @@ def build_dashboard_data_from_interpretations(
             "hero": hero,
             "countdown": None,
             "diagnostic": diagnostic,
-            "timeline": timeline,
-            "timelineDate": _dashboard_date(current_dt),
-            "timelineDays": timeline_days,
             "dailyPerformance": daily_performance,
             "planetMotion": _dashboard_planet_motion(birth_input, current_dt),
             "retrogradeCalendar": _dashboard_retrograde_calendar(current_dt),
@@ -3762,7 +3532,7 @@ def build_dashboard_data_from_interpretations(
             "aspect_interpretations": [],
             "basic_interpretations": basic_interpretations or [],
             "daily_vibe": daily_vibe,
-            "developerMeta": _build_developer_meta(None, [], basic_interpretations or [], daily_vibe, None, timeline, topics, final_score, 50),
+            "developerMeta": _build_developer_meta(None, [], basic_interpretations or [], daily_vibe, None, topics, final_score, 50),
         })
 
     average_score = sum(_safe_number(row, "Score_Impact") for row in interpretations) / len(interpretations)
@@ -3827,9 +3597,6 @@ def build_dashboard_data_from_interpretations(
     countdown_items = positive_countdown_items
     countdown_data = (positive_countdown_items or [None])[0]
     diagnostic_data = _build_diagnostic_data(interpretations, daily_vibe, countdown_data)
-    is_noise_heavy = any(str(item.get("Safety_Level", "")).strip().upper() == "LOW" for item in daily_vibe.get("items", []))
-    timeline = _build_timeline_from_interpretations(interpretations, final_score, birth_input=birth_input, current_dt=current_dt, daily_modifier=daily_modifier, is_noise_heavy=is_noise_heavy)
-    timeline_days = _build_timeline_days(interpretations, final_score, birth_input=birth_input, current_dt=current_dt, daily_modifier=daily_modifier, is_noise_heavy=is_noise_heavy)
     daily_performance = _build_daily_performance(birth_input, current_dt, daily_vibe)
     weekly_aspects = _build_weekly_aspect_items(birth_input, current_dt)
     topics = _build_topics_from_interpretations(interpretations, final_score)
@@ -3860,9 +3627,6 @@ def build_dashboard_data_from_interpretations(
             "legacy_long": long_countdown_items,
         },
         "diagnostic": diagnostic_data,
-        "timeline": timeline,
-        "timelineDate": _dashboard_date(current_dt),
-        "timelineDays": timeline_days,
         "dailyPerformance": daily_performance,
         "planetMotion": _dashboard_planet_motion(birth_input, current_dt),
         "retrogradeCalendar": _dashboard_retrograde_calendar(current_dt),
@@ -3877,7 +3641,7 @@ def build_dashboard_data_from_interpretations(
         "aspect_interpretations": interpretations,
         "basic_interpretations": basic_interpretations or [],
         "daily_vibe": daily_vibe,
-        "developerMeta": _build_developer_meta(hero_row, interpretations, basic_interpretations or [], daily_vibe, countdown_data, timeline, topics, final_score, average_score),
+        "developerMeta": _build_developer_meta(hero_row, interpretations, basic_interpretations or [], daily_vibe, countdown_data, topics, final_score, average_score),
     })
 
 

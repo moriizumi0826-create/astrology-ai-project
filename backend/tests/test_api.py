@@ -18,7 +18,6 @@ from backend.app.services.reading_service import (
     build_dashboard_data_from_interpretations,
     build_dashboard_data_from_aspects,
     build_transit_aspect_inputs,
-    _local_sample_datetime,
     get_aspect_dashboard_data,
     get_aspect_interpretation,
     get_basic_interpretation,
@@ -75,7 +74,8 @@ class ApiTestCase(unittest.TestCase):
         self.assertEqual(dashboard_data["hero"]["rank"], "S")
         self.assertTrue(dashboard_data["hero"]["summary"])
         self.assertIn("countdown", dashboard_data)
-        self.assertIn("timeline", dashboard_data)
+        self.assertIn("dailyPerformance", dashboard_data)
+        self.assertNotIn("timeline", dashboard_data)
         self.assertTrue(dashboard_data["topics"][0]["description"])
         self.assertIn("developerMeta", dashboard_data)
         self.assertIn("personalReading", dashboard_data["developerMeta"])
@@ -331,11 +331,19 @@ class ApiTestCase(unittest.TestCase):
         self.assertIsInstance(encoded, dict)
         self.assertIn("hero", encoded)
 
-    def test_dashboard_timeline_uses_four_time_slots_and_unique_actions(self):
+    def test_daily_performance_exposes_action_advice(self):
         dashboard_data = build_dashboard_data_from_aspects(
             aspects=[
                 {
                     "t_planet": "SUN",
+                    "n_planet": "SUN",
+                    "angle": 0,
+                    "house": 1,
+                    "is_retrograde": False,
+                    "orb_status": "Applying",
+                },
+                {
+                    "t_planet": "MOON",
                     "n_planet": "SUN",
                     "angle": 0,
                     "house": 1,
@@ -369,120 +377,100 @@ class ApiTestCase(unittest.TestCase):
             ]
         )
 
-        timeline = dashboard_data["timeline"]
-        self.assertEqual(
-            [slot["label"] for slot in timeline],
-            [
-                "06:00 - 12:00 (Morning)",
-                "12:00 - 18:00 (Afternoon)",
-                "18:00 - 24:00 (Evening)",
-                "00:00 - 06:00 (Night)",
-            ],
-        )
-        self.assertTrue(all(0 <= slot["score"] <= 100 for slot in timeline))
-        self.assertTrue(all(slot["recommendedAction"] for slot in timeline))
-        self.assertTrue(all(slot["description"] for slot in timeline))
-        self.assertTrue(all(slot["targetScore"] in {100, 55, 30, 10} for slot in timeline))
-        self.assertTrue(all(slot.get("sourceRow") for slot in timeline))
-        self.assertTrue(all(slot.get("timelineAdviceRow") for slot in timeline))
-        self.assertTrue(all(slot.get("timelineAspects") for slot in timeline))
-        self.assertGreater(len({slot["recommendedAction"] for slot in timeline}), 1)
-        self.assertTrue(
-            any(
-                [aspect["sourceAspect"]["t_planet"] for aspect in slot["timelineAspects"]] == ["SUN", "MERCURY"]
-                for slot in timeline
-            )
-        )
-        self.assertTrue(any(slot["sourceAspect"]["angle"] == 150 for slot in timeline))
+        daily_performance = dashboard_data["dailyPerformance"]
+        self.assertGreaterEqual(len(daily_performance), 24)
+        self.assertTrue(all(point.get("actionAdvice") for point in daily_performance))
+        self.assertTrue(all(point["actionAdvice"].get("recommendedAction") for point in daily_performance))
+        self.assertTrue(all(point["actionAdvice"].get("thinkingStyle") for point in daily_performance))
+        self.assertTrue(all(point["actionAdvice"].get("restGuidance") for point in daily_performance))
 
-    def test_dashboard_timeline_prefers_moon_and_mercury_as_separate_entries(self):
-        dashboard_data = build_dashboard_data_from_aspects(
-            aspects=[
-                {
-                    "t_planet": "MOON",
-                    "n_planet": "SUN",
-                    "angle": 0,
-                    "house": 1,
-                    "is_retrograde": False,
-                    "orb_status": "Applying",
-                },
-                {
-                    "t_planet": "MERCURY",
-                    "n_planet": "SATURN",
-                    "angle": 0,
-                    "house": 6,
-                    "is_retrograde": False,
-                    "orb_status": "Applying",
-                },
-                {
-                    "t_planet": "MARS",
-                    "n_planet": "SUN",
-                    "angle": 150,
-                    "house": 1,
-                    "is_retrograde": False,
-                    "orb_status": "Separating",
-                },
-            ]
+    def test_daily_performance_action_advice_keeps_mars_separate(self):
+        advice = reading_service._daily_performance_action_advice(
+            {
+                "marsActivity": 0,
+                "drive": 62,
+                "flow": 48,
+                "inspiration": 72,
+                "friction": 31,
+            },
+            hour=9,
         )
 
-        first_slot = dashboard_data["timeline"][0]
-        self.assertEqual(
-            [aspect["sourceAspect"]["t_planet"] for aspect in first_slot["timelineAspects"]],
-            ["MOON", "MERCURY"],
-        )
-        self.assertEqual(len(first_slot["timelineAspects"]), 2)
-        self.assertTrue(all(aspect["recommendedAction"] for aspect in first_slot["timelineAspects"]))
-        self.assertTrue(all(aspect["description"] for aspect in first_slot["timelineAspects"]))
+        self.assertNotEqual(advice["highMetric"], "MARS_ACTIVITY")
+        self.assertNotEqual(advice["lowMetric"], "MARS_ACTIVITY")
+        self.assertEqual(advice["highMetric"], "INSPIRATION")
+        self.assertEqual(advice["lowMetric"], "FLOW")
+        self.assertEqual(advice["frictionScore"], 31)
+        self.assertEqual(advice["frictionState"], "LOW")
+        self.assertEqual(advice["marsScore"], 0)
+        self.assertEqual(advice["marsState"], "LOW")
 
-    def test_timeline_logs_target_score_and_final_score(self):
-        with self.assertLogs("backend.app.services.reading_service", level="INFO") as logs:
-            build_dashboard_data_from_aspects(
-                aspects=[
-                    {
-                        "t_planet": "MOON",
-                        "n_planet": "SUN",
-                        "angle": 0,
-                        "house": 1,
-                        "is_retrograde": False,
-                        "orb_status": "Applying",
-                    }
-                ]
-            )
-
-        joined = "\n".join(logs.output)
-        self.assertIn("Timeline score: slot=MORNING", joined)
-        self.assertIn("target=100", joined)
-        self.assertIn("additive=", joined)
-        self.assertIn("final=", joined)
-
-    def test_timeline_night_slot_samples_next_day(self):
-        sample_dt = _local_sample_datetime(date(2026, 5, 3), 3, day_offset=1)
-
-        self.assertEqual(sample_dt, datetime(2026, 5, 4, 3, 0))
-
-    def test_timeline_score_combines_aspect_daily_vibe_and_condition_multiplier(self):
-        dashboard_data = build_dashboard_data_from_aspects(
-            aspects=[
-                {
-                    "t_planet": "MARS",
-                    "n_planet": "SUN",
-                    "angle": 150,
-                    "house": 1,
-                    "is_retrograde": False,
-                    "orb_status": "Separating",
-                }
-            ],
-            retrograde_planets=["MERCURY"],
+    def test_daily_performance_action_advice_detects_dual_high(self):
+        advice = reading_service._daily_performance_action_advice(
+            {
+                "marsActivity": 45,
+                "drive": 76,
+                "flow": 42,
+                "inspiration": 74,
+                "friction": 28,
+            },
+            hour=12,
         )
 
-        morning = dashboard_data["timeline"][0]
-        self.assertEqual(morning["targetScore"], 100)
-        self.assertEqual(morning["scoreImpactTotal"], -25)
-        self.assertEqual(morning["dailyModifier"], -20)
-        self.assertEqual(morning["additiveScore"], 55)
-        self.assertEqual(morning["condition"], "UNDER")
-        self.assertAlmostEqual(morning["multiplier"], 0.92)
-        self.assertEqual(morning["score"], 51)
+        self.assertEqual(advice["patternType"], "DUAL_HIGH")
+        self.assertEqual(advice["primaryHighMetric"], "DRIVE")
+        self.assertEqual(advice["secondaryHighMetric"], "INSPIRATION")
+        self.assertTrue(advice["adviceId"].startswith("DPA_DUAL_HIGH_"))
+
+    def test_daily_performance_action_advice_detects_balanced(self):
+        advice = reading_service._daily_performance_action_advice(
+            {
+                "marsActivity": 45,
+                "drive": 52,
+                "flow": 55,
+                "inspiration": 49,
+                "friction": 30,
+            },
+            hour=15,
+        )
+
+        self.assertEqual(advice["patternType"], "BALANCED")
+        self.assertEqual(advice["overallLevel"], "NEUTRAL")
+        self.assertTrue(advice["adviceId"].startswith("DPA_BALANCED_"))
+
+    def test_daily_performance_action_advice_keeps_friction_separate(self):
+        advice = reading_service._daily_performance_action_advice(
+            {
+                "marsActivity": 48,
+                "drive": 67,
+                "flow": 44,
+                "inspiration": 62,
+                "friction": 83,
+            },
+            hour=18,
+        )
+
+        self.assertEqual(advice["patternType"], "FRICTION_SPIKE")
+        self.assertNotEqual(advice["highMetric"], "FRICTION")
+        self.assertNotEqual(advice["lowMetric"], "FRICTION")
+        self.assertEqual(advice["frictionState"], "SPIKE")
+        self.assertTrue(advice["adviceId"].startswith("DPA_FRICTION_SPIKE_"))
+
+    def test_daily_performance_action_advice_detects_all_low(self):
+        advice = reading_service._daily_performance_action_advice(
+            {
+                "marsActivity": 20,
+                "drive": 30,
+                "flow": 32,
+                "inspiration": 28,
+                "friction": 42,
+            },
+            hour=21,
+        )
+
+        self.assertEqual(advice["patternType"], "ALL_LOW")
+        self.assertEqual(advice["overallLevel"], "LOW")
+        self.assertTrue(advice["adviceId"].startswith("DPA_ALL_LOW_"))
 
     def test_countdown_data_loads_master_and_calculates_progress(self):
         countdown = build_countdown_data(
@@ -736,12 +724,6 @@ class ApiTestCase(unittest.TestCase):
         ), patch(
             "backend.app.services.reading_service.get_all_aspect_interpretations",
             side_effect=fake_interpretations,
-        ), patch(
-            "backend.app.services.reading_service._build_timeline_from_interpretations",
-            return_value=[],
-        ), patch(
-            "backend.app.services.reading_service._build_timeline_days",
-            return_value=[],
         ), patch(
             "backend.app.services.reading_service._build_daily_performance",
             return_value=[],
@@ -1186,7 +1168,8 @@ class ApiTestCase(unittest.TestCase):
 
         self.assertEqual(dashboard_data["hero"]["score"], 50)
         self.assertEqual(dashboard_data["aspect_interpretations"], [])
-        self.assertEqual(len(dashboard_data["timeline"]), 4)
+        self.assertNotIn("timeline", dashboard_data)
+        self.assertIn("dailyPerformance", dashboard_data)
         self.assertEqual(dashboard_data["diagnostic"]["score"], 50)
         self.assertTrue(dashboard_data["topics"])
 
