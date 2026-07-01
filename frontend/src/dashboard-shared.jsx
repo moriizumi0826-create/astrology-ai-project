@@ -2684,6 +2684,7 @@ const DAILY_PERFORMANCE_METRIC_LABELS = {
 };
 
 function dailyPerformanceActionAdvice(point = {}) {
+  if (!point) return null;
   const advice = point.actionAdvice || point.action_advice || null;
   if (advice && typeof advice === "object") return advice;
   return null;
