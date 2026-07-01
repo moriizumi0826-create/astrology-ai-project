@@ -1,4 +1,5 @@
 ﻿import React, { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { currentTokyoDate, getStoredReadingForm, getStoredReadingResult, getStoredReadingResultAsync } from "./reading-storage.js";
 import {
   BatteryMedium,
@@ -2409,27 +2410,6 @@ const DAILY_PERFORMANCE_FRICTION_STATE_LABELS = {
   LOW: "低",
   NEUTRAL: "中",
 };
-const DAILY_PERFORMANCE_PATTERN_LABELS = {
-  PAIR_HIGH_LOW: "強弱あり",
-  DUAL_HIGH: "強み2つ",
-  DUAL_LOW: "弱み2つ",
-  BALANCED: "平均的",
-  ALL_HIGH: "全体高め",
-  ALL_LOW: "全体低め",
-  FRICTION_SPIKE: "摩擦強",
-  FRICTION_WITH_HIGH: "摩擦注意",
-  FRICTION_HIGH_ALL_HIGH: "高出力注意",
-  FRICTION_HIGH_ALL_LOW: "低調注意",
-};
-
-function dailyPerformanceMetricLabel(metric) {
-  return DAILY_PERFORMANCE_METRIC_LABELS[metric] || metric || "";
-}
-
-function dailyPerformanceMetricPairLabel(primary, secondary) {
-  const labels = [primary, secondary].filter(Boolean).map(dailyPerformanceMetricLabel);
-  return labels.join(" + ");
-}
 
 function dailyPerformanceActionAdvice(point = {}) {
   if (!point) return null;
@@ -2702,11 +2682,9 @@ function DashboardV2DailyFlowCard({ data, displayDate = "" }) {
   const handlePerformanceClick = (event) => {
     setSelectedPerformanceIndex(performanceIndexFromPointer(event));
   };
-  const performanceIndexFromHour = (hour) => (
-    Math.max(0, Math.min(chartPerformance.length - 1, Math.round(hour / DAILY_PERFORMANCE_SAMPLE_STEP_HOURS)))
-  );
   const handleTransitAspectClick = (event, block, detail, score) => {
-    setSelectedPerformanceIndex(performanceIndexFromHour(block.start));
+    event.preventDefault();
+    event.stopPropagation();
     const position = dailyAspectTooltipPosition(event);
     setActiveAspectTooltip((current) => (
       current?.key === block.key
@@ -2714,7 +2692,7 @@ function DashboardV2DailyFlowCard({ data, displayDate = "" }) {
         : {
             key: block.key,
             label: detail.label || block.label,
-            description: detail.description || "",
+            description: detail.description || detail.advisedTask || "",
             score,
             position,
           }
@@ -2851,11 +2829,6 @@ function DashboardV2DailyFlowCard({ data, displayDate = "" }) {
               </div>
             </div>
             <div className="mb-2 flex flex-wrap gap-1.5 font-mono text-[9px] font-bold">
-              <span className="rounded-full border border-[#38bdf8]/25 bg-[#38bdf8]/10 px-2 py-1 text-[#9bdcff]">
-                主状態: {DAILY_PERFORMANCE_PATTERN_LABELS[selectedAdvice.patternType] || selectedAdvice.patternType || "通常"}
-                {selectedAdvice.primaryHighMetric ? ` / 高 ${dailyPerformanceMetricPairLabel(selectedAdvice.primaryHighMetric, selectedAdvice.secondaryHighMetric)}` : ""}
-                {selectedAdvice.primaryLowMetric ? ` / 低 ${dailyPerformanceMetricPairLabel(selectedAdvice.primaryLowMetric, selectedAdvice.secondaryLowMetric)}` : ""}
-              </span>
               {Number.isFinite(Number(selectedAdvice.frictionScore)) ? (
                 <span className="rounded-full border border-[#ff5c68]/25 bg-[#ff5c68]/10 px-2 py-1 text-[#ff9aa3]">
                   注意: Friction {selectedAdvice.frictionScore}
@@ -2890,7 +2863,7 @@ function DashboardV2DailyFlowCard({ data, displayDate = "" }) {
                       <button
                         type="button"
                         key={block.key}
-                        className="absolute top-0 h-full text-left focus:outline-none"
+                        className="absolute top-0 z-10 h-full cursor-pointer text-left focus:outline-none"
                         style={{
                           left: `${block.left}%`,
                           width: `${block.width}%`,
@@ -2923,7 +2896,7 @@ function DashboardV2DailyFlowCard({ data, displayDate = "" }) {
             </div>
           ))}
         </div>
-        {activeAspectTooltip ? (
+        {activeAspectTooltip && typeof document !== "undefined" ? createPortal((
           <div
             className="fixed z-[80] overflow-hidden rounded-2xl border border-white/10 bg-[#0d0e0f]/95 text-slate-200 shadow-[0_18px_50px_rgba(0,0,0,0.55)] backdrop-blur-sm"
             style={{
@@ -2961,7 +2934,7 @@ function DashboardV2DailyFlowCard({ data, displayDate = "" }) {
               </div>
             </div>
           </div>
-        ) : null}
+        ), document.body) : null}
       </div>
     </DashboardV2Card>
   );
@@ -3841,3 +3814,5 @@ export function Dashboard({ data = dashboardData, embedded = false, developerMod
   }
   return <DashboardV2 data={data} embedded={embedded} developerMode={developerMode} />;
 }
+
+
