@@ -277,6 +277,44 @@ function versionFromPayload(payload) {
   return String(payload?.masterVersion || payload?.master_version || payload?.dataVersion || "").trim();
 }
 
+function forecastDetailAssetFromDocument(doc, baseHref) {
+  const script = Array.from(doc.querySelectorAll("script[src]")).find((item) => {
+    const src = item.getAttribute("src") || "";
+    return src.includes("forecastDetail") || src.includes("/src/forecast-detail.jsx");
+  });
+  if (!script) return "";
+  try {
+    return new URL(script.getAttribute("src") || "", baseHref).pathname;
+  } catch {
+    return script.getAttribute("src") || "";
+  }
+}
+
+async function fetchFrontendVersionState() {
+  if (typeof window === "undefined" || typeof document === "undefined") {
+    return { currentAppAsset: "", latestAppAsset: "", isAppOutdated: false };
+  }
+  const currentAppAsset = forecastDetailAssetFromDocument(document, window.location.href);
+  const latestUrl = new URL(window.location.href);
+  latestUrl.hash = "";
+  latestUrl.searchParams.set("_app_version_check", String(Date.now()));
+  const response = await fetch(latestUrl.toString(), {
+    cache: "no-store",
+    headers: { "Cache-Control": "no-cache" },
+  });
+  if (!response.ok) {
+    throw new Error(`Frontend version check failed: ${response.status}`);
+  }
+  const html = await response.text();
+  const latestDoc = new DOMParser().parseFromString(html, "text/html");
+  const latestAppAsset = forecastDetailAssetFromDocument(latestDoc, latestUrl.toString());
+  return {
+    currentAppAsset,
+    latestAppAsset,
+    isAppOutdated: Boolean(currentAppAsset && latestAppAsset && currentAppAsset !== latestAppAsset),
+  };
+}
+
 function forecastYear(forecast) {
   const fromCache = Number(forecast?.cache?.year);
   if (Number.isFinite(fromCache)) {
@@ -7001,11 +7039,15 @@ function UnifiedForecastView({
 function VersionRefreshButton({ versionState, onRefreshLatest, refreshingLatest }) {
   const [isTooltipVisible, setIsTooltipVisible] = useState(false);
   const tooltipTimerRef = React.useRef(null);
-  const isOutdated = Boolean(versionState?.isOutdated);
+  const isDataOutdated = Boolean(versionState?.isOutdated);
+  const isAppOutdated = Boolean(versionState?.isAppOutdated);
+  const canRefresh = isAppOutdated || isDataOutdated;
   const isCheckingVersion = Boolean(versionState?.checking);
   const refreshTooltip = refreshingLatest
     ? "最新版を取得しています"
-    : isOutdated
+    : isAppOutdated
+      ? "アプリ画面が更新されています。クリックすると最新版の画面を読み込みます"
+      : isDataOutdated
       ? "鑑定データが更新されています。クリックすると最新版で再計算します"
       : versionState?.error
         ? "更新確認に失敗しました。再読み込み後に再確認してください"
@@ -7034,7 +7076,13 @@ function VersionRefreshButton({ versionState, onRefreshLatest, refreshingLatest 
 
   const handleRefreshButtonClick = () => {
     showTooltipTemporarily();
-    if (isOutdated && !refreshingLatest) {
+    if (isAppOutdated) {
+      const refreshUrl = new URL(window.location.href);
+      refreshUrl.searchParams.set("_app_refresh", String(Date.now()));
+      window.location.replace(refreshUrl.toString());
+      return;
+    }
+    if (isDataOutdated && !refreshingLatest) {
       onRefreshLatest();
     }
   };
@@ -7052,11 +7100,11 @@ function VersionRefreshButton({ versionState, onRefreshLatest, refreshingLatest 
         onClick={handleRefreshButtonClick}
         className={cx(
           "inline-flex h-9 items-center gap-1.5 rounded-full border px-3 font-mono text-[10px] font-black tracking-[0.08em] shadow-sm transition sm:h-10 sm:gap-2 sm:px-4 sm:text-xs",
-          isOutdated
+          canRefresh
             ? "border-[#D4AF37]/70 bg-[#D4AF37] text-[#241a00] hover:bg-[#f2d56d]"
             : "cursor-not-allowed border-slate-200 bg-white text-[#0A192F]/45"
         )}
-        aria-disabled={!isOutdated || refreshingLatest}
+        aria-disabled={!canRefresh || refreshingLatest}
       >
         <RefreshCw size={14} className={cx(refreshingLatest && "animate-spin")} />
         <span>最新版に更新</span>
@@ -8202,6 +8250,9 @@ function ForecastDetailPage() {
     currentMasterVersion: "",
     savedMasterVersion: payloadMasterVersion(getStoredReadingResult({ allowStale: true }) || {}),
     isOutdated: false,
+    currentAppAsset: "",
+    latestAppAsset: "",
+    isAppOutdated: false,
     error: "",
   });
   useEffect(() => {
@@ -8224,17 +8275,28 @@ function ForecastDetailPage() {
   }, [forceRefresh]);
   useEffect(() => {
     let active = true;
-    getJson("/api/master-version")
-      .then((payload) => {
+    Promise.allSettled([
+      getJson("/api/master-version"),
+      fetchFrontendVersionState(),
+    ])
+      .then(([masterResult, frontendResult]) => {
         if (!active) return;
-        const currentMasterVersion = versionFromPayload(payload);
+        const masterPayload = masterResult.status === "fulfilled" ? masterResult.value : null;
+        const frontendPayload = frontendResult.status === "fulfilled" ? frontendResult.value : {};
+        const currentMasterVersion = versionFromPayload(masterPayload);
         const savedMasterVersion = payloadMasterVersion(readingPayload);
+        const error = masterResult.status === "rejected" && frontendResult.status === "rejected"
+          ? "更新確認に失敗しました。再読み込み後に再確認してください。"
+          : "";
         setVersionState({
           checking: false,
           currentMasterVersion,
           savedMasterVersion,
           isOutdated: Boolean(currentMasterVersion && currentMasterVersion !== savedMasterVersion),
-          error: "",
+          currentAppAsset: frontendPayload.currentAppAsset || "",
+          latestAppAsset: frontendPayload.latestAppAsset || "",
+          isAppOutdated: Boolean(frontendPayload.isAppOutdated),
+          error,
         });
       })
       .catch((error) => {
@@ -8375,6 +8437,9 @@ function ForecastDetailPage() {
         currentMasterVersion: masterVersion,
         savedMasterVersion: masterVersion,
         isOutdated: false,
+        currentAppAsset: versionState.currentAppAsset || "",
+        latestAppAsset: versionState.latestAppAsset || "",
+        isAppOutdated: false,
         error: "",
       });
     } catch (error) {
