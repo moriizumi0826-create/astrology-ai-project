@@ -6999,6 +6999,8 @@ function UnifiedForecastView({
 }
 
 function VersionRefreshButton({ versionState, onRefreshLatest, refreshingLatest }) {
+  const [isTooltipVisible, setIsTooltipVisible] = useState(false);
+  const tooltipTimerRef = React.useRef(null);
   const isOutdated = Boolean(versionState?.isOutdated);
   const isCheckingVersion = Boolean(versionState?.checking);
   const refreshTooltip = refreshingLatest
@@ -7011,15 +7013,43 @@ function VersionRefreshButton({ versionState, onRefreshLatest, refreshingLatest 
           ? "更新状況を確認しています"
           : "現在表示中の内容は最新版です";
 
+  useEffect(() => {
+    return () => {
+      if (tooltipTimerRef.current) {
+        window.clearTimeout(tooltipTimerRef.current);
+      }
+    };
+  }, []);
+
+  const showTooltipTemporarily = () => {
+    setIsTooltipVisible(true);
+    if (tooltipTimerRef.current) {
+      window.clearTimeout(tooltipTimerRef.current);
+    }
+    tooltipTimerRef.current = window.setTimeout(() => {
+      setIsTooltipVisible(false);
+      tooltipTimerRef.current = null;
+    }, 3000);
+  };
+
+  const handleRefreshButtonClick = () => {
+    showTooltipTemporarily();
+    if (isOutdated && !refreshingLatest) {
+      onRefreshLatest();
+    }
+  };
+
   return (
     <div className="group relative shrink-0">
-      <div className="pointer-events-none fixed left-2 right-2 top-2 z-50 rounded-xl border border-slate-200 bg-[#f8fafc]/98 px-3 py-2 text-xs leading-5 text-[#0A192F] opacity-0 shadow-[0_12px_28px_rgba(15,23,42,0.16)] transition group-hover:opacity-100 group-focus-within:opacity-100 sm:hidden">
+      <div className={cx(
+        "pointer-events-none fixed right-3 top-[54px] z-50 w-[min(320px,calc(100vw-24px))] rounded-lg border border-[#D4AF37]/45 bg-[#fffdf7] px-3 py-2 text-[11px] leading-5 text-[#0A192F] opacity-0 shadow-[0_12px_28px_rgba(15,23,42,0.18)] transition sm:invisible sm:opacity-0",
+        isTooltipVisible && "opacity-100"
+      )}>
         {refreshTooltip}
       </div>
       <button
         type="button"
-        onClick={onRefreshLatest}
-        disabled={!isOutdated || refreshingLatest}
+        onClick={handleRefreshButtonClick}
         className={cx(
           "inline-flex h-9 items-center gap-1.5 rounded-full border px-3 font-mono text-[10px] font-black tracking-[0.08em] shadow-sm transition sm:h-10 sm:gap-2 sm:px-4 sm:text-xs",
           isOutdated
@@ -7031,8 +7061,74 @@ function VersionRefreshButton({ versionState, onRefreshLatest, refreshingLatest 
         <RefreshCw size={14} className={cx(refreshingLatest && "animate-spin")} />
         <span>最新版に更新</span>
       </button>
-      <div className="pointer-events-none absolute right-full top-1/2 z-50 mr-2 hidden w-[300px] -translate-y-1/2 rounded-xl border border-slate-200 bg-[#f8fafc]/98 px-3 py-2 text-xs leading-5 text-[#0A192F] opacity-0 shadow-[0_12px_28px_rgba(15,23,42,0.16)] transition group-hover:opacity-100 group-focus-within:opacity-100 sm:block">
+      <div className={cx(
+        "pointer-events-none absolute right-0 top-full z-50 mt-2 hidden w-[320px] rounded-lg border border-[#D4AF37]/45 bg-[#fffdf7] px-3 py-2 text-xs leading-5 text-[#0A192F] opacity-0 shadow-[0_12px_28px_rgba(15,23,42,0.18)] transition sm:block",
+        isTooltipVisible && "opacity-100"
+      )}>
         {refreshTooltip}
+      </div>
+    </div>
+  );
+}
+
+function RetrogradeCalendarPanel({
+  id,
+  isOpen,
+  sortedRetrogradeCalendar,
+  retrogradeCalendarSort,
+  setRetrogradeCalendarSort,
+  className = "",
+}) {
+  return (
+    <div
+      id={id}
+      className={cx(
+        "z-50 overflow-hidden rounded-2xl border border-slate-200 bg-white/95 p-3 text-[#0A192F] shadow-[0_18px_45px_rgba(15,23,42,0.18)] backdrop-blur-xl transition",
+        isOpen ? "pointer-events-auto translate-y-0 opacity-100" : "pointer-events-none -translate-y-1 opacity-0",
+        className
+      )}
+      aria-hidden={!isOpen}
+    >
+      <div className="mb-3 flex items-center justify-between gap-3">
+        <p className="text-[11px] font-black tracking-[0.16em] text-[#0A192F]">逆行カレンダー</p>
+        <div className="flex rounded-full border border-slate-200 bg-slate-50 p-0.5 text-[9px]">
+          {[
+            ["date", "日付順"],
+            ["planet", "天体別"],
+          ].map(([value, label]) => (
+            <button
+              key={value}
+              type="button"
+              onClick={() => setRetrogradeCalendarSort(value)}
+              className={cx(
+                "rounded-full px-2 py-1 transition",
+                retrogradeCalendarSort === value ? "bg-[#D4AF37] text-white" : "text-[#0A192F]/60 hover:text-[#0A192F]"
+              )}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      </div>
+      <div className="grid max-h-[320px] gap-1 overflow-y-auto pr-1">
+        {sortedRetrogradeCalendar.length ? sortedRetrogradeCalendar.map((item, index) => {
+          const isRetrogradeStart = String(item.event_type || item.eventType || "").includes("RETROGRADE") || item.event_label === "逆行開始" || item.eventLabel === "逆行開始";
+          return (
+            <div key={`${item.planet || item.planet_label || index}-${item.event_date || item.eventDate || index}`} className="grid grid-cols-[4.6rem_1fr] gap-2 border-b border-slate-200/80 px-1 py-2 last:border-b-0">
+              <span className={cx("inline-flex min-h-6 items-center justify-center whitespace-nowrap rounded-full px-2 py-1 text-center text-[9px] font-black", isRetrogradeStart ? "bg-[#D4AF37]/15 text-[#9d7620]" : "bg-cyan-100 text-cyan-800")}>
+                {item.event_label || item.eventLabel || item.event_type || item.eventType || "-"}
+              </span>
+              <div className="min-w-0">
+                <p className="truncate text-[11px] font-black text-[#0A192F]">{item.planet_label || item.planetLabel || planetLabel(item.planet)}</p>
+                <p className="mt-0.5 text-[10px] font-bold text-[#0A192F]/60">{formatHeaderCalendarDate(item.event_date || item.eventDate)} {item.degree_display || item.degreeDisplay || ""}</p>
+              </div>
+            </div>
+          );
+        }) : (
+          <p className="rounded-xl border border-slate-200 bg-slate-50/80 px-3 py-4 text-[11px] font-bold leading-5 text-[#0A192F]/60">
+            逆行カレンダーを取得できませんでした。
+          </p>
+        )}
       </div>
     </div>
   );
@@ -7043,6 +7139,8 @@ function Header({
   activeView,
   setActiveView,
   forecast = null,
+  readingPayload = null,
+  dashboardData = null,
   versionState,
   onRefreshLatest,
   refreshingLatest,
@@ -7055,11 +7153,21 @@ function Header({
     ["horoscope", "Horoscope"],
   ];
   const retrogradeCalendar = useMemo(() => {
-    const payload = getStoredReadingResult() || fallbackDashboardData;
-    const sourceForecast = forecast || getForecast() || payload?.yearly_forecast || payload?.yearlyForecast || {};
-    const items = sourceForecast?.retrogradeCalendar || sourceForecast?.retrograde_calendar || payload?.retrogradeCalendar || payload?.retrograde_calendar || [];
+    const storedPayload = getStoredReadingResult() || {};
+    const payload = readingPayload || storedPayload;
+    const sourceDashboard = dashboardData || payload?.dashboard_data || payload?.dashboardData || {};
+    const sourceForecast = forecast || getForecast() || payload?.yearly_forecast || payload?.yearlyForecast || sourceDashboard?.yearly_forecast || sourceDashboard?.yearlyForecast || {};
+    const items =
+      sourceDashboard?.retrogradeCalendar ||
+      sourceDashboard?.retrograde_calendar ||
+      payload?.retrogradeCalendar ||
+      payload?.retrograde_calendar ||
+      sourceForecast?.retrogradeCalendar ||
+      sourceForecast?.retrograde_calendar ||
+      fallbackDashboardData?.retrogradeCalendar ||
+      [];
     return Array.isArray(items) ? items : [];
-  }, [forecast]);
+  }, [dashboardData, forecast, readingPayload]);
   const sortedRetrogradeCalendar = useMemo(() => {
     return [...retrogradeCalendar].sort((a, b) => {
       if (retrogradeCalendarSort === "planet") {
@@ -7078,18 +7186,28 @@ function Header({
   return (
     <header className="fixed left-0 top-0 z-40 w-full border-b border-slate-200/90 bg-[#f8fafc]/95 backdrop-blur-xl">
       <div className="flex w-full max-w-none flex-wrap items-center justify-between gap-2 px-3 py-2 sm:gap-6 sm:px-8 sm:py-6 lg:mx-auto lg:max-w-[1760px]">
-        <div className="flex min-w-0 items-center gap-4 sm:gap-8">
-          <a href="/" className="max-w-[86px] font-serif text-[13px] font-bold leading-[0.98] text-[#0A192F] sm:max-w-none sm:text-4xl sm:leading-none">The Celestial Atelier</a>
+        <div className="flex min-w-0 flex-1 items-center gap-2 sm:flex-none sm:gap-8">
+          <a href="/" className="max-w-[66px] font-serif text-[11px] font-bold leading-[0.98] text-[#0A192F] sm:max-w-none sm:text-4xl sm:leading-none">The Celestial Atelier</a>
           <span className="hidden h-10 w-px bg-slate-200 md:block" />
-          <div className="relative flex min-w-0 items-center gap-1.5">
-            <h1 className="truncate font-serif text-lg font-semibold tracking-[0.04em] text-[#0A192F] sm:text-2xl md:text-3xl">
+          <div className="relative flex min-w-0 flex-1 items-center gap-1 sm:flex-none sm:gap-1.5">
+            <h1 className="hidden truncate font-serif font-semibold tracking-[0.04em] text-[#0A192F] sm:block sm:text-2xl md:text-3xl">
               {headerTitle}
+            </h1>
+            <h1 className="flex min-w-0 items-baseline gap-1 font-serif text-[13px] font-semibold tracking-[0] text-[#0A192F] sm:hidden">
+              {activeView === "horoscope" ? (
+                <span className="truncate">{forecastLabel}</span>
+              ) : (
+                <>
+                  <span className="shrink-0 font-mono text-[10px] font-black text-[#0A192F]/70">{activeYear}年</span>
+                  <span className="truncate">{forecastLabel}</span>
+                </>
+              )}
             </h1>
             <button
               type="button"
               onClick={() => setIsMobileUnifiedMenuOpen((value) => !value)}
               className={cx(
-                "inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-slate-200 bg-white text-[#0A192F] shadow-sm transition sm:hidden",
+                "inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-slate-200 bg-white text-[#0A192F] shadow-sm transition",
                 isMobileUnifiedMenuOpen ? "ring-1 ring-[#D4AF37]/45" : "hover:bg-[#fff7df] hover:text-[#D4AF37]"
               )}
               aria-expanded={isMobileUnifiedMenuOpen}
@@ -7099,6 +7217,30 @@ function Header({
             >
               <Menu size={15} />
             </button>
+            <div className="relative shrink-0">
+              <button
+                type="button"
+                onClick={() => setIsRetrogradeCalendarOpen((value) => !value)}
+                className={cx(
+                  "inline-flex h-8 w-8 items-center justify-center rounded-full border border-slate-200 bg-white text-[#0A192F] shadow-sm transition",
+                  isRetrogradeCalendarOpen ? "ring-1 ring-[#D4AF37]/45" : "hover:bg-[#fff7df] hover:text-[#D4AF37]"
+                )}
+                aria-expanded={isRetrogradeCalendarOpen}
+                aria-controls="forecast-retrograde-calendar"
+                aria-label="逆行カレンダーを開く"
+                title="逆行カレンダー"
+              >
+                <CalendarDays size={15} />
+              </button>
+              <RetrogradeCalendarPanel
+                id="forecast-retrograde-calendar"
+                isOpen={isRetrogradeCalendarOpen}
+                sortedRetrogradeCalendar={sortedRetrogradeCalendar}
+                retrogradeCalendarSort={retrogradeCalendarSort}
+                setRetrogradeCalendarSort={setRetrogradeCalendarSort}
+                className="fixed left-3 right-3 top-[58px] sm:left-auto sm:right-8 sm:top-[88px] sm:w-[330px]"
+              />
+            </div>
           </div>
         </div>
         <VersionRefreshButton
@@ -7109,8 +7251,8 @@ function Header({
         <nav
           id="forecast-mobile-nav"
           className={cx(
-            "order-last w-full items-center gap-5 overflow-x-auto border-t border-slate-200 pt-3 font-mono text-[10px] font-bold tracking-[0.1em] text-[#0A192F]/70 transition-all [scrollbar-width:none] sm:flex sm:text-xs lg:order-none lg:w-auto lg:gap-10 lg:border-t-0 lg:pt-0 lg:tracking-[0.12em]",
-            isMobileUnifiedMenuOpen ? "flex max-h-20 opacity-100" : "hidden max-h-0 opacity-0 sm:flex sm:max-h-none sm:opacity-100"
+            "order-last w-full items-center gap-5 overflow-x-auto border-t border-slate-200 pt-3 font-mono text-[10px] font-bold tracking-[0.1em] text-[#0A192F]/70 transition-all [scrollbar-width:none] sm:text-xs lg:gap-10 lg:tracking-[0.12em]",
+            isMobileUnifiedMenuOpen ? "flex max-h-20 opacity-100" : "hidden max-h-0 opacity-0"
           )}
         >
           {navItems.map(([value, label]) => (
@@ -7119,7 +7261,6 @@ function Header({
                 type="button"
                   onClick={() => {
                     setActiveView(value);
-                    setIsMobileUnifiedMenuOpen(false);
                   }}
                 className={cx(
                   "pb-2 transition sm:pb-3",
@@ -7130,72 +7271,6 @@ function Header({
               </button>
             </React.Fragment>
           ))}
-          {retrogradeCalendar.length ? (
-            <div className="relative shrink-0">
-              <button
-                type="button"
-                onClick={() => {
-                  setIsRetrogradeCalendarOpen((value) => !value);
-                  setIsMobileUnifiedMenuOpen(false);
-                }}
-                className={cx(
-                  "inline-flex h-8 items-center gap-1.5 rounded-full border border-slate-200 bg-white px-3 text-[#0A192F]/75 shadow-sm transition hover:border-[#D4AF37]/45 hover:bg-[#fff7df] hover:text-[#0A192F]",
-                  isRetrogradeCalendarOpen && "border-[#D4AF37]/55 bg-[#fff7df] text-[#0A192F]"
-                )}
-                aria-expanded={isRetrogradeCalendarOpen}
-                aria-controls="forecast-retrograde-calendar"
-              >
-                <CalendarDays size={14} />
-                <span>逆行カレンダー</span>
-              </button>
-              <div
-                id="forecast-retrograde-calendar"
-                className={cx(
-                  "absolute right-0 top-10 z-50 w-[min(330px,calc(100vw-24px))] overflow-hidden rounded-2xl border border-slate-200 bg-white/95 p-3 text-[#0A192F] shadow-[0_18px_45px_rgba(15,23,42,0.18)] backdrop-blur-xl transition",
-                  isRetrogradeCalendarOpen ? "pointer-events-auto translate-y-0 opacity-100" : "pointer-events-none -translate-y-1 opacity-0"
-                )}
-                aria-hidden={!isRetrogradeCalendarOpen}
-              >
-                <div className="mb-3 flex items-center justify-between gap-3">
-                  <p className="text-[11px] font-black tracking-[0.16em] text-[#0A192F]">逆行カレンダー</p>
-                  <div className="flex rounded-full border border-slate-200 bg-slate-50 p-0.5 text-[9px]">
-                    {[
-                      ["date", "日付"],
-                      ["planet", "天体"],
-                    ].map(([value, label]) => (
-                      <button
-                        key={value}
-                        type="button"
-                        onClick={() => setRetrogradeCalendarSort(value)}
-                        className={cx(
-                          "rounded-full px-2 py-1 transition",
-                          retrogradeCalendarSort === value ? "bg-[#D4AF37] text-white" : "text-[#0A192F]/60 hover:text-[#0A192F]"
-                        )}
-                      >
-                        {label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-                <div className="grid max-h-[320px] gap-1.5 overflow-y-auto pr-1">
-                  {sortedRetrogradeCalendar.map((item, index) => {
-                    const isRetrogradeStart = String(item.event_type || item.eventType || "").includes("RETROGRADE") || item.event_label === "逆行開始" || item.eventLabel === "逆行開始";
-                    return (
-                      <div key={`${item.planet || item.planet_label || index}-${item.event_date || item.eventDate || index}`} className="grid grid-cols-[3.2rem_1fr] gap-2 rounded-xl border border-slate-200 bg-slate-50/80 px-2.5 py-2">
-                        <span className={cx("rounded-full px-2 py-1 text-center text-[9px] font-black", isRetrogradeStart ? "bg-[#D4AF37]/15 text-[#9d7620]" : "bg-cyan-100 text-cyan-800")}>
-                          {item.event_label || item.eventLabel || item.event_type || item.eventType || "-"}
-                        </span>
-                        <div className="min-w-0">
-                          <p className="truncate text-[11px] font-black text-[#0A192F]">{item.planet_label || item.planetLabel || planetLabel(item.planet)}</p>
-                          <p className="mt-0.5 text-[10px] font-bold text-[#0A192F]/60">{formatHeaderCalendarDate(item.event_date || item.eventDate)} {item.degree_display || item.degreeDisplay || ""}</p>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            </div>
-          ) : null}
         </nav>
       </div>
     </header>
@@ -7206,7 +7281,7 @@ function formatHeaderCalendarDate(value) {
   const text = String(value || "").trim();
   const match = text.match(/^(\d{4})-(\d{2})-(\d{2})/);
   if (!match) return text || "-";
-  return `${Number(match[2])}/${Number(match[3])}`;
+  return `${match[1]}/${Number(match[2])}/${Number(match[3])}`;
 }
 
 function OraclePanel({ stats, forecast }) {
@@ -8352,6 +8427,8 @@ function ForecastDetailPage() {
         activeView={activeView}
         setActiveView={setActiveView}
         forecast={forecast}
+        readingPayload={readingPayload}
+        dashboardData={dailyDetailData}
         versionState={versionState}
         onRefreshLatest={handleRefreshLatest}
         refreshingLatest={refreshingLatest}
