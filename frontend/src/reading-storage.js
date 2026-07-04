@@ -42,6 +42,25 @@ export function isStoredResultFresh(payload) {
   return savedDate === currentTokyoDate();
 }
 
+export function storedMasterVersion(payload) {
+  return String(
+    payload?.master_version ||
+      payload?.masterVersion ||
+      payload?.dataVersion ||
+      payload?.dashboard_data?.master_version ||
+      payload?.dashboard_data?.masterVersion ||
+      payload?.dashboardData?.master_version ||
+      payload?.dashboardData?.masterVersion ||
+      payload?.yearly_forecast?.master_version ||
+      payload?.yearly_forecast?.masterVersion ||
+      payload?.yearlyForecast?.master_version ||
+      payload?.yearlyForecast?.masterVersion ||
+      payload?.storage_meta?.master_version ||
+      payload?.storage_meta?.masterVersion ||
+      ""
+  ).trim();
+}
+
 function parseStoredResult(raw) {
   if (!raw) {
     return null;
@@ -180,12 +199,15 @@ export function getStoredReadingForm() {
 
 export async function storeReadingResult(payload) {
   const savedDate = storedResultDate(payload) || currentTokyoDate();
+  const masterVersion = storedMasterVersion(payload);
   const normalizedPayload = {
     ...payload,
+    ...(masterVersion ? { master_version: masterVersion, masterVersion } : {}),
     storage_meta: {
       ...(payload?.storage_meta || {}),
       stored_at: new Date().toISOString(),
       stored_date: String(savedDate).slice(0, 10),
+      ...(masterVersion ? { master_version: masterVersion, masterVersion } : {}),
     },
   };
   await writeIndexedResult(normalizedPayload).catch(() => {});

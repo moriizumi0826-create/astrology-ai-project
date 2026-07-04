@@ -66,6 +66,8 @@ class ReadingResponse(BaseModel):
     readings: list[ReadingSection]
     transit_ready: bool
     dashboard_data: dict | None = None
+    master_version: str | None = None
+    masterVersion: str | None = None
 
 
 class LocationLookupResponse(BaseModel):

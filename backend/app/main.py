@@ -1,4 +1,6 @@
-from datetime import date, time
+import hashlib
+import json
+from datetime import date, datetime, time, timezone
 
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
@@ -29,11 +31,71 @@ def health_check() -> dict:
     return {"status": "ok"}
 
 
+def _master_version_payload() -> dict:
+    paths = [
+        *reading_service.master_csv_paths_for_version(),
+        *yearly_forecast_service.yearly_csv_paths_for_version(),
+    ]
+    entries = []
+    latest_mtime = 0.0
+    for path in sorted(paths, key=lambda item: str(item)):
+        if path.exists():
+            stat = path.stat()
+            latest_mtime = max(latest_mtime, stat.st_mtime)
+            entries.append(
+                {
+                    "path": str(
+                        path.relative_to(reading_service.PROJECT_ROOT)
+                        if path.is_relative_to(reading_service.PROJECT_ROOT)
+                        else path
+                    ),
+                    "mtime_ns": stat.st_mtime_ns,
+                    "size": stat.st_size,
+                }
+            )
+        else:
+            entries.append({"path": str(path), "mtime_ns": None, "size": None})
+    source = json.dumps(entries, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+    master_version = hashlib.sha256(source.encode("utf-8")).hexdigest()[:16]
+    updated_at = datetime.fromtimestamp(latest_mtime, timezone.utc).isoformat() if latest_mtime else None
+    return {
+        "masterVersion": master_version,
+        "master_version": master_version,
+        "updatedAt": updated_at,
+        "updated_at": updated_at,
+        "fileCount": len(entries),
+        "file_count": len(entries),
+    }
+
+
+@app.get("/api/master-version")
+def master_version() -> dict:
+    return _master_version_payload()
+
+
 @app.post("/api/dev/reload-csv")
 def reload_csv_masters() -> dict:
     reading_reloaded = reading_service.reload_master_dataframes_if_changed(force=True)
     yearly_reloaded = yearly_forecast_service.reload_yearly_master_caches_if_changed(force=True)
-    return {"status": "ok", "reading_reloaded": reading_reloaded, "yearly_reloaded": yearly_reloaded}
+    return {
+        "status": "ok",
+        "reading_reloaded": reading_reloaded,
+        "yearly_reloaded": yearly_reloaded,
+        **_master_version_payload(),
+    }
+
+
+def _attach_master_version(payload):
+    version_payload = _master_version_payload()
+    master_value = version_payload["masterVersion"]
+    if hasattr(payload, "master_version"):
+        payload.master_version = master_value
+    if hasattr(payload, "masterVersion"):
+        payload.masterVersion = master_value
+    if isinstance(getattr(payload, "dashboard_data", None), dict):
+        payload.dashboard_data["master_version"] = master_value
+        payload.dashboard_data["masterVersion"] = master_value
+    return payload
 
 
 @app.get("/api/location-search", response_model=LocationSearchResponse)
@@ -78,7 +140,7 @@ def location_search(
 @app.post("/api/readings")
 def create_reading(payload: ReadingRequest):
     try:
-        return reading_service.generate_readings(payload)
+        return _attach_master_version(reading_service.generate_readings(payload))
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except FileNotFoundError as exc:

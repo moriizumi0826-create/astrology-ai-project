@@ -88,6 +88,10 @@ def _yearly_csv_paths() -> list[Path]:
     return paths
 
 
+def yearly_csv_paths_for_version() -> list[Path]:
+    return _yearly_csv_paths()
+
+
 def _csv_file_signature(paths: list[Path]) -> tuple[tuple[str, int | None, int | None], ...]:
     signature = []
     for path in paths:

@@ -333,6 +333,15 @@ def _master_csv_paths() -> list[Path]:
     return paths
 
 
+def master_csv_paths_for_version() -> list[Path]:
+    paths = [DATABASE_DIR / filename for filename in MASTER_CSV_FILES.values()]
+    for filename in ASPECT_MASTER_CSV_FILES:
+        path = DATABASE_DIR / filename
+        generated_path = path.with_suffix(".generated.csv")
+        paths.append(generated_path if generated_path.exists() else path)
+    return paths
+
+
 def _csv_file_signature(paths: list[Path]) -> tuple[tuple[str, int | None, int | None], ...]:
     signature = []
     for path in paths:

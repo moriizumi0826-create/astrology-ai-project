@@ -8,7 +8,7 @@ from fastapi.encoders import jsonable_encoder
 from fastapi import HTTPException
 from pydantic import ValidationError
 
-from backend.app.main import create_reading, create_yearly_forecast, health_check, location_search, root
+from backend.app.main import create_reading, create_yearly_forecast, health_check, location_search, master_version, root
 from backend.app.services.chart_calculator import BirthInput, build_chart_rows, write_chart_csvs
 from backend.app.services.geocoding_service import LocationMatch
 from backend.app.services import reading_service
@@ -44,6 +44,13 @@ class ApiTestCase(unittest.TestCase):
 
     def test_health_check(self):
         self.assertEqual(health_check(), {"status": "ok"})
+
+    def test_master_version_returns_version_payload(self):
+        response = master_version()
+
+        self.assertTrue(response["masterVersion"])
+        self.assertEqual(response["masterVersion"], response["master_version"])
+        self.assertGreater(response["fileCount"], 0)
 
     def test_aspect_interpretation_loads_sun_conjunction_from_master_csv(self):
         row = get_aspect_interpretation(

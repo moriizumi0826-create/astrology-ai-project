@@ -1,12 +1,13 @@
 ﻿import React, { useEffect, useMemo, useState } from "react";
 import { createRoot } from "react-dom/client";
-import { CalendarDays, CircleDot, Eye, EyeOff, Maximize2, Menu, Minimize2, Minus, Move, Pause, Play, Plus, Shield, SlidersHorizontal, Sparkles } from "lucide-react";
+import { CalendarDays, CircleDot, Eye, EyeOff, Maximize2, Menu, Minimize2, Minus, Move, Pause, Play, Plus, RefreshCw, Shield, SlidersHorizontal, Sparkles } from "lucide-react";
 import * as THREE from "three";
 import {
   currentTokyoDate,
   getStoredReadingForm,
   getStoredReadingResult,
   getStoredReadingResultAsync,
+  storedMasterVersion,
   storeReadingResult,
 } from "./reading-storage.js";
 import {
@@ -144,6 +145,21 @@ async function postJson(path, payload) {
   return response.data;
 }
 
+async function getJson(path) {
+  const response = await fetch(`${resolveApiBaseUrl()}${path}`, {
+    method: "GET",
+    headers: { "Accept": "application/json" },
+  });
+  const contentType = response.headers.get("content-type") || "";
+  const data = contentType.includes("application/json")
+    ? await response.json().catch(() => ({}))
+    : { detail: await response.text().catch(() => "") };
+  if (!response.ok) {
+    throw new Error(formatApiError(data.detail, `Request failed: ${response.status}`));
+  }
+  return data;
+}
+
 async function reloadCsvMasters() {
   const response = await requestJson(`${resolveApiBaseUrl()}/api/dev/reload-csv`);
   if (!response.ok) {
@@ -251,6 +267,14 @@ function getForecast() {
   }
   const payload = getStoredReadingResult();
   return payload?.yearly_forecast || payload?.yearlyForecast || null;
+}
+
+function payloadMasterVersion(payload) {
+  return storedMasterVersion(payload);
+}
+
+function versionFromPayload(payload) {
+  return String(payload?.masterVersion || payload?.master_version || payload?.dataVersion || "").trim();
 }
 
 function forecastYear(forecast) {
@@ -6060,7 +6084,7 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
                         <div
                           key={`mobile-transit-${item.planet}`}
                           className={cx(
-                            "grid min-w-0 grid-cols-[0.5rem_2.45rem_min-content] items-center gap-0.5 rounded-md border px-1 py-1.5",
+                            "grid min-w-0 grid-cols-[0.5rem_2.45rem_minmax(0,1fr)] items-center gap-0.5 rounded-md border px-1 py-1.5",
                             isFocusedTransitRow ? "border-sky-200/45 bg-sky-200/[0.11] text-starlight" : "border-white/10 bg-white/[0.035]"
                           )}
                         >
@@ -6097,7 +6121,7 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
                         <div
                           key={`mobile-natal-${item.planet}`}
                           className={cx(
-                            "grid min-w-0 grid-cols-[0.5rem_2.45rem_min-content] items-center gap-0.5 rounded-md border px-1 py-1.5",
+                            "grid min-w-0 grid-cols-[0.5rem_2.45rem_minmax(0,1fr)] items-center gap-0.5 rounded-md border px-1 py-1.5",
                             shouldHighlightNatalRow ? "border-gold/45 bg-gold/[0.12] text-starlight" : "border-white/10 bg-white/[0.035]"
                           )}
                         >
@@ -6956,7 +6980,54 @@ function UnifiedForecastView({
   );
 }
 
-function Header({ activeYear, activeView, setActiveView, activeUnifiedView, setActiveUnifiedView, forecast = null }) {
+function VersionRefreshButton({ versionState, onRefreshLatest, refreshingLatest }) {
+  const isOutdated = Boolean(versionState?.isOutdated);
+  const isCheckingVersion = Boolean(versionState?.checking);
+  const refreshTooltip = refreshingLatest
+    ? "最新版を取得しています"
+    : isOutdated
+      ? "鑑定データが更新されています。クリックすると最新版で再計算します"
+      : versionState?.error
+        ? "更新確認に失敗しました。再読み込み後に再確認してください"
+        : isCheckingVersion
+          ? "更新状況を確認しています"
+          : "現在表示中の内容は最新版です";
+
+  return (
+    <div className="group relative shrink-0">
+      <button
+        type="button"
+        onClick={onRefreshLatest}
+        disabled={!isOutdated || refreshingLatest}
+        className={cx(
+          "inline-flex h-9 items-center gap-1.5 rounded-full border px-3 font-mono text-[10px] font-black tracking-[0.08em] shadow-sm transition sm:h-10 sm:gap-2 sm:px-4 sm:text-xs",
+          isOutdated
+            ? "border-[#D4AF37]/70 bg-[#D4AF37] text-[#241a00] hover:bg-[#f2d56d]"
+            : "cursor-not-allowed border-slate-200 bg-white text-[#0A192F]/45"
+        )}
+        aria-disabled={!isOutdated || refreshingLatest}
+      >
+        <RefreshCw size={14} className={cx(refreshingLatest && "animate-spin")} />
+        <span>最新版に更新</span>
+      </button>
+      <div className="pointer-events-none absolute right-0 top-11 z-50 w-[min(300px,calc(100vw-24px))] rounded-xl border border-slate-200 bg-white/98 px-3 py-2 text-xs leading-5 text-[#0A192F] opacity-0 shadow-[0_18px_45px_rgba(15,23,42,0.18)] transition group-hover:opacity-100 group-focus-within:opacity-100">
+        {refreshTooltip}
+      </div>
+    </div>
+  );
+}
+
+function Header({
+  activeYear,
+  activeView,
+  setActiveView,
+  activeUnifiedView,
+  setActiveUnifiedView,
+  forecast = null,
+  versionState,
+  onRefreshLatest,
+  refreshingLatest,
+}) {
   const [isMobileUnifiedMenuOpen, setIsMobileUnifiedMenuOpen] = useState(false);
   const [isRetrogradeCalendarOpen, setIsRetrogradeCalendarOpen] = useState(false);
   const [retrogradeCalendarSort, setRetrogradeCalendarSort] = useState("date");
@@ -7011,6 +7082,11 @@ function Header({ activeYear, activeView, setActiveView, activeUnifiedView, setA
             </button>
           </div>
         </div>
+        <VersionRefreshButton
+          versionState={versionState}
+          onRefreshLatest={onRefreshLatest}
+          refreshingLatest={refreshingLatest}
+        />
         <nav
           id="forecast-mobile-nav"
           className={cx(
@@ -8048,11 +8124,21 @@ function YearCalculationDialog({
 function ForecastDetailPage() {
   const forceRefresh = shouldForceRefresh();
   const [forecast, setForecast] = useState(() => getForecast() || (forceRefresh ? null : demoForecast()));
+  const [readingPayload, setReadingPayload] = useState(() => getStoredReadingResult({ allowStale: true }) || {});
   const activeYear = forecastYear(forecast);
   const [yearDialogOpen, setYearDialogOpen] = useState(false);
   const [targetYear, setTargetYear] = useState(String(activeYear));
   const [calculatingYear, setCalculatingYear] = useState(false);
   const [yearCalculationError, setYearCalculationError] = useState("");
+  const [latestUpdateError, setLatestUpdateError] = useState("");
+  const [refreshingLatest, setRefreshingLatest] = useState(false);
+  const [versionState, setVersionState] = useState({
+    checking: true,
+    currentMasterVersion: "",
+    savedMasterVersion: payloadMasterVersion(getStoredReadingResult({ allowStale: true }) || {}),
+    isOutdated: false,
+    error: "",
+  });
   useEffect(() => {
     if (forceRefresh) {
       return () => {};
@@ -8060,14 +8146,44 @@ function ForecastDetailPage() {
     let active = true;
     getStoredReadingResultAsync({ allowStale: true }).then((payload) => {
       const indexedForecast = payload?.yearly_forecast || payload?.yearlyForecast || null;
-      if (active && indexedForecast) {
-        setForecast(indexedForecast);
+      if (active && payload) {
+        setReadingPayload(payload);
+        if (indexedForecast) {
+          setForecast(indexedForecast);
+        }
       }
     });
     return () => {
       active = false;
     };
   }, [forceRefresh]);
+  useEffect(() => {
+    let active = true;
+    getJson("/api/master-version")
+      .then((payload) => {
+        if (!active) return;
+        const currentMasterVersion = versionFromPayload(payload);
+        const savedMasterVersion = payloadMasterVersion(readingPayload);
+        setVersionState({
+          checking: false,
+          currentMasterVersion,
+          savedMasterVersion,
+          isOutdated: Boolean(currentMasterVersion && currentMasterVersion !== savedMasterVersion),
+          error: "",
+        });
+      })
+      .catch((error) => {
+        if (!active) return;
+        setVersionState((current) => ({
+          ...current,
+          checking: false,
+          error: readableErrorMessage(error, "更新確認に失敗しました。"),
+        }));
+      });
+    return () => {
+      active = false;
+    };
+  }, [readingPayload]);
   useEffect(() => {
     if (!yearDialogOpen) {
       setTargetYear(String(activeYear));
@@ -8094,10 +8210,12 @@ function ForecastDetailPage() {
         setSelectedMonthIndex(realtimeMonthIndex(monthlyData(selectedYearForecast, false)));
         setSelectedMonthlyMonthIndex(workdayMonthIndex());
         const storedPayload = await getStoredReadingResultAsync({ allowStale: true });
-        await storeReadingResult({
+        const nextPayload = {
           ...(storedPayload || {}),
           yearly_forecast: selectedYearForecast,
-        });
+        };
+        await storeReadingResult(nextPayload);
+        setReadingPayload(nextPayload);
       })
       .catch((error) => {
         if (active) {
@@ -8130,7 +8248,7 @@ function ForecastDetailPage() {
   }, [annualTransitDays]);
   const annualTransitDayIndex = clamp(selectedAnnualDayIndex, 0, Math.max(0, annualTransitDays.length - 1));
   const dailyDetailData = useMemo(() => {
-    const storedPayload = getStoredReadingResult() || {};
+    const storedPayload = readingPayload || {};
     const sourceDashboard = storedPayload.dashboard_data || storedPayload.dashboardData || {};
     const hasStoredDashboard = Boolean(storedPayload.dashboard_data || storedPayload.dashboardData);
     return {
@@ -8150,7 +8268,56 @@ function ForecastDetailPage() {
             )
           : "",
     };
-  }, [forecast]);
+  }, [forecast, readingPayload]);
+  const handleRefreshLatest = async () => {
+    if (!versionState.isOutdated || refreshingLatest) {
+      return;
+    }
+    const formPayload = getQueryReadingForm() || getStoredReadingForm();
+    if (!formPayload) {
+      setLatestUpdateError("保存済みの出生情報がないため、最新版に更新できません。入力画面から再計算してください。");
+      return;
+    }
+
+    setRefreshingLatest(true);
+    setLatestUpdateError("");
+    try {
+      const reloadPayload = await reloadCsvMasters().catch(() => null);
+      const [nextReading, nextForecastPayload, currentVersionPayload] = await Promise.all([
+        postJson("/api/readings", formPayload),
+        postJson(`/api/yearly-forecast?year=${activeYear}`, formPayload),
+        reloadPayload ? Promise.resolve(reloadPayload) : getJson("/api/master-version"),
+      ]);
+      const selectedYearForecast = forecastWithSelectedYear(nextForecastPayload, activeYear);
+      const masterVersion = versionFromPayload(currentVersionPayload) || versionFromPayload(nextReading);
+      const nextPayload = {
+        ...nextReading,
+        master_version: masterVersion,
+        masterVersion,
+        yearly_forecast: {
+          ...selectedYearForecast,
+          master_version: masterVersion,
+          masterVersion,
+        },
+      };
+      await storeReadingResult(nextPayload);
+      setReadingPayload(nextPayload);
+      setForecast(selectedYearForecast);
+      setSelectedMonthIndex(realtimeMonthIndex(monthlyData(selectedYearForecast, false)));
+      setSelectedMonthlyMonthIndex(workdayMonthIndex());
+      setVersionState({
+        checking: false,
+        currentMasterVersion: masterVersion,
+        savedMasterVersion: masterVersion,
+        isOutdated: false,
+        error: "",
+      });
+    } catch (error) {
+      setLatestUpdateError(readableErrorMessage(error, "最新版への更新に失敗しました。"));
+    } finally {
+      setRefreshingLatest(false);
+    }
+  };
   const handleCalculateYear = async () => {
     const normalizedYear = Number(targetYear);
     if (!Number.isInteger(normalizedYear) || normalizedYear < 2015 || normalizedYear > 2028) {
@@ -8174,10 +8341,12 @@ function ForecastDetailPage() {
       setSelectedMonthlyMonthIndex(workdayMonthIndex());
 
       const storedPayload = await getStoredReadingResultAsync({ allowStale: true });
-      await storeReadingResult({
+      const nextPayload = {
         ...(storedPayload || {}),
         yearly_forecast: selectedYearForecast,
-      });
+      };
+      await storeReadingResult(nextPayload);
+      setReadingPayload(nextPayload);
       setYearDialogOpen(false);
     } catch (error) {
       setYearCalculationError(readableErrorMessage(error, "年間予測の計算に失敗しました。"));
@@ -8195,11 +8364,19 @@ function ForecastDetailPage() {
         activeUnifiedView={activeUnifiedView}
         setActiveUnifiedView={setActiveUnifiedView}
         forecast={forecast}
+        versionState={versionState}
+        onRefreshLatest={handleRefreshLatest}
+        refreshingLatest={refreshingLatest}
       />
       <main className="mx-auto grid max-w-none gap-3 px-0.5 pb-4 pt-[56px] sm:gap-6 sm:px-4 sm:pb-10 sm:pt-36 lg:px-6 lg:pb-20 lg:pt-[136px]">
         {yearCalculationError ? (
           <div className="rounded-2xl border border-[#ffb4ab]/30 bg-[#3a1d1d]/45 px-4 py-3 text-xs leading-6 text-[#ffb4ab] sm:text-sm">
             {yearCalculationError}
+          </div>
+        ) : null}
+        {latestUpdateError ? (
+          <div className="rounded-2xl border border-[#ffb4ab]/30 bg-[#3a1d1d]/45 px-4 py-3 text-xs leading-6 text-[#ffb4ab] sm:text-sm">
+            {latestUpdateError}
           </div>
         ) : null}
         {forceRefresh && calculatingYear && !forecast ? (
