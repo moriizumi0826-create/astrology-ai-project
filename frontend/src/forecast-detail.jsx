@@ -6884,6 +6884,7 @@ function UnifiedForecastView({
   setSelectedAnnualDayIndex,
   onOpenYearDialog,
   activeUnifiedView,
+  setActiveUnifiedView,
 }) {
   const monthlyTransitDays = useMemo(
     () => dailyDataForMonth(forecast, activeYear, selectedMonthlyMonthIndex),
@@ -6910,10 +6911,28 @@ function UnifiedForecastView({
 
   return (
     <ForecastGalaxyBackground>
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
+      <div className="flex flex-wrap items-end gap-3 sm:gap-5">
+        <div className="min-w-0">
           <p className="font-mono text-[10px] font-bold uppercase tracking-[0.22em] text-gold/80">Unified Forecast</p>
           <h2 className="mt-1 font-serif text-2xl font-semibold text-starlight sm:text-4xl">星の見通し</h2>
+        </div>
+        <div className="mb-0.5 flex shrink-0 rounded-full border border-white/10 bg-white/[0.06] p-1 font-mono text-[10px] font-bold text-mist shadow-[0_10px_28px_rgba(0,0,0,0.22)] sm:mb-1 sm:text-xs">
+          {UNIFIED_FORECAST_TABS.map((item) => (
+            <button
+              key={item.key}
+              type="button"
+              onClick={() => setActiveUnifiedView(item.key)}
+              className={cx(
+                "rounded-full px-3 py-1.5 transition",
+                activeUnifiedView === item.key
+                  ? "bg-gold text-[#241a00]"
+                  : "hover:bg-white/10 hover:text-starlight"
+              )}
+              aria-pressed={activeUnifiedView === item.key}
+            >
+              {item.label}
+            </button>
+          ))}
         </div>
       </div>
 
@@ -7024,8 +7043,6 @@ function Header({
   activeYear,
   activeView,
   setActiveView,
-  activeUnifiedView,
-  setActiveUnifiedView,
   forecast = null,
   versionState,
   onRefreshLatest,
@@ -7112,35 +7129,6 @@ function Header({
               >
                 {label}
               </button>
-              {value === "unified" ? (
-                <div
-                  className={cx(
-                    "mb-1 shrink-0 rounded-full border border-slate-200 bg-white p-1 font-mono text-[10px] font-bold text-[#0A192F]/70 shadow-sm sm:mb-2 sm:flex sm:text-xs",
-                    isMobileUnifiedMenuOpen ? "flex" : "hidden sm:flex"
-                  )}
-                >
-                  {UNIFIED_FORECAST_TABS.map((item) => (
-                    <button
-                      key={item.key}
-                      type="button"
-                      onClick={() => {
-                        setActiveView("unified");
-                        setActiveUnifiedView(item.key);
-                        setIsMobileUnifiedMenuOpen(false);
-                      }}
-                      className={cx(
-                        "rounded-full px-3 py-1.5 transition",
-                        activeView === "unified" && activeUnifiedView === item.key
-                          ? "bg-[#fff7df] text-[#0A192F] ring-1 ring-[#D4AF37]/45"
-                          : "hover:bg-[#fff7df] hover:text-[#D4AF37]"
-                      )}
-                      aria-pressed={activeView === "unified" && activeUnifiedView === item.key}
-                    >
-                      {item.label}
-                    </button>
-                  ))}
-                </div>
-              ) : null}
             </React.Fragment>
           ))}
           {retrogradeCalendar.length ? (
@@ -8364,8 +8352,6 @@ function ForecastDetailPage() {
         activeYear={activeYear}
         activeView={activeView}
         setActiveView={setActiveView}
-        activeUnifiedView={activeUnifiedView}
-        setActiveUnifiedView={setActiveUnifiedView}
         forecast={forecast}
         versionState={versionState}
         onRefreshLatest={handleRefreshLatest}
@@ -8405,6 +8391,7 @@ function ForecastDetailPage() {
             setSelectedAnnualDayIndex={setSelectedAnnualDayIndex}
             onOpenYearDialog={() => setYearDialogOpen(true)}
             activeUnifiedView={activeUnifiedView}
+            setActiveUnifiedView={setActiveUnifiedView}
           />
         ) : null}
         {activeView === "horoscope" ? (
