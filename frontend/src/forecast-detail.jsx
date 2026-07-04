@@ -6995,6 +6995,9 @@ function VersionRefreshButton({ versionState, onRefreshLatest, refreshingLatest 
 
   return (
     <div className="group relative shrink-0">
+      <div className="pointer-events-none fixed left-2 right-2 top-2 z-50 rounded-xl border border-slate-200 bg-[#f8fafc]/98 px-3 py-2 text-xs leading-5 text-[#0A192F] opacity-0 shadow-[0_12px_28px_rgba(15,23,42,0.16)] transition group-hover:opacity-100 group-focus-within:opacity-100 sm:hidden">
+        {refreshTooltip}
+      </div>
       <button
         type="button"
         onClick={onRefreshLatest}
@@ -7010,7 +7013,7 @@ function VersionRefreshButton({ versionState, onRefreshLatest, refreshingLatest 
         <RefreshCw size={14} className={cx(refreshingLatest && "animate-spin")} />
         <span>最新版に更新</span>
       </button>
-      <div className="pointer-events-none absolute right-0 top-11 z-50 w-[min(300px,calc(100vw-24px))] rounded-xl border border-slate-200 bg-white/98 px-3 py-2 text-xs leading-5 text-[#0A192F] opacity-0 shadow-[0_18px_45px_rgba(15,23,42,0.18)] transition group-hover:opacity-100 group-focus-within:opacity-100">
+      <div className="pointer-events-none absolute right-full top-1/2 z-50 mr-2 hidden w-[300px] -translate-y-1/2 rounded-xl border border-slate-200 bg-[#f8fafc]/98 px-3 py-2 text-xs leading-5 text-[#0A192F] opacity-0 shadow-[0_12px_28px_rgba(15,23,42,0.16)] transition group-hover:opacity-100 group-focus-within:opacity-100 sm:block">
         {refreshTooltip}
       </div>
     </div>
