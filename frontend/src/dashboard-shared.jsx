@@ -2713,16 +2713,16 @@ function DashboardV2DailyFlowCard({ data, displayDate = "" }) {
           <h2 className="font-sans text-base font-black tracking-tight text-[#f3f3f0]">デイリーパフォーマンス</h2>
           <span className="inline-flex h-4 w-4 items-center justify-center rounded-full border border-[#e9c349]/35 font-mono text-[10px] text-[#e9c349]">i</span>
           <span className="pointer-events-none absolute left-0 top-7 z-20 w-[280px] rounded-xl border border-[#e9c349]/25 bg-[#0d0e0f]/95 px-3 py-2 text-[11px] font-bold leading-5 text-[#e2e2e2] opacity-0 shadow-xl transition group-hover:opacity-100">
-            <span className="block text-[#e9c349]">今日の行動を最適化するための計器です</span>
-            <span className="mt-2 block"><span className="text-[#fb923c]">Mars</span> 行動量と熱量の強さ</span>
-            <span className="block"><span className="text-[#38bdf8]">Drive</span> 集中力と突破力</span>
-            <span className="block"><span className="text-[#34d399]">Flow</span> 同調性と対人協調</span>
-            <span className="block"><span className="text-[#a78bfa]">Inspiration</span> 直感と発想の広がり</span>
+            <span className="block text-[#e9c349]">今日の行動を最適化するための指標です</span>
+            <span className="mt-2 block"><span className="text-[#fb923c]">Mars</span> 行動量/熱量</span>
+            <span className="block"><span className="text-[#38bdf8]">Drive</span> 集中力/突破力</span>
+            <span className="block"><span className="text-[#34d399]">Flow</span> 同調性/対人協調</span>
+            <span className="block"><span className="text-[#a78bfa]">Inspiration</span> 直感/発想力</span>
             <span className="block"><span className="text-[#ff5c68]">Friction</span> 摩擦と焦燥の警戒度</span>
           </span>
         </div>
         <div className="hidden items-center gap-5 font-sans text-[11px] font-bold text-[#c7c6cc] sm:flex">
-          <span className="inline-flex items-center gap-2"><span className="h-2.5 w-2.5 rounded-full bg-[#fb923c] shadow-[0_0_14px_rgba(251,146,60,0.5)]" />Mars</span>
+          <span className="inline-flex items-center gap-2"><span className="h-2.5 w-2.5 rounded-full bg-[linear-gradient(180deg,#fb923c_0%,#fb923c_30%,#8f241b_64%,#160707_100%)] shadow-[0_0_14px_rgba(251,146,60,0.5)]" />Mars</span>
           <span className="inline-flex items-center gap-2"><span className="h-2.5 w-2.5 rounded-full bg-[#38bdf8] shadow-[0_0_14px_rgba(56,189,248,0.65)]" />Drive</span>
           <span className="inline-flex items-center gap-2"><span className="h-2.5 w-2.5 rounded-full bg-[#34d399] shadow-[0_0_14px_rgba(52,211,153,0.55)]" />Flow</span>
           <span className="inline-flex items-center gap-2"><span className="h-2.5 w-2.5 rounded-full bg-[#a78bfa] shadow-[0_0_14px_rgba(167,139,250,0.45)]" />Inspiration</span>

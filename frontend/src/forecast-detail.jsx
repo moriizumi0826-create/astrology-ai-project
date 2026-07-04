@@ -6913,8 +6913,7 @@ function UnifiedForecastView({
     <ForecastGalaxyBackground>
       <div className="flex flex-wrap items-end gap-3 sm:gap-5">
         <div className="min-w-0">
-          <p className="font-mono text-[10px] font-bold uppercase tracking-[0.22em] text-gold/80">Unified Forecast</p>
-          <h2 className="mt-1 font-serif text-2xl font-semibold text-starlight sm:text-4xl">星の見通し</h2>
+          <h2 className="font-serif text-2xl font-semibold text-starlight sm:text-4xl">星の見通し</h2>
         </div>
         <div className="mb-0.5 flex shrink-0 rounded-full border border-white/10 bg-white/[0.06] p-1 font-mono text-[10px] font-bold text-mist shadow-[0_10px_28px_rgba(0,0,0,0.22)] sm:mb-1 sm:text-xs">
           {UNIFIED_FORECAST_TABS.map((item) => (
@@ -8405,7 +8404,6 @@ function ForecastDetailPage() {
       <footer className="border-t border-slate-200/90 bg-[#f8fafc]/95 px-4 py-8 text-[#0A192F] sm:px-8 sm:py-10">
         <div className="mx-auto flex max-w-[1540px] flex-col gap-4 text-[#0A192F]/70 md:flex-row md:items-center md:justify-between">
           <p className="font-serif text-2xl font-semibold text-[#0A192F]">The Celestial Atelier</p>
-          <p className="text-sm">Annual forecast detail.</p>
           <a href="/" className="font-mono text-xs uppercase tracking-[0.18em] text-[#0A192F]/70 hover:text-[#D4AF37]">Back to Entry</a>
         </div>
       </footer>
