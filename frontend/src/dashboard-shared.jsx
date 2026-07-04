@@ -4,8 +4,10 @@ import { currentTokyoDate, getStoredReadingForm, getStoredReadingResult, getStor
 import {
   BatteryMedium,
   BriefcaseBusiness,
+  ChevronDown,
   ChevronLeft,
   ChevronRight,
+  ChevronUp,
   Clock3,
   Code2,
   Gauge,
@@ -2550,6 +2552,7 @@ function DashboardV2DailyFlowCard({ data, displayDate = "" }) {
   const [hoveredPerformanceIndex, setHoveredPerformanceIndex] = useState(null);
   const [selectedPerformanceIndex, setSelectedPerformanceIndex] = useState(null);
   const [activeAspectTooltip, setActiveAspectTooltip] = useState(null);
+  const [isActionAdviceOpen, setIsActionAdviceOpen] = useState(false);
   const [currentTime, setCurrentTime] = useState(() => new Date());
   useEffect(() => {
     const timer = window.setInterval(() => {
@@ -2704,7 +2707,7 @@ function DashboardV2DailyFlowCard({ data, displayDate = "" }) {
     ));
   };
   return (
-    <DashboardV2Card className="h-[610px] sm:h-[622px]" bodyClassName="!px-3 !pb-2 !pt-2">
+    <DashboardV2Card className="min-h-[620px]" bodyClassName="!px-3 !pb-2 !pt-2">
       <div className="mb-1 flex items-center justify-between gap-3">
         <div className="group relative flex items-center gap-2">
           <h2 className="font-sans text-base font-black tracking-tight text-[#f3f3f0]">デイリーパフォーマンス</h2>
@@ -2823,7 +2826,12 @@ function DashboardV2DailyFlowCard({ data, displayDate = "" }) {
         </div>
         {selectedPerformance && selectedAdvice ? (
           <div className="mt-2 rounded-2xl border border-white/10 bg-white/[0.045] px-3 py-2.5 shadow-[0_12px_34px_rgba(0,0,0,0.18)]">
-            <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+            <button
+              type="button"
+              className="flex w-full items-center justify-between gap-3 text-left focus:outline-none focus:ring-2 focus:ring-[#e9c349]/35"
+              aria-expanded={isActionAdviceOpen}
+              onClick={() => setIsActionAdviceOpen((value) => !value)}
+            >
               <div className="flex min-w-0 flex-wrap items-center gap-2">
                 <span className="rounded-full border border-[#e9c349]/25 bg-[#e9c349]/10 px-2.5 py-1 font-mono text-[10px] font-black text-[#e9c349]">
                   {dailyPerformanceTimeLabel(selectedPerformance, effectiveSelectedPerformanceIndex, chartDate)}
@@ -2832,26 +2840,37 @@ function DashboardV2DailyFlowCard({ data, displayDate = "" }) {
                   {selectedAdvice.headline || "行動アドバイス"}
                 </span>
               </div>
-            </div>
-            <div className="mb-2 flex flex-wrap gap-1.5 font-mono text-[9px] font-bold">
-              {Number.isFinite(Number(selectedAdvice.frictionScore)) ? (
-                <span className="rounded-full border border-[#ff5c68]/25 bg-[#ff5c68]/10 px-2 py-1 text-[#ff9aa3]">
-                  注意: Friction {selectedAdvice.frictionScore}
-                  {selectedAdvice.frictionState ? ` ${DAILY_PERFORMANCE_FRICTION_STATE_LABELS[selectedAdvice.frictionState] || selectedAdvice.frictionState}` : ""}
-                </span>
-              ) : null}
-              {Number.isFinite(Number(selectedAdvice.marsScore)) ? (
-                <span className="rounded-full border border-[#fb923c]/25 bg-[#fb923c]/10 px-2 py-1 text-[#fbbf8b]">
-                  補助: Mars {selectedAdvice.marsScore}
-                  {selectedAdvice.marsState ? ` ${DAILY_PERFORMANCE_MARS_STATE_LABELS[selectedAdvice.marsState] || selectedAdvice.marsState}` : ""}
-                </span>
-              ) : null}
-            </div>
-            <div className="grid gap-1.5 text-[11px] leading-5 text-[#c7c6cc] sm:grid-cols-3">
-              {selectedAdvice.recommendedAction ? <p>{selectedAdvice.recommendedAction}</p> : null}
-              {selectedAdvice.thinkingStyle ? <p>{selectedAdvice.thinkingStyle}</p> : null}
-              {selectedAdvice.restGuidance ? <p>{selectedAdvice.restGuidance}</p> : null}
-            </div>
+              <span className="shrink-0 text-[#e9c349]" aria-hidden="true">
+                {isActionAdviceOpen ? <ChevronUp size={15} /> : <ChevronDown size={15} />}
+              </span>
+            </button>
+            {isActionAdviceOpen ? (
+              <>
+                <div className="mt-2 flex flex-wrap gap-1.5 font-mono text-[9px] font-bold">
+                  {Number.isFinite(Number(selectedAdvice.frictionScore)) ? (
+                    <span className="rounded-full border border-[#ff5c68]/25 bg-[#ff5c68]/10 px-2 py-1 text-[#ff9aa3]">
+                      注意: Friction {selectedAdvice.frictionScore}
+                      {selectedAdvice.frictionState ? ` ${DAILY_PERFORMANCE_FRICTION_STATE_LABELS[selectedAdvice.frictionState] || selectedAdvice.frictionState}` : ""}
+                    </span>
+                  ) : null}
+                  {Number.isFinite(Number(selectedAdvice.marsScore)) ? (
+                    <span className="rounded-full border border-[#fb923c]/25 bg-[#fb923c]/10 px-2 py-1 text-[#fbbf8b]">
+                      補助: Mars {selectedAdvice.marsScore}
+                      {selectedAdvice.marsState ? ` ${DAILY_PERFORMANCE_MARS_STATE_LABELS[selectedAdvice.marsState] || selectedAdvice.marsState}` : ""}
+                    </span>
+                  ) : null}
+                </div>
+                <div className="mt-2 grid gap-1.5 text-[11px] leading-5 text-[#c7c6cc] sm:grid-cols-3">
+                  {selectedAdvice.recommendedAction ? <p>{selectedAdvice.recommendedAction}</p> : null}
+                  {selectedAdvice.thinkingStyle ? <p>{selectedAdvice.thinkingStyle}</p> : null}
+                  {selectedAdvice.restGuidance ? <p>{selectedAdvice.restGuidance}</p> : null}
+                </div>
+              </>
+            ) : (
+              <p className="mt-1 line-clamp-1 text-[10px] leading-5 text-[#909096]">
+                {selectedAdvice.recommendedAction || selectedAdvice.thinkingStyle || selectedAdvice.restGuidance || ""}
+              </p>
+            )}
           </div>
         ) : null}
         <div className="mt-3 grid gap-2 border-t border-white/10 pt-2">
