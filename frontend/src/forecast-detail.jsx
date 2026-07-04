@@ -6113,7 +6113,7 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
                     <span>天体</span>
                     <span>星座</span>
                     <span className="text-right">度数</span>
-                    <span className="text-right">室</span>
+                    <span className="translate-x-3 text-right">室</span>
                   </div>
                   <div className={cx("grid grid-cols-2 gap-1 font-mono text-[9px] font-bold", transitLayerActive ? "text-mist" : "text-mist/25")}>
                     {tableSky.transits.map((item) => {
@@ -6150,7 +6150,7 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
                     <span>天体</span>
                     <span>星座</span>
                     <span className="text-right">度数</span>
-                    <span className="text-right">室</span>
+                    <span className="translate-x-3 text-right">室</span>
                   </div>
                   <div className={cx("grid grid-cols-2 gap-1 font-mono text-[9px] font-bold", natalLayerActive ? "text-mist" : "text-mist/25")}>
                     {sky.natalPoints.map((item) => {
