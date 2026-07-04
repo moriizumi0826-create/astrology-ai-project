@@ -97,7 +97,7 @@
             <p class="text-xs uppercase tracking-[0.2em] text-secondary font-bold mb-12">星の知恵が宿る聖域</p>
             <div class="flex flex-col gap-8 items-start">
               <p class="text-on-surface-variant font-notoSansJP text-lg leading-relaxed max-w-md">
-                Stitch で構築したアトリエの世界観を残したまま、既存の Python 鑑定ロジックを呼び出すテスト運用版です。
+                テスト運用版です
               </p>
               <a
                 class="bg-primary text-on-primary px-10 py-5 text-sm uppercase tracking-widest hover:bg-primary-dim transition-all duration-500 font-notoSansJP"
@@ -129,7 +129,6 @@
           <div class="order-1 md:order-2 flex flex-col gap-8">
             <div class="flex flex-col gap-2">
               <label class="text-[10px] uppercase tracking-[0.3em] text-secondary font-bold">Test Operation</label>
-              <span class="text-[10px] font-notoSansJP text-secondary/70">ローカル検証用 UI</span>
             </div>
             <h2 class="text-4xl md:text-5xl font-notoSerif text-primary leading-snug">
               Astrology as an Artisanal Interface.
@@ -145,9 +144,6 @@
             <h2 class="font-notoSerif text-4xl md:text-6xl text-primary leading-tight mb-8">
               Enter the coordinates of your arrival.
             </h2>
-            <p class="text-on-surface-variant leading-loose text-lg max-w-md">
-              テスト運用版のため、出生地名に加えて緯度・経度を扱います。タイムゾーンはバックグラウンドで補完されるため、UTC オフセットの入力は不要です。
-            </p>
           </div>
 
           <div class="lg:col-span-7 w-full bg-surface-container-lowest p-8 md:p-16 shadow-[0px_20px_40px_rgba(46,52,45,0.06)]">
@@ -285,9 +281,6 @@
                   <span id="submit-label">ホロスコープを算出する</span>
                   <span class="material-symbols-outlined group-hover:translate-x-2 transition-transform duration-700">arrow_forward</span>
                 </button>
-                <p class="mt-6 text-center text-[10px] text-on-surface-variant italic opacity-60">
-                  出力はテスト運用向けです。API 接続先は環境変数から切り替えられます。
-                </p>
               </div>
             </form>
 
@@ -302,9 +295,6 @@
       <div class="grid grid-cols-1 md:grid-cols-3 gap-12 max-w-7xl mx-auto font-notoSerif text-sm tracking-tight text-[#5f5f59]">
         <div class="flex flex-col gap-8">
           <div class="text-xl font-normal text-[#5f5f59]">The Celestial Atelier</div>
-          <p class="font-notoSansJP text-on-surface-variant leading-relaxed max-w-xs">
-            デザインを保ったまま Python 鑑定を API 化した、テスト運用向けの分離構成です。
-          </p>
         </div>
       </div>
     </footer>
