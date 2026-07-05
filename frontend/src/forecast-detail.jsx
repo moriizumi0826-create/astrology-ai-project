@@ -2571,12 +2571,12 @@ function ChartPositionColumns({ item, houseCusps, className = "" }) {
 function ChartPositionCompact({ item, houseCusps, className = "" }) {
   const position = chartPositionParts(item, houseCusps);
   return (
-    <span className={cx("grid min-w-0 grid-cols-[2.7rem_1.45rem_2.05rem] items-center gap-1 whitespace-nowrap tabular-nums", className)}>
+    <span className={cx("grid w-full min-w-0 grid-cols-[2.7rem_1.45rem_minmax(2.45rem,1fr)] items-center gap-1 whitespace-nowrap tabular-nums", className)}>
       <span className="min-w-0 truncate text-left">
         {position.signName} <span className="text-violet-300">{position.signSymbol}</span>
       </span>
       <span className="text-right">{position.degree}</span>
-      <span className="text-right">{position.house}</span>
+      <span className="justify-self-end pr-[1ch] text-right">{position.house}</span>
     </span>
   );
 }
@@ -6108,12 +6108,12 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
                     {transitLayerActive ? <Eye size={13} /> : <EyeOff size={13} />}
                     現行天体
                   </button>
-                  <div className="mb-1 grid grid-cols-[0.5rem_2.45rem_2.7rem_1.45rem_2.05rem] items-center gap-1 px-1 font-mono text-[8px] font-bold text-mist/45">
+                  <div className="mb-1 grid grid-cols-[0.5rem_2.45rem_2.7rem_1.45rem_2.45rem] items-center gap-1 px-1 font-mono text-[8px] font-bold text-mist/45">
                     <span />
                     <span>天体</span>
                     <span>星座</span>
                     <span className="text-right">度数</span>
-                    <span className="translate-x-3 text-right">室</span>
+                    <span className="text-right">室</span>
                   </div>
                   <div className={cx("grid grid-cols-2 gap-1 font-mono text-[9px] font-bold", transitLayerActive ? "text-mist" : "text-mist/25")}>
                     {tableSky.transits.map((item) => {
@@ -6145,12 +6145,12 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
                     {natalLayerActive ? <Eye size={13} /> : <EyeOff size={13} />}
                     ネイタル天体
                   </button>
-                  <div className="mb-1 grid grid-cols-[0.5rem_2.45rem_2.7rem_1.45rem_2.05rem] items-center gap-1 px-1 font-mono text-[8px] font-bold text-mist/45">
+                  <div className="mb-1 grid grid-cols-[0.5rem_2.45rem_2.7rem_1.45rem_2.45rem] items-center gap-1 px-1 font-mono text-[8px] font-bold text-mist/45">
                     <span />
                     <span>天体</span>
                     <span>星座</span>
                     <span className="text-right">度数</span>
-                    <span className="translate-x-3 text-right">室</span>
+                    <span className="text-right">室</span>
                   </div>
                   <div className={cx("grid grid-cols-2 gap-1 font-mono text-[9px] font-bold", natalLayerActive ? "text-mist" : "text-mist/25")}>
                     {sky.natalPoints.map((item) => {
