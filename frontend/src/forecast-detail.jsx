@@ -7353,7 +7353,7 @@ function OraclePanel({ stats, forecast }) {
     { color: "#ffb4ab", label: "THEME 03", body: "作成中" },
   ];
   const fallbackSummaryColumns = {
-    environment: [{ color: "#e9c349", label: "1/1-12/31", startRaw: "2026-01-01", endRaw: "2026-12-31", title: "環境変化", body: "作成中" }],
+    environment: [{ color: "#e9c349", label: "1/1-12/31", startRaw: "2026-01-01", endRaw: "2026-12-31", title: "現実的変化", body: "作成中" }],
     mental: [{ color: "#e9c349", label: "1/1-12/31", startRaw: "2026-01-01", endRaw: "2026-12-31", title: "精神的変化", body: "作成中" }],
   };
   const viewportWidth = useViewportWidth();
@@ -7442,7 +7442,7 @@ function OraclePanel({ stats, forecast }) {
         {analysisMode === "summary" ? (
           <div className="mt-3 grid min-h-0 flex-1 gap-2 overflow-y-auto [scrollbar-color:#e9c349_rgba(255,255,255,0.08)] [scrollbar-width:thin] sm:mt-6 sm:gap-5 sm:pr-1 lg:gap-6">
             <div className="grid grid-cols-2 gap-1 pl-3 font-mono text-[10px] font-bold uppercase tracking-[0.05em] text-gold sm:gap-5 sm:pl-6 sm:text-xs sm:tracking-[0.1em] lg:gap-6">
-              <p>環境変化</p>
+              <p>現実的変化</p>
               <p>精神的変化</p>
             </div>
             <div className="grid grid-cols-2 gap-1 sm:gap-5 lg:gap-6">

@@ -2501,7 +2501,8 @@ function buildDailyTransitAspectLanes(chartPerformance = [], config = DAILY_TRAN
       const blocks = [];
       activeSegments.forEach((segment) => {
         const previous = blocks[blocks.length - 1];
-        if (previous && Math.abs(previous.end - segment.start) < 0.001) {
+        const gapFromPrevious = previous ? segment.start - previous.end : Infinity;
+        if (previous && gapFromPrevious >= -0.001 && gapFromPrevious <= DAILY_PERFORMANCE_SAMPLE_STEP_HOURS + 0.001) {
           previous.end = segment.start + DAILY_PERFORMANCE_SAMPLE_STEP_HOURS;
           previous.opacity = Math.max(previous.opacity, segment.opacity);
           if ((segment.detail?.strength || 0) >= (previous.detail?.strength || 0)) {
@@ -2521,6 +2522,7 @@ function buildDailyTransitAspectLanes(chartPerformance = [], config = DAILY_TRAN
       return blocks.map((block) => ({
         ...block,
         key: `${item.key}-${block.start}`,
+        aspectKey: item.key,
         label: item.label,
         color,
         detail: block.detail,
@@ -2531,11 +2533,19 @@ function buildDailyTransitAspectLanes(chartPerformance = [], config = DAILY_TRAN
     });
 
   const lanes = Array.from({ length: config.limit }, () => []);
+  const preferredLaneByAspect = new Map();
   aspectBlocks
     .sort((a, b) => (a.start === b.start ? b.score - a.score : a.start - b.start))
     .forEach((block) => {
-      const lane = lanes.find((candidate) => candidate.every((existing) => !rangesOverlap(existing, block)));
-      if (lane) lane.push(block);
+      const preferredLaneIndex = preferredLaneByAspect.get(block.aspectKey);
+      const preferredLane = Number.isInteger(preferredLaneIndex) ? lanes[preferredLaneIndex] : null;
+      const lane = preferredLane && preferredLane.every((existing) => !rangesOverlap(existing, block))
+        ? preferredLane
+        : lanes.find((candidate) => candidate.every((existing) => !rangesOverlap(existing, block)));
+      if (lane) {
+        lane.push(block);
+        preferredLaneByAspect.set(block.aspectKey, lanes.indexOf(lane));
+      }
     });
 
   return lanes.map((lane) => lane.sort((a, b) => a.start - b.start));
