@@ -1,4 +1,4 @@
-﻿import React, { useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { currentTokyoDate, getStoredReadingForm, getStoredReadingResult, getStoredReadingResultAsync } from "./reading-storage.js";
 import {
@@ -2400,11 +2400,11 @@ const DAILY_TRANSIT_ASPECT_CONFIGS = [
   { planet: "VENUS", camelKey: "venusAspects", snakeKey: "venus_aspects", fallbackLabel: "金星アスペクト", limit: 3, colors: ["#ff8fb3", "#f9a8d4", "#ffb4ab"] },
 ];
 const DAILY_PERFORMANCE_METRIC_LABELS = {
-  MARS_ACTIVITY: "Mars",
-  DRIVE: "Drive",
-  FLOW: "Flow",
-  INSPIRATION: "Inspiration",
-  FRICTION: "Friction",
+  MARS_ACTIVITY: "行動エネルギー",
+  DRIVE: "集中力",
+  FLOW: "同調性",
+  INSPIRATION: "ひらめき",
+  FRICTION: "焦り・摩擦",
 };
 const DAILY_PERFORMANCE_MARS_STATE_LABELS = {
   HIGH: "高",
@@ -2846,6 +2846,11 @@ function DashboardV2DailyFlowCard({ data, displayDate = "" }) {
                 <span className="rounded-full border border-[#e9c349]/25 bg-[#e9c349]/10 px-2.5 py-1 font-mono text-[10px] font-black text-[#e9c349]">
                   {dailyPerformanceTimeLabel(selectedPerformance, effectiveSelectedPerformanceIndex, chartDate)}
                 </span>
+                {selectedAdvice.actionMode && selectedAdvice.actionMode !== "Pattern" ? (
+                  <span className="rounded-full border border-[#38bdf8]/25 bg-[#38bdf8]/10 px-2 py-0.5 text-[9px] font-bold text-[#38bdf8]">
+                    {selectedAdvice.actionMode}
+                  </span>
+                ) : null}
                 <span className="min-w-0 truncate text-xs font-black text-[#f3f3f0]">
                   {selectedAdvice.headline || "行動アドバイス"}
                 </span>
@@ -2859,14 +2864,14 @@ function DashboardV2DailyFlowCard({ data, displayDate = "" }) {
                 <div className="mt-2 flex flex-wrap gap-1.5 font-mono text-[9px] font-bold">
                   {Number.isFinite(Number(selectedAdvice.frictionScore)) ? (
                     <span className="rounded-full border border-[#ff5c68]/25 bg-[#ff5c68]/10 px-2 py-1 text-[#ff9aa3]">
-                      注意: Friction {selectedAdvice.frictionScore}
-                      {selectedAdvice.frictionState ? ` ${DAILY_PERFORMANCE_FRICTION_STATE_LABELS[selectedAdvice.frictionState] || selectedAdvice.frictionState}` : ""}
+                      注意: 焦り・摩擦 {selectedAdvice.frictionScore}
+                      {selectedAdvice.frictionState ? ` (${DAILY_PERFORMANCE_FRICTION_STATE_LABELS[selectedAdvice.frictionState] || selectedAdvice.frictionState})` : ""}
                     </span>
                   ) : null}
                   {Number.isFinite(Number(selectedAdvice.marsScore)) ? (
                     <span className="rounded-full border border-[#fb923c]/25 bg-[#fb923c]/10 px-2 py-1 text-[#fbbf8b]">
-                      補助: Mars {selectedAdvice.marsScore}
-                      {selectedAdvice.marsState ? ` ${DAILY_PERFORMANCE_MARS_STATE_LABELS[selectedAdvice.marsState] || selectedAdvice.marsState}` : ""}
+                      補助: 行動エネルギー {selectedAdvice.marsScore}
+                      {selectedAdvice.marsState ? ` (${DAILY_PERFORMANCE_MARS_STATE_LABELS[selectedAdvice.marsState] || selectedAdvice.marsState})` : ""}
                     </span>
                   ) : null}
                 </div>
