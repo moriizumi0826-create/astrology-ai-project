@@ -1,6 +1,6 @@
 ﻿import React, { useEffect, useMemo, useState } from "react";
 import { createRoot } from "react-dom/client";
-import { CalendarDays, CircleDot, Eye, EyeOff, Maximize2, Menu, Minimize2, Minus, Move, Pause, Play, Plus, RefreshCw, Shield, SlidersHorizontal, Sparkles } from "lucide-react";
+import { Activity, BriefcaseBusiness, CalendarDays, CircleDot, Eye, EyeOff, HandHeart, Maximize2, Menu, Minimize2, Minus, Move, Pause, Play, Plus, RefreshCw, Shield, SlidersHorizontal, Sparkles, WalletCards } from "lucide-react";
 import * as THREE from "three";
 import {
   currentTokyoDate,
@@ -444,6 +444,12 @@ const ASPECT_DISPLAY_MODE_OPTIONS = [
   { key: "compositeTransit", label: "現行天体", description: "複合アスペクト" },
   { key: "compositeTransitNatal", label: "ネイタル×現行", description: "複合アスペクト" },
   { key: "custom", label: "カスタム", description: "表示対象を選択" },
+];
+const MONTHLY_PEAK_CATEGORIES = [
+  { key: "general_health", label: "一般・健康", Icon: Activity, color: "#43c5c7" },
+  { key: "work", label: "仕事", Icon: BriefcaseBusiness, color: "#7ba7ff" },
+  { key: "love", label: "恋愛・対人", Icon: HandHeart, color: "#ff8b84" },
+  { key: "money", label: "金運", Icon: WalletCards, color: "#f2c14e" },
 ];
 const EMPTY_ASPECT_SELECTIONS = {
   transitNatal: { natal: [], transit: [] },
@@ -7798,6 +7804,108 @@ function MonthlyChart({
   );
 }
 
+function monthlyPeakPeriodsForMonth(forecast, year, monthIndexValue) {
+  const key = `${year}-${String(monthIndexValue + 1).padStart(2, "0")}`;
+  const source = forecast?.monthly_peak_periods || forecast?.monthlyPeakPeriods || {};
+  return Object.fromEntries(MONTHLY_PEAK_CATEGORIES.map(({ key: category }) => [
+    category,
+    (Array.isArray(source?.[category]) ? source[category] : [])
+      .filter((period) => String(period?.start_date || period?.startDate || "").slice(0, 7) === key)
+      .sort((first, second) => (
+        Number(second?.activation || 0) + Number(second?.caution || 0)
+        - Number(first?.activation || 0) - Number(first?.caution || 0)
+      )),
+  ]));
+}
+
+function peakPeriodDate(value) {
+  const text = String(value || "");
+  return /^\d{4}-\d{2}-\d{2}$/.test(text) ? text.slice(5).replace("-", "/") : "";
+}
+
+function PeakMeter({ label, value, color }) {
+  const numericValue = Number(value || 0);
+  const width = Math.max(0, Math.min(100, (numericValue / 16) * 100));
+  return (
+    <div className="grid grid-cols-[44px_minmax(0,1fr)_32px] items-center gap-2 text-[10px] sm:grid-cols-[52px_minmax(0,1fr)_38px] sm:text-xs">
+      <span className="font-mono font-bold text-mist">{label}</span>
+      <div className="h-1.5 overflow-hidden rounded-full bg-white/10" aria-label={`${label} ${numericValue}`}>
+        <div className="h-full rounded-full transition-[width] duration-300" style={{ width: `${width}%`, backgroundColor: color }} />
+      </div>
+      <span className="text-right font-mono font-bold text-starlight">{numericValue}</span>
+    </div>
+  );
+}
+
+function MonthlyPeakDetailTable({ forecast, activeYear, selectedMonth }) {
+  const periodByCategory = useMemo(
+    () => monthlyPeakPeriodsForMonth(forecast, activeYear, selectedMonth),
+    [forecast, activeYear, selectedMonth]
+  );
+
+  return (
+    <GlassPanel className="border-gold/25 p-3 sm:p-6">
+      <div className="flex items-baseline justify-between gap-3 border-b border-white/10 pb-3 sm:pb-4">
+        <h2 className="font-serif text-xl font-semibold text-gold sm:text-3xl">月間ピーク詳細</h2>
+        <span className="font-mono text-[10px] font-bold text-mist sm:text-xs">{MONTH_LABELS[selectedMonth]}</span>
+      </div>
+      <div className="divide-y divide-white/10">
+        {MONTHLY_PEAK_CATEGORIES.map(({ key, label, Icon, color }) => {
+          const period = periodByCategory[key]?.[0] || null;
+          const factors = Array.isArray(period?.factors) ? period.factors.slice(0, 4) : [];
+          const startDate = peakPeriodDate(period?.start_date || period?.startDate);
+          const endDate = peakPeriodDate(period?.end_date || period?.endDate);
+          const periodLabel = startDate && endDate ? `${startDate} - ${endDate}` : "大きな山は少なめ";
+          return (
+            <article key={key} className="grid gap-3 py-4 sm:py-5 lg:grid-cols-[150px_minmax(210px,0.8fr)_150px_minmax(0,1.45fr)] lg:items-start lg:gap-5">
+              <div className="flex min-w-0 items-center gap-2">
+                <span className="grid size-8 shrink-0 place-items-center rounded-md border border-white/10 bg-white/[0.04]" style={{ color }}>
+                  <Icon size={16} aria-hidden="true" />
+                </span>
+                <h3 className="font-serif text-base font-semibold text-starlight sm:text-lg">{label}</h3>
+              </div>
+              <div className="grid gap-2">
+                <PeakMeter label="活性度" value={period?.activation || 0} color={color} />
+                <PeakMeter label="注意度" value={period?.caution || 0} color="#f59e71" />
+              </div>
+              <div className="min-w-0">
+                <p className="font-mono text-[10px] font-bold text-mist">主要期間</p>
+                <p className="mt-1 font-mono text-xs font-bold text-starlight sm:text-sm">{periodLabel}</p>
+                {period?.peak_date ? <p className="mt-1 text-[10px] text-mist">山場 {peakPeriodDate(period.peak_date)}</p> : null}
+              </div>
+              <div className="min-w-0">
+                {factors.length ? (
+                  <div className="flex flex-wrap gap-1.5">
+                    {factors.map((factor, index) => {
+                      const factorLabel = typeof factor === "string" ? factor : factor?.label;
+                      const tone = String(typeof factor === "string" ? "" : factor?.tone || "").toLowerCase();
+                      const cautionTone = ["caution", "heavy", "review"].includes(tone);
+                      return factorLabel ? (
+                        <span
+                          key={`${factorLabel}-${index}`}
+                          className={cx(
+                            "max-w-full truncate rounded px-2 py-1 font-mono text-[9px] font-bold sm:text-[10px]",
+                            cautionTone ? "bg-[#f59e71]/15 text-[#ffc2a1]" : "bg-white/[0.07] text-starlight"
+                          )}
+                          title={factorLabel}
+                        >
+                          {factorLabel}
+                        </span>
+                      ) : null;
+                    })}
+                  </div>
+                ) : null}
+                <p className="mt-2 text-sm leading-6 text-starlight sm:text-[15px]">{period?.summary || "大きな山は少なめ。日々のペースを整える月です。"}</p>
+                {period?.caution_text ? <p className="mt-1 text-xs leading-5 text-[#ffc2a1]">{period.caution_text}</p> : null}
+              </div>
+            </article>
+          );
+        })}
+      </div>
+    </GlassPanel>
+  );
+}
+
 function MonthlyScoreMatrix({ dailyData, selectedSeriesKey, selectedDayIndex }) {
   return (
     <GlassPanel className="border-gold/25 p-3 sm:p-8">
@@ -8031,6 +8139,11 @@ function Matrix({
         setSelectedSeriesKey={setSelectedSeriesKey}
         selectedDayIndex={safeSelectedDayIndex}
         setSelectedDayIndex={setSelectedDayIndex}
+        activeYear={activeYear}
+        selectedMonth={selectedMonth}
+      />
+      <MonthlyPeakDetailTable
+        forecast={forecast}
         activeYear={activeYear}
         selectedMonth={selectedMonth}
       />

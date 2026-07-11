@@ -1,0 +1,5 @@
+Rule_ID,Category,Activation_Threshold,Strong_Activation_Threshold,Max_Period_Days,Moon_Only_Allowed,Outer_Only_Allowed,Background_Only_Allowed,Max_Display_Count,Priority,Active_Flag
+GENERAL_HEALTH_DEFAULT,general_health,6,10,7,0,0,0,3,1,1
+WORK_DEFAULT,work,6,10,7,0,0,0,3,2,1
+LOVE_DEFAULT,love,6,10,7,0,0,0,3,3,1
+MONEY_DEFAULT,money,6,10,7,0,0,0,3,4,1

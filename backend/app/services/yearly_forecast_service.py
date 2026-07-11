@@ -8,7 +8,7 @@ from typing import Any
 
 import pandas as pd
 
-from backend.app.services import reading_service
+from backend.app.services import monthly_peak_service, reading_service
 from backend.app.services.chart_calculator import ASPECT_DEFS, BirthInput, get_angle_diff, get_aspect, get_house
 
 try:
@@ -23,7 +23,6 @@ DATABASE_DIR = PROJECT_ROOT / "database"
 MAIN_TREND_PLANETS = ("JUPITER", "SATURN", "URANUS", "NEPTUNE", "PLUTO")
 LOCAL_VIBE_PLANETS = ("SUN", "MERCURY", "VENUS", "MARS")
 FORECAST_PLANETS = (*MAIN_TREND_PLANETS, *LOCAL_VIBE_PLANETS)
-CATEGORY_KEYS = ("work", "love", "money", "general")
 SIGNS = (
     "ARIES",
     "TAURUS",
@@ -40,6 +39,22 @@ SIGNS = (
 )
 MILESTONE_LIMIT = 12
 YEARLY_TEXT_PLACEHOLDER = "----"
+
+PEAK_TARGET_ROLES = {
+    "SUN": ("core_theme", "core_self", "vitality"),
+    "MOON": ("emotion_moon", "emotional_body", "recovery", "mood_body", "daily_mood", "feeling"),
+    "MERCURY": ("communication", "mental_nerves", "commerce", "documents", "task_process"),
+    "VENUS": ("love_style", "value_style", "assets", "flirtation", "romance"),
+    "MARS": ("action_drive", "desire", "passion", "task_load"),
+    "JUPITER": ("growth_support", "network_gain", "career_income"),
+    "SATURN": ("responsibility", "task_discipline", "daily_order"),
+    "URANUS": ("core_theme",),
+    "NEPTUNE": ("core_theme", "sensitivity"),
+    "PLUTO": ("core_theme",),
+    "ASC": ("self_body", "core_self", "vitality"),
+    "MC": ("career_axis", "public_role", "public_message"),
+    "DESC": ("relationship_axis", "partner", "dialogue"),
+}
 
 
 def _yearly_text(value: Any, column: str | None = None, default: str = "") -> str:
@@ -325,130 +340,6 @@ def _orb_decay(orb: float | None, exact_angle: int) -> float:
     return round(0.2 + (closeness * 0.8), 4)
 
 
-def _damp(value: float, factor: float = 120.0) -> float:
-    """極端な合計値を抑制する減衰関数。"""
-    if value == 0:
-        return 0
-    sign = 1 if value > 0 else -1
-    abs_val = abs(value)
-    return sign * (abs_val * factor) / (abs_val + factor)
-
-
-def _clamp_score(value: float) -> int:
-    return int(max(-100, min(100, round(value))))
-
-
-def _category_key(value: Any) -> str:
-    normalized = str(value or "General").strip().lower()
-    if normalized in {"work", "career", "job"}:
-        return "work"
-    if normalized in {"love", "relationship", "romance"}:
-        return "love"
-    if normalized in {"money", "finance", "asset"}:
-        return "money"
-    return "general"
-
-
-def _score_category_totals(events: list[dict[str, Any]]) -> dict[str, int]:
-    raw = {key: 0.0 for key in CATEGORY_KEYS}
-    for event in events:
-        raw[_category_key(event.get("category"))] += float(event.get("weighted_score", 0))
-    
-    # カテゴリごとに減衰を適用して合算
-    return {
-        "total": _clamp_score(_damp(sum(raw.values()), 150)),
-        "work": _clamp_score(_damp(raw["work"], 120)),
-        "love": _clamp_score(_damp(raw["love"], 120)),
-        "money": _clamp_score(_damp(raw["money"], 120)),
-        "general": _clamp_score(_damp(raw["general"], 120)),
-    }
-
-
-def _display_aspect_bucket(event: dict[str, Any]) -> int:
-    if reading_service._normalize_planet(event.get("t_planet")) == "MOON":
-        return 99
-    duration_type = str(event.get("duration_type") or "").strip().upper()
-    if duration_type == "SHORT":
-        return 0
-    if duration_type == "LONG":
-        return 1
-    if duration_type == "MID":
-        return 2
-    return 3
-
-
-def _strongest_yearly_aspect(events: list[dict[str, Any]], category: str = "total") -> dict[str, Any] | None:
-    category_normalized = str(category or "total").strip().lower()
-    aspect_events = [
-        event
-        for event in events
-        if event.get("aspect_angle") is not None
-        and (category_normalized == "total" or _category_key(event.get("category")) == category_normalized)
-        and reading_service._normalize_planet(event.get("t_planet")) != "MOON"
-    ]
-    if not aspect_events:
-        return None
-    best_bucket = min(_display_aspect_bucket(event) for event in aspect_events)
-    aspect_events = [event for event in aspect_events if _display_aspect_bucket(event) == best_bucket]
-    return sorted(
-        aspect_events,
-        key=lambda event: (
-            reading_service._safe_number(event, "priority"),
-            abs(reading_service._safe_number(event, "weighted_score")),
-        ),
-        reverse=True,
-    )[0]
-
-
-def _category_highlights(events: list[dict[str, Any]]) -> dict[str, dict[str, Any] | None]:
-    return {
-        "general": _strongest_yearly_aspect(events, "general"),
-        "work": _strongest_yearly_aspect(events, "work"),
-        "love": _strongest_yearly_aspect(events, "love"),
-        "money": _strongest_yearly_aspect(events, "money"),
-    }
-
-
-def _strongest_yearly_aspect_for_duration(
-    events: list[dict[str, Any]],
-    category: str,
-    duration_types: str | tuple[str, ...],
-) -> dict[str, Any] | None:
-    category_normalized = str(category or "total").strip().lower()
-    duration_normalized = (
-        {str(duration_types or "").strip().upper()}
-        if isinstance(duration_types, str)
-        else {str(duration_type or "").strip().upper() for duration_type in duration_types}
-    )
-    aspect_events = [
-        event
-        for event in events
-        if event.get("aspect_angle") is not None
-        and (category_normalized == "total" or _category_key(event.get("category")) == category_normalized)
-        and reading_service._normalize_planet(event.get("t_planet")) != "MOON"
-        and str(event.get("duration_type") or "").strip().upper() in duration_normalized
-    ]
-    if not aspect_events:
-        return None
-    return sorted(
-        aspect_events,
-        key=lambda event: (
-            reading_service._safe_number(event, "priority"),
-            abs(reading_service._safe_number(event, "weighted_score")),
-        ),
-        reverse=True,
-    )[0]
-
-
-def _category_highlights_for_duration(events: list[dict[str, Any]], duration_types: str | tuple[str, ...]) -> dict[str, dict[str, Any] | None]:
-    return {
-        "general": _strongest_yearly_aspect_for_duration(events, "general", duration_types),
-        "work": _strongest_yearly_aspect_for_duration(events, "work", duration_types),
-        "love": _strongest_yearly_aspect_for_duration(events, "love", duration_types),
-        "money": _strongest_yearly_aspect_for_duration(events, "money", duration_types),
-    }
-
-
 def _sample_local_datetime(day: date) -> datetime:
     return datetime.combine(day, dt_time(hour=12))
 
@@ -564,6 +455,53 @@ def _orb_status_for_day(
 
 def _event_layer(transit_planet: str) -> str:
     return "Main_Trend" if transit_planet in MAIN_TREND_PLANETS else "Local_Vibe"
+
+
+def _peak_target_roles(target: str) -> tuple[str, ...]:
+    return PEAK_TARGET_ROLES.get(target, ("core_theme",))
+
+
+def _peak_aspect_class(exact_angle: int) -> str:
+    if exact_angle == 0:
+        return "conjunction"
+    if exact_angle in {60, 120}:
+        return "soft"
+    if exact_angle == 90:
+        return "hard"
+    if exact_angle == 150:
+        return "adjustment"
+    if exact_angle == 180:
+        return "opposition"
+    return "none"
+
+
+def _peak_event(
+    event_id: str,
+    *,
+    factor_type: str,
+    transit_planet: str,
+    natal_target: str = "ANY",
+    target_role: tuple[str, ...] = ("core_theme",),
+    house_system: str = "none",
+    target_house: int | str = "ANY",
+    aspect_angle: int | str = "ANY",
+    aspect_class: str = "none",
+    transit_state: str = "direct",
+    orb: float | None = None,
+) -> dict[str, Any]:
+    return {
+        "id": event_id,
+        "factor_type": factor_type,
+        "transit_planet": transit_planet,
+        "natal_target": natal_target,
+        "target_role": target_role,
+        "house_system": house_system,
+        "target_house": target_house,
+        "aspect_angle": aspect_angle,
+        "aspect_class": aspect_class,
+        "transit_state": transit_state,
+        "orb": orb,
+    }
 
 
 def _display_countdown_label(value: Any) -> str:
@@ -704,6 +642,8 @@ def _build_day_forecast(
     natal_sun_sign: str,
 ) -> dict[str, Any]:
     events: list[dict[str, Any]] = []
+    peak_events: list[dict[str, Any]] = []
+    transit_states: dict[str, tuple[float, bool]] = {}
     saturn_aspects: list[dict[str, Any]] = []
     sun_aspects: list[dict[str, Any]] = []
     mars_aspects: list[dict[str, Any]] = []
@@ -711,6 +651,53 @@ def _build_day_forecast(
     for transit_planet in FORECAST_PLANETS:
         transit_longitude, is_retrograde, calendar_row = _calendar_transit_state(day, transit_planet)
         solar_house = _solar_house(calendar_row["Sign_ID"], natal_sun_sign)
+        natal_house = get_house(transit_longitude, house_cusps) if len(house_cusps) == 12 else "ANY"
+        transit_states[transit_planet] = (transit_longitude, is_retrograde)
+
+        if reading_service._safe_number(calendar_row, "Sign_Ingress_Flag"):
+            peak_events.append(_peak_event(
+                f"PEAK_NATAL_HOUSE_{transit_planet}_{day.isoformat()}",
+                factor_type="natal_house",
+                transit_planet=transit_planet,
+                house_system="natal",
+                target_house=natal_house,
+                transit_state="ingress",
+            ))
+            peak_events.append(_peak_event(
+                f"PEAK_SOLAR_HOUSE_{transit_planet}_{day.isoformat()}",
+                factor_type="solar_house",
+                transit_planet=transit_planet,
+                house_system="solar",
+                target_house=solar_house,
+                transit_state="ingress",
+            ))
+        if is_retrograde:
+            peak_events.append(_peak_event(
+                f"PEAK_RETROGRADE_{transit_planet}_{day.isoformat()}",
+                factor_type="retrograde",
+                transit_planet=transit_planet,
+                natal_target=transit_planet,
+                target_role=_peak_target_roles(transit_planet),
+                transit_state="retrograde",
+            ))
+        if reading_service._safe_number(calendar_row, "Retrograde_Start_Flag"):
+            peak_events.append(_peak_event(
+                f"PEAK_STATION_{transit_planet}_{day.isoformat()}",
+                factor_type="station",
+                transit_planet=transit_planet,
+                natal_target=transit_planet,
+                target_role=_peak_target_roles(transit_planet),
+                transit_state="station",
+            ))
+        if reading_service._safe_number(calendar_row, "Retrograde_End_Flag"):
+            peak_events.append(_peak_event(
+                f"PEAK_DIRECT_{transit_planet}_{day.isoformat()}",
+                factor_type="direct",
+                transit_planet=transit_planet,
+                natal_target=transit_planet,
+                target_role=_peak_target_roles(transit_planet),
+                transit_state="direct",
+            ))
         base_row = _base_logic_rows().get((natal_sun_sign, transit_planet, solar_house))
         if base_row:
             events.append(_base_event_from_logic(base_row, transit_planet, solar_house, calendar_row))
@@ -721,6 +708,19 @@ def _build_day_forecast(
             _, exact_angle, orb = get_aspect(angle_diff)
             if exact_angle is None:
                 continue
+            peak_events.append(_peak_event(
+                f"PEAK_T2N_{transit_planet}_{natal_point['planet']}_{exact_angle}_{day.isoformat()}",
+                factor_type="transit_to_natal",
+                transit_planet=transit_planet,
+                natal_target=natal_point["planet"],
+                target_role=_peak_target_roles(natal_point["planet"]),
+                house_system="natal",
+                target_house=natal_point["house"],
+                aspect_angle=exact_angle,
+                aspect_class=_peak_aspect_class(exact_angle),
+                transit_state="retrograde" if is_retrograde else "direct",
+                orb=orb,
+            ))
             orb_status = _orb_status_for_day(
                 transit_planet,
                 day,
@@ -801,7 +801,28 @@ def _build_day_forecast(
                 elif transit_planet == "MARS":
                     mars_aspects.append(local_export_item)
 
-    scores = _score_category_totals(events)
+    for transit_planet, (transit_longitude, is_retrograde) in transit_states.items():
+        for target_planet, (target_longitude, _) in transit_states.items():
+            if transit_planet == target_planet:
+                continue
+            angle_diff = get_angle_diff(transit_longitude, target_longitude)
+            _, exact_angle, orb = get_aspect(angle_diff)
+            if exact_angle is None:
+                continue
+            peak_events.append(_peak_event(
+                f"PEAK_T2T_{transit_planet}_{target_planet}_{exact_angle}_{day.isoformat()}",
+                factor_type="transit_to_transit",
+                transit_planet=transit_planet,
+                natal_target=target_planet,
+                target_role=_peak_target_roles(target_planet),
+                aspect_angle=exact_angle,
+                aspect_class=_peak_aspect_class(exact_angle),
+                transit_state="retrograde" if is_retrograde else "direct",
+                orb=orb,
+            ))
+
+    monthly_peak = monthly_peak_service.aggregate_daily_peak_categories(peak_events)
+    scores = monthly_peak_service.calculate_daily_graph_scores(monthly_peak)
 
     def transit_aspects_for(planet: str) -> list[dict[str, Any]]:
         return [
@@ -843,17 +864,13 @@ def _build_day_forecast(
     return {
         "date": day.isoformat(),
         "scores": scores,
+        "monthly_peak": monthly_peak,
         "events": top_events,
         "all_aspects": all_aspects,
         "jupiter_aspects": jupiter_aspects,
         "saturn_aspects": saturn_aspects,
         "sun_aspects": sun_aspects,
         "mars_aspects": mars_aspects,
-        "category_highlights": _category_highlights(events),
-        "category_theme_highlights": {
-            "short": _category_highlights_for_duration(events, ("SHORT", "MID")),
-            "long": _category_highlights_for_duration(events, "LONG"),
-        },
     }
 
 
@@ -1261,6 +1278,7 @@ def generate_yearly_forecast(
         annual_mars_aspects.extend(day_forecast.get("mars_aspects", []))
         yearly_data.append(day_forecast)
         current += timedelta(days=1)
+    monthly_peak_periods = monthly_peak_service.build_monthly_peak_periods(yearly_data)
     annual_themes = build_annual_themes(
         year=year,
         birth_input=birth_input,
@@ -1306,6 +1324,7 @@ def generate_yearly_forecast(
     return {
         "summary": build_yearly_summary(yearly_data),
         "yearly_data": yearly_data,
+        "monthly_peak_periods": monthly_peak_periods,
         "natal_points": natal_points,
         "natal_house_cusps": house_cusps,
         "milestones": extract_milestones(yearly_data),
