@@ -158,6 +158,19 @@ def _find_scoring_rule(
     return min(candidates, key=lambda row: _as_int(row.get("Priority"), 999999))
 
 
+def _category_graph_calibration(
+    category: str,
+    scoring_rules: Iterable[dict[str, Any]],
+) -> dict[str, Any] | None:
+    candidates = [
+        row for row in scoring_rules
+        if _is_active(row) and _matches(row.get("Category"), category)
+    ]
+    if not candidates:
+        return None
+    return min(candidates, key=lambda row: _as_int(row.get("Priority"), 999999))
+
+
 def aggregate_daily_peak_categories(
     events: Iterable[dict[str, Any]],
     *,
@@ -167,12 +180,16 @@ def aggregate_daily_peak_categories(
     """Match normalized events and independently sum activation and caution."""
     peak_rules = tuple(rules) if rules is not None else load_monthly_peak_rules()
     score_rules = tuple(scoring_rules) if scoring_rules is not None else load_monthly_peak_scoring_rules()
+    calibrations = {
+        category: _category_graph_calibration(category, score_rules)
+        for category in CATEGORY_KEYS
+    }
     result = {
         category: {
             "activation": 0.0,
             "caution": 0.0,
-            "graph_bias": 0.0,
-            "daily_cap": None,
+            "graph_bias": _as_float(calibrations[category].get("Graph_Bias") if calibrations[category] else 0),
+            "daily_cap": _as_float(calibrations[category].get("Daily_Cap") if calibrations[category] else 100, 100),
             "matched_rules": [],
         }
         for category in CATEGORY_KEYS
@@ -199,8 +216,6 @@ def aggregate_daily_peak_categories(
                 scoring_rule.get("Caution_Multiplier") if scoring_rule else 1,
                 1,
             )
-            graph_bias = _as_float(scoring_rule.get("Graph_Bias") if scoring_rule else 0)
-            daily_cap = _as_float(scoring_rule.get("Daily_Cap") if scoring_rule else 100, 100)
             match = {
                 "rule_id": rule.get("Rule_ID"),
                 "peak_type": rule.get("Peak_Type"),
@@ -215,8 +230,6 @@ def aggregate_daily_peak_categories(
                 "priority": _as_int(rule.get("Priority"), 999999),
                 "activation": round(activation, 2),
                 "caution": round(caution, 2),
-                "graph_bias": round(graph_bias, 2),
-                "daily_cap": daily_cap,
                 "title": rule.get("Monthly_Title"),
                 "summary": rule.get("Monthly_Summary"),
                 "description": rule.get("Monthly_Description"),
@@ -226,10 +239,6 @@ def aggregate_daily_peak_categories(
             }
             result[category]["activation"] += activation
             result[category]["caution"] += caution
-            result[category]["graph_bias"] += graph_bias
-            if daily_cap > 0:
-                previous_cap = result[category]["daily_cap"]
-                result[category]["daily_cap"] = daily_cap if previous_cap is None else min(previous_cap, daily_cap)
             result[category]["matched_rules"].append(match)
 
     for category in CATEGORY_KEYS:

@@ -159,8 +159,8 @@ class YearlyForecastTestCase(unittest.TestCase):
             "Intensity_Hint": "ANY",
             "Activation_Multiplier": "1.5",
             "Caution_Multiplier": "2",
-            "Graph_Bias": "0",
-            "Daily_Cap": "100",
+            "Graph_Bias": "-7",
+            "Daily_Cap": "12",
             "Priority": "1",
             "Active_Flag": "1",
         }
@@ -184,6 +184,8 @@ class YearlyForecastTestCase(unittest.TestCase):
 
         self.assertEqual(result["work"]["activation"], 9.0)
         self.assertEqual(result["work"]["caution"], 4.0)
+        self.assertEqual(result["work"]["graph_bias"], -7.0)
+        self.assertEqual(result["work"]["daily_cap"], 12.0)
         self.assertEqual(len(result["work"]["matched_rules"]), 1)
         self.assertEqual(result["love"]["activation"], 0.0)
 
