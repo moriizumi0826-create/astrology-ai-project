@@ -20,10 +20,10 @@ import forecastGalaxyBg from "./assets/daily-detail-galaxy-bg.jpg";
 const MONTHS = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"];
 const MONTH_LABELS = Array.from({ length: 12 }, (_, index) => `${index + 1}月`);
 const SCORE_KEYS = [
-  { key: "general", label: "全般・健康", color: "#e9c349" },
-  { key: "work", label: "仕事", color: "#d3bcf9" },
-  { key: "love", label: "恋愛・対人", color: "#ffb4ab" },
-  { key: "money", label: "お金", color: "#c3c6d7" },
+  { key: "general", label: "全般・健康", color: "#43c5c7" },
+  { key: "work", label: "仕事", color: "#7ba7ff" },
+  { key: "love", label: "恋愛・対人", color: "#ff8b84" },
+  { key: "money", label: "お金", color: "#f2c14e" },
 ];
 const CHART = { width: 920, height: 360, left: 34, right: 18, top: 34, bottom: 42 };
 const PLANET_LABELS = {
