@@ -446,10 +446,10 @@ const ASPECT_DISPLAY_MODE_OPTIONS = [
   { key: "custom", label: "カスタム", description: "表示対象を選択" },
 ];
 const MONTHLY_PEAK_CATEGORIES = [
-  { key: "general_health", label: "一般・健康", Icon: Activity, color: "#43c5c7" },
-  { key: "work", label: "仕事", Icon: BriefcaseBusiness, color: "#7ba7ff" },
-  { key: "love", label: "恋愛・対人", Icon: HandHeart, color: "#ff8b84" },
-  { key: "money", label: "金運", Icon: WalletCards, color: "#f2c14e" },
+  { key: "general_health", label: "一般・健康", Icon: Activity, color: "#e9c349" },
+  { key: "work", label: "仕事", Icon: BriefcaseBusiness, color: "#d3bcf9" },
+  { key: "love", label: "恋愛・対人", Icon: HandHeart, color: "#ffb4ab" },
+  { key: "money", label: "金運", Icon: WalletCards, color: "#c3c6d7" },
 ];
 const EMPTY_ASPECT_SELECTIONS = {
   transitNatal: { natal: [], transit: [] },
