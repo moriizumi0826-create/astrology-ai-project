@@ -7602,7 +7602,7 @@ function AnnualChart({
     <GlassPanel className="p-3 sm:p-8">
       <div className="flex flex-col gap-2 sm:gap-4 lg:flex-row lg:items-start lg:justify-between">
         <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-center sm:gap-4">
-          <h2 className="font-serif text-[26px] font-bold leading-tight text-starlight sm:text-5xl">Annual Biorhythm {activeYear}</h2>
+          <h2 className="font-serif text-[26px] font-bold leading-tight text-starlight sm:text-5xl">年間運勢グラフ（{activeYear}年）</h2>
           <button
             type="button"
             onClick={onOpenYearDialog}
@@ -7722,7 +7722,7 @@ function MonthlyChart({
     <GlassPanel className="p-3 sm:p-8">
       <div className="flex flex-col gap-2 sm:gap-4 lg:flex-row lg:items-start lg:justify-between">
         <h2 className="font-serif text-[26px] font-bold leading-tight text-starlight sm:text-5xl">
-          Monthly Biorhythm {MONTHS[selectedMonth]} {activeYear}
+          月間運勢グラフ（{selectedMonth + 1}月）
         </h2>
         <div className="flex flex-wrap gap-1.5 font-mono text-[9px] font-bold tracking-[0.04em] text-mist sm:gap-5 sm:text-xs sm:tracking-[0.08em]">
           {SCORE_KEYS.map((item) => (
