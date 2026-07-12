@@ -41,6 +41,18 @@ PERIOD_REQUIRED_COLUMNS = {
     "Max_Period_Days", "Moon_Only_Allowed", "Outer_Only_Allowed",
     "Background_Only_Allowed", "Max_Display_Count", "Priority", "Active_Flag",
 }
+RULE_INDEX_WILDCARD = "*"
+RULE_MATCH_COLUMNS = (
+    ("Factor_Type", "factor_type"),
+    ("Transit_Planet", "transit_planet"),
+    ("Natal_Target", "natal_target"),
+    ("Target_Role", "target_role"),
+    ("House_System", "house_system"),
+    ("Target_House", "target_house"),
+    ("Aspect_Angle", "aspect_angle"),
+    ("Aspect_Class", "aspect_class"),
+    ("Transit_State", "transit_state"),
+)
 
 
 def _file_signature(path: Path) -> tuple[int, int]:
@@ -83,10 +95,69 @@ def load_monthly_peak_period_rules(database_dir: Path | None = None) -> tuple[di
 
 def clear_monthly_peak_caches() -> None:
     _read_csv_rows.cache_clear()
+    _default_monthly_peak_rule_index.cache_clear()
 
 
 def _normalise(value: Any) -> str:
     return str(value or "").strip().upper()
+
+
+def _rule_index_value(value: Any) -> str:
+    normalized = _normalise(value)
+    return RULE_INDEX_WILDCARD if normalized in {"", "ANY", "ALL"} else normalized
+
+
+def _event_index_values(value: Any) -> tuple[str, ...]:
+    values = value if isinstance(value, (list, tuple, set, frozenset)) else (value,)
+    normalized = {_normalise(item) for item in values}
+    normalized.discard("")
+    return tuple(normalized) or ("",)
+
+
+def _build_monthly_peak_rule_index(
+    rules: Iterable[dict[str, Any]],
+) -> dict[str, Any]:
+    active_rules = tuple(rule for rule in rules if _is_active(rule))
+    masks: dict[str, dict[str, int]] = {
+        rule_column: {} for rule_column, _event_column in RULE_MATCH_COLUMNS
+    }
+    for rule_index, rule in enumerate(active_rules):
+        bit = 1 << rule_index
+        for rule_column, _event_column in RULE_MATCH_COLUMNS:
+            value = _rule_index_value(rule.get(rule_column))
+            masks[rule_column][value] = masks[rule_column].get(value, 0) | bit
+    return {"rules": active_rules, "masks": masks}
+
+
+@lru_cache(maxsize=1)
+def _default_monthly_peak_rule_index(_signature: tuple[int, int]) -> dict[str, Any]:
+    return _build_monthly_peak_rule_index(load_monthly_peak_rules())
+
+
+def _candidate_monthly_peak_rules(
+    event: dict[str, Any],
+    rule_index: dict[str, Any],
+) -> tuple[dict[str, Any], ...]:
+    rules = rule_index["rules"]
+    if not rules:
+        return ()
+    candidate_mask = (1 << len(rules)) - 1
+    masks = rule_index["masks"]
+    for rule_column, event_column in RULE_MATCH_COLUMNS:
+        column_masks = masks[rule_column]
+        allowed_mask = column_masks.get(RULE_INDEX_WILDCARD, 0)
+        for event_value in _event_index_values(event.get(event_column)):
+            allowed_mask |= column_masks.get(event_value, 0)
+        candidate_mask &= allowed_mask
+        if not candidate_mask:
+            return ()
+
+    candidates: list[dict[str, Any]] = []
+    while candidate_mask:
+        lowest_bit = candidate_mask & -candidate_mask
+        candidates.append(rules[lowest_bit.bit_length() - 1])
+        candidate_mask ^= lowest_bit
+    return tuple(candidates)
 
 
 def _is_active(row: dict[str, Any]) -> bool:
@@ -178,7 +249,13 @@ def aggregate_daily_peak_categories(
     scoring_rules: Iterable[dict[str, Any]] | None = None,
 ) -> dict[str, dict[str, Any]]:
     """Match normalized events and independently sum activation and caution."""
-    peak_rules = tuple(rules) if rules is not None else load_monthly_peak_rules()
+    peak_rule_index = (
+        _build_monthly_peak_rule_index(tuple(rules))
+        if rules is not None
+        else _default_monthly_peak_rule_index(
+            _file_signature(DATABASE_DIR / RULES_FILENAME)
+        )
+    )
     score_rules = tuple(scoring_rules) if scoring_rules is not None else load_monthly_peak_scoring_rules()
     calibrations = {
         category: _category_graph_calibration(category, score_rules)
@@ -198,7 +275,7 @@ def aggregate_daily_peak_categories(
 
     for index, event in enumerate(events):
         event_id = str(event.get("id") or index)
-        for rule in peak_rules:
+        for rule in _candidate_monthly_peak_rules(event, peak_rule_index):
             category = _normalise(rule.get("Category")).lower()
             if category not in result or not monthly_peak_rule_matches(rule, event):
                 continue

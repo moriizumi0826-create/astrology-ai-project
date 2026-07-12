@@ -123,6 +123,31 @@ class YearlyForecastTestCase(unittest.TestCase):
             {"general_health", "work", "love", "money"},
         )
 
+    def test_monthly_peak_rule_index_preserves_full_rule_matches(self):
+        rules = monthly_peak_service.load_monthly_peak_rules()
+        rule_index = monthly_peak_service._build_monthly_peak_rule_index(rules)
+        seed_rule = next(rule for rule in rules if rule["Active_Flag"] == "1")
+        event = {
+            event_column: (
+                "INDEX_TEST" if seed_rule[rule_column] in {"", "ANY", "ALL"} else seed_rule[rule_column]
+            )
+            for rule_column, event_column in monthly_peak_service.RULE_MATCH_COLUMNS
+        }
+        event["orb"] = 0.0
+
+        expected = [
+            rule["Rule_ID"]
+            for rule in rules
+            if monthly_peak_service.monthly_peak_rule_matches(rule, event)
+        ]
+        actual = [
+            rule["Rule_ID"]
+            for rule in monthly_peak_service._candidate_monthly_peak_rules(event, rule_index)
+            if monthly_peak_service.monthly_peak_rule_matches(rule, event)
+        ]
+        self.assertIn(seed_rule["Rule_ID"], expected)
+        self.assertEqual(actual, expected)
+
     def test_monthly_peak_aggregation_keeps_activation_and_caution_separate(self):
         rule = {
             "Rule_ID": "TEST_WORK_ASPECT",
