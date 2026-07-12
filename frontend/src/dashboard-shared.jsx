@@ -3116,6 +3116,15 @@ function monthNumberFromDate(value) {
   return Number.isFinite(month) && month >= 1 && month <= 12 ? month : 0;
 }
 
+function blendedMonthlyScore(values) {
+  if (!values.length) return 0;
+  const average = values.reduce((sum, value) => sum + value, 0) / values.length;
+  const strongestValue = values.reduce((strongest, value) => (
+    Math.abs(value) > Math.abs(strongest) ? value : strongest
+  ), values[0]);
+  return Math.round((average * 0.6) + (strongestValue * 0.4));
+}
+
 function monthlyYearlyDeveloperData(forecast) {
   const yearlyData = Array.isArray(forecast?.yearly_data) ? forecast.yearly_data : [];
   const year =
@@ -3131,7 +3140,7 @@ function monthlyYearlyDeveloperData(forecast) {
       const values = days
         .map((day) => Number(day?.scores?.[key]))
         .filter((value) => Number.isFinite(value));
-      scores[key] = values.length ? Math.round(values.reduce((sum, value) => sum + value, 0) / values.length) : 0;
+      scores[key] = blendedMonthlyScore(values);
     });
     const events = days
       .flatMap((day) => (Array.isArray(day?.events) ? day.events.map((event) => ({ ...event, date: day.date })) : []))
@@ -3383,9 +3392,7 @@ function DashboardV2YearlyCard({ forecast, developerMode }) {
       const values = monthItems
         .map((day) => Number(day?.scores?.[key]))
         .filter((value) => Number.isFinite(value));
-      scores[key] = values.length
-        ? Math.round(values.reduce((sum, value) => sum + value, 0) / values.length)
-        : 0;
+      scores[key] = blendedMonthlyScore(values);
     });
     return {
       ...monthItems[Math.floor(monthItems.length / 2)],

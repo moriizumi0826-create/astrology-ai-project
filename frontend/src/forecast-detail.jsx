@@ -6666,6 +6666,15 @@ function monthlyItems(items, year, index) {
   return items.filter((item) => itemOverlapsMonth(item, year, index));
 }
 
+function blendedMonthlyScore(values) {
+  if (!values.length) return 0;
+  const average = values.reduce((sum, value) => sum + value, 0) / values.length;
+  const strongestValue = values.reduce((strongest, value) => (
+    Math.abs(value) > Math.abs(strongest) ? value : strongest
+  ), values[0]);
+  return Math.round((average * 0.6) + (strongestValue * 0.4));
+}
+
 function monthlyData(forecast, useDemoFallback = true) {
   const source = Array.isArray(forecast?.yearly_data) ? forecast.yearly_data : [];
   if (!source.length) return useDemoFallback ? demoForecast().yearly_data : [];
@@ -6681,7 +6690,7 @@ function monthlyData(forecast, useDemoFallback = true) {
     const scores = {};
     ["total", ...SCORE_KEYS.map((item) => item.key)].forEach((key) => {
       const values = items.map((day) => scoreFor(day, key)).filter((value) => Number.isFinite(value));
-      scores[key] = values.length ? Math.round(values.reduce((sum, value) => sum + value, 0) / values.length) : 0;
+      scores[key] = blendedMonthlyScore(values);
     });
     return {
       ...items[Math.floor(items.length / 2)],
