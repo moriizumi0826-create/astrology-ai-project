@@ -99,14 +99,14 @@ class YearlyForecastTestCase(unittest.TestCase):
 
     def test_monthly_peak_graph_scores_normalize_and_clamp(self):
         scores = monthly_peak_service.calculate_daily_graph_scores({
-            "general_health": {"activation": 250, "caution": 0, "graph_bias": 0, "daily_cap": 100},
-            "work": {"activation": 9, "caution": 4, "graph_bias": 2, "daily_cap": 50},
-            "love": {"activation": 1, "caution": 2, "graph_bias": 0, "daily_cap": 100},
-            "money": {"activation": 0, "caution": 0, "graph_bias": 0, "daily_cap": 100},
+            "general_health": {"activation": 250, "caution": 0, "daily_cap": 100},
+            "work": {"activation": 9, "caution": 4, "daily_cap": 50},
+            "love": {"activation": 1, "caution": 2, "daily_cap": 100},
+            "money": {"activation": 0, "caution": 0, "daily_cap": 100},
         })
 
         self.assertEqual(scores["general"], 100)
-        self.assertEqual(scores["work"], 14)
+        self.assertEqual(scores["work"], 10)
         self.assertEqual(scores["love"], -1)
         self.assertEqual(scores["money"], 0)
         self.assertTrue(-100 <= scores["total"] <= 100)
@@ -188,7 +188,6 @@ class YearlyForecastTestCase(unittest.TestCase):
             "Intensity_Hint": "ANY",
             "Activation_Multiplier": "1.5",
             "Caution_Multiplier": "2",
-            "Graph_Bias": "-7",
             "Daily_Cap": "12",
             "Priority": "1",
             "Active_Flag": "1",
@@ -211,11 +210,11 @@ class YearlyForecastTestCase(unittest.TestCase):
             [event], rules=[rule], scoring_rules=[scoring_rule]
         )
 
-        self.assertEqual(result["work"]["activation"], 9.0)
-        self.assertEqual(result["work"]["caution"], 4.0)
-        self.assertEqual(result["work"]["graph_bias"], -7.0)
+        self.assertEqual(result["work"]["activation"], 5.4)
+        self.assertEqual(result["work"]["caution"], 2.4)
         self.assertEqual(result["work"]["daily_cap"], 12.0)
         self.assertEqual(len(result["work"]["matched_rules"]), 1)
+        self.assertEqual(result["work"]["matched_rules"][0]["exactness"], 0.6)
         self.assertEqual(result["love"]["activation"], 0.0)
 
     def test_monthly_peak_periods_respect_constraints_and_keep_caution(self):
@@ -233,9 +232,10 @@ class YearlyForecastTestCase(unittest.TestCase):
             "Active_Flag": "1",
         }]
 
-        def peak_day(day_text, activation, caution, planet="MARS", intensity="high"):
+        def peak_day(day_text, activation, caution, graph_score, planet="MARS", intensity="high"):
             return {
                 "date": day_text,
+                "scores": {"work": graph_score},
                 "monthly_peak": {
                     "work": {
                         "activation": activation,
@@ -269,12 +269,12 @@ class YearlyForecastTestCase(unittest.TestCase):
 
         periods = monthly_peak_service.build_monthly_peak_periods(
             [
-                peak_day("2026-07-01", 7, 1),
-                peak_day("2026-07-02", 9, 4),
-                peak_day("2026-07-03", 8, 2),
-                peak_day("2026-07-04", 12, 0, intensity="background_only"),
-                peak_day("2026-07-05", 12, 0, planet="URANUS"),
-                peak_day("2026-07-06", 12, 0, planet="MOON"),
+                peak_day("2026-07-01", 7, 1, 30),
+                peak_day("2026-07-02", 9, 4, 80),
+                peak_day("2026-07-03", 8, 2, 10),
+                peak_day("2026-07-04", 12, 0, 100, intensity="background_only"),
+                peak_day("2026-07-05", 12, 0, 100, planet="URANUS"),
+                peak_day("2026-07-06", 12, 0, 100, planet="MOON"),
             ],
             period_rules=period_rules,
         )
@@ -283,6 +283,7 @@ class YearlyForecastTestCase(unittest.TestCase):
         self.assertEqual(periods["work"][0]["start_date"], "2026-07-01")
         self.assertEqual(periods["work"][0]["end_date"], "2026-07-02")
         self.assertEqual(periods["work"][0]["peak_date"], "2026-07-02")
+        self.assertEqual(periods["work"][0]["graph_score"], 80)
         self.assertEqual(periods["work"][0]["activation"], 9.0)
         self.assertEqual(periods["work"][0]["caution"], 4.0)
         self.assertEqual(periods["work"][0]["tone"], "mixed")

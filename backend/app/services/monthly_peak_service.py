@@ -18,6 +18,12 @@ PROJECT_ROOT = Path(__file__).resolve().parents[3]
 DATABASE_DIR = PROJECT_ROOT / "database"
 
 CATEGORY_KEYS = ("general_health", "work", "love", "money")
+CATEGORY_SCORE_KEYS = {
+    "general_health": "general",
+    "work": "work",
+    "love": "love",
+    "money": "money",
+}
 NARRATIVE_KEYS_BY_CATEGORY = {
     "general_health": {"self_pace", "recovery", "routine", "cognitive_load", "pressure", "transition"},
     "work": {"role", "evaluation", "workflow", "negotiation", "visibility", "network", "capacity"},
@@ -41,7 +47,7 @@ RULE_REQUIRED_COLUMNS = {
 }
 SCORING_REQUIRED_COLUMNS = {
     "Rule_ID", "Category", "Factor_Type", "Tone", "Intensity_Hint",
-    "Activation_Multiplier", "Caution_Multiplier", "Graph_Bias", "Daily_Cap",
+    "Activation_Multiplier", "Caution_Multiplier", "Daily_Cap",
     "Priority", "Active_Flag",
 }
 PERIOD_REQUIRED_COLUMNS = {
@@ -246,7 +252,7 @@ def _find_scoring_rule(
     return min(candidates, key=lambda row: _as_int(row.get("Priority"), 999999))
 
 
-def _category_graph_calibration(
+def _category_scoring_rule(
     category: str,
     scoring_rules: Iterable[dict[str, Any]],
 ) -> dict[str, Any] | None:
@@ -257,6 +263,17 @@ def _category_graph_calibration(
     if not candidates:
         return None
     return min(candidates, key=lambda row: _as_int(row.get("Priority"), 999999))
+
+
+def _orb_exactness_multiplier(rule: dict[str, Any], event: dict[str, Any]) -> float:
+    """Scale aspect effects from 0 at the configured orb edge to 1 when exact."""
+    if _normalise(rule.get("Factor_Type")) not in {"TRANSIT_TO_NATAL", "TRANSIT_TO_TRANSIT"}:
+        return 1.0
+    orb_max = _as_float(rule.get("Orb_Max"))
+    event_orb = event.get("orb")
+    if orb_max <= 0 or event_orb in (None, ""):
+        return 1.0
+    return max(0.0, min(1.0, 1.0 - abs(_as_float(event_orb)) / orb_max))
 
 
 def aggregate_daily_peak_categories(
@@ -275,14 +292,13 @@ def aggregate_daily_peak_categories(
     )
     score_rules = tuple(scoring_rules) if scoring_rules is not None else load_monthly_peak_scoring_rules()
     calibrations = {
-        category: _category_graph_calibration(category, score_rules)
+        category: _category_scoring_rule(category, score_rules)
         for category in CATEGORY_KEYS
     }
     result = {
         category: {
             "activation": 0.0,
             "caution": 0.0,
-            "graph_bias": _as_float(calibrations[category].get("Graph_Bias") if calibrations[category] else 0),
             "daily_cap": _as_float(calibrations[category].get("Daily_Cap") if calibrations[category] else 100, 100),
             "matched_rules": [],
         }
@@ -302,11 +318,12 @@ def aggregate_daily_peak_categories(
             matched_keys.add(match_key)
 
             scoring_rule = _find_scoring_rule(rule, score_rules)
-            activation = _as_float(rule.get("Activation_Weight")) * _as_float(
+            exactness = _orb_exactness_multiplier(rule, event)
+            activation = exactness * _as_float(rule.get("Activation_Weight")) * _as_float(
                 scoring_rule.get("Activation_Multiplier") if scoring_rule else 1,
                 1,
             )
-            caution = _as_float(rule.get("Caution_Weight")) * _as_float(
+            caution = exactness * _as_float(rule.get("Caution_Weight")) * _as_float(
                 scoring_rule.get("Caution_Multiplier") if scoring_rule else 1,
                 1,
             )
@@ -320,6 +337,7 @@ def aggregate_daily_peak_categories(
                 "target_house": rule.get("Target_House"),
                 "aspect_angle": rule.get("Aspect_Angle"),
                 "orb": event.get("orb"),
+                "exactness": round(exactness, 4),
                 "tone": rule.get("Tone"),
                 "intensity_hint": rule.get("Intensity_Hint"),
                 "priority": _as_int(rule.get("Priority"), 999999),
@@ -342,7 +360,6 @@ def aggregate_daily_peak_categories(
         data = result[category]
         data["activation"] = round(data["activation"], 2)
         data["caution"] = round(data["caution"], 2)
-        data["graph_bias"] = round(data["graph_bias"], 2)
         data["daily_cap"] = data["daily_cap"] or 100.0
         data["matched_rules"].sort(
             key=lambda item: (item["activation"] + item["caution"], item["rule_id"] or ""),
@@ -358,9 +375,9 @@ def _clamp_graph_score(value: float) -> int:
 def calculate_daily_graph_scores(categories: dict[str, dict[str, Any]]) -> dict[str, int]:
     """Convert new category totals to the legacy graph response shape.
 
-    Period extraction continues to use the untouched activation and caution
-    totals.  Only the legacy single-value graph series represents caution as a
-    negative load.
+    Activation and caution are both derived from matched configurations, with
+    aspect effects scaled by their configured orb. The graph only expresses
+    their signed difference; it has no category-level fixed offset.
     """
     category_scores: dict[str, int] = {}
     for category in CATEGORY_KEYS:
@@ -370,7 +387,6 @@ def calculate_daily_graph_scores(categories: dict[str, dict[str, Any]]) -> dict[
         raw = (
             _as_float(data.get("activation"))
             - _as_float(data.get("caution"))
-            + _as_float(data.get("graph_bias"))
         )
         normalized = max(-daily_cap, min(daily_cap, raw)) / daily_cap * 100
         category_scores[category] = _clamp_graph_score(normalized)
@@ -666,8 +682,9 @@ def _build_period(
     peak_day = max(
         days,
         key=lambda item: (
+            _as_float(item.get("graph_score")),
             _as_float(item["data"].get("activation")),
-            _as_float(item["data"].get("caution")),
+            -_as_float(item["data"].get("caution")),
         ),
     )
     factors = _select_period_factors(days, peak_day["date"])
@@ -690,6 +707,7 @@ def _build_period(
         "start_date": days[0]["date"].isoformat(),
         "end_date": days[-1]["date"].isoformat(),
         "peak_date": peak_day["date"].isoformat(),
+        "graph_score": round(_as_float(peak_day.get("graph_score"))),
         "activation": peak_activation,
         "caution": peak_caution,
         "intensity": intensity,
@@ -760,7 +778,17 @@ def build_monthly_peak_periods(
                 "activation": round(sum(_as_float(factor.get("activation")) for factor in factors), 2),
                 "caution": round(sum(_as_float(factor.get("caution")) for factor in factors), 2),
             }
-            candidate = {"date": day_date, "data": candidate_data, "factors": factors}
+            score_key = CATEGORY_SCORE_KEYS[category]
+            graph_score = _as_float(
+                day.get("scores", {}).get(score_key),
+                candidate_data["activation"] - candidate_data["caution"],
+            )
+            candidate = {
+                "date": day_date,
+                "data": candidate_data,
+                "factors": factors,
+                "graph_score": graph_score,
+            }
             previous_date = active_segment[-1]["date"] if active_segment else None
             crosses_month = previous_date is not None and previous_date.month != day_date.month
             is_consecutive = previous_date is not None and (day_date - previous_date).days == 1
@@ -777,7 +805,7 @@ def build_monthly_peak_periods(
             by_month.setdefault(period["start_date"][:7], []).append(period)
         for month_periods in by_month.values():
             month_periods.sort(
-                key=lambda period: (period["activation"], period["caution"], period["peak_date"]),
+                key=lambda period: (period["graph_score"], period["activation"], period["peak_date"]),
                 reverse=True,
             )
             result[category].extend(month_periods[:max_display_count])
