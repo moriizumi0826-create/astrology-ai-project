@@ -136,6 +136,8 @@ MOTION_CHANGE_LOOKAHEAD_DAYS = 800
 
 COUNTDOWN_SHORT_PLANETS = {"MOON", "SUN", "MERCURY", "VENUS", "MARS"}
 COUNTDOWN_LONG_PLANETS = {"JUPITER", "SATURN", "URANUS", "NEPTUNE", "PLUTO"}
+PRESSURE_COUNTDOWN_TRANSIT_PLANETS = {"MARS", "SATURN", "URANUS", "NEPTUNE", "PLUTO"}
+PRESSURE_COUNTDOWN_SCORE_THRESHOLD = -25
 PERSONAL_READING_TRANSIT_PLANETS = {"MOON", "MERCURY", "VENUS", "MARS"}
 COUNTDOWN_PRIORITY_BANDS = {
     "high": {"label": "高", "min": 8, "max": None},
@@ -447,6 +449,13 @@ def _safe_text(row: dict[str, Any] | None, column: str, default: str = "") -> st
     return str(value)
 
 
+def _non_placeholder_text(value: Any) -> str:
+    if value is None or pd.isna(value):
+        return ""
+    text = str(value).strip()
+    return "" if text in {"", "-"} else text
+
+
 def _first_present(row: dict[str, Any], names: tuple[str, ...], default: Any = None) -> Any:
     for name in names:
         value = row.get(name)
@@ -666,9 +675,6 @@ def _hydrate_aspect_interpretation_row(row: dict[str, Any] | None) -> dict[str, 
         )
     if not _safe_text(hydrated, "Advised_Task"):
         hydrated["Advised_Task"] = _fallback_aspect_task(category, orb_status, is_retrograde)
-    if not _safe_text(hydrated, "Countdown_Label"):
-        countdown_master = get_countdown_master_row(hydrated.get("Countdown_ID"))
-        hydrated["Countdown_Label"] = _safe_text(countdown_master, "Display_Title", category or "General")
     return hydrated
 
 
@@ -1606,6 +1612,160 @@ def _select_display_countdown_items(items: list[dict[str, Any]], limit: int = 3)
     return [item for _index, item in ranked[:limit]]
 
 
+def _is_pressure_countdown_target(row: dict[str, Any], pressure_lookup: dict[tuple[Any, ...], float] | None = None) -> bool:
+    transit_planet = _normalize_planet(row.get("T_Planet"))
+    if transit_planet not in PRESSURE_COUNTDOWN_TRANSIT_PLANETS:
+        return False
+    pressure_score = _pressure_score_for_row(row, pressure_lookup)
+    return pressure_score is not None and pressure_score <= PRESSURE_COUNTDOWN_SCORE_THRESHOLD
+
+
+def _is_pressure_countdown_item(
+    item: dict[str, Any],
+    pressure_lookup: dict[tuple[Any, ...], float] | None = None,
+) -> bool:
+    target = item.get("target") if isinstance(item.get("target"), dict) else {}
+    return _is_pressure_countdown_target(target, pressure_lookup)
+
+
+def _pressure_natal_focus_rank(row: dict[str, Any]) -> int:
+    natal_planet = _normalize_planet(row.get("N_Planet"))
+    if natal_planet in {"SUN", "MOON", "ASC", "MC"}:
+        return 0
+    if natal_planet in {"MERCURY", "MARS"}:
+        return 1
+    return 2
+
+
+def _pressure_aspect_rank(row: dict[str, Any]) -> int:
+    angle = _normalize_int(row.get("Aspect_Angle")) or 0
+    if angle in {0, 90, 180}:
+        return 0
+    if angle == 150:
+        return 1
+    return 2
+
+
+def _select_pressure_countdown_items(
+    items: list[dict[str, Any]],
+    pressure_lookup: dict[tuple[Any, ...], float] | None = None,
+) -> list[dict[str, Any]]:
+    departing_items = [
+        item
+        for item in items
+        if str(item.get("countdown_mode") or "").strip().lower() == "departure"
+        and str(item.get("scan_status") or item.get("scan", {}).get("scan_status") or "").strip().lower() == "departing"
+        and _is_pressure_countdown_item(item, pressure_lookup)
+    ]
+    for item in departing_items:
+        target = item.get("target") if isinstance(item.get("target"), dict) else {}
+        score = _pressure_score_for_row(target, pressure_lookup)
+        if score is not None:
+            item["pressure_score"] = score
+            item["pressureScore"] = score
+            if isinstance(target, dict):
+                target["Pressure_Score"] = score
+    ranked = sorted(
+        departing_items,
+        key=lambda item: _pressure_countdown_sort_key(item, pressure_lookup),
+    )
+    return ranked
+
+
+def _pressure_countdown_sort_key(
+    item: dict[str, Any],
+    pressure_lookup: dict[tuple[Any, ...], float] | None = None,
+) -> tuple[Any, ...]:
+    target = item.get("target") if isinstance(item.get("target"), dict) else {}
+    pressure_score = _pressure_score_for_row(target, pressure_lookup) or 0
+    days_remaining = _normalize_int(item.get("days_remaining", item.get("daysLeft")))
+    if days_remaining is not None:
+        return (
+            0,
+            days_remaining,
+            -_safe_number(target, "Priority"),
+            pressure_score,
+            _extract_current_orb(target),
+        )
+    return (
+        1,
+        _pressure_natal_focus_rank(target),
+        _pressure_aspect_rank(target),
+        _extract_current_orb(target),
+        pressure_score,
+        -_safe_number(target, "Priority"),
+    )
+
+
+def _timeline_advise_lookup_key(row: dict[str, Any]) -> tuple[Any, ...]:
+    return (
+        _normalize_planet(row.get("T_Planet")),
+        _normalize_planet(row.get("N_Planet")),
+        _normalize_int(row.get("Aspect_Angle")) or 0,
+    )
+
+
+def _build_timeline_advise_lookup(rows: list[dict[str, Any]]) -> dict[tuple[Any, ...], str]:
+    lookup: dict[tuple[Any, ...], str] = {}
+    for row in rows:
+        advise = _non_placeholder_text(row.get("timeline_advise"))
+        if not advise:
+            continue
+        lookup.setdefault(_timeline_advise_lookup_key(row), advise)
+    return lookup
+
+
+def _build_master_timeline_advise_lookup() -> dict[tuple[Any, ...], str]:
+    aspect_df = MASTER_DATAFRAMES.get("aspect", pd.DataFrame())
+    if aspect_df.empty:
+        return {}
+    return _build_timeline_advise_lookup(aspect_df.to_dict(orient="records"))
+
+
+def _build_pressure_score_lookup(rows: list[dict[str, Any]]) -> dict[tuple[Any, ...], float]:
+    lookup: dict[tuple[Any, ...], float] = {}
+    for row in rows:
+        if not _non_placeholder_text(row.get("timeline_advise")):
+            continue
+        score = _normalize_float(row.get("Pressure_Score"))
+        if score is None:
+            continue
+        lookup[_timeline_advise_lookup_key(row)] = score
+    return lookup
+
+
+def _build_master_pressure_score_lookup() -> dict[tuple[Any, ...], float]:
+    aspect_df = MASTER_DATAFRAMES.get("aspect", pd.DataFrame())
+    if aspect_df.empty:
+        return {}
+    return _build_pressure_score_lookup(aspect_df.to_dict(orient="records"))
+
+
+def _pressure_score_for_row(row: dict[str, Any], lookup: dict[tuple[Any, ...], float] | None = None) -> float | None:
+    score = _normalize_float(row.get("Pressure_Score"))
+    if score is not None:
+        return score
+    if lookup is None:
+        lookup = _build_master_pressure_score_lookup()
+    return lookup.get(_timeline_advise_lookup_key(row))
+
+
+def _attach_pressure_timeline_advise(
+    items: list[dict[str, Any]],
+    timeline_lookup: dict[tuple[Any, ...], str],
+) -> list[dict[str, Any]]:
+    for item in items:
+        target = item.get("target") if isinstance(item.get("target"), dict) else {}
+        advise = _non_placeholder_text(target.get("timeline_advise"))
+        if not advise:
+            advise = timeline_lookup.get(_timeline_advise_lookup_key(target), "")
+        if isinstance(target, dict):
+            target["timeline_advise"] = advise
+        item["timeline_advise"] = advise
+        item["timelineAdvise"] = advise
+    return items
+
+
 def _countdown_priority_band(priority: Any) -> str:
     normalized = _normalize_int(priority) or 0
     if normalized >= 8:
@@ -1907,6 +2067,20 @@ def _scan_countdown_departure(
     scan_horizon_days = min(scan_horizon_days, 365)
     has_been_within_threshold = False
     current_orb: float | None = None
+    impact_start_date: str | None = None
+
+    for past_day in range(1, scan_horizon_days + 1):
+        sample_dt = scan_start - timedelta(days=past_day)
+        orb, _ = _aspect_orb_at(
+            transit_planet,
+            sample_dt,
+            timezone_offset,
+            natal_longitude,
+            exact_angle,
+        )
+        if orb > threshold_orb:
+            impact_start_date = (scan_start - timedelta(days=past_day - 1)).date().isoformat()
+            break
 
     for day in range(scan_horizon_days + 1):
         sample_dt = scan_start + timedelta(days=day)
@@ -1935,8 +2109,87 @@ def _scan_countdown_departure(
                 "departure_day": day,
                 "departure_orb": round(orb, 3),
                 "departure_retrograde": is_retrograde,
+                "impact_start_date": impact_start_date,
+                "impact_end_date": sample_dt.date().isoformat(),
             }
     return None
+
+
+def _scan_countdown_departure_year_bound(
+    row: dict[str, Any],
+    current_dt: datetime | date | None,
+    threshold_orb: float,
+) -> dict[str, Any] | None:
+    if swe is None:
+        return None
+    natal_longitude = _countdown_target_longitude(row)
+    if natal_longitude is None:
+        return None
+
+    transit_planet = _normalize_planet(row.get("T_Planet"))
+    exact_angle = _safe_number(row, "Aspect_Angle")
+    source = row.get("_input") if isinstance(row.get("_input"), dict) else {}
+    timezone_offset = _normalize_float(source.get("timezone_offset")) or 9.0
+    scan_start = _countdown_scan_start(current_dt)
+    year_start = datetime(scan_start.year, 1, 1)
+    year_end = datetime(scan_start.year, 12, 31)
+    current_orb, _ = _aspect_orb_at(transit_planet, scan_start, timezone_offset, natal_longitude, exact_angle)
+    if current_orb > threshold_orb:
+        return None
+
+    impact_start = year_start
+    impact_start_is_before = True
+    days_since_year_start = max((scan_start.date() - year_start.date()).days, 0)
+    previous_within: bool | None = None
+    for day in range(days_since_year_start + 1):
+        sample_dt = year_start + timedelta(days=day)
+        orb, _ = _aspect_orb_at(transit_planet, sample_dt, timezone_offset, natal_longitude, exact_angle)
+        within = orb <= threshold_orb
+        if within and previous_within is False:
+            impact_start = sample_dt
+            impact_start_is_before = False
+        previous_within = within
+
+    impact_end = year_end
+    impact_end_is_after = True
+    days_until_year_end = max((year_end.date() - scan_start.date()).days, 0)
+    days_remaining: int | None = None
+    departure_orb: float | None = None
+    departure_retrograde = False
+    for day in range(1, days_until_year_end + 1):
+        sample_dt = scan_start + timedelta(days=day)
+        orb, is_retrograde = _aspect_orb_at(
+            transit_planet,
+            sample_dt,
+            timezone_offset,
+            natal_longitude,
+            exact_angle,
+        )
+        if orb > threshold_orb:
+            impact_end = sample_dt
+            impact_end_is_after = False
+            days_remaining = day
+            departure_orb = orb
+            departure_retrograde = is_retrograde
+            break
+
+    total_progress_days = max((impact_end.date() - impact_start.date()).days, days_remaining or 0, 1)
+    percent = 0 if days_remaining is None else ((total_progress_days - days_remaining) / total_progress_days) * 100
+    return {
+        "days_remaining": days_remaining,
+        "total_days": total_progress_days,
+        "percent": _clamp(percent, 0, 100),
+        "scan_status": "departing",
+        "current_orb": round(current_orb, 3),
+        "departure_day": days_remaining,
+        "departure_orb": round(departure_orb, 3) if departure_orb is not None else None,
+        "departure_retrograde": departure_retrograde,
+        "impact_start_date": impact_start.date().isoformat(),
+        "impact_end_date": impact_end.date().isoformat(),
+        "impact_start_is_before": impact_start_is_before,
+        "impact_end_is_after": impact_end_is_after,
+        "countdown_unavailable": days_remaining is None,
+    }
 
 
 def _countdown_aspect_label(row: dict[str, Any]) -> str:
@@ -1953,6 +2206,7 @@ def build_countdown_data(
     countdown_target: dict[str, Any] | None,
     current_dt: datetime | date | None = None,
     countdown_mode: str = "arrival",
+    scan_scope: str = "default",
 ) -> dict[str, Any] | None:
     if not countdown_target:
         return None
@@ -1979,6 +2233,8 @@ def build_countdown_data(
             "countdown_id": countdown_id,
             "fallback_label": fallback_label,
             "aspect_label": _countdown_aspect_label(countdown_target),
+            "timeline_advise": _non_placeholder_text(countdown_target.get("timeline_advise")),
+            "timelineAdvise": _non_placeholder_text(countdown_target.get("timeline_advise")),
             "current_orb": current_orb,
             "countdown_mode": countdown_mode,
             "target": countdown_target,
@@ -1987,8 +2243,13 @@ def build_countdown_data(
     threshold_orb = _normalize_float(master_row.get("Threshold_Orb")) or DEFAULT_COUNTDOWN_THRESHOLD_ORB
     total_days = _normalize_int(master_row.get("Max_Progress_Days")) or _normalize_int(master_row.get("Progress_Max_Days")) or DEFAULT_COUNTDOWN_TOTAL_DAYS
     countdown_mode_normalized = str(countdown_mode or "").strip().lower()
+    scan_scope_normalized = str(scan_scope or "").strip().lower()
     scan = (
-        _scan_countdown_departure(countdown_target, current_dt, total_days, threshold_orb)
+        (
+            _scan_countdown_departure_year_bound(countdown_target, current_dt, threshold_orb)
+            if scan_scope_normalized == "year_bound"
+            else _scan_countdown_departure(countdown_target, current_dt, total_days, threshold_orb)
+        )
         if countdown_mode_normalized == "departure"
         else _scan_countdown_ephemeris(countdown_target, current_dt, total_days, threshold_orb)
     )
@@ -2011,18 +2272,7 @@ def build_countdown_data(
     else:
         scan_status = "unknown"
     departure_days_remaining = days_remaining if countdown_mode_normalized == "departure" else exit_days_remaining
-    if countdown_mode_normalized == "departure":
-        title = (
-            _safe_text(master_row, "Arrival_Text", _safe_text(master_row, "Display_Title") or fallback_label)
-            if days_remaining <= 0
-            else _safe_text(master_row, "Display_Title") or fallback_label
-        )
-    else:
-        title = (
-            _safe_text(master_row, "Arrival_Text", _safe_text(master_row, "Display_Title") or fallback_label)
-            if current_orb <= 0.5
-            else _safe_text(master_row, "Display_Title") or fallback_label
-        )
+    title = fallback_label
     note = _safe_text(master_row, "Next_Action_Hint") or advised_task
 
     return {
@@ -2037,11 +2287,18 @@ def build_countdown_data(
         "exit_days_remaining": exit_days_remaining,
         "departure_days_remaining": departure_days_remaining,
         "scan_status": scan_status,
+        "impact_start_date": scan.get("impact_start_date") if scan else None,
+        "impact_end_date": scan.get("impact_end_date") if scan else None,
+        "impact_start_is_before": bool(scan.get("impact_start_is_before")) if scan else False,
+        "impact_end_is_after": bool(scan.get("impact_end_is_after")) if scan else False,
+        "countdown_unavailable": bool(scan.get("countdown_unavailable")) if scan else False,
         "priority": _safe_number(countdown_target, "Priority"),
         "trigger_id": _safe_text(master_row, "Trigger_ID", countdown_id),
         "countdown_id": countdown_id,
         "fallback_label": fallback_label,
         "aspect_label": _countdown_aspect_label(countdown_target),
+        "timeline_advise": _non_placeholder_text(countdown_target.get("timeline_advise")),
+        "timelineAdvise": _non_placeholder_text(countdown_target.get("timeline_advise")),
         "current_orb": current_orb,
         "threshold_orb": threshold_orb,
         "countdown_mode": countdown_mode_normalized or "arrival",
@@ -2359,10 +2616,53 @@ def _daily_performance_action_advice(point: dict[str, Any], hour: int) -> dict[s
         "marsState": mars_state,
         "actionMode": _safe_text(row, "Action_Mode"),
         "headline": _safe_text(row, "Headline"),
-        "recommendedAction": _safe_text(row, "Recommended_Action"),
+        "impactType": _safe_text(row, "Impact_Type"),
+        "recommendedAction": "",
         "thinkingStyle": _safe_text(row, "Thinking_Style"),
         "restGuidance": _safe_text(row, "Rest_Guidance"),
         "variant": _safe_text(row, "Variant"),
+    }
+
+
+def _pressure_load_summary(items: list[dict[str, Any]]) -> dict[str, Any]:
+    scores = [
+        abs(_normalize_float(item.get("pressure_score", item.get("pressureScore"))) or 0)
+        for item in items
+    ]
+    load_score = round(sum(scores[:5]))
+    fallback = {
+        "adviceId": "PRESSURE_NONE",
+        "patternType": "PRESSURE_LOAD",
+        "overallLevel": 0,
+        "loadScore": load_score,
+        "headline": "強い負荷は目立ちません",
+        "actionMode": "通常運転",
+        "restGuidance": "通常運転で問題ありません。",
+    }
+    advice_df = _daily_performance_action_advice_rows()
+    if advice_df.empty or "Pattern_Type" not in advice_df.columns:
+        return fallback
+    rows = advice_df.copy()
+    rows = rows[rows["Pattern_Type"].map(lambda value: str(value).strip().upper()) == "PRESSURE_LOAD"]
+    if rows.empty:
+        return fallback
+    candidates = rows[
+        (rows["Min_Score"].map(lambda value: _normalize_float(value) if _normalize_float(value) is not None else float("-inf")) <= load_score)
+        & (rows["Max_Score"].map(lambda value: _normalize_float(value) if _normalize_float(value) is not None else float("inf")) >= load_score)
+    ]
+    if candidates.empty:
+        return fallback
+    row = dict(candidates.sort_values(by=["Priority", "Advice_ID"], ascending=[False, True], kind="stable").iloc[0])
+    return {
+        "adviceId": _safe_text(row, "Advice_ID"),
+        "patternType": "PRESSURE_LOAD",
+        "overallLevel": _normalize_int(row.get("Overall_Level")) or 0,
+        "loadScore": load_score,
+        "headline": _safe_text(row, "Headline"),
+        "actionMode": _safe_text(row, "Action_Mode"),
+        "restGuidance": _safe_text(row, "Rest_Guidance"),
+        "minScore": _normalize_float(row.get("Min_Score")),
+        "maxScore": _normalize_float(row.get("Max_Score")),
     }
 
 
@@ -3261,6 +3561,12 @@ def _build_daily_performance(
                 }
                 for row in ranked_sources
             ],
+            # The daily timeline needs the complete candidate set across the
+            # 72-hour window; presentation-side ranking decides what to show.
+            "timelineAspects": [
+                transit_aspect_payload(row)
+                for row in source_rows
+            ],
             "moonAspects": [
                 transit_aspect_payload(row)
                 for row in ranked_transit_sources["MOON"]
@@ -3599,6 +3905,22 @@ def build_dashboard_data_from_interpretations(
         )
         if item and item.get("scan_status") == "departing"
     ]
+    timeline_advise_lookup = _build_master_timeline_advise_lookup()
+    pressure_score_lookup = _build_master_pressure_score_lookup()
+    pressure_countdown_candidates = [
+        item
+        for item in (
+            build_countdown_data(target, current_dt=current_dt, countdown_mode="departure", scan_scope="year_bound")
+            for target in interpretations
+            if _is_pressure_countdown_target(target, pressure_score_lookup)
+        )
+        if item and item.get("scan_status") == "departing"
+    ]
+    _attach_pressure_timeline_advise(short_negative_countdown_items, timeline_advise_lookup)
+    _attach_pressure_timeline_advise(long_negative_countdown_items, timeline_advise_lookup)
+    _attach_pressure_timeline_advise(pressure_countdown_candidates, timeline_advise_lookup)
+    pressure_countdown_items = _select_pressure_countdown_items(pressure_countdown_candidates, pressure_score_lookup)
+    pressure_load_summary = _pressure_load_summary(pressure_countdown_items)
     short_countdown_group = [*short_countdown_items, *short_negative_countdown_items]
     long_countdown_group = [*long_countdown_all_items, *long_negative_countdown_items]
     long_countdown_priority_groups = _countdown_priority_band_groups(long_countdown_group)
@@ -3624,9 +3946,12 @@ def build_dashboard_data_from_interpretations(
         "hero": hero,
         "countdown": countdown_data,
         "countdown_items": countdown_items,
+        "pressure_countdown_items": pressure_countdown_items,
+        "pressure_load_summary": pressure_load_summary,
         "countdown_groups": {
             "short": short_countdown_group,
             "long": long_countdown_group,
+            "pressure": pressure_countdown_items,
             "long_by_priority": long_countdown_priority_groups,
             "priority_bands": {
                 key: {"label": value["label"]}

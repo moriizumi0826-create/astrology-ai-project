@@ -1321,6 +1321,44 @@ function countdownDaysUntil(slide, baseDateKey = "") {
   return Math.ceil((targetDate.getTime() - baseMidnight.getTime()) / 86400000);
 }
 
+function isPressureCountdown(slide) {
+  if (!slide) return false;
+  const mode = String(slide.countdown_mode || slide.countdownMode || "").trim().toLowerCase();
+  const scanStatus = String(slide.scan_status || slide.scan?.scan_status || "").trim().toLowerCase();
+  const score = Number(slide.target?.Score_Impact ?? slide.score_impact ?? slide.scoreImpact);
+  return mode === "departure" || scanStatus === "departing" || (Number.isFinite(score) && score < 0);
+}
+
+function pressureCountdownItems(data, groups, displayDate) {
+  const explicitItems = [
+    ...(Array.isArray(data?.pressure_countdown_items) ? data.pressure_countdown_items : []),
+    ...(Array.isArray(groups?.pressure) ? groups.pressure : []),
+  ];
+  const fallbackItems = [
+    ...(Array.isArray(groups?.short) ? groups.short : []),
+    ...(Array.isArray(groups?.long) ? groups.long : []),
+    ...(Array.isArray(groups?.legacy_short) ? groups.legacy_short : []),
+    ...(Array.isArray(groups?.legacy_long) ? groups.legacy_long : []),
+  ];
+  const rawItems = (explicitItems.length ? explicitItems : fallbackItems).filter((item) => {
+    if (!item || isTransitMoonCountdown(item) || !isPressureCountdown(item)) return false;
+    const daysUntil = countdownDaysUntil(item, displayDate);
+    if (item.countdown_unavailable || item.countdownUnavailable || item.impact_end_is_after || item.impactEndIsAfter) return true;
+    return daysUntil !== null && daysUntil >= 0 && daysUntil <= 365;
+  });
+  const seen = new Set();
+  return rawItems.filter((item) => {
+    const key = countdownSlideKey(item);
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  }).sort((left, right) => {
+    const leftDays = countdownDaysUntil(left, displayDate);
+    const rightDays = countdownDaysUntil(right, displayDate);
+    return (Number.isFinite(leftDays) ? leftDays : 9999) - (Number.isFinite(rightDays) ? rightDays : 9999);
+  });
+}
+
 function weeklyAspectDateLabel(item) {
   const formatDate = (value) => {
     const date = dateKeyToLocalDate(value);
@@ -2008,6 +2046,119 @@ function DashboardV2PersonalCard({ data, displayDate = "", onDateShift = () => {
   );
 }
 
+function formatPressureDate(date) {
+  if (!(date instanceof Date) || Number.isNaN(date.getTime())) return "";
+  return `${date.getFullYear()}/${date.getMonth() + 1}/${date.getDate()}`;
+}
+
+function pressurePeriodLabel(slide, baseDateKey = "") {
+  const explicitStart = dateKeyToLocalDate(slide?.impact_start_date || slide?.impactStartDate || slide?.scan?.impact_start_date);
+  const explicitEnd = dateKeyToLocalDate(slide?.impact_end_date || slide?.impactEndDate || slide?.scan?.impact_end_date);
+  if (explicitStart && explicitEnd) {
+    const startSuffix = slide?.impact_start_is_before || slide?.impactStartIsBefore || slide?.scan?.impact_start_is_before ? "以前" : "";
+    const endSuffix = slide?.impact_end_is_after || slide?.impactEndIsAfter || slide?.scan?.impact_end_is_after ? "以降" : "頃";
+    return `${formatPressureDate(explicitStart)}${startSuffix}〜${formatPressureDate(explicitEnd)}${endSuffix}`;
+  }
+  const days = countdownDaysUntil(slide, baseDateKey);
+  if (!Number.isFinite(days)) return "";
+  const baseDate = dateKeyToLocalDate(baseDateKey) || new Date();
+  const totalDays = Number(slide?.total_days ?? slide?.totalDays ?? slide?.scan?.total_days ?? 0);
+  if (!Number.isFinite(totalDays) || totalDays <= 0) return "";
+  const exitDate = new Date(baseDate.getFullYear(), baseDate.getMonth(), baseDate.getDate() + Math.max(0, days));
+  const startOffset = Number.isFinite(totalDays) && totalDays > 0 ? Math.max(0, days - totalDays) : 0;
+  const startDate = new Date(baseDate.getFullYear(), baseDate.getMonth(), baseDate.getDate() + startOffset);
+  const startLabel = formatPressureDate(startDate);
+  const exitLabel = formatPressureDate(exitDate);
+  return startLabel && exitLabel ? `${startLabel}〜${exitLabel}頃` : "";
+}
+
+function PressureCountdownList({ items = [], baseDateKey = "", summary = null }) {
+  const visibleItems = Array.isArray(items) ? items : [];
+  const summaryHeadline = String(summary?.headline || "").trim();
+  const summaryGuidance = String(summary?.restGuidance || summary?.rest_guidance || "").trim();
+  const summaryScore = Number(summary?.loadScore ?? summary?.load_score);
+  const summaryBlock = summaryHeadline ? (
+    <article className="rounded-lg border border-[#e9c349]/25 bg-[#e9c349]/10 p-3">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="font-mono text-[10px] font-black uppercase tracking-[0.16em] text-[#e9c349]">
+            Pressure Load
+          </p>
+          <h3 className="mt-1 font-notoSerif text-base font-black leading-6 text-[#f3f3f0]">
+            {summaryHeadline}
+          </h3>
+        </div>
+        {Number.isFinite(summaryScore) ? (
+          <p className="shrink-0 font-mono text-lg font-black leading-none text-[#e9c349]">
+            {summaryScore}
+          </p>
+        ) : null}
+      </div>
+      {summaryGuidance ? (
+        <p className="mt-2 text-[11px] font-bold leading-5 text-[#c7c6cc]">
+          {summaryGuidance}
+        </p>
+      ) : null}
+    </article>
+  ) : null;
+  if (!visibleItems.length) {
+    return (
+      <div className="mt-5 grid min-h-0 flex-1 gap-3 overflow-y-auto pr-2 [scrollbar-color:#e9c349_rgba(255,255,255,0.08)] [scrollbar-width:thin]">
+        {summaryBlock}
+        <div className="flex min-h-[10rem] items-center justify-center rounded-lg border border-white/10 bg-white/[0.03] p-5 text-center text-sm font-bold leading-7 text-[#c7c6cc]">
+          離脱時期を出せる強い負荷アスペクトはありません。
+        </div>
+      </div>
+    );
+  }
+  return (
+    <div className="mt-5 grid min-h-0 flex-1 gap-3 overflow-y-auto pr-2 [scrollbar-color:#e9c349_rgba(255,255,255,0.08)] [scrollbar-width:thin]">
+      {summaryBlock}
+      {visibleItems.map((item, index) => {
+        const days = countdownDaysUntil(item, baseDateKey);
+        const aspectLabel = item.aspect_label || "";
+        const title = String(item.title || item.countdown_label || item.fallback_label || "").trim();
+        const timelineAdvise = String(item.timelineAdvise || item.timeline_advise || item.target?.timeline_advise || "").trim();
+        const orbValue = Number(item.current_orb ?? item.currentOrb ?? item.scan?.current_orb);
+        const periodLabel = pressurePeriodLabel(item, baseDateKey);
+        return (
+          <article key={`${countdownSlideKey(item)}-${index}`} className="rounded-lg border border-rose-200/15 bg-rose-950/15 p-3">
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                {periodLabel ? (
+                  <p className="mb-1 inline-flex max-w-full items-center rounded border border-[#e9c349]/35 bg-[#e9c349]/10 px-2 py-1 text-[10px] font-bold leading-none text-[#e7d38b]">
+                    {periodLabel}
+                  </p>
+                ) : null}
+                <p className="font-mono text-[10px] font-black uppercase tracking-[0.16em] text-[#e9c349]">
+                  {aspectLabel || "Pressure Aspect"}
+                  {Number.isFinite(orbValue) ? ` / orb ${orbValue.toFixed(2)}°` : ""}
+                </p>
+                {title ? (
+                  <h3 className="mt-1 line-clamp-2 font-notoSerif text-base font-black leading-6 text-[#f3f3f0]">
+                    {title}
+                  </h3>
+                ) : null}
+              </div>
+              <div className="shrink-0 text-right">
+                <p className="mt-1 text-[10px] font-bold text-[#909096]">抜けるまで</p>
+                <p className="mt-1 font-mono text-xl font-black leading-none text-[#e9c349]">
+                  {Number.isFinite(days) ? `${days}日` : "-"}
+                </p>
+              </div>
+            </div>
+            {timelineAdvise ? (
+              <p className="mt-2 line-clamp-2 text-[11px] font-bold leading-5 text-[#c7c6cc]">
+                {timelineAdvise}
+              </p>
+            ) : null}
+          </article>
+        );
+      })}
+    </div>
+  );
+}
+
 function DashboardV2DailyThemeCard({ data, displayDate = "", onDateShift = () => {}, isDateLoading = false, focusedAspect = null }) {
   const [analysisMode, setAnalysisMode] = useState("theme");
   const activeDisplayDate = displayDate || dashboardDisplayDate(data);
@@ -2021,11 +2172,12 @@ function DashboardV2DailyThemeCard({ data, displayDate = "", onDateShift = () =>
     {};
   const positiveHighlights = Array.isArray(aspectHighlights.positive) ? aspectHighlights.positive : [];
   const negativeHighlights = Array.isArray(aspectHighlights.negative) ? aspectHighlights.negative : [];
-  const weeklyAspects = Array.isArray(data.weekly_aspects)
-    ? data.weekly_aspects
-    : Array.isArray(data.weeklyAspects)
-      ? data.weeklyAspects
-      : [];
+  const countdownGroups = data.countdown_groups || {};
+  const pressureItems = React.useMemo(
+    () => pressureCountdownItems(data, countdownGroups, activeDisplayDate),
+    [data, countdownGroups, activeDisplayDate]
+  );
+  const pressureLoadSummary = data.pressure_load_summary || data.pressureLoadSummary || null;
   const focusedAspectKey = focusedAspect?.key || "";
   const focusedAspectToken = focusedAspect?.token || 0;
   useEffect(() => {
@@ -2037,7 +2189,7 @@ function DashboardV2DailyThemeCard({ data, displayDate = "", onDateShift = () =>
     theme: "今日の洞察",
     lesson: "今日の追い風",
     summary: "今日の消耗注意",
-    test1: "直近1週間",
+    test1: "しんどさの原因",
   }[analysisMode] || "今日の洞察";
   const timelineItems = (items, fallbackBody, color) => (
     <div className="mt-6 grid min-h-0 flex-1 gap-6 overflow-y-auto pr-2 [scrollbar-color:#e9c349_rgba(255,255,255,0.08)] [scrollbar-width:thin] sm:mt-8 sm:gap-8">
@@ -2098,7 +2250,7 @@ function DashboardV2DailyThemeCard({ data, displayDate = "", onDateShift = () =>
             ["theme", "洞察"],
             ["lesson", "追い風"],
             ["summary", "消耗注意"],
-            ["test1", "カウントダウン1"],
+            ["test1", "しんどさ\nの原因"],
           ].map(([value, label]) => (
             <button
               key={value}
@@ -2109,7 +2261,11 @@ function DashboardV2DailyThemeCard({ data, displayDate = "", onDateShift = () =>
                 analysisMode === value ? "bg-[#e9c349] text-[#241a00]" : "hover:bg-white/10 hover:text-[#f3f3f0]"
               )}
             >
-              {label}
+              {String(label).split("\n").map((line) => (
+                <span key={line} className="block leading-tight">
+                  {line}
+                </span>
+              ))}
             </button>
           ))}
         </div>
@@ -2118,7 +2274,7 @@ function DashboardV2DailyThemeCard({ data, displayDate = "", onDateShift = () =>
       {analysisMode === "theme" ? timelineItems([], summaryText, "#e9c349") : null}
       {analysisMode === "lesson" ? timelineItems(positiveHighlights, "追い風に該当するアスペクトなし", "#38bdf8") : null}
       {analysisMode === "summary" ? timelineItems(negativeHighlights, "負荷・消耗注意に該当するアスペクトなし", "#fecdd3") : null}
-      {analysisMode === "test1" ? <WeeklyAspectList items={weeklyAspects} focusKey={focusedAspectKey} focusToken={focusedAspectToken} /> : null}
+      {analysisMode === "test1" ? <PressureCountdownList items={pressureItems} baseDateKey={activeDisplayDate} summary={pressureLoadSummary} /> : null}
     </DashboardV2Card>
   );
 }
@@ -2171,7 +2327,7 @@ function DashboardV2CountdownCard({ data, onSelectAspect = () => {} }) {
     : Array.isArray(data.weeklyAspects)
       ? data.weeklyAspects
       : [];
-  const hasLinkedWeeklyAspect = hasEvent && weeklyAspects.some((item) => aspectFocusKey(item) === slideFocusKey);
+  const hasLinkedWeeklyAspect = false;
   const title = hasEvent ? (slide.title || slide.countdown_label || "カウントダウン") : "30日以内のイベントはありません";
   const handleSelectEvent = () => {
     if (!hasEvent || !hasLinkedWeeklyAspect) return;
@@ -2394,11 +2550,12 @@ function dailyAspectDetail(aspect = {}, strength = 0) {
   };
 }
 
-const DAILY_TRANSIT_ASPECT_CONFIGS = [
-  { planet: "MOON", camelKey: "moonAspects", snakeKey: "moon_aspects", fallbackLabel: "月アスペクト", limit: 5, colors: ["#e9c349", "#38bdf8", "#34d399", "#a78bfa", "#ff5c68"] },
-  { planet: "MERCURY", camelKey: "mercuryAspects", snakeKey: "mercury_aspects", fallbackLabel: "水星アスペクト", limit: 3, colors: ["#38bdf8", "#67e8f9", "#93c5fd"] },
-  { planet: "VENUS", camelKey: "venusAspects", snakeKey: "venus_aspects", fallbackLabel: "金星アスペクト", limit: 3, colors: ["#ff8fb3", "#f9a8d4", "#ffb4ab"] },
-];
+const DAILY_TIMELINE_DEFAULT_LIMIT = 15;
+const DAILY_TIMELINE_COLORS = {
+  positive: "#34d399",
+  negative: "#ff5c68",
+  neutral: "#a78bfa",
+};
 const DAILY_PERFORMANCE_METRIC_LABELS = {
   MARS_ACTIVITY: "行動エネルギー",
   DRIVE: "集中力",
@@ -2425,32 +2582,40 @@ function dailyPerformanceActionAdvice(point = {}) {
   return null;
 }
 
-function dailyTransitAspectCandidates(point = {}, planet = "MOON", camelKey = "moonAspects", snakeKey = "moon_aspects") {
-  const explicitAspects = Array.isArray(point[camelKey])
-    ? point[camelKey]
-    : Array.isArray(point[snakeKey])
-      ? point[snakeKey]
+function dailyTimelineAspectCandidates(point = {}) {
+  if (Array.isArray(point.timelineAspects)) return point.timelineAspects;
+  if (Array.isArray(point.timeline_aspects)) return point.timeline_aspects;
+
+  const legacyAspects = [
+    ...(Array.isArray(point.moonAspects) ? point.moonAspects : []),
+    ...(Array.isArray(point.mercuryAspects) ? point.mercuryAspects : []),
+    ...(Array.isArray(point.venusAspects) ? point.venusAspects : []),
+  ];
+  if (legacyAspects.length) return legacyAspects;
+  return Array.isArray(point.sourceAspects)
+    ? point.sourceAspects
+    : Array.isArray(point.source_aspects)
+      ? point.source_aspects
       : [];
-  const sourceAspects = explicitAspects.length
-    ? explicitAspects
-    : Array.isArray(point.sourceAspects)
-      ? point.sourceAspects
-      : Array.isArray(point.source_aspects)
-        ? point.source_aspects
-        : [];
-  return sourceAspects.filter((aspect) => String(aspect.t_planet || aspect.tPlanet || "").toUpperCase() === planet);
 }
 
 function rangesOverlap(a, b) {
   return a.start < b.end && b.start < a.end;
 }
 
-function buildDailyTransitAspectLanes(chartPerformance = [], config = DAILY_TRANSIT_ASPECT_CONFIGS[0]) {
+function dailyTimelinePolarity(detail = {}) {
+  const impact = Number(detail.score ?? 0);
+  if (impact > 0) return "positive";
+  if (impact < 0) return "negative";
+  return "neutral";
+}
+
+function buildDailyTimelineAspectBlocks(chartPerformance = []) {
   const aspectMap = new Map();
   chartPerformance.forEach((point, pointIndex) => {
     const hour = dailyAspectHour(point, pointIndex);
-    dailyTransitAspectCandidates(point, config.planet, config.camelKey, config.snakeKey).forEach((aspect) => {
-      const tPlanet = String(aspect.t_planet || aspect.tPlanet || config.planet).toUpperCase();
+    dailyTimelineAspectCandidates(point).forEach((aspect) => {
+      const tPlanet = String(aspect.t_planet || aspect.tPlanet || "").toUpperCase();
       const nPlanet = String(aspect.n_planet || aspect.nPlanet || "").toUpperCase();
       const angle = Number(aspect.angle);
       const key = `${tPlanet}-${nPlanet}-${Number.isFinite(angle) ? angle : "x"}-${aspect.category || ""}`;
@@ -2480,8 +2645,7 @@ function buildDailyTransitAspectLanes(chartPerformance = [], config = DAILY_TRAN
   const aspectBlocks = Array.from(aspectMap.values())
     .filter((item) => item.maxStrength > 0)
     .sort((a, b) => b.maxStrength - a.maxStrength)
-    .flatMap((item, index) => {
-      const color = config.colors[index % config.colors.length] || config.colors[0] || "#e9c349";
+    .flatMap((item) => {
       const segments = Array.from({ length: DAILY_PERFORMANCE_TOTAL_HOURS / DAILY_PERFORMANCE_SAMPLE_STEP_HOURS }, (_, segmentIndex) => {
         const start = segmentIndex * DAILY_PERFORMANCE_SAMPLE_STEP_HOURS;
         const slotStrength = item.slots.get(start) || 0;
@@ -2524,38 +2688,58 @@ function buildDailyTransitAspectLanes(chartPerformance = [], config = DAILY_TRAN
         key: `${item.key}-${block.start}`,
         aspectKey: item.key,
         label: item.label,
-        color,
         detail: block.detail,
+        polarity: dailyTimelinePolarity(block.detail),
         left: (block.start / DAILY_PERFORMANCE_TOTAL_HOURS) * 100,
         width: ((block.end - block.start) / DAILY_PERFORMANCE_TOTAL_HOURS) * 100,
         score: item.maxStrength,
       }));
     });
 
-  const lanes = Array.from({ length: config.limit }, () => []);
+  return aspectBlocks;
+}
+
+function selectDailyTimelineAspectBlocks(blocks = [], showAll = false) {
+  const ranked = blocks.slice().sort((a, b) => b.score - a.score);
+  if (showAll || ranked.length <= DAILY_TIMELINE_DEFAULT_LIMIT) return ranked;
+
+  const selected = [];
+  const addTop = (polarity, limit) => {
+    ranked
+      .filter((block) => block.polarity === polarity)
+      .slice(0, limit)
+      .forEach((block) => selected.push(block));
+  };
+  addTop("positive", 5);
+  addTop("negative", 5);
+  addTop("neutral", 3);
+
+  const selectedKeys = new Set(selected.map((block) => block.key));
+  ranked.forEach((block) => {
+    if (selected.length >= DAILY_TIMELINE_DEFAULT_LIMIT || selectedKeys.has(block.key)) return;
+    selected.push(block);
+    selectedKeys.add(block.key);
+  });
+  return selected;
+}
+
+function buildDailyTimelineLanes(blocks = []) {
+  const lanes = [];
   const preferredLaneByAspect = new Map();
-  aspectBlocks
+  blocks
     .sort((a, b) => (a.start === b.start ? b.score - a.score : a.start - b.start))
     .forEach((block) => {
       const preferredLaneIndex = preferredLaneByAspect.get(block.aspectKey);
       const preferredLane = Number.isInteger(preferredLaneIndex) ? lanes[preferredLaneIndex] : null;
       const lane = preferredLane && preferredLane.every((existing) => !rangesOverlap(existing, block))
         ? preferredLane
-        : lanes.find((candidate) => candidate.every((existing) => !rangesOverlap(existing, block)));
-      if (lane) {
-        lane.push(block);
-        preferredLaneByAspect.set(block.aspectKey, lanes.indexOf(lane));
-      }
+        : lanes.find((candidate) => candidate.every((existing) => !rangesOverlap(existing, block))) || [];
+      if (!lanes.includes(lane)) lanes.push(lane);
+      lane.push(block);
+      preferredLaneByAspect.set(block.aspectKey, lanes.indexOf(lane));
     });
 
   return lanes.map((lane) => lane.sort((a, b) => a.start - b.start));
-}
-
-function buildDailyTransitAspectGroups(chartPerformance = []) {
-  return DAILY_TRANSIT_ASPECT_CONFIGS.map((config) => ({
-    ...config,
-    lanes: buildDailyTransitAspectLanes(chartPerformance, config),
-  }));
 }
 
 function DashboardV2DailyFlowCard({ data, displayDate = "" }) {
@@ -2563,6 +2747,7 @@ function DashboardV2DailyFlowCard({ data, displayDate = "" }) {
   const [selectedPerformanceIndex, setSelectedPerformanceIndex] = useState(null);
   const [activeAspectTooltip, setActiveAspectTooltip] = useState(null);
   const [isActionAdviceOpen, setIsActionAdviceOpen] = useState(false);
+  const [isAllTimelineAspectsOpen, setIsAllTimelineAspectsOpen] = useState(false);
   const [currentTime, setCurrentTime] = useState(() => new Date());
   useEffect(() => {
     const timer = window.setInterval(() => {
@@ -2603,7 +2788,10 @@ function DashboardV2DailyFlowCard({ data, displayDate = "" }) {
       const bHour = dailyAspectHour(b);
       return (dailyPerformanceOrderIndex.get(aHour) ?? 99) - (dailyPerformanceOrderIndex.get(bHour) ?? 99);
     });
-  const transitAspectGroups = buildDailyTransitAspectGroups(chartPerformance);
+  const allTimelineAspectBlocks = buildDailyTimelineAspectBlocks(chartPerformance);
+  const displayedTimelineAspectBlocks = selectDailyTimelineAspectBlocks(allTimelineAspectBlocks, isAllTimelineAspectsOpen);
+  const timelineAspectLanes = buildDailyTimelineLanes(displayedTimelineAspectBlocks);
+  const hiddenTimelineAspectCount = Math.max(0, allTimelineAspectBlocks.length - displayedTimelineAspectBlocks.length);
   const focusPoints = chartPerformance.map((point) => Number(point.drive ?? 0));
   const flowPoints = chartPerformance.map((point) => Number(point.flow ?? 0));
   const inspirationPoints = chartPerformance.map((point) => Number(point.inspiration ?? 0));
@@ -2888,52 +3076,65 @@ function DashboardV2DailyFlowCard({ data, displayDate = "" }) {
             )}
           </div>
         ) : null}
-        <div className="mt-3 grid gap-2 border-t border-white/10 pt-2">
-          {transitAspectGroups.map((group) => (
-            <div key={group.planet} className="grid gap-1.5">
-              {group.lanes.map((lane, laneIndex) => (
-                <div key={`${group.planet}-${laneIndex}`} className="relative h-4">
-                  <div className="absolute inset-0">
-                    {lane.map((block) => {
-                      const detail = block.detail || {};
-                      const score = Number(detail.score || 0);
-                      const isTooltipOpen = activeAspectTooltip?.key === block.key;
-                      return (
-                      <button
-                        type="button"
-                        key={block.key}
-                        className="absolute top-0 z-10 h-full cursor-pointer text-left focus:outline-none"
+        <div className="mt-3 border-t border-white/10 pt-2">
+          <div className="mb-2 flex items-center justify-between gap-3">
+            <span className="font-sans text-[10px] font-black text-[#c7c6cc]">
+              重要なアスペクト {displayedTimelineAspectBlocks.length} / {allTimelineAspectBlocks.length}
+            </span>
+            {allTimelineAspectBlocks.length > DAILY_TIMELINE_DEFAULT_LIMIT ? (
+              <button
+                type="button"
+                className="shrink-0 border-b border-[#e9c349]/45 pb-0.5 text-[10px] font-black text-[#e9c349] transition hover:text-[#fff0b2] focus:outline-none focus:ring-2 focus:ring-[#e9c349]/35"
+                aria-expanded={isAllTimelineAspectsOpen}
+                onClick={() => setIsAllTimelineAspectsOpen((value) => !value)}
+              >
+                {isAllTimelineAspectsOpen ? "重要なアスペクトに戻す" : `他 ${hiddenTimelineAspectCount} 件を表示`}
+              </button>
+            ) : null}
+          </div>
+          <div className="grid gap-1.5">
+            {timelineAspectLanes.map((lane, laneIndex) => (
+              <div key={`daily-timeline-${laneIndex}`} className="relative h-4">
+                <div className="absolute inset-0">
+                  {lane.map((block) => {
+                    const detail = block.detail || {};
+                    const score = Number(detail.score || 0);
+                    const color = DAILY_TIMELINE_COLORS[block.polarity] || DAILY_TIMELINE_COLORS.neutral;
+                    const isTooltipOpen = activeAspectTooltip?.key === block.key;
+                    return (
+                    <button
+                      type="button"
+                      key={block.key}
+                      className="absolute top-0 z-10 h-full cursor-pointer text-left focus:outline-none"
+                      style={{
+                        left: `${block.left}%`,
+                        width: `${block.width}%`,
+                      }}
+                      aria-label={block.label}
+                      aria-expanded={isTooltipOpen}
+                      onClick={(event) => handleTransitAspectClick(event, block, detail, score)}
+                    >
+                      <span
+                        className="flex h-full w-full items-center overflow-hidden rounded-full"
                         style={{
-                          left: `${block.left}%`,
-                          width: `${block.width}%`,
+                        backgroundColor: color,
+                        opacity: block.opacity,
+                        boxShadow: block.includesPeak
+                          ? `0 0 16px ${color}`
+                          : "none",
                         }}
-                        aria-label={block.label}
-                        aria-expanded={isTooltipOpen}
-                        onClick={(event) => handleTransitAspectClick(event, block, detail, score)}
                       >
-                        <span
-                          className="flex h-full w-full items-center overflow-hidden rounded-full"
-                          style={{
-                          backgroundColor: block.color,
-                          opacity: block.opacity,
-                          boxShadow: block.includesPeak
-                            ? `0 0 16px ${block.color}`
-                            : "none",
-                          }}
-                        >
-                          <span className="block truncate px-2 text-[9px] font-black leading-none text-[#f3f3f0] drop-shadow-[0_1px_4px_rgba(0,0,0,0.9)] sm:text-[10px]">
-                            {block.label}
-                          </span>
+                        <span className="block truncate px-2 text-[9px] font-black leading-none text-[#f3f3f0] drop-shadow-[0_1px_4px_rgba(0,0,0,0.9)] sm:text-[10px]">
+                          {block.label}
                         </span>
-
-                      </button>
-                    );
-                    })}
-                  </div>
+                      </span>
+                    </button>
+                  );
+                  })}
                 </div>
-              ))}
-            </div>
-          ))}
+              </div>
+            ))}
+          </div>
         </div>
         {activeAspectTooltip && typeof document !== "undefined" ? createPortal((
           <div
