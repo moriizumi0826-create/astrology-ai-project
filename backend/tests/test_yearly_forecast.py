@@ -279,7 +279,31 @@ class YearlyForecastTestCase(unittest.TestCase):
         self.assertEqual(periods["work"][0]["peak_date"], "2026-07-02")
         self.assertEqual(periods["work"][0]["activation"], 9.0)
         self.assertEqual(periods["work"][0]["caution"], 4.0)
+        self.assertEqual(periods["work"][0]["tone"], "mixed")
+        self.assertEqual(periods["work"][0]["narrative_state"], "mixed")
         self.assertEqual(periods["work"][0]["factors"][0]["label"], "MARS MC 120°")
+
+    def test_monthly_peak_narrative_state_uses_period_totals(self):
+        period_rule = {"Activation_Threshold": "6"}
+        mixed_factor = {"tone": "mixed", "factor_type": "transit_to_natal"}
+        review_factor = {"tone": "review", "factor_type": "station"}
+
+        self.assertEqual(
+            monthly_peak_service._period_narrative_state(10, 0, [mixed_factor], period_rule),
+            "active",
+        )
+        self.assertEqual(
+            monthly_peak_service._period_narrative_state(10, 3, [mixed_factor], period_rule),
+            "mixed",
+        )
+        self.assertEqual(
+            monthly_peak_service._period_narrative_state(8, 2, [review_factor], period_rule),
+            "review",
+        )
+        self.assertEqual(
+            monthly_peak_service._period_narrative_state(3, 3, [mixed_factor], period_rule),
+            "caution",
+        )
 
     def test_generate_yearly_forecast_returns_frontend_shape(self):
         payload = BirthInput(

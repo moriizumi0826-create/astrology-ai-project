@@ -469,6 +469,33 @@ def _select_period_factors(days: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return unique_factors
 
 
+def _period_narrative_state(
+    activation: float,
+    caution: float,
+    factors: Iterable[dict[str, Any]],
+    period_rule: dict[str, Any],
+) -> str:
+    """Classify a period from its totals, rather than a single factor's tone."""
+    activation_threshold = _as_float(period_rule.get("Activation_Threshold"), 6)
+    mixed_caution_threshold = max(2.0, activation_threshold * 0.5)
+    factor_list = tuple(factors)
+    has_review_factor = any(
+        _normalise(factor.get("tone")).lower() == "review"
+        or _normalise(factor.get("factor_type")).lower() in {"station", "retrograde", "direct"}
+        for factor in factor_list
+    )
+
+    if caution <= 0:
+        return "active"
+    if activation >= activation_threshold and caution >= mixed_caution_threshold:
+        return "mixed"
+    if caution >= activation:
+        return "caution"
+    if has_review_factor:
+        return "review"
+    return "active"
+
+
 def _build_period(
     category: str,
     days: list[dict[str, Any]],
@@ -487,6 +514,7 @@ def _build_period(
     peak_caution = round(_as_float(peak_day["data"].get("caution")), 2)
     strong_threshold = _as_float(period_rule.get("Strong_Activation_Threshold"))
     intensity = "very_high" if strong_threshold and peak_activation >= strong_threshold else primary.get("intensity_hint", "medium")
+    narrative_state = _period_narrative_state(peak_activation, peak_caution, factors, period_rule)
     return {
         "start_date": days[0]["date"].isoformat(),
         "end_date": days[-1]["date"].isoformat(),
@@ -494,7 +522,8 @@ def _build_period(
         "activation": peak_activation,
         "caution": peak_caution,
         "intensity": intensity,
-        "tone": primary.get("tone", "mixed"),
+        "tone": narrative_state,
+        "narrative_state": narrative_state,
         "peak_type": primary.get("peak_type", ""),
         "title": primary.get("title", ""),
         "summary": primary.get("summary", ""),
