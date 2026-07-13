@@ -94,6 +94,33 @@ NARRATIVE_DEFINITIONS = {
     },
 }
 
+STATE_CONTEXT = {
+    "general_health": {
+        "mixed": "生活のペースが乱れやすい",
+        "caution": "無理の重なりや疲れの残り方が気になりやすい",
+        "review": "今の生活ペースを振り返る",
+        "caution_action": "予定を増やす前に、疲れの残り方を確認してください。",
+    },
+    "work": {
+        "mixed": "業務の負荷や調整事項も増えやすい",
+        "caution": "期限、担当、連絡の見落としが出やすい",
+        "review": "今の進め方と優先順位を振り返る",
+        "caution_action": "期限、担当、確認事項を曖昧にしないでください。",
+    },
+    "love": {
+        "mixed": "期待やペースの違いも表れやすい",
+        "caution": "気持ちの行き違いと距離感のずれが出やすい",
+        "review": "関係の続け方と約束を振り返る",
+        "caution_action": "相手の意思と自分の無理な点を確認してから進めてください。",
+    },
+    "money": {
+        "mixed": "金額や条件の見落としも出やすい",
+        "caution": "出費や契約の判断がぶれやすい",
+        "review": "今の配分と条件を振り返る",
+        "caution_action": "金額、期限、継続条件を確認してから決めてください。",
+    },
+}
+
 DIRECT_ROLES = {
     "general_health": {"self_body", "recovery", "emotion_moon", "mental_nerves", "emotional_body", "daily_order", "daily_load"},
     "work": {"career_ruler", "career_axis", "work_ruler", "public_role", "task_process", "public_message", "public_drive"},
@@ -128,32 +155,34 @@ def narrative_key(row: dict[str, str]) -> str:
 
 def build_template_row(category: str, key: str, state: str, index: int) -> dict[str, str]:
     subject, focus, action = NARRATIVE_DEFINITIONS[category][key]
+    context = STATE_CONTEXT[category]
     if state == "active":
-        title = f"{subject}を前に進める時期"
-        summary = f"{focus}に意識を向けると、今の流れを活かしやすい時期です。"
+        title = f"{subject}に追い風が出る時期"
+        summary = f"{focus}に意識を向けることで、今の流れを使いやすい時期です。"
         description = f"{focus}が動きやすい時です。{action}ことで、無理なく手応えにつなげやすくなります。"
         caution = f"{subject}を一度に広げすぎず、今の余力を確かめながら進めてください。"
     elif state == "caution":
-        title = f"{subject}を整え直す時期"
-        summary = f"{focus}で負担や見落としが出やすいため、先に調整を入れたい時期です。"
+        title = f"{subject}の負担を減らす時期"
+        summary = f"{focus}で{context['caution']}ため、先に調整を入れたい時期です。"
         description = f"{focus}に無理が重なりやすい時です。{action}ことで、消耗や行き違いを抑えやすくなります。"
-        caution = f"{subject}に関わる判断は急がず、条件と余力を確認してから決めてください。"
+        caution = context["caution_action"]
     elif state == "mixed":
-        title = f"{subject}が動くぶん、調整が要る時期"
-        summary = f"{focus}が進みやすい一方で、負担や温度差も出やすい時期です。"
-        description = f"{focus}に変化と負荷が同時に出やすい時です。{action}ことで、勢いを保ちながら無理を減らせます。"
-        caution = f"{subject}は勢いだけで決めず、相手や周囲の状況を確認して進めてください。"
+        title = f"{subject}に変化と調整が重なる時期"
+        summary = f"{focus}が動きやすい一方で、{context['mixed']}時期です。"
+        description = f"{focus}に変化が重なる時です。{action}ことで、進展を保ちながら無理を減らせます。"
+        caution = context["caution_action"]
     elif state == "review":
         title = f"{subject}を見直す時期"
-        summary = f"{focus}の進め方を振り返り、次の形へ整え直しやすい時期です。"
+        summary = f"{focus}について、{context['review']}時期です。"
         description = f"{focus}で立ち止まって確認したい点が出やすい時です。{action}ことで、次の動きを安定させやすくなります。"
-        caution = f"{subject}は結論を急がず、現状の条件を確認してから方向を決めてください。"
+        caution = context["caution_action"]
     else:
         raise ValueError(f"Unknown state: {state}")
     return {
         "Template_ID": f"{category.upper()}_{key.upper()}_{state.upper()}",
         "Category": category,
         "Narrative_Key": key,
+        "Narrative_Label": subject,
         "State": state,
         "Title": title,
         "Summary": summary,

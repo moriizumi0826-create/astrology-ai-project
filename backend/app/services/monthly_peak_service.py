@@ -22,6 +22,7 @@ OUTER_PLANETS = {"URANUS", "NEPTUNE", "PLUTO"}
 RULES_FILENAME = "M_Monthly_Peak_Rules.csv"
 SCORING_FILENAME = "monthly_peak_scoring_rules.csv"
 PERIOD_FILENAME = "monthly_peak_period_rules.csv"
+NARRATIVE_TEMPLATES_FILENAME = "monthly_peak_narrative_templates.csv"
 
 RULE_REQUIRED_COLUMNS = {
     "Rule_ID", "Category", "Factor_Type", "Peak_Type", "Transit_Planet",
@@ -40,6 +41,10 @@ PERIOD_REQUIRED_COLUMNS = {
     "Rule_ID", "Category", "Activation_Threshold", "Strong_Activation_Threshold",
     "Max_Period_Days", "Moon_Only_Allowed", "Outer_Only_Allowed",
     "Background_Only_Allowed", "Max_Display_Count", "Priority", "Active_Flag",
+}
+NARRATIVE_TEMPLATE_REQUIRED_COLUMNS = {
+    "Template_ID", "Category", "Narrative_Key", "Narrative_Label", "State", "Title", "Summary",
+    "Description", "Caution", "Priority", "Active_Flag",
 }
 RULE_INDEX_WILDCARD = "*"
 RULE_MATCH_COLUMNS = (
@@ -93,9 +98,14 @@ def load_monthly_peak_period_rules(database_dir: Path | None = None) -> tuple[di
     return _load_rows(PERIOD_FILENAME, PERIOD_REQUIRED_COLUMNS, database_dir)
 
 
+def load_monthly_peak_narrative_templates(database_dir: Path | None = None) -> tuple[dict[str, str], ...]:
+    return _load_rows(NARRATIVE_TEMPLATES_FILENAME, NARRATIVE_TEMPLATE_REQUIRED_COLUMNS, database_dir)
+
+
 def clear_monthly_peak_caches() -> None:
     _read_csv_rows.cache_clear()
     _default_monthly_peak_rule_index.cache_clear()
+    _default_narrative_template_index.cache_clear()
 
 
 def _normalise(value: Any) -> str:
@@ -504,6 +514,66 @@ def _period_factor_payload(factor: dict[str, Any]) -> dict[str, Any] | None:
     }
 
 
+def _build_narrative_template_index(
+    templates: Iterable[dict[str, Any]],
+) -> dict[tuple[str, str, str], dict[str, Any]]:
+    index: dict[tuple[str, str, str], dict[str, Any]] = {}
+    for template in templates:
+        if not _is_active(template):
+            continue
+        key = (
+            _normalise(template.get("Category")).lower(),
+            _normalise(template.get("Narrative_Key")).lower(),
+            _normalise(template.get("State")).lower(),
+        )
+        if key in index:
+            raise ValueError(f"Duplicate monthly narrative template: {key}")
+        index[key] = template
+    return index
+
+
+@lru_cache(maxsize=1)
+def _default_narrative_template_index(
+    _signature: tuple[int, int],
+) -> dict[tuple[str, str, str], dict[str, Any]]:
+    return _build_narrative_template_index(load_monthly_peak_narrative_templates())
+
+
+def _narrative_template(
+    category: str,
+    narrative_key: str,
+    state: str,
+    template_index: dict[tuple[str, str, str], dict[str, Any]],
+) -> dict[str, Any]:
+    key = (category, _normalise(narrative_key).lower(), _normalise(state).lower())
+    template = template_index.get(key)
+    if not template:
+        raise ValueError(f"Monthly narrative template is missing: {key}")
+    return template
+
+
+def _compose_period_narrative(
+    category: str,
+    primary: dict[str, Any],
+    secondary: dict[str, Any],
+    state: str,
+    caution: float,
+    template_index: dict[tuple[str, str, str], dict[str, Any]],
+) -> dict[str, str]:
+    primary_template = _narrative_template(category, str(primary.get("narrative_key") or ""), state, template_index)
+    description = str(primary_template["Description"])
+    secondary_key = str(secondary.get("narrative_key") or "")
+    if secondary_key and secondary_key != primary.get("narrative_key"):
+        secondary_template = _narrative_template(category, secondary_key, state, template_index)
+        description = f"{description} 補助的には、{secondary_template['Narrative_Label']}も重なるため、主題だけに偏らず全体の流れを見ながら進めてください。"
+    return {
+        "title": str(primary_template["Title"]),
+        "summary": str(primary_template["Summary"]),
+        "description": description,
+        "caution_text": str(primary_template["Caution"]) if caution > 0 else "",
+    }
+
+
 def _period_narrative_state(
     activation: float,
     caution: float,
@@ -535,6 +605,7 @@ def _build_period(
     category: str,
     days: list[dict[str, Any]],
     period_rule: dict[str, Any],
+    template_index: dict[tuple[str, str, str], dict[str, Any]],
 ) -> dict[str, Any]:
     peak_day = max(
         days,
@@ -551,6 +622,14 @@ def _build_period(
     strong_threshold = _as_float(period_rule.get("Strong_Activation_Threshold"))
     intensity = "very_high" if strong_threshold and peak_activation >= strong_threshold else primary.get("intensity_hint", "medium")
     narrative_state = _period_narrative_state(peak_activation, peak_caution, factors, period_rule)
+    narrative = _compose_period_narrative(
+        category,
+        primary,
+        secondary,
+        narrative_state,
+        peak_caution,
+        template_index,
+    )
     return {
         "start_date": days[0]["date"].isoformat(),
         "end_date": days[-1]["date"].isoformat(),
@@ -565,10 +644,7 @@ def _build_period(
         "primary_factor": _period_factor_payload(primary),
         "secondary_factor": _period_factor_payload(secondary),
         "peak_type": primary.get("peak_type", ""),
-        "title": primary.get("title", ""),
-        "summary": primary.get("summary", ""),
-        "description": primary.get("description", ""),
-        "caution_text": primary.get("caution_text", ""),
+        **narrative,
         "factors": [
             {
                 "label": _factor_label(factor),
@@ -587,9 +663,17 @@ def build_monthly_peak_periods(
     yearly_data: Iterable[dict[str, Any]],
     *,
     period_rules: Iterable[dict[str, Any]] | None = None,
+    narrative_templates: Iterable[dict[str, Any]] | None = None,
 ) -> dict[str, list[dict[str, Any]]]:
     """Group eligible daily peak data into displayable, category-specific periods."""
     rules = tuple(period_rules) if period_rules is not None else load_monthly_peak_period_rules()
+    template_index = (
+        _build_narrative_template_index(tuple(narrative_templates))
+        if narrative_templates is not None
+        else _default_narrative_template_index(
+            _file_signature(DATABASE_DIR / NARRATIVE_TEMPLATES_FILENAME)
+        )
+    )
     result = {category: [] for category in CATEGORY_KEYS}
     ordered_days = sorted(yearly_data, key=lambda item: str(item.get("date") or ""))
 
@@ -631,7 +715,7 @@ def build_monthly_peak_periods(
         if active_segment:
             segments.append(active_segment)
 
-        periods = [_build_period(category, segment, period_rule) for segment in segments]
+        periods = [_build_period(category, segment, period_rule, template_index) for segment in segments]
         by_month: dict[str, list[dict[str, Any]]] = {}
         for period in periods:
             by_month.setdefault(period["start_date"][:7], []).append(period)

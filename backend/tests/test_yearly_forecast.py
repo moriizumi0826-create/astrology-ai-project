@@ -248,6 +248,8 @@ class YearlyForecastTestCase(unittest.TestCase):
                             "tone": "mixed",
                             "intensity_hint": intensity,
                             "priority": 1,
+                            "narrative_key": "role",
+                            "narrative_priority": 3,
                             "activation": activation,
                             "caution": caution,
                             "title": "Work peak",
@@ -281,7 +283,27 @@ class YearlyForecastTestCase(unittest.TestCase):
         self.assertEqual(periods["work"][0]["caution"], 4.0)
         self.assertEqual(periods["work"][0]["tone"], "mixed")
         self.assertEqual(periods["work"][0]["narrative_state"], "mixed")
+        self.assertEqual(periods["work"][0]["title"], "役割と担当範囲に変化と調整が重なる時期")
+        self.assertNotEqual(periods["work"][0]["description"], "Description")
         self.assertEqual(periods["work"][0]["factors"][0]["label"], "MARS MC 120°")
+
+    def test_monthly_peak_narrative_omits_caution_without_caution_score(self):
+        narrative = monthly_peak_service._compose_period_narrative(
+            "work",
+            {"narrative_key": "role"},
+            {"narrative_key": "workflow"},
+            "active",
+            0,
+            monthly_peak_service._default_narrative_template_index(
+                monthly_peak_service._file_signature(
+                    monthly_peak_service.DATABASE_DIR / monthly_peak_service.NARRATIVE_TEMPLATES_FILENAME
+                )
+            ),
+        )
+
+        self.assertEqual(narrative["caution_text"], "")
+        self.assertIn("補助的には", narrative["description"])
+        self.assertNotIn("大枠ルール", narrative["description"])
 
     def test_monthly_peak_narrative_state_uses_period_totals(self):
         period_rule = {"Activation_Threshold": "6"}
