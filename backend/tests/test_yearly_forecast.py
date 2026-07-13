@@ -305,6 +305,43 @@ class YearlyForecastTestCase(unittest.TestCase):
             "caution",
         )
 
+    def test_monthly_peak_selects_category_specific_narrative_factor_first(self):
+        peak_date = date(2026, 7, 10)
+        factors = monthly_peak_service._select_period_factors(
+            [{
+                "date": peak_date,
+                "factors": [
+                    {
+                        "rule_id": "GENERIC_STRONG",
+                        "factor_type": "transit_to_transit",
+                        "target_role": "core_theme",
+                        "target_house": "ANY",
+                        "natal_target": "JUPITER",
+                        "narrative_key": "workflow",
+                        "narrative_priority": 1,
+                        "activation": 8,
+                        "caution": 2,
+                        "priority": 1,
+                    },
+                    {
+                        "rule_id": "CAREER_FOCUS",
+                        "factor_type": "transit_to_natal",
+                        "target_role": "career_axis",
+                        "target_house": "10",
+                        "natal_target": "MC",
+                        "narrative_key": "evaluation",
+                        "narrative_priority": 3,
+                        "activation": 3,
+                        "caution": 1,
+                        "priority": 9,
+                    },
+                ],
+            }],
+            peak_date,
+        )
+
+        self.assertEqual([factor["rule_id"] for factor in factors], ["CAREER_FOCUS", "GENERIC_STRONG"])
+
     def test_generate_yearly_forecast_returns_frontend_shape(self):
         payload = BirthInput(
             full_name="Test User",

@@ -299,12 +299,15 @@ def aggregate_daily_peak_categories(
                 "factor_type": rule.get("Factor_Type"),
                 "transit_planet": rule.get("Transit_Planet"),
                 "natal_target": rule.get("Natal_Target"),
+                "target_role": rule.get("Target_Role"),
                 "target_house": rule.get("Target_House"),
                 "aspect_angle": rule.get("Aspect_Angle"),
                 "orb": event.get("orb"),
                 "tone": rule.get("Tone"),
                 "intensity_hint": rule.get("Intensity_Hint"),
                 "priority": _as_int(rule.get("Priority"), 999999),
+                "narrative_key": rule.get("Narrative_Key", ""),
+                "narrative_priority": _as_int(rule.get("Narrative_Priority"), 1),
                 "activation": round(activation, 2),
                 "caution": round(caution, 2),
                 "title": rule.get("Monthly_Title"),
@@ -435,23 +438,43 @@ def _period_eligible_factors(day_category: dict[str, Any], period_rule: dict[str
     return factors if activation >= threshold or has_strong_factor else []
 
 
-def _select_period_factors(days: list[dict[str, Any]]) -> list[dict[str, Any]]:
+def _factor_category_relevance(factor: dict[str, Any]) -> int:
+    relevance = 0
+    if _normalise(factor.get("target_role")).lower() not in {"", "core_theme"}:
+        relevance += 2
+    if _normalise(factor.get("target_house")).lower() not in {"", "any"}:
+        relevance += 1
+    if _normalise(factor.get("natal_target")).lower() in {"asc", "mc", "desc"}:
+        relevance += 1
+    if _normalise(factor.get("factor_type")).lower() == "transit_to_transit":
+        relevance -= 1
+    return relevance
+
+
+def _select_period_factors(
+    days: list[dict[str, Any]],
+    peak_date: date,
+) -> list[dict[str, Any]]:
     selected: dict[str, dict[str, Any]] = {}
     for day in days:
         for factor in day["factors"]:
             rule_id = str(factor.get("rule_id") or factor.get("event_id") or "")
+            candidate = {**factor, "period_date": day["date"].isoformat()}
             existing = selected.get(rule_id)
-            factor_strength = _as_float(factor.get("activation")) + _as_float(factor.get("caution"))
+            factor_strength = _as_float(candidate.get("activation")) + _as_float(candidate.get("caution"))
             existing_strength = (
                 _as_float(existing.get("activation")) + _as_float(existing.get("caution"))
                 if existing else -1
             )
             if existing is None or factor_strength > existing_strength:
-                selected[rule_id] = factor
+                selected[rule_id] = candidate
     ranked = sorted(
         selected.values(),
         key=lambda factor: (
+            -_as_int(factor.get("narrative_priority"), 1),
+            -_factor_category_relevance(factor),
             -(_as_float(factor.get("activation")) + _as_float(factor.get("caution"))),
+            abs((date.fromisoformat(str(factor["period_date"])) - peak_date).days),
             _as_int(factor.get("priority"), 999999),
             str(factor.get("rule_id") or ""),
         ),
@@ -467,6 +490,18 @@ def _select_period_factors(days: list[dict[str, Any]]) -> list[dict[str, Any]]:
         if len(unique_factors) == 4:
             break
     return unique_factors
+
+
+def _period_factor_payload(factor: dict[str, Any]) -> dict[str, Any] | None:
+    if not factor:
+        return None
+    return {
+        "label": _factor_label(factor),
+        "narrative_key": factor.get("narrative_key", ""),
+        "narrative_priority": _as_int(factor.get("narrative_priority"), 1),
+        "activation": factor.get("activation", 0),
+        "caution": factor.get("caution", 0),
+    }
 
 
 def _period_narrative_state(
@@ -508,8 +543,9 @@ def _build_period(
             _as_float(item["data"].get("caution")),
         ),
     )
-    factors = _select_period_factors(days)
+    factors = _select_period_factors(days, peak_day["date"])
     primary = factors[0] if factors else {}
+    secondary = factors[1] if len(factors) > 1 else {}
     peak_activation = round(_as_float(peak_day["data"].get("activation")), 2)
     peak_caution = round(_as_float(peak_day["data"].get("caution")), 2)
     strong_threshold = _as_float(period_rule.get("Strong_Activation_Threshold"))
@@ -524,6 +560,10 @@ def _build_period(
         "intensity": intensity,
         "tone": narrative_state,
         "narrative_state": narrative_state,
+        "narrative_key": primary.get("narrative_key", ""),
+        "secondary_narrative_key": secondary.get("narrative_key", ""),
+        "primary_factor": _period_factor_payload(primary),
+        "secondary_factor": _period_factor_payload(secondary),
         "peak_type": primary.get("peak_type", ""),
         "title": primary.get("title", ""),
         "summary": primary.get("summary", ""),
