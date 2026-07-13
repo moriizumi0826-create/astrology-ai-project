@@ -18,6 +18,13 @@ PROJECT_ROOT = Path(__file__).resolve().parents[3]
 DATABASE_DIR = PROJECT_ROOT / "database"
 
 CATEGORY_KEYS = ("general_health", "work", "love", "money")
+NARRATIVE_KEYS_BY_CATEGORY = {
+    "general_health": {"self_pace", "recovery", "routine", "cognitive_load", "pressure", "transition"},
+    "work": {"role", "evaluation", "workflow", "negotiation", "visibility", "network", "capacity"},
+    "love": {"contact", "attraction", "conversation", "boundary", "intimacy", "relationship_review"},
+    "money": {"income", "reward", "spending", "contract", "budget", "shared_money", "asset_review", "volatility"},
+}
+NARRATIVE_BANNED_PHRASES = ("大枠ルール", "どこかが動きやすい")
 OUTER_PLANETS = {"URANUS", "NEPTUNE", "PLUTO"}
 RULES_FILENAME = "M_Monthly_Peak_Rules.csv"
 SCORING_FILENAME = "monthly_peak_scoring_rules.csv"
@@ -572,6 +579,55 @@ def _compose_period_narrative(
         "description": description,
         "caution_text": str(primary_template["Caution"]) if caution > 0 else "",
     }
+
+
+def validate_monthly_peak_narrative_quality(
+    periods_by_category: dict[str, Iterable[dict[str, Any]]],
+) -> list[str]:
+    """Return user-visible prose and state violations for monthly peak periods."""
+    violations: list[str] = []
+    duplicate_texts: dict[tuple[str, str, str, str, str, str], tuple[str, str]] = {}
+    for category, periods in periods_by_category.items():
+        allowed_keys = NARRATIVE_KEYS_BY_CATEGORY.get(category, set())
+        for period in periods:
+            start_date = str(period.get("start_date") or "")
+            end_date = str(period.get("end_date") or "")
+            key = str(period.get("narrative_key") or "")
+            state = str(period.get("narrative_state") or "")
+            tone = str(period.get("tone") or "")
+            caution = _as_float(period.get("caution"))
+            text_parts = tuple(str(period.get(field) or "") for field in (
+                "title", "summary", "description", "caution_text",
+            ))
+            text = " ".join(text_parts)
+            label = f"{category}:{start_date}"
+
+            if key not in allowed_keys:
+                violations.append(f"{label}: invalid narrative key {key}")
+            if state not in {"active", "caution", "mixed", "review"} or tone != state:
+                violations.append(f"{label}: inconsistent narrative state/tone")
+            if caution <= 0 and state != "active":
+                violations.append(f"{label}: zero caution must be active")
+            if caution <= 0 and text_parts[3]:
+                violations.append(f"{label}: zero caution must not display caution text")
+            for phrase in NARRATIVE_BANNED_PHRASES:
+                if phrase in text:
+                    violations.append(f"{label}: banned phrase {phrase}")
+            try:
+                duration = (date.fromisoformat(end_date) - date.fromisoformat(start_date)).days + 1
+            except ValueError:
+                violations.append(f"{label}: invalid period date")
+                duration = 0
+            if duration and duration < 20 and "月" in text:
+                violations.append(f"{label}: short period contains month wording")
+
+            duplicate_key = (category, start_date[:7], *text_parts)
+            existing = duplicate_texts.get(duplicate_key)
+            semantic_key = (key, state)
+            if existing is not None and existing != semantic_key:
+                violations.append(f"{label}: duplicate prose has different narrative meaning")
+            duplicate_texts[duplicate_key] = semantic_key
+    return violations
 
 
 def _period_narrative_state(

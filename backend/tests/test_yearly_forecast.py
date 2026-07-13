@@ -15,6 +15,7 @@ from backend.app.services.yearly_forecast_service import (
     reload_yearly_master_caches_if_changed,
     generate_yearly_forecast,
 )
+from backend.tests.monthly_peak_narrative_quality_fixture import NARRATIVE_QUALITY_BIRTH_INPUT
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -114,14 +115,17 @@ class YearlyForecastTestCase(unittest.TestCase):
         peak_rules = monthly_peak_service.load_monthly_peak_rules()
         scoring_rules = monthly_peak_service.load_monthly_peak_scoring_rules()
         period_rules = monthly_peak_service.load_monthly_peak_period_rules()
+        narrative_templates = monthly_peak_service.load_monthly_peak_narrative_templates()
 
         self.assertEqual(len(peak_rules), 2888)
         self.assertEqual(len(scoring_rules), 32)
         self.assertEqual(len(period_rules), 4)
+        self.assertEqual(len(narrative_templates), 108)
         self.assertEqual(
             {row["Category"] for row in period_rules},
             {"general_health", "work", "love", "money"},
         )
+        self.assertTrue(all(row["Narrative_Label"] for row in narrative_templates))
 
     def test_monthly_peak_rule_index_preserves_full_rule_matches(self):
         rules = monthly_peak_service.load_monthly_peak_rules()
@@ -304,6 +308,44 @@ class YearlyForecastTestCase(unittest.TestCase):
         self.assertEqual(narrative["caution_text"], "")
         self.assertIn("補助的には", narrative["description"])
         self.assertNotIn("大枠ルール", narrative["description"])
+
+    def test_monthly_peak_narrative_quality_validator_detects_violations(self):
+        violations = monthly_peak_service.validate_monthly_peak_narrative_quality({
+            "work": [{
+                "start_date": "2026-07-01",
+                "end_date": "2026-07-02",
+                "narrative_key": "invalid",
+                "narrative_state": "mixed",
+                "tone": "active",
+                "caution": 0,
+                "title": "7月の大枠ルール",
+                "summary": "",
+                "description": "どこかが動きやすい",
+                "caution_text": "不要な注意文",
+            }],
+        })
+
+        self.assertGreaterEqual(len(violations), 5)
+
+    def test_generated_monthly_peak_narrative_passes_quality_gate(self):
+        fixture = NARRATIVE_QUALITY_BIRTH_INPUT
+        forecast = generate_yearly_forecast(BirthInput(
+            full_name="Narrative Quality Test",
+            birth_date=fixture["birth_date"],
+            birth_time=fixture["birth_time"],
+            birth_time_unknown=False,
+            birthplace=fixture["birthplace"],
+            latitude=fixture["latitude"],
+            longitude=fixture["longitude"],
+            timezone_offset=fixture["timezone_offset"],
+        ), fixture["year"])
+
+        self.assertEqual(
+            monthly_peak_service.validate_monthly_peak_narrative_quality(
+                forecast["monthly_peak_periods"]
+            ),
+            [],
+        )
 
     def test_monthly_peak_narrative_state_uses_period_totals(self):
         period_rule = {"Activation_Threshold": "6"}
