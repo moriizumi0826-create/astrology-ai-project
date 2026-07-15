@@ -151,3 +151,141 @@ Solar_House が同じなら「人生領域の主題」は共通してよい。�
 - プレースホルダー、文字化け、未確定メモが残っていない
 - 12行ずつ読み、Solar_House の主題と Natal_House の実感が正しく分かれていることを確認する
 - 当該太陽星座期に主題と結び付く星座移動・逆行転換がある行は、時期と変化の意味が本文に入っている
+
+## 10. 個人用長期背景CSVの役割
+
+対象CSV: `database/M_Personal_Long_Term_Background.csv`
+
+このCSVは、月間総評とは別に、鑑定時点でその人へ実際に当たっている長期背景と天体の重なりを表示するための文章DBである。月間総評本文の代わりではない。
+
+- `background`: 木星・土星・天王星・海王星・冥王星が、現在どの星座からどのネイタルハウスへ影響しているか
+- `resonance`: トランスサタニアンと太陽・火星・木星、またはトランスサタニアン同士が同じ星座／ネイタルハウスにいる時の重なり
+- 表示する文章は、総評に連結せず、独立した短い解釈として読む
+- 未完成行は `Active_Flag=0` のままにし、表示対象にしない
+
+## 11. 長期CSVの列定義
+
+| 列 | 用途 |
+|---|---|
+| `Record_ID` | 不変の一意ID。既存値を変更しない。 |
+| `Record_Type` | `background` または `resonance`。変更しない。 |
+| `Primary_Planet` | 背景天体、または重なりの主天体。変更しない。 |
+| `Secondary_Planet` | `background` は `ANY`。`resonance` は相手天体。変更しない。 |
+| `Match_Type` | `planet_natal_house`、`same_sign`、`same_natal_house` のいずれか。変更しない。 |
+| `Target_Sign` | `background` は現在のトランジット星座。`same_sign` は共有する星座。`same_natal_house` は `ANY`。 |
+| `Target_Natal_House` | `background` と `same_natal_house` は 1-12。`same_sign` は `ANY`。 |
+| `Tone` | `activation`、`caution`、`mixed`。文章の基調。執筆時に確定する。 |
+| `Title` | 表示用の短い題名。 |
+| `Interpretation` | 表示用の短い解釈文。 |
+| `Priority` | 同時に複数行が成立した時の選択優先度。既存値を変更しない。 |
+| `Active_Flag` | 完成・検証済みの行だけ `1`。未完成は `0`。 |
+
+## 12. 長期CSVの固定構成
+
+行追加・行削除・ID変更はしない。完成形は1008行である。
+
+- `background`: 5天体 x 12星座 x ネイタル12ハウス = 720行
+  - 天体: `JUPITER`、`SATURN`、`URANUS`、`NEPTUNE`、`PLUTO`
+- `resonance / same_sign`: 12ペア x 12星座 = 144行
+- `resonance / same_natal_house`: 12ペア x ネイタル12ハウス = 144行
+
+対象となる12ペアは以下で固定する。
+
+- `URANUS`、`NEPTUNE`、`PLUTO` x `SUN`
+- `URANUS`、`NEPTUNE`、`PLUTO` x `MARS`
+- `URANUS`、`NEPTUNE`、`PLUTO` x `JUPITER`
+- `URANUS` x `NEPTUNE`、`URANUS` x `PLUTO`、`NEPTUNE` x `PLUTO`
+
+`same_solar_house` は作らない。同じ星座にいる場合、ソーラーハウスも同じになり、`same_sign` と同じ内容を二重に表示するためである。
+
+## 13. background行の執筆ルール
+
+1行は `Primary_Planet + Target_Sign + Target_Natal_House` の解釈である。ソーラーハウスや月間総評の状況を前提にしない。
+
+- `Title`: 10-24文字。天体名・ハウス番号を題名にしない
+- `Interpretation`: 100-180文字。2-3文で書く
+- 第1文: 天体と星座が作る長期的な質
+- 第2文: ネイタルハウスで起こりやすい実感・取り組み方
+- 第3文: 必要な場合だけ、扱い方または余地を書く
+- 木星: 拡大、余地、楽しみ、意味づけを中心に書く
+- 土星: 責任、境界、持続可能な運用、再構築を中心に書く
+- 天王星: 更新、自由度、変化への適応を中心に書く
+- 海王星: 感受性、曖昧さ、理想、休息を中心に書く
+- 冥王星: 根本的な変容、集中、手放し、力関係の再編を中心に書く
+
+病気、成功、破局、収入を断定しない。星座だけで具体的な出来事を予言しない。
+
+## 14. resonance行の執筆ルール
+
+### same_sign
+
+1行は `Primary_Planet + Secondary_Planet + Target_Sign` の解釈である。ネイタルハウスには触れない。
+
+- `Title`: 10-24文字
+- `Interpretation`: 100-180文字。2-3文で書く
+- 共有する星座の質と、2天体の働きがどう重なるかを書く
+- 太陽・火星との組み合わせは、長期テーマが現在の行動や意識へ出やすいことを書く
+- 木星との組み合わせは、長期テーマの広がり・余地・意味づけを書く
+- 外惑星同士は、長期背景として書く。短期的な事件や転機を断定しない
+
+### same_natal_house
+
+1行は `Primary_Planet + Secondary_Planet + Target_Natal_House` の解釈である。特定の星座には触れない。
+
+- `Title`: 10-24文字
+- `Interpretation`: 100-180文字。2-3文で書く
+- ネイタルハウスが表す生活領域へ、2天体のテーマが同時に集まることを書く
+- `same_sign` の文章をハウス名だけ差し替えて流用しない
+- 外惑星同士は、変化がゆっくり進む背景として書く
+
+## 15. ToneとPriorityの扱い
+
+`Priority` は既存値を使い、執筆時に変更しない。表示側は高い値を優先する。
+
+- 太陽との重なり: 最優先
+- 火星との重なり: 次点
+- 木星との重なり: 拡大・回復の背景として次点
+- 外惑星同士: 最後。単独では短期表示を強くしない
+- 同じペアでは `same_sign` を `same_natal_house` より優先する
+
+`Tone` は文章の内容に合わせて確定する。
+
+- 木星の `background`: 原則 `activation`
+- 土星の `background`: 原則 `caution`
+- 天王星・海王星・冥王星の `background`: 原則 `mixed`
+- 太陽・火星との `resonance`: 原則 `activation`。負荷や混乱を主題にする場合は `mixed`
+- 木星との `resonance`: 原則 `activation`
+- 外惑星同士の `resonance`: 原則 `mixed`
+
+## 16. 長期CSVの作業手順
+
+1. `Record_Type` を混在させず、1回の作業では1グループだけ扱う
+2. `background` は `Primary_Planet + Target_Sign` ごとのネイタル12行を1単位にする
+3. `same_sign` は天体ペアごとの12星座行を1単位にする
+4. `same_natal_house` は天体ペアごとのネイタル12行を1単位にする
+5. 1単位の `Title` と `Interpretation` を全て埋め、Toneを確定する
+6. 文字数・重複・条件列を検証する
+7. 検証済みの行だけ `Active_Flag=1` にする
+8. 他の行、`Record_ID`、`Priority`、条件列には触れない
+
+## 17. 長期CSVの完成条件
+
+各作業単位は、以下を全て満たした時だけ完了とする。
+
+- `Title` と `Interpretation` に空欄がない
+- Titleは10-24文字、Interpretationは100-180文字
+- `Tone` が許可値のいずれかで、文章の基調と矛盾しない
+- 同じ `Record_Type`・天体条件の単位内で、Titleと正規化後のInterpretationが重複しない
+- `background` は星座とネイタルハウスの役割を混同しない
+- `same_sign` はネイタルハウスに触れない
+- `same_natal_house` は特定の星座に触れない
+- `Active_Flag=1` の行に空欄がない
+- CSV全体が1008行、`Record_ID`重複なし、構成が `background=720`・`resonance=288` のままである
+
+作業完了時は、必ず以下を実行する。
+
+```powershell
+python scripts/validate_personal_long_term_background.py
+```
+
+検証が成功するまで `Active_Flag=1` の行を反映しない。
