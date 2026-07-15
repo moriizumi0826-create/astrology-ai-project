@@ -2,6 +2,8 @@
 
 対象CSV: `database/M_Monthly_Overview_Editorial.csv`
 
+このファイルは共通仕様だけを定義する。実際の執筆作業では、対象年月の `monthly_overview_editorial_writing_guidelines_YYYY_MM.md` を必ず読み、このファイル単独では作業しない。
+
 ## 1. このCSVの役割
 
 このCSVの1行は、特定の太陽星座期における、ソーラーハウスとネイタルハウスの組み合わせ専用の月間総評である。
