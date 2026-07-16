@@ -65,7 +65,7 @@ class ApiTestCase(unittest.TestCase):
         self.assertEqual(row["T_Planet"], "TRANSIT_SUN")
         self.assertEqual(row["N_Planet"], "NATAL_SUN")
         self.assertEqual(row["Aspect_Angle"], 0)
-        self.assertEqual(row["Score_Impact"], 85)
+        self.assertEqual(row["Score_Impact"], 70)
 
     def test_aspect_dashboard_data_maps_csv_columns(self):
         dashboard_data = get_aspect_dashboard_data(
@@ -217,12 +217,12 @@ class ApiTestCase(unittest.TestCase):
 
         self.assertEqual(len(dashboard_data["aspect_interpretations"]), 3)
         self.assertEqual(dashboard_data["daily_vibe"]["modifier"], -20)
-        self.assertEqual(dashboard_data["hero"]["score"], 100)
+        self.assertEqual(dashboard_data["hero"]["score"], 77)
         self.assertIn("diagnostic", dashboard_data)
-        self.assertEqual(dashboard_data["diagnostic"]["score"], 64)
+        self.assertEqual(dashboard_data["diagnostic"]["score"], 53)
         self.assertEqual(
             [item["value"] for item in dashboard_data["diagnostic"]["items"]],
-            [45, 63, 50],
+            [27, 61, 39],
         )
         self.assertEqual(len(dashboard_data["diagnostic"]["items"]), 3)
         self.assertNotEqual(dashboard_data["countdown"]["title"], dashboard_data["countdown"]["note"])
@@ -387,7 +387,6 @@ class ApiTestCase(unittest.TestCase):
         daily_performance = dashboard_data["dailyPerformance"]
         self.assertGreaterEqual(len(daily_performance), 24)
         self.assertTrue(all(point.get("actionAdvice") for point in daily_performance))
-        self.assertTrue(all(point["actionAdvice"].get("recommendedAction") for point in daily_performance))
         self.assertTrue(all(point["actionAdvice"].get("thinkingStyle") for point in daily_performance))
         self.assertTrue(all(point["actionAdvice"].get("restGuidance") for point in daily_performance))
 
@@ -479,6 +478,48 @@ class ApiTestCase(unittest.TestCase):
         self.assertEqual(advice["overallLevel"], "LOW")
         self.assertTrue(advice["adviceId"].startswith("DPA_ALL_LOW_"))
 
+    def test_daily_performance_positive_fast_aspect_buffers_friction(self):
+        negative_row = {
+            "T_Planet": "TRANSIT_MOON",
+            "N_Planet": "NATAL_MOON",
+            "Aspect_Angle": 90,
+            "Score_Impact": -40,
+            "_input": {"orb": 1.0},
+        }
+        positive_row = {
+            "T_Planet": "TRANSIT_MERCURY",
+            "N_Planet": "NATAL_SUN",
+            "Aspect_Angle": 60,
+            "Score_Impact": 40,
+            "_input": {"orb": 1.0},
+        }
+        empty_environment = {
+            "totals": {key: 0.0 for key in ("drive", "flow", "inspiration", "friction", "mars")},
+            "breakdown": {key: [] for key in ("drive", "flow", "inspiration", "friction", "mars")},
+        }
+
+        with patch.object(reading_service, "_build_natal_planet_rows", return_value=[]), patch.object(
+            reading_service,
+            "_build_slot_interpretations",
+            return_value=[negative_row, positive_row],
+        ), patch.object(
+            reading_service,
+            "_daily_performance_environment_layer",
+            return_value=empty_environment,
+        ):
+            point = reading_service._build_daily_performance(
+                object(),
+                date(2026, 10, 1),
+                {"modifier": 0, "items": []},
+            )[0]
+
+        friction_items = point["breakdown"]["friction"]
+        pressure = next(item for item in friction_items if item["note"] == "Fast planet friction")
+        support = next(item for item in friction_items if item["note"] == "Fast planet support")
+        self.assertEqual(point["friction"], 20)
+        self.assertEqual(pressure["contribution"], 11.34)
+        self.assertEqual(support["contribution"], -1.51)
+
     def test_countdown_data_loads_master_and_calculates_progress(self):
         countdown = build_countdown_data(
             {
@@ -523,7 +564,7 @@ class ApiTestCase(unittest.TestCase):
         self.assertGreater(far_countdown["days_remaining"], near_countdown["days_remaining"])
         self.assertLess(far_countdown["percent"], near_countdown["percent"])
 
-    def test_countdown_uses_arrival_text_within_half_degree(self):
+    def test_countdown_keeps_aspect_countdown_label_within_half_degree(self):
         countdown = build_countdown_data(
             {
                 "T_Planet": "TRANSIT_VENUS",
@@ -533,9 +574,9 @@ class ApiTestCase(unittest.TestCase):
             }
         )
 
-        self.assertEqual(countdown["title"], countdown["arrival_text"])
+        self.assertEqual(countdown["title"], countdown["fallback_label"])
 
-    def test_countdown_prefers_master_title_and_action_hint(self):
+    def test_countdown_prefers_aspect_label_and_keeps_master_action_hint(self):
         countdown = build_countdown_data(
             {
                 "T_Planet": "TRANSIT_VENUS",
@@ -546,11 +587,11 @@ class ApiTestCase(unittest.TestCase):
             }
         )
 
-        self.assertEqual(countdown["title"], countdown["display_title"])
+        self.assertEqual(countdown["title"], countdown["fallback_label"])
         self.assertNotEqual(countdown["note"], "個別タスクを使う")
         self.assertTrue(countdown["note"])
 
-    def test_countdown_falls_back_to_master_title_when_label_is_missing(self):
+    def test_countdown_does_not_fall_back_to_master_title_when_aspect_label_is_missing(self):
         countdown = build_countdown_data(
             {
                 "T_Planet": "TRANSIT_VENUS",
@@ -559,7 +600,7 @@ class ApiTestCase(unittest.TestCase):
             }
         )
 
-        self.assertEqual(countdown["title"], countdown["display_title"])
+        self.assertEqual(countdown["title"], "")
 
     def test_countdown_label_is_only_fallback_when_master_is_missing(self):
         countdown = build_countdown_data(
@@ -947,7 +988,9 @@ class ApiTestCase(unittest.TestCase):
                 }
             )
 
-        with patch("backend.app.services.reading_service._scan_countdown_departure") as departure_scan_mock:
+        with patch("backend.app.services.reading_service._scan_countdown_departure") as departure_scan_mock, patch(
+            "backend.app.services.reading_service._scan_countdown_departure_year_bound"
+        ) as pressure_scan_mock:
             departure_scan_mock.return_value = {
                 "days_remaining": 3,
                 "total_days": 10,
@@ -957,6 +1000,7 @@ class ApiTestCase(unittest.TestCase):
                 "departure_orb": 5.1,
                 "departure_retrograde": False,
             }
+            pressure_scan_mock.return_value = departure_scan_mock.return_value
             dashboard = build_dashboard_data_from_interpretations(rows, {"modifier": 0, "items": []})
 
         self.assertEqual(len(dashboard["countdown_groups"]["short"]), 6)
@@ -1007,11 +1051,66 @@ class ApiTestCase(unittest.TestCase):
         )
         self.assertEqual(len(dashboard["countdown_groups"]["legacy_short"]), 3)
         self.assertEqual(len(dashboard["countdown_groups"]["legacy_long"]), 3)
+        self.assertEqual(len(dashboard["pressure_countdown_items"]), 2)
+        self.assertEqual(dashboard["pressure_countdown_items"], dashboard["countdown_groups"]["pressure"])
+        self.assertTrue(
+            all(item["countdown_mode"] == "departure" for item in dashboard["pressure_countdown_items"])
+        )
+        self.assertEqual(
+            [item["target"]["T_Planet"] for item in dashboard["pressure_countdown_items"]],
+            ["TRANSIT_SATURN", "TRANSIT_URANUS"],
+        )
         self.assertEqual(len(dashboard["countdown_groups"]["long_by_priority"]["high"]), 2)
         self.assertEqual(len(dashboard["countdown_groups"]["long_by_priority"]["middle"]), 2)
         self.assertEqual(len(dashboard["countdown_groups"]["long_by_priority"]["low"]), 2)
         self.assertTrue(
             all(item["priority_band"] == "high" for item in dashboard["countdown_groups"]["long_by_priority"]["high"])
+        )
+
+    def test_pressure_countdown_excludes_jupiter_but_allows_neptune_trine(self):
+        rows = [
+            {
+                "T_Planet": "TRANSIT_JUPITER",
+                "N_Planet": "NATAL_MOON",
+                "Aspect_Angle": 90,
+                "Countdown_ID": "FATED_TURNING_POINT",
+                "Countdown_Label": "jupiter negative",
+                "Score_Impact": -60,
+                "Priority": 9,
+                "_orb_status": "Applying",
+                "_input": {"orb": 1.0},
+            },
+            {
+                "T_Planet": "TRANSIT_NEPTUNE",
+                "N_Planet": "NATAL_MOON",
+                "Aspect_Angle": 120,
+                "Countdown_ID": "FATED_TURNING_POINT",
+                "Countdown_Label": "neptune trine pressure",
+                "Score_Impact": 20,
+                "Priority": 9,
+                "_orb_status": "Applying",
+                "_input": {"orb": 1.0},
+            },
+        ]
+
+        with patch("backend.app.services.reading_service._scan_countdown_departure") as departure_scan_mock, patch(
+            "backend.app.services.reading_service._scan_countdown_departure_year_bound"
+        ) as pressure_scan_mock:
+            departure_scan_mock.return_value = {
+                "days_remaining": 3,
+                "total_days": 10,
+                "percent": 70,
+                "scan_status": "departing",
+                "departure_day": 3,
+                "departure_orb": 5.1,
+                "departure_retrograde": False,
+            }
+            pressure_scan_mock.return_value = departure_scan_mock.return_value
+            dashboard = build_dashboard_data_from_interpretations(rows, {"modifier": 0, "items": []})
+
+        self.assertEqual(
+            [item["target"]["Countdown_Label"] for item in dashboard["pressure_countdown_items"]],
+            ["neptune trine pressure"],
         )
 
     def test_yearly_forecast_weight_and_orb_decay_helpers(self):

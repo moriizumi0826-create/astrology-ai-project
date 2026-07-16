@@ -2317,6 +2317,8 @@ DAILY_PERFORMANCE_DECISION_PLANETS = {"SUN", "MERCURY", "SATURN"}
 DAILY_PERFORMANCE_FLOW_PLANETS = {"MOON", "VENUS", "JUPITER"}
 DAILY_PERFORMANCE_NOISE_PLANETS = {"URANUS", "NEPTUNE", "PLUTO"}
 DAILY_PERFORMANCE_FAST_PLANETS = {"MOON", "MERCURY", "MARS"}
+DAILY_PERFORMANCE_FAST_FRICTION_MULTIPLIER = 1.4
+DAILY_PERFORMANCE_FAST_SUPPORT_BUFFER_RATE = 0.15
 DAILY_PERFORMANCE_INSPIRATION_ANGLES = {0, 60, 120}
 DAILY_PERFORMANCE_INSPIRATION_PLANETS = {"MOON", "MERCURY", "VENUS", "JUPITER", "NEPTUNE"}
 DAILY_PERFORMANCE_OUTER_PLANETS = {"URANUS", "NEPTUNE", "PLUTO"}
@@ -3365,6 +3367,8 @@ def _build_daily_performance(
         fast_flow = 0.0
         inspiration_raw = 0.0
         fast_friction = 0.0
+        fast_support = 0.0
+        fast_support_rows: list[tuple[dict[str, Any], float]] = []
         mars_drive = 0.0
         mars_friction = 0.0
         mars_activity_raw = 0.0
@@ -3448,8 +3452,17 @@ def _build_daily_performance(
                     contribution = closeness * (1 + min(abs(impact), 80) / 80) * transit_weight
                     fast_friction += contribution
                     breakdown["friction"].append(
-                        _daily_performance_aspect_breakdown(row, contribution * 2.0, "Fast planet friction")
+                        _daily_performance_aspect_breakdown(
+                            row,
+                            contribution * DAILY_PERFORMANCE_FAST_FRICTION_MULTIPLIER,
+                            "Fast planet friction",
+                        )
                     )
+                elif impact > 0:
+                    contribution = closeness * (1 + min(abs(impact), 80) / 80) * transit_weight
+                    fast_support += contribution
+                    if contribution:
+                        fast_support_rows.append((row, contribution))
 
             if transit_planet == "MARS":
                 mars_activity_contribution = max(0.0, 5.0 - current_orb) + abs(dignity)
@@ -3495,11 +3508,31 @@ def _build_daily_performance(
             0,
             100,
         )
+        applied_fast_support = min(
+            fast_friction,
+            fast_support * DAILY_PERFORMANCE_FAST_SUPPORT_BUFFER_RATE,
+        )
+        if fast_support and applied_fast_support:
+            for row, contribution in fast_support_rows:
+                support_share = contribution / fast_support
+                breakdown["friction"].append(
+                    _daily_performance_aspect_breakdown(
+                        row,
+                        -applied_fast_support
+                        * support_share
+                        * DAILY_PERFORMANCE_FAST_FRICTION_MULTIPLIER,
+                        "Fast planet support",
+                    )
+                )
+
         friction = _clamp(
             10
             + (_damp(noise_sum, 90) * 0.08)
             + (_damp(mars_friction, 60) * 0.12)
-            + (fast_friction * 2.0)
+            + (
+                (fast_friction - applied_fast_support)
+                * DAILY_PERFORMANCE_FAST_FRICTION_MULTIPLIER
+            )
             + (mars_activity * 0.04)
             + env_totals["friction"],
             0,

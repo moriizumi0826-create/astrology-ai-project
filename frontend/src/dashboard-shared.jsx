@@ -316,7 +316,7 @@ function Hero({ data }) {
             <div className="rounded-2xl bg-white/10 p-3 text-[#D4AF37]">
               <Gauge size={20} />
             </div>
-            <div>
+            <div className="flex items-start justify-between gap-3">
               <p className="text-sm font-semibold uppercase tracking-[0.18em] text-white/60">
                 Diagnostic
               </p>
@@ -1891,7 +1891,7 @@ function DashboardV2PersonalCard({ data, displayDate = "", onDateShift = () => {
       <div className="flex items-start justify-between gap-6">
         <div className="min-w-0 flex-1">
           <div>
-            <div>
+            <div className="flex items-start justify-between gap-3">
               <h2 className="font-notoSerif text-xl font-semibold text-[#e9c349]">今日の洞察</h2>
             </div>
             <div className="mt-2 flex items-center gap-3 font-mono text-[10px] font-black uppercase leading-4 tracking-[0.14em] text-[#909096]">
@@ -2122,15 +2122,15 @@ function PressureCountdownList({ items = [], baseDateKey = "", summary = null })
         const orbValue = Number(item.current_orb ?? item.currentOrb ?? item.scan?.current_orb);
         const periodLabel = pressurePeriodLabel(item, baseDateKey);
         return (
-          <article key={`${countdownSlideKey(item)}-${index}`} className="rounded-lg border border-rose-200/15 bg-rose-950/15 p-3">
-            <div className="flex items-start justify-between gap-3">
+          <article key={`${countdownSlideKey(item)}-${index}`} className="relative rounded-lg border border-rose-200/15 bg-rose-950/15 p-3">
+            <div className="pr-24">
               <div className="min-w-0">
                 {periodLabel ? (
                   <p className="mb-1 inline-flex max-w-full items-center rounded border border-[#e9c349]/35 bg-[#e9c349]/10 px-2 py-1 text-[10px] font-bold leading-none text-[#e7d38b]">
                     {periodLabel}
                   </p>
                 ) : null}
-                <p className="font-mono text-[10px] font-black uppercase tracking-[0.16em] text-[#e9c349]">
+                <p className="whitespace-nowrap text-[8px] font-black leading-4 tracking-[-0.01em] text-[#e9c349] sm:text-[9px]">
                   {aspectLabel || "Pressure Aspect"}
                   {Number.isFinite(orbValue) ? ` / orb ${orbValue.toFixed(2)}°` : ""}
                 </p>
@@ -2140,7 +2140,7 @@ function PressureCountdownList({ items = [], baseDateKey = "", summary = null })
                   </h3>
                 ) : null}
               </div>
-              <div className="shrink-0 text-right">
+              <div className="absolute right-3 top-3 text-right">
                 <p className="mt-1 text-[10px] font-bold text-[#909096]">抜けるまで</p>
                 <p className="mt-1 font-mono text-xl font-black leading-none text-[#e9c349]">
                   {Number.isFinite(days) ? `${days}日` : "-"}
@@ -2148,7 +2148,7 @@ function PressureCountdownList({ items = [], baseDateKey = "", summary = null })
               </div>
             </div>
             {timelineAdvise ? (
-              <p className="mt-2 line-clamp-2 text-[11px] font-bold leading-5 text-[#c7c6cc]">
+              <p className="mt-2 whitespace-pre-line text-[11px] font-bold leading-5 text-[#c7c6cc]">
                 {timelineAdvise}
               </p>
             ) : null}
@@ -2508,11 +2508,10 @@ function dailyPerformanceAxisTick(baseDate, hour) {
 
 function dailyAspectStrength(aspect = {}) {
   const impact = Math.abs(Number(aspect.scoreImpact ?? aspect.score_impact ?? 0));
-  const priority = Number(aspect.priority ?? 0);
   const orb = Number(aspect.orb ?? 5);
   const dignity = Math.abs(Number(aspect.essentialDignityScore ?? aspect.essential_dignity_score ?? 0));
   const orbBoost = Number.isFinite(orb) ? Math.max(0, 5 - orb) * 8 : 0;
-  return impact + priority * 0.25 + orbBoost + dignity * 0.2;
+  return impact + orbBoost + dignity * 0.2;
 }
 
 function dailyAspectLabel(aspect = {}) {
@@ -2610,6 +2609,41 @@ function dailyTimelinePolarity(detail = {}) {
   return "neutral";
 }
 
+function dailyAspectOrbOpacity(orbValue, peakOrbValue) {
+  const orb = Number(orbValue);
+  const peakOrb = Number(peakOrbValue);
+  if (!Number.isFinite(orb) || !Number.isFinite(peakOrb)) return 0.18;
+  const distanceFromPeak = Math.max(0, orb - peakOrb);
+  const fadeRatio = Math.min(1, distanceFromPeak / 5);
+  return 0.18 + ((1 - fadeRatio) * 0.74);
+}
+
+function dailyTimelineColorWithOpacity(color, opacity) {
+  const hex = String(color || "").replace("#", "");
+  const normalized = hex.length === 3
+    ? hex.split("").map((value) => `${value}${value}`).join("")
+    : hex;
+  if (!/^[0-9a-f]{6}$/i.test(normalized)) return color;
+  const red = Number.parseInt(normalized.slice(0, 2), 16);
+  const green = Number.parseInt(normalized.slice(2, 4), 16);
+  const blue = Number.parseInt(normalized.slice(4, 6), 16);
+  const alpha = Math.max(0, Math.min(1, Number(opacity) || 0));
+  return `rgba(${red}, ${green}, ${blue}, ${alpha})`;
+}
+
+function dailyTimelineAspectGradient(color, opacityStops = []) {
+  if (!opacityStops.length) return dailyTimelineColorWithOpacity(color, 0.18);
+  if (opacityStops.length === 1) return dailyTimelineColorWithOpacity(color, opacityStops[0].opacity);
+  const gradientStops = [
+    { offset: 0, opacity: opacityStops[0].opacity },
+    ...opacityStops,
+    { offset: 100, opacity: opacityStops[opacityStops.length - 1].opacity },
+  ];
+  return `linear-gradient(90deg, ${gradientStops
+    .map((stop) => `${dailyTimelineColorWithOpacity(color, stop.opacity)} ${Math.max(0, Math.min(100, stop.offset))}%`)
+    .join(", ")})`;
+}
+
 function buildDailyTimelineAspectBlocks(chartPerformance = []) {
   const aspectMap = new Map();
   chartPerformance.forEach((point, pointIndex) => {
@@ -2620,11 +2654,18 @@ function buildDailyTimelineAspectBlocks(chartPerformance = []) {
       const angle = Number(aspect.angle);
       const key = `${tPlanet}-${nPlanet}-${Number.isFinite(angle) ? angle : "x"}-${aspect.category || ""}`;
       const strength = dailyAspectStrength(aspect);
+      const detail = dailyAspectDetail(aspect, strength);
+      const priority = Number.isFinite(detail.priority) ? detail.priority : 0;
+      const impact = Number.isFinite(detail.impact) ? detail.impact : 0;
+      const orb = Number.isFinite(detail.orb) ? detail.orb : Number.POSITIVE_INFINITY;
       const existing = aspectMap.get(key) || {
         key,
         label: dailyAspectBarLabel(aspect),
         angle,
         maxStrength: 0,
+        rankPriority: 0,
+        rankImpact: 0,
+        peakOrb: Number.POSITIVE_INFINITY,
         peakHour: hour,
         slots: new Map(),
         slotDetails: new Map(),
@@ -2632,10 +2673,13 @@ function buildDailyTimelineAspectBlocks(chartPerformance = []) {
       const previousSlotStrength = existing.slots.get(hour) || 0;
       existing.slots.set(hour, Math.max(previousSlotStrength, strength));
       if (strength >= previousSlotStrength) {
-        existing.slotDetails.set(hour, dailyAspectDetail(aspect, strength));
+        existing.slotDetails.set(hour, detail);
       }
-      if (strength > existing.maxStrength) {
-        existing.maxStrength = strength;
+      existing.maxStrength = Math.max(existing.maxStrength, strength);
+      existing.rankPriority = Math.max(existing.rankPriority, priority);
+      existing.rankImpact = Math.max(existing.rankImpact, impact);
+      if (orb < existing.peakOrb) {
+        existing.peakOrb = orb;
         existing.peakHour = hour;
       }
       aspectMap.set(key, existing);
@@ -2649,12 +2693,11 @@ function buildDailyTimelineAspectBlocks(chartPerformance = []) {
       const segments = Array.from({ length: DAILY_PERFORMANCE_TOTAL_HOURS / DAILY_PERFORMANCE_SAMPLE_STEP_HOURS }, (_, segmentIndex) => {
         const start = segmentIndex * DAILY_PERFORMANCE_SAMPLE_STEP_HOURS;
         const slotStrength = item.slots.get(start) || 0;
-        const directRatio = item.maxStrength ? slotStrength / item.maxStrength : 0;
-        const opacity = directRatio > 0 ? Math.max(0.16, Math.min(0.92, directRatio)) : 0;
         const detail = item.slotDetails.get(start) || null;
+        const opacity = detail ? dailyAspectOrbOpacity(detail.orb, item.peakOrb) : 0;
         return {
           start,
-          active: directRatio > 0,
+          active: Boolean(detail),
           width: 100 / (DAILY_PERFORMANCE_TOTAL_HOURS / DAILY_PERFORMANCE_SAMPLE_STEP_HOURS),
           opacity,
           detail,
@@ -2668,39 +2711,63 @@ function buildDailyTimelineAspectBlocks(chartPerformance = []) {
         const gapFromPrevious = previous ? segment.start - previous.end : Infinity;
         if (previous && gapFromPrevious >= -0.001 && gapFromPrevious <= DAILY_PERFORMANCE_SAMPLE_STEP_HOURS + 0.001) {
           previous.end = segment.start + DAILY_PERFORMANCE_SAMPLE_STEP_HOURS;
-          previous.opacity = Math.max(previous.opacity, segment.opacity);
           if ((segment.detail?.strength || 0) >= (previous.detail?.strength || 0)) {
             previous.detail = segment.detail;
           }
+          previous.opacitySegments.push({ start: segment.start, opacity: segment.opacity });
           previous.includesPeak = previous.includesPeak || Math.abs(segment.start - item.peakHour) < DAILY_PERFORMANCE_SAMPLE_STEP_HOURS / 2;
           return;
         }
         blocks.push({
           start: segment.start,
           end: segment.start + DAILY_PERFORMANCE_SAMPLE_STEP_HOURS,
-          opacity: segment.opacity,
+          opacitySegments: [{ start: segment.start, opacity: segment.opacity }],
           detail: segment.detail,
           includesPeak: Math.abs(segment.start - item.peakHour) < DAILY_PERFORMANCE_SAMPLE_STEP_HOURS / 2,
         });
       });
-      return blocks.map((block) => ({
-        ...block,
-        key: `${item.key}-${block.start}`,
-        aspectKey: item.key,
-        label: item.label,
-        detail: block.detail,
-        polarity: dailyTimelinePolarity(block.detail),
-        left: (block.start / DAILY_PERFORMANCE_TOTAL_HOURS) * 100,
-        width: ((block.end - block.start) / DAILY_PERFORMANCE_TOTAL_HOURS) * 100,
-        score: item.maxStrength,
-      }));
+      return blocks.map((block) => {
+        const duration = Math.max(DAILY_PERFORMANCE_SAMPLE_STEP_HOURS, block.end - block.start);
+        const opacityStops = block.opacitySegments.map((segment) => ({
+          offset: (((segment.start + (DAILY_PERFORMANCE_SAMPLE_STEP_HOURS / 2)) - block.start) / duration) * 100,
+          opacity: segment.opacity,
+        }));
+        return {
+          ...block,
+          key: `${item.key}-${block.start}`,
+          aspectKey: item.key,
+          label: item.label,
+          detail: block.detail,
+          polarity: dailyTimelinePolarity(block.detail),
+          left: (block.start / DAILY_PERFORMANCE_TOTAL_HOURS) * 100,
+          width: ((block.end - block.start) / DAILY_PERFORMANCE_TOTAL_HOURS) * 100,
+          score: item.maxStrength,
+          rankPriority: item.rankPriority,
+          peakOrb: item.peakOrb,
+          rankImpact: item.rankImpact,
+          opacityStops,
+        };
+      });
     });
 
   return aspectBlocks;
 }
 
+function compareDailyTimelineAspectRank(a = {}, b = {}) {
+  const priorityDifference = Number(b.rankPriority || 0) - Number(a.rankPriority || 0);
+  if (priorityDifference) return priorityDifference;
+
+  const aOrb = Number.isFinite(Number(a.peakOrb)) ? Number(a.peakOrb) : Number.POSITIVE_INFINITY;
+  const bOrb = Number.isFinite(Number(b.peakOrb)) ? Number(b.peakOrb) : Number.POSITIVE_INFINITY;
+  if (aOrb !== bOrb) return aOrb - bOrb;
+
+  const impactDifference = Math.abs(Number(b.rankImpact || 0)) - Math.abs(Number(a.rankImpact || 0));
+  if (impactDifference) return impactDifference;
+  return Number(a.start || 0) - Number(b.start || 0);
+}
+
 function selectDailyTimelineAspectBlocks(blocks = [], showAll = false) {
-  const ranked = blocks.slice().sort((a, b) => b.score - a.score);
+  const ranked = blocks.slice().sort(compareDailyTimelineAspectRank);
   if (showAll || ranked.length <= DAILY_TIMELINE_DEFAULT_LIMIT) return ranked;
 
   const selected = [];
@@ -3117,8 +3184,7 @@ function DashboardV2DailyFlowCard({ data, displayDate = "" }) {
                       <span
                         className="flex h-full w-full items-center overflow-hidden rounded-full"
                         style={{
-                        backgroundColor: color,
-                        opacity: block.opacity,
+                        background: dailyTimelineAspectGradient(color, block.opacityStops),
                         boxShadow: block.includesPeak
                           ? `0 0 16px ${color}`
                           : "none",
