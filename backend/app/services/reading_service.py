@@ -136,7 +136,10 @@ MOTION_CHANGE_LOOKAHEAD_DAYS = 800
 
 COUNTDOWN_SHORT_PLANETS = {"MOON", "SUN", "MERCURY", "VENUS", "MARS"}
 COUNTDOWN_LONG_PLANETS = {"JUPITER", "SATURN", "URANUS", "NEPTUNE", "PLUTO"}
-PRESSURE_COUNTDOWN_TRANSIT_PLANETS = {"MARS", "SATURN", "URANUS", "NEPTUNE", "PLUTO"}
+PRESSURE_COUNTDOWN_TRANSIT_PLANETS = {
+    "MOON", "SUN", "MERCURY", "VENUS", "MARS",
+    "SATURN", "URANUS", "NEPTUNE", "PLUTO",
+}
 PRESSURE_COUNTDOWN_SCORE_THRESHOLD = -25
 PERSONAL_READING_TRANSIT_PLANETS = {"MOON", "MERCURY", "VENUS", "MARS"}
 COUNTDOWN_PRIORITY_BANDS = {
@@ -1725,8 +1728,6 @@ def _build_master_timeline_advise_lookup() -> dict[tuple[Any, ...], str]:
 def _build_pressure_score_lookup(rows: list[dict[str, Any]]) -> dict[tuple[Any, ...], float]:
     lookup: dict[tuple[Any, ...], float] = {}
     for row in rows:
-        if not _non_placeholder_text(row.get("timeline_advise")):
-            continue
         score = _normalize_float(row.get("Pressure_Score"))
         if score is None:
             continue

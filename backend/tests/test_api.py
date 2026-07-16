@@ -1051,14 +1051,27 @@ class ApiTestCase(unittest.TestCase):
         )
         self.assertEqual(len(dashboard["countdown_groups"]["legacy_short"]), 3)
         self.assertEqual(len(dashboard["countdown_groups"]["legacy_long"]), 3)
-        self.assertEqual(len(dashboard["pressure_countdown_items"]), 2)
+        self.assertEqual(len(dashboard["pressure_countdown_items"]), 5)
         self.assertEqual(dashboard["pressure_countdown_items"], dashboard["countdown_groups"]["pressure"])
         self.assertTrue(
             all(item["countdown_mode"] == "departure" for item in dashboard["pressure_countdown_items"])
         )
-        self.assertEqual(
-            [item["target"]["T_Planet"] for item in dashboard["pressure_countdown_items"]],
-            ["TRANSIT_SATURN", "TRANSIT_URANUS"],
+        self.assertCountEqual(
+            [
+                (
+                    item["target"]["T_Planet"],
+                    item["target"]["N_Planet"],
+                    item["target"]["Aspect_Angle"],
+                )
+                for item in dashboard["pressure_countdown_items"]
+            ],
+            [
+                ("TRANSIT_MOON", "NATAL_SUN", 180),
+                ("TRANSIT_MERCURY", "NATAL_MOON", 90),
+                ("TRANSIT_MOON", "NATAL_MOON", 90),
+                ("TRANSIT_SATURN", "NATAL_MOON", 90),
+                ("TRANSIT_URANUS", "NATAL_MOON", 90),
+            ],
         )
         self.assertEqual(len(dashboard["countdown_groups"]["long_by_priority"]["high"]), 2)
         self.assertEqual(len(dashboard["countdown_groups"]["long_by_priority"]["middle"]), 2)
