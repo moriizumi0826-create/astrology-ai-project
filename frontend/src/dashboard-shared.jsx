@@ -1359,6 +1359,32 @@ function pressureCountdownItems(data, groups, displayDate) {
   });
 }
 
+function reliefCountdownItems(data, groups, displayDate) {
+  const explicitItems = [
+    ...(Array.isArray(data?.relief_countdown_items) ? data.relief_countdown_items : []),
+    ...(Array.isArray(groups?.relief) ? groups.relief : []),
+  ];
+  const fallbackItems = [
+    ...(Array.isArray(data?.countdown_items) ? data.countdown_items : []),
+    ...(Array.isArray(groups?.short) ? groups.short : []),
+    ...(Array.isArray(groups?.long) ? groups.long : []),
+  ];
+  const rawItems = (explicitItems.length ? explicitItems : fallbackItems).filter((item) => {
+    if (!item || isTransitMoonCountdown(item)) return false;
+    const target = item.target && typeof item.target === "object" ? item.target : item;
+    const score = Number(target.Score_Impact ?? target.score_impact ?? target.scoreImpact);
+    const daysUntil = countdownDaysUntil(item, displayDate);
+    return score >= 25 && daysUntil !== null && daysUntil >= 0 && daysUntil <= 365;
+  });
+  const seen = new Set();
+  return rawItems.filter((item) => {
+    const key = countdownSlideKey(item);
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  }).sort((left, right) => countdownDaysUntil(left, displayDate) - countdownDaysUntil(right, displayDate));
+}
+
 function weeklyAspectDateLabel(item) {
   const formatDate = (value) => {
     const date = dateKeyToLocalDate(value);
@@ -2072,7 +2098,7 @@ function pressurePeriodLabel(slide, baseDateKey = "") {
   return startLabel && exitLabel ? `${startLabel}〜${exitLabel}頃` : "";
 }
 
-function PressureCountdownList({ items = [], baseDateKey = "", summary = null }) {
+function PressureCountdownList({ items = [], baseDateKey = "", summary = null, emptyMessage = "強い負荷アスペクトはありません。" }) {
   const visibleItems = Array.isArray(items) ? items : [];
   const summaryHeadline = String(summary?.headline || "").trim();
   const summaryGuidance = String(summary?.restGuidance || summary?.rest_guidance || "").trim();
@@ -2106,7 +2132,7 @@ function PressureCountdownList({ items = [], baseDateKey = "", summary = null })
       <div className="mt-5 grid min-h-0 flex-1 gap-3 overflow-y-auto pr-2 [scrollbar-color:#e9c349_rgba(255,255,255,0.08)] [scrollbar-width:thin]">
         {summaryBlock}
         <div className="flex min-h-[10rem] items-center justify-center rounded-lg border border-white/10 bg-white/[0.03] p-5 text-center text-sm font-bold leading-7 text-[#c7c6cc]">
-          離脱時期を出せる強い負荷アスペクトはありません。
+          {emptyMessage}
         </div>
       </div>
     );
@@ -2177,6 +2203,10 @@ function DashboardV2DailyThemeCard({ data, displayDate = "", onDateShift = () =>
     () => pressureCountdownItems(data, countdownGroups, activeDisplayDate),
     [data, countdownGroups, activeDisplayDate]
   );
+  const reliefItems = React.useMemo(
+    () => reliefCountdownItems(data, countdownGroups, activeDisplayDate),
+    [data, countdownGroups, activeDisplayDate]
+  );
   const pressureLoadSummary = data.pressure_load_summary || data.pressureLoadSummary || null;
   const focusedAspectKey = focusedAspect?.key || "";
   const focusedAspectToken = focusedAspect?.token || 0;
@@ -2189,7 +2219,8 @@ function DashboardV2DailyThemeCard({ data, displayDate = "", onDateShift = () =>
     theme: "今日の洞察",
     lesson: "今日の追い風",
     summary: "今日の消耗注意",
-    test1: "しんどさの原因",
+    test1: "負荷が抜けるまで",
+    relief: "追い風が届くまで",
   }[analysisMode] || "今日の洞察";
   const timelineItems = (items, fallbackBody, color) => (
     <div className="mt-6 grid min-h-0 flex-1 gap-6 overflow-y-auto pr-2 [scrollbar-color:#e9c349_rgba(255,255,255,0.08)] [scrollbar-width:thin] sm:mt-8 sm:gap-8">
@@ -2250,7 +2281,8 @@ function DashboardV2DailyThemeCard({ data, displayDate = "", onDateShift = () =>
             ["theme", "洞察"],
             ["lesson", "追い風"],
             ["summary", "消耗注意"],
-            ["test1", "しんどさ\nの原因"],
+            ["test1", "負荷が抜ける\nまで"],
+            ["relief", "追い風が届く\nまで"],
           ].map(([value, label]) => (
             <button
               key={value}
@@ -2275,6 +2307,7 @@ function DashboardV2DailyThemeCard({ data, displayDate = "", onDateShift = () =>
       {analysisMode === "lesson" ? timelineItems(positiveHighlights, "追い風に該当するアスペクトなし", "#38bdf8") : null}
       {analysisMode === "summary" ? timelineItems(negativeHighlights, "負荷・消耗注意に該当するアスペクトなし", "#fecdd3") : null}
       {analysisMode === "test1" ? <PressureCountdownList items={pressureItems} baseDateKey={activeDisplayDate} summary={pressureLoadSummary} /> : null}
+      {analysisMode === "relief" ? <PressureCountdownList items={reliefItems} baseDateKey={activeDisplayDate} summary={null} emptyMessage="Score Impact +25以上のアスペクトはありません。" /> : null}
     </DashboardV2Card>
   );
 }

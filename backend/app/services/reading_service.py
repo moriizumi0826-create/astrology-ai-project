@@ -1615,6 +1615,11 @@ def _select_display_countdown_items(items: list[dict[str, Any]], limit: int = 3)
     return [item for _index, item in ranked[:limit]]
 
 
+def _countdown_score(item: dict[str, Any]) -> float:
+    target = item.get("target") if isinstance(item.get("target"), dict) else item
+    return _normalize_float(target.get("Score_Impact", target.get("score_impact", target.get("scoreImpact")))) or 0.0
+
+
 def _is_pressure_countdown_target(row: dict[str, Any], pressure_lookup: dict[tuple[Any, ...], float] | None = None) -> bool:
     transit_planet = _normalize_planet(row.get("T_Planet"))
     if transit_planet not in PRESSURE_COUNTDOWN_TRANSIT_PLANETS:
@@ -3871,6 +3876,7 @@ def build_dashboard_data_from_interpretations(
             "header": _dashboard_header(),
             "hero": hero,
             "countdown": None,
+            "relief_countdown_items": [],
             "diagnostic": diagnostic,
             "dailyPerformance": daily_performance,
             "planetMotion": _dashboard_planet_motion(birth_input, current_dt),
@@ -3919,6 +3925,14 @@ def build_dashboard_data_from_interpretations(
     ]
     short_countdown_items = _select_display_countdown_items(short_countdown_candidates, limit=3)
     long_countdown_items = _select_display_countdown_items(long_countdown_candidates, limit=3)
+    relief_short_countdown_items = _select_display_countdown_items(
+        [item for item in short_countdown_candidates if _countdown_score(item) >= 25],
+        limit=3,
+    )
+    relief_long_countdown_items = _select_display_countdown_items(
+        [item for item in long_countdown_candidates if _countdown_score(item) >= 25],
+        limit=3,
+    )
     long_countdown_all_items = _select_display_countdown_items(
         long_countdown_candidates,
         limit=len(long_countdown_candidates),
@@ -3959,6 +3973,8 @@ def build_dashboard_data_from_interpretations(
     long_countdown_group = [*long_countdown_all_items, *long_negative_countdown_items]
     long_countdown_priority_groups = _countdown_priority_band_groups(long_countdown_group)
     positive_countdown_items = [*short_countdown_items, *long_countdown_items][:3]
+    relief_countdown_items = [*relief_short_countdown_items, *relief_long_countdown_items][:3]
+    _attach_pressure_timeline_advise(relief_countdown_items, timeline_advise_lookup)
     countdown_items = positive_countdown_items
     countdown_data = (positive_countdown_items or [None])[0]
     diagnostic_data = _build_diagnostic_data(interpretations, daily_vibe, countdown_data)
@@ -3980,12 +3996,14 @@ def build_dashboard_data_from_interpretations(
         "hero": hero,
         "countdown": countdown_data,
         "countdown_items": countdown_items,
+        "relief_countdown_items": relief_countdown_items,
         "pressure_countdown_items": pressure_countdown_items,
         "pressure_load_summary": pressure_load_summary,
         "countdown_groups": {
             "short": short_countdown_group,
             "long": long_countdown_group,
             "pressure": pressure_countdown_items,
+            "relief": relief_countdown_items,
             "long_by_priority": long_countdown_priority_groups,
             "priority_bands": {
                 key: {"label": value["label"]}
