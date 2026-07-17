@@ -41,6 +41,9 @@ UNKNOWN_BIRTH_TIME_LABEL = "Unknown (calculated with 12:00 local time)"
 DEFAULT_DAILY_VIBE_MODIFIER_LIMIT = 60
 DEFAULT_COUNTDOWN_THRESHOLD_ORB = 5
 DEFAULT_COUNTDOWN_TOTAL_DAYS = 1
+LUNAR_COUNTDOWN_STEP_HOURS = 2
+LUNAR_COUNTDOWN_HORIZON_DAYS = 32
+COUNTDOWN_ASPECT_ANGLES = (0, 60, 90, 120, 150, 180)
 HERO_ASPECT_AVERAGE_WEIGHT = 2.0
 DIAGNOSTIC_BASE_SCORE = 50
 DIAGNOSTIC_OVERALL_IMPACT_WEIGHT = 0.25
@@ -1149,7 +1152,6 @@ def _build_weekly_aspect_items(
             row
             for row in day_rows
             if _is_countdown_candidate_orb_status(row)
-            and _is_allowed_countdown_lunar_aspect(row)
             and _normalize_planet(row.get("T_Planet")) in (COUNTDOWN_SHORT_PLANETS | COUNTDOWN_LONG_PLANETS)
             and _safe_number(row, "Score_Impact") != 0
             and _countdown_priority_band(_safe_number(row, "Priority")) != "low"
@@ -1533,22 +1535,6 @@ def _is_countdown_candidate_orb_status(row: dict[str, Any]) -> bool:
     return orb_status in {"", "APPLYING", "SEPARATING"}
 
 
-def _is_new_or_full_moon_aspect(row: dict[str, Any]) -> bool:
-    planets = {
-        _normalize_planet(row.get("T_Planet")),
-        _normalize_planet(row.get("N_Planet")),
-    }
-    angle = _normalize_int(row.get("Aspect_Angle"))
-    return planets == {"SUN", "MOON"} and angle in {0, 180}
-
-
-def _is_allowed_countdown_lunar_aspect(row: dict[str, Any]) -> bool:
-    transit_planet = _normalize_planet(row.get("T_Planet"))
-    if transit_planet != "MOON":
-        return True
-    return _is_new_or_full_moon_aspect(row)
-
-
 def _select_countdown_targets(
     rows: list[dict[str, Any]],
     limit: int = 3,
@@ -1559,7 +1545,6 @@ def _select_countdown_targets(
         row
         for row in rows
         if _is_countdown_candidate_orb_status(row)
-        and _is_allowed_countdown_lunar_aspect(row)
         and (
             _safe_number(row, "Score_Impact") > 0
             if score_sign_normalized != "negative"
@@ -1602,16 +1587,26 @@ def _countdown_targets_by_planet_group(
 
 
 def _select_display_countdown_items(items: list[dict[str, Any]], limit: int = 3) -> list[dict[str, Any]]:
-    def display_bucket(item: dict[str, Any]) -> int:
+    def remaining_hours(item: dict[str, Any]) -> int:
+        hours_remaining = _normalize_int(item.get("hours_remaining", item.get("hoursLeft")))
+        if hours_remaining is not None:
+            return hours_remaining
         days_remaining = _normalize_int(item.get("days_remaining", item.get("daysLeft"))) or 0
+        return days_remaining * 24
+
+    def display_bucket(item: dict[str, Any]) -> int:
+        time_remaining = remaining_hours(item)
         scan_status = str(item.get("scan_status") or item.get("scan", {}).get("scan_status") or "").strip().lower()
-        if days_remaining > 0:
+        if time_remaining > 0:
             return 0
         if scan_status == "exact":
             return 1
         return 2
 
-    ranked = sorted(enumerate(items), key=lambda pair: (display_bucket(pair[1]), pair[0]))
+    ranked = sorted(
+        enumerate(items),
+        key=lambda pair: (display_bucket(pair[1]), remaining_hours(pair[1]), pair[0]),
+    )
     return [item for _index, item in ranked[:limit]]
 
 
@@ -1686,11 +1681,12 @@ def _pressure_countdown_sort_key(
 ) -> tuple[Any, ...]:
     target = item.get("target") if isinstance(item.get("target"), dict) else {}
     pressure_score = _pressure_score_for_row(target, pressure_lookup) or 0
+    hours_remaining = _normalize_int(item.get("hours_remaining", item.get("hoursLeft")))
     days_remaining = _normalize_int(item.get("days_remaining", item.get("daysLeft")))
-    if days_remaining is not None:
+    if hours_remaining is not None or days_remaining is not None:
         return (
             0,
-            days_remaining,
+            hours_remaining if hours_remaining is not None else days_remaining * 24,
             -_safe_number(target, "Priority"),
             pressure_score,
             _extract_current_orb(target),
@@ -1931,12 +1927,125 @@ def _aspect_orb_at(
     return orb, is_retrograde
 
 
+def _scan_lunar_countdown_arrival(
+    row: dict[str, Any],
+    current_dt: datetime | date | None,
+    total_days: int,
+    threshold_orb: float,
+) -> dict[str, Any] | None:
+    natal_longitude = _countdown_target_longitude(row)
+    if swe is None or natal_longitude is None:
+        return None
+
+    exact_angle = _safe_number(row, "Aspect_Angle")
+    source = row.get("_input") if isinstance(row.get("_input"), dict) else {}
+    timezone_offset = _normalize_float(source.get("timezone_offset")) or 9.0
+    scan_start = _countdown_scan_start(current_dt)
+    current_orb, current_retrograde = _aspect_orb_at(
+        "MOON", scan_start, timezone_offset, natal_longitude, exact_angle
+    )
+    horizon_hours = max(LUNAR_COUNTDOWN_HORIZON_DAYS * 24, max(total_days, 1) * 24)
+
+    arrival_hour: int | None = 0 if current_orb <= threshold_orb else None
+    arrival_orb = current_orb
+    arrival_retrograde = current_retrograde
+    if arrival_hour is None:
+        for hour in range(LUNAR_COUNTDOWN_STEP_HOURS, horizon_hours + 1, LUNAR_COUNTDOWN_STEP_HOURS):
+            sample_dt = scan_start + timedelta(hours=hour)
+            orb, is_retrograde = _aspect_orb_at("MOON", sample_dt, timezone_offset, natal_longitude, exact_angle)
+            if orb <= threshold_orb:
+                arrival_hour = hour
+                arrival_orb = orb
+                arrival_retrograde = is_retrograde
+                break
+    if arrival_hour is None:
+        return None
+
+    total_hours = max(max(total_days, 1) * 24, arrival_hour, LUNAR_COUNTDOWN_STEP_HOURS)
+    percent = ((total_hours - arrival_hour) / total_hours) * 100
+    arrival_dt = scan_start + timedelta(hours=arrival_hour)
+    return {
+        "days_remaining": ceil(arrival_hour / 24),
+        "hours_remaining": arrival_hour,
+        "total_days": ceil(total_hours / 24),
+        "total_hours": total_hours,
+        "percent": _clamp(percent, 0, 100),
+        "scan_status": "active" if arrival_hour == 0 else "upcoming",
+        "current_orb": round(current_orb, 3),
+        "arrival_hour": arrival_hour,
+        "arrival_orb": round(arrival_orb, 3),
+        "arrival_retrograde": arrival_retrograde,
+        "impact_start_date": arrival_dt.date().isoformat(),
+        "impact_start_datetime": arrival_dt.isoformat(),
+    }
+
+
+def _scan_lunar_countdown_departure(
+    row: dict[str, Any],
+    current_dt: datetime | date | None,
+    total_days: int,
+    threshold_orb: float,
+) -> dict[str, Any] | None:
+    natal_longitude = _countdown_target_longitude(row)
+    if swe is None or natal_longitude is None:
+        return None
+
+    exact_angle = _safe_number(row, "Aspect_Angle")
+    source = row.get("_input") if isinstance(row.get("_input"), dict) else {}
+    timezone_offset = _normalize_float(source.get("timezone_offset")) or 9.0
+    scan_start = _countdown_scan_start(current_dt)
+    current_orb, _ = _aspect_orb_at("MOON", scan_start, timezone_offset, natal_longitude, exact_angle)
+    if current_orb > threshold_orb:
+        return None
+
+    horizon_hours = LUNAR_COUNTDOWN_HORIZON_DAYS * 24
+    impact_start_dt = scan_start
+    for hour in range(LUNAR_COUNTDOWN_STEP_HOURS, horizon_hours + 1, LUNAR_COUNTDOWN_STEP_HOURS):
+        sample_dt = scan_start - timedelta(hours=hour)
+        orb, _ = _aspect_orb_at("MOON", sample_dt, timezone_offset, natal_longitude, exact_angle)
+        if orb > threshold_orb:
+            impact_start_dt = sample_dt + timedelta(hours=LUNAR_COUNTDOWN_STEP_HOURS)
+            break
+
+    for hour in range(LUNAR_COUNTDOWN_STEP_HOURS, horizon_hours + 1, LUNAR_COUNTDOWN_STEP_HOURS):
+        sample_dt = scan_start + timedelta(hours=hour)
+        orb, is_retrograde = _aspect_orb_at("MOON", sample_dt, timezone_offset, natal_longitude, exact_angle)
+        if orb <= threshold_orb:
+            continue
+        total_hours = max(
+            int(ceil((sample_dt - impact_start_dt).total_seconds() / 3600)),
+            hour,
+            LUNAR_COUNTDOWN_STEP_HOURS,
+        )
+        percent = ((total_hours - hour) / total_hours) * 100
+        return {
+            "days_remaining": ceil(hour / 24),
+            "hours_remaining": hour,
+            "total_days": ceil(total_hours / 24),
+            "total_hours": total_hours,
+            "percent": _clamp(percent, 0, 100),
+            "scan_status": "departing",
+            "current_orb": round(current_orb, 3),
+            "departure_day": ceil(hour / 24),
+            "departure_hour": hour,
+            "departure_orb": round(orb, 3),
+            "departure_retrograde": is_retrograde,
+            "impact_start_date": impact_start_dt.date().isoformat(),
+            "impact_end_date": sample_dt.date().isoformat(),
+            "impact_start_datetime": impact_start_dt.isoformat(),
+            "impact_end_datetime": sample_dt.isoformat(),
+        }
+    return None
+
+
 def _scan_countdown_ephemeris(
     row: dict[str, Any],
     current_dt: datetime | date | None,
     total_days: int,
     threshold_orb: float,
 ) -> dict[str, Any] | None:
+    if _normalize_planet(row.get("T_Planet")) == "MOON":
+        return _scan_lunar_countdown_arrival(row, current_dt, total_days, threshold_orb)
     if swe is None:
         return None
     natal_longitude = _countdown_target_longitude(row)
@@ -2058,6 +2167,8 @@ def _scan_countdown_departure(
     total_days: int,
     threshold_orb: float,
 ) -> dict[str, Any] | None:
+    if _normalize_planet(row.get("T_Planet")) == "MOON":
+        return _scan_lunar_countdown_departure(row, current_dt, total_days, threshold_orb)
     if swe is None:
         return None
     natal_longitude = _countdown_target_longitude(row)
@@ -2126,6 +2237,13 @@ def _scan_countdown_departure_year_bound(
     current_dt: datetime | date | None,
     threshold_orb: float,
 ) -> dict[str, Any] | None:
+    if _normalize_planet(row.get("T_Planet")) == "MOON":
+        return _scan_lunar_countdown_departure(
+            row,
+            current_dt,
+            LUNAR_COUNTDOWN_HORIZON_DAYS,
+            threshold_orb,
+        )
     if swe is None:
         return None
     natal_longitude = _countdown_target_longitude(row)
@@ -2278,6 +2396,8 @@ def build_countdown_data(
     else:
         scan_status = "unknown"
     departure_days_remaining = days_remaining if countdown_mode_normalized == "departure" else exit_days_remaining
+    hours_remaining = _normalize_int(scan.get("hours_remaining")) if scan else None
+    total_hours = _normalize_int(scan.get("total_hours")) if scan else None
     title = fallback_label
     note = _safe_text(master_row, "Next_Action_Hint") or advised_task
 
@@ -2287,7 +2407,11 @@ def build_countdown_data(
         "totalDays": total_days,
         "note": note,
         "days_remaining": days_remaining,
+        "hoursLeft": hours_remaining,
+        "hours_remaining": hours_remaining,
         "total_days": total_days,
+        "totalHours": total_hours,
+        "total_hours": total_hours,
         "percent": progress_percent,
         "orb_percent": orb_percent,
         "exit_days_remaining": exit_days_remaining,
@@ -2295,6 +2419,8 @@ def build_countdown_data(
         "scan_status": scan_status,
         "impact_start_date": scan.get("impact_start_date") if scan else None,
         "impact_end_date": scan.get("impact_end_date") if scan else None,
+        "impact_start_datetime": scan.get("impact_start_datetime") if scan else None,
+        "impact_end_datetime": scan.get("impact_end_datetime") if scan else None,
         "impact_start_is_before": bool(scan.get("impact_start_is_before")) if scan else False,
         "impact_end_is_after": bool(scan.get("impact_end_is_after")) if scan else False,
         "countdown_unavailable": bool(scan.get("countdown_unavailable")) if scan else False,
@@ -2722,6 +2848,72 @@ def _build_natal_aspect_points(birth_input: BirthInput) -> list[dict[str, Any]]:
                 "house": angle_house[point],
             })
     return natal_rows
+
+
+def _build_lunar_countdown_candidate_rows(
+    birth_input: BirthInput | None,
+    current_dt: datetime | date | None,
+) -> list[dict[str, Any]]:
+    if birth_input is None or swe is None or not hasattr(birth_input, "timezone_offset"):
+        return []
+    sample_local_dt = _countdown_scan_start(current_dt)
+    transit_longitude, is_retrograde = _calc_transit_planet_state(
+        "MOON", sample_local_dt, birth_input.timezone_offset
+    )
+    candidates: list[dict[str, Any]] = []
+    for natal_point in _build_natal_aspect_points(birth_input):
+        natal_longitude = natal_point["longitude"]
+        angle_diff = get_angle_diff(transit_longitude, natal_longitude)
+        for exact_angle in COUNTDOWN_ASPECT_ANGLES:
+            orb_diff = abs(angle_diff - exact_angle)
+            orb_status = _classify_orb_status(
+                sample_local_dt,
+                birth_input.timezone_offset,
+                natal_longitude,
+                exact_angle,
+                transit_planet="MOON",
+            )
+            interpretation = get_aspect_interpretation(
+                t_planet="MOON",
+                n_planet=natal_point["planet"],
+                angle=exact_angle,
+                house=natal_point["house"],
+                is_retrograde=is_retrograde,
+                orb_status=orb_status,
+            )
+            if not interpretation or _safe_number(interpretation, "Score_Impact") == 0:
+                continue
+            interpretation = dict(interpretation)
+            interpretation["_input"] = {
+                "t_planet": "MOON",
+                "n_planet": natal_point["planet"],
+                "angle": exact_angle,
+                "house": natal_point["house"],
+                "orb": orb_diff,
+                "natal_longitude": natal_longitude,
+                "timezone_offset": birth_input.timezone_offset,
+                "sample_time": sample_local_dt.strftime("%H:%M"),
+                "time_slot_id": "LUNAR_COUNTDOWN_2H",
+            }
+            interpretation["_orb_status"] = orb_status
+            candidates.append(interpretation)
+    return candidates
+
+
+def _countdown_interpretations_with_lunar_candidates(
+    interpretations: list[dict[str, Any]],
+    birth_input: BirthInput | None,
+    current_dt: datetime | date | None,
+) -> list[dict[str, Any]]:
+    non_lunar_rows = [
+        row for row in interpretations if _normalize_planet(row.get("T_Planet")) != "MOON"
+    ]
+    lunar_rows = _build_lunar_countdown_candidate_rows(birth_input, current_dt)
+    if not lunar_rows:
+        lunar_rows = [
+            row for row in interpretations if _normalize_planet(row.get("T_Planet")) == "MOON"
+        ]
+    return [*non_lunar_rows, *lunar_rows]
 
 
 def _local_sample_datetime(target_date: date, sample_hour: int, day_offset: int = 0) -> datetime:
@@ -3905,26 +4097,31 @@ def build_dashboard_data_from_interpretations(
     average_score = sum(_safe_number(row, "Score_Impact") for row in interpretations) / len(interpretations)
     final_score = _clamp(50 + (average_score * HERO_ASPECT_AVERAGE_WEIGHT) + daily_modifier, 0, 100)
     hero_row = _top_priority_row(interpretations)
-    short_countdown_targets = _countdown_targets_by_planet_group(
+    countdown_interpretations = _countdown_interpretations_with_lunar_candidates(
         interpretations,
+        birth_input,
+        current_dt,
+    )
+    short_countdown_targets = _countdown_targets_by_planet_group(
+        countdown_interpretations,
         COUNTDOWN_SHORT_PLANETS,
-        limit=12,
+        limit=999,
         score_sign="positive",
     )
     long_countdown_targets = _countdown_targets_by_planet_group(
-        interpretations,
+        countdown_interpretations,
         COUNTDOWN_LONG_PLANETS,
         limit=999,
         score_sign="positive",
     )
     short_negative_countdown_targets = _countdown_targets_by_planet_group(
-        interpretations,
+        countdown_interpretations,
         COUNTDOWN_SHORT_PLANETS,
-        limit=12,
+        limit=999,
         score_sign="negative",
     )
     long_negative_countdown_targets = _countdown_targets_by_planet_group(
-        interpretations,
+        countdown_interpretations,
         COUNTDOWN_LONG_PLANETS,
         limit=999,
         score_sign="negative",
@@ -3971,7 +4168,7 @@ def build_dashboard_data_from_interpretations(
         item
         for item in (
             build_countdown_data(target, current_dt=current_dt, countdown_mode="departure", scan_scope="year_bound")
-            for target in interpretations
+            for target in countdown_interpretations
             if _is_pressure_countdown_target(target, pressure_score_lookup)
         )
         if item and item.get("scan_status") == "departing"
@@ -4212,11 +4409,9 @@ def generate_readings(payload: ReadingRequest) -> ReadingResponse:
     )
 
     chart_rows = build_chart_rows(birth_input)
-    current_dt = (
-        datetime.combine(payload.target_date, dt_time(hour=12))
-        if payload.target_date
-        else _app_now()
-    )
+    current_dt = _app_now()
+    if payload.target_date and payload.target_date != _app_today():
+        current_dt = datetime.combine(payload.target_date, dt_time(hour=12))
     dashboard_data = build_dashboard_data_from_aspects(
         aspects=build_transit_aspect_inputs(birth_input, current_dt),
         current_dt=current_dt,

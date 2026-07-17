@@ -998,7 +998,13 @@ function CountdownLane({
   const activeSlide = visibleSlides[clampedIndex] || visibleSlides[0];
   const daysRemaining = Number(activeSlide.days_remaining ?? activeSlide.daysLeft ?? 0);
   const totalDays = Number(activeSlide.total_days ?? activeSlide.totalDays ?? 0);
-  const percent = Math.max(0, Math.min(100, Math.round(totalDays > 0 ? ((totalDays - daysRemaining) / totalDays) * 100 : 0)));
+  const hoursRemaining = countdownHoursUntil(activeSlide);
+  const totalHours = Number(activeSlide.total_hours ?? activeSlide.totalHours ?? activeSlide.scan?.total_hours);
+  const usesHourCountdown = isTransitMoonAspect(activeSlide) && Number.isFinite(hoursRemaining);
+  const remainingAmount = usesHourCountdown ? hoursRemaining : daysRemaining;
+  const totalAmount = usesHourCountdown && Number.isFinite(totalHours) ? totalHours : totalDays;
+  const countdownUnit = usesHourCountdown ? "時間" : "日";
+  const percent = Math.max(0, Math.min(100, Math.round(totalAmount > 0 ? ((totalAmount - remainingAmount) / totalAmount) * 100 : 0)));
   const rawOrbPercent = activeSlide.orb_percent ?? activeSlide.orbPercent ?? activeSlide.scan?.orb_percent;
   const currentOrbValue = Number(
     activeSlide.current_orb ??
@@ -1029,8 +1035,8 @@ function CountdownLane({
         ? departureFallbackPercent
         : percent
     : percent;
-  const elapsedDays = Math.max(0, totalDays - daysRemaining);
-  const progressLabel = `進行度 ${elapsedDays}/${totalDays || 0}日 (${percent}%)`;
+  const elapsedAmount = Math.max(0, totalAmount - remainingAmount);
+  const progressLabel = `進行度 ${elapsedAmount}/${totalAmount || 0}${countdownUnit} (${percent}%)`;
   const note = String(activeSlide.note || '').trim();
   const titleText = String(activeSlide.title || activeSlide.fallback_label || 'アスペクト').trim();
   const aspectLabel = String(activeSlide.aspect_label || '').trim();
@@ -1064,6 +1070,7 @@ function CountdownLane({
   const displayedDays = isPositiveAfterPeak && !postPeakLabel && Number.isFinite(exitDaysRemaining)
     ? Math.max(0, Math.round(exitDaysRemaining))
     : daysRemaining;
+  const displayedCountdown = usesHourCountdown ? Math.max(0, Math.round(hoursRemaining)) : displayedDays;
   const isInfluenceDeparturePrefix = countdownPrefix === "影響下から離脱するまであと";
   const countdownSuffix = '';
   const goToSlide = (index) => {
@@ -1132,7 +1139,7 @@ function CountdownLane({
                   <span className="text-4xl font-bold tracking-tighter text-white sm:text-5xl">
                     0
                   </span>
-                  <span className="text-base text-slate-500 sm:text-lg">日</span>
+                  <span className="text-base text-slate-500 sm:text-lg">{countdownUnit}</span>
                 </div>
                 <span className="text-sm font-semibold leading-5 text-slate-300 sm:text-base">
                   ピーク通過/影響継続中
@@ -1145,7 +1152,7 @@ function CountdownLane({
                   <span className="text-4xl font-bold tracking-tighter text-white sm:text-5xl">
                     0
                   </span>
-                  <span className="text-base text-slate-500 sm:text-lg">日</span>
+                  <span className="text-base text-slate-500 sm:text-lg">{countdownUnit}</span>
                 </div>
                 <span className="text-sm font-semibold leading-5 text-slate-300 sm:text-base">
                   ピーク通過
@@ -1158,7 +1165,7 @@ function CountdownLane({
                   <span className="text-4xl font-bold tracking-tighter text-white sm:text-5xl">
                     0
                   </span>
-                  <span className="text-base text-slate-500 sm:text-lg">日</span>
+                  <span className="text-base text-slate-500 sm:text-lg">{countdownUnit}</span>
                 </div>
                 <span className="text-sm font-semibold leading-5 text-slate-300 sm:text-base">
                   影響下/現在離脱中
@@ -1168,9 +1175,9 @@ function CountdownLane({
               <>
                 <span className="text-base text-slate-500 sm:text-lg">{countdownPrefix}</span>
                 <span className="text-4xl font-bold tracking-tighter text-white sm:text-5xl">
-                  {displayedDays}
+                  {displayedCountdown}
                 </span>
-                <span className="text-base text-slate-500 sm:text-lg">日</span>
+                <span className="text-base text-slate-500 sm:text-lg">{countdownUnit}</span>
               </>
             )}
             {countdownSuffix ? (
@@ -1277,14 +1284,11 @@ function aspectFocusKey(value) {
   ].map((item) => String(item || "").trim().toUpperCase()).join("|");
 }
 
-function isTransitMoonCountdown(slide) {
+function isTransitMoonAspect(slide) {
   const target = slide?.target || {};
   const planet = String(target.T_Planet || slide?.t_planet || slide?.transit_planet || "").trim().toUpperCase();
   const transitPlanet = planet.replace(/^TRANSIT_/, "");
-  const natalPlanet = String(target.N_Planet || slide?.n_planet || slide?.natal_planet || "").trim().toUpperCase().replace(/^NATAL_/, "");
-  const angle = Number(target.Aspect_Angle || slide?.aspect_angle || slide?.angle);
-  const isNewOrFullMoon = transitPlanet === "MOON" && natalPlanet === "SUN" && (angle === 0 || angle === 180);
-  return transitPlanet === "MOON" && !isNewOrFullMoon;
+  return transitPlanet === "MOON";
 }
 
 function dateKeyToLocalDate(value) {
@@ -1321,6 +1325,30 @@ function countdownDaysUntil(slide, baseDateKey = "") {
   return Math.ceil((targetDate.getTime() - baseMidnight.getTime()) / 86400000);
 }
 
+function countdownHoursUntil(slide) {
+  const explicitHours = Number(
+    slide?.hours_remaining ??
+    slide?.hoursRemaining ??
+    slide?.hoursLeft ??
+    slide?.hours_left ??
+    slide?.scan?.hours_remaining
+  );
+  return Number.isFinite(explicitHours) ? explicitHours : null;
+}
+
+function countdownRemainingValue(slide, baseDateKey = "") {
+  const hours = countdownHoursUntil(slide);
+  if (isTransitMoonAspect(slide) && Number.isFinite(hours)) {
+    return { value: Math.max(0, Math.round(hours)), unit: "時間", sortHours: hours };
+  }
+  const days = countdownDaysUntil(slide, baseDateKey);
+  return {
+    value: Number.isFinite(days) ? days : null,
+    unit: "日",
+    sortHours: Number.isFinite(days) ? days * 24 : null,
+  };
+}
+
 function isPressureCountdown(slide) {
   if (!slide) return false;
   const mode = String(slide.countdown_mode || slide.countdownMode || "").trim().toLowerCase();
@@ -1341,7 +1369,7 @@ function pressureCountdownItems(data, groups, displayDate) {
     ...(Array.isArray(groups?.legacy_long) ? groups.legacy_long : []),
   ];
   const rawItems = (explicitItems.length ? explicitItems : fallbackItems).filter((item) => {
-    if (!item || isTransitMoonCountdown(item) || !isPressureCountdown(item)) return false;
+    if (!item || !isPressureCountdown(item)) return false;
     const daysUntil = countdownDaysUntil(item, displayDate);
     if (item.countdown_unavailable || item.countdownUnavailable || item.impact_end_is_after || item.impactEndIsAfter) return true;
     return daysUntil !== null && daysUntil >= 0 && daysUntil <= 365;
@@ -1353,9 +1381,9 @@ function pressureCountdownItems(data, groups, displayDate) {
     seen.add(key);
     return true;
   }).sort((left, right) => {
-    const leftDays = countdownDaysUntil(left, displayDate);
-    const rightDays = countdownDaysUntil(right, displayDate);
-    return (Number.isFinite(leftDays) ? leftDays : 9999) - (Number.isFinite(rightDays) ? rightDays : 9999);
+    const leftHours = countdownRemainingValue(left, displayDate).sortHours;
+    const rightHours = countdownRemainingValue(right, displayDate).sortHours;
+    return (Number.isFinite(leftHours) ? leftHours : 999999) - (Number.isFinite(rightHours) ? rightHours : 999999);
   });
 }
 
@@ -1370,7 +1398,7 @@ function reliefCountdownItems(data, groups, displayDate) {
     ...(Array.isArray(groups?.long) ? groups.long : []),
   ];
   const rawItems = (explicitItems.length ? explicitItems : fallbackItems).filter((item) => {
-    if (!item || isTransitMoonCountdown(item)) return false;
+    if (!item) return false;
     const target = item.target && typeof item.target === "object" ? item.target : item;
     const score = Number(target.Score_Impact ?? target.score_impact ?? target.scoreImpact);
     const daysUntil = countdownDaysUntil(item, displayDate);
@@ -1382,7 +1410,11 @@ function reliefCountdownItems(data, groups, displayDate) {
     if (seen.has(key)) return false;
     seen.add(key);
     return true;
-  }).sort((left, right) => countdownDaysUntil(left, displayDate) - countdownDaysUntil(right, displayDate));
+  }).sort((left, right) => {
+    const leftHours = countdownRemainingValue(left, displayDate).sortHours;
+    const rightHours = countdownRemainingValue(right, displayDate).sortHours;
+    return (Number.isFinite(leftHours) ? leftHours : 999999) - (Number.isFinite(rightHours) ? rightHours : 999999);
+  });
 }
 
 function weeklyAspectDateLabel(item) {
@@ -1562,21 +1594,21 @@ function LunarCountdownWidget({ data, items = [], groups = {}, developerMode = f
 
   const shortSlides =
     Array.isArray(groups?.short) && groups.short.length
-      ? groups.short.filter((slide) => !isTransitMoonCountdown(slide))
+      ? groups.short
       : Array.isArray(groups?.legacy_short) && groups.legacy_short.length
-        ? groups.legacy_short.filter((slide) => !isTransitMoonCountdown(slide))
-        : data && !isTransitMoonCountdown(data)
+        ? groups.legacy_short
+        : data
           ? [data]
           : Array.isArray(items) && items.length
-            ? items.filter((slide) => !isTransitMoonCountdown(slide)).slice(0, 1)
+            ? items.slice(0, 1)
             : [];
   const longSlides =
     groups?.long_by_priority && Array.isArray(groups.long_by_priority[longPriority])
-      ? groups.long_by_priority[longPriority].filter((slide) => !isTransitMoonCountdown(slide))
+      ? groups.long_by_priority[longPriority]
       : Array.isArray(groups?.long) && groups.long.length
-      ? groups.long.filter((slide) => !isTransitMoonCountdown(slide))
+      ? groups.long
       : Array.isArray(groups?.legacy_long) && groups.legacy_long.length
-        ? groups.legacy_long.filter((slide) => !isTransitMoonCountdown(slide))
+        ? groups.legacy_long
         : [];
 
   useEffect(() => {
@@ -2098,7 +2130,15 @@ function pressurePeriodLabel(slide, baseDateKey = "") {
   return startLabel && exitLabel ? `${startLabel}〜${exitLabel}頃` : "";
 }
 
-function PressureCountdownList({ items = [], baseDateKey = "", summary = null, emptyMessage = "強い負荷アスペクトはありません。" }) {
+function PressureCountdownList({
+  items = [],
+  baseDateKey = "",
+  summary = null,
+  emptyMessage = "強い負荷アスペクトはありません。",
+  countdownLabel = "抜けるまで",
+  showInfluencePeriod = true,
+  aspectFallbackLabel = "Pressure Aspect",
+}) {
   const visibleItems = Array.isArray(items) ? items : [];
   const summaryHeadline = String(summary?.headline || "").trim();
   const summaryGuidance = String(summary?.restGuidance || summary?.rest_guidance || "").trim();
@@ -2141,12 +2181,12 @@ function PressureCountdownList({ items = [], baseDateKey = "", summary = null, e
     <div className="mt-5 grid min-h-0 flex-1 gap-3 overflow-y-auto pr-2 [scrollbar-color:#e9c349_rgba(255,255,255,0.08)] [scrollbar-width:thin]">
       {summaryBlock}
       {visibleItems.map((item, index) => {
-        const days = countdownDaysUntil(item, baseDateKey);
+        const remaining = countdownRemainingValue(item, baseDateKey);
         const aspectLabel = item.aspect_label || "";
         const title = String(item.title || item.countdown_label || item.fallback_label || "").trim();
         const timelineAdvise = String(item.timelineAdvise || item.timeline_advise || item.target?.timeline_advise || "").trim();
         const orbValue = Number(item.current_orb ?? item.currentOrb ?? item.scan?.current_orb);
-        const periodLabel = pressurePeriodLabel(item, baseDateKey);
+        const periodLabel = showInfluencePeriod ? pressurePeriodLabel(item, baseDateKey) : "";
         return (
           <article key={`${countdownSlideKey(item)}-${index}`} className="relative rounded-lg border border-rose-200/15 bg-rose-950/15 p-3">
             <div className="pr-24">
@@ -2157,7 +2197,7 @@ function PressureCountdownList({ items = [], baseDateKey = "", summary = null, e
                   </p>
                 ) : null}
                 <p className="whitespace-nowrap text-[8px] font-black leading-4 tracking-[-0.01em] text-[#e9c349] sm:text-[9px]">
-                  {aspectLabel || "Pressure Aspect"}
+                  {aspectLabel || aspectFallbackLabel}
                   {Number.isFinite(orbValue) ? ` / orb ${orbValue.toFixed(2)}°` : ""}
                 </p>
                 {title ? (
@@ -2167,9 +2207,9 @@ function PressureCountdownList({ items = [], baseDateKey = "", summary = null, e
                 ) : null}
               </div>
               <div className="absolute right-3 top-3 text-right">
-                <p className="mt-1 text-[10px] font-bold text-[#909096]">抜けるまで</p>
+                <p className="mt-1 text-[10px] font-bold text-[#909096]">{countdownLabel}</p>
                 <p className="mt-1 font-mono text-xl font-black leading-none text-[#e9c349]">
-                  {Number.isFinite(days) ? `${days}日` : "-"}
+                  {Number.isFinite(remaining.value) ? `${remaining.value}${remaining.unit}` : "-"}
                 </p>
               </div>
             </div>
@@ -2307,7 +2347,17 @@ function DashboardV2DailyThemeCard({ data, displayDate = "", onDateShift = () =>
       {analysisMode === "lesson" ? timelineItems(positiveHighlights, "追い風に該当するアスペクトなし", "#38bdf8") : null}
       {analysisMode === "summary" ? timelineItems(negativeHighlights, "負荷・消耗注意に該当するアスペクトなし", "#fecdd3") : null}
       {analysisMode === "test1" ? <PressureCountdownList items={pressureItems} baseDateKey={activeDisplayDate} summary={pressureLoadSummary} /> : null}
-      {analysisMode === "relief" ? <PressureCountdownList items={reliefItems} baseDateKey={activeDisplayDate} summary={null} emptyMessage="Score Impact +25以上のアスペクトはありません。" /> : null}
+      {analysisMode === "relief" ? (
+        <PressureCountdownList
+          items={reliefItems}
+          baseDateKey={activeDisplayDate}
+          summary={null}
+          emptyMessage="Score Impact +25以上のアスペクトはありません。"
+          countdownLabel="届くまで"
+          showInfluencePeriod={false}
+          aspectFallbackLabel="Support Aspect"
+        />
+      ) : null}
     </DashboardV2Card>
   );
 }
@@ -2329,7 +2379,7 @@ function DashboardV2CountdownCard({ data, onSelectAspect = () => {} }) {
       ...(data.countdown ? [data.countdown] : []),
       ...(Array.isArray(data.countdown_items) ? data.countdown_items : []),
     ].filter((item) => {
-      if (!item || isTransitMoonCountdown(item)) return false;
+      if (!item) return false;
       const daysUntil = countdownDaysUntil(item, displayDate);
       return daysUntil !== null && daysUntil >= 0 && daysUntil <= 30;
     });
@@ -2353,6 +2403,7 @@ function DashboardV2CountdownCard({ data, onSelectAspect = () => {} }) {
   const visibleEventIndex = Math.min(activeEventIndex, Math.max(0, eventCount - 1));
   const slide = candidates[visibleEventIndex] || {};
   const days = countdownDaysUntil(slide, displayDate);
+  const remaining = countdownRemainingValue(slide, displayDate);
   const hasEvent = eventCount > 0;
   const slideFocusKey = aspectFocusKey(slide);
   const weeklyAspects = Array.isArray(data.weekly_aspects)
@@ -2422,7 +2473,9 @@ function DashboardV2CountdownCard({ data, onSelectAspect = () => {} }) {
                 <p className="mt-1 text-xs text-[#c7c6cc]">...Coming soon</p>
               )}
             </div>
-            <p className="font-mono text-xl font-black leading-none text-[#e9c349]">{hasEvent && Number.isFinite(days) ? `${days}日` : "-"}</p>
+            <p className="font-mono text-xl font-black leading-none text-[#e9c349]">
+              {hasEvent && Number.isFinite(remaining.value) ? `${remaining.value}${remaining.unit}` : "-"}
+            </p>
           </div>
         </div>
         <div className="mt-4 h-px bg-[#e9c349]/25" />

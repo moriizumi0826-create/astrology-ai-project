@@ -751,6 +751,69 @@ class ApiTestCase(unittest.TestCase):
         self.assertEqual(countdown["departure_days_remaining"], 9)
         self.assertEqual(countdown["scan"]["departure_day"], 9)
 
+    def test_lunar_countdown_arrival_scans_in_two_hour_steps(self):
+        row = {
+            "T_Planet": "TRANSIT_MOON",
+            "N_Planet": "NATAL_MERCURY",
+            "Aspect_Angle": 60,
+            "_input": {"natal_longitude": 100.0, "timezone_offset": 9},
+        }
+        with patch(
+            "backend.app.services.reading_service._aspect_orb_at",
+            side_effect=[(8.0, False), (6.0, False), (4.0, False)],
+        ):
+            scan = reading_service._scan_lunar_countdown_arrival(
+                row,
+                datetime(2026, 7, 17, 12),
+                total_days=14,
+                threshold_orb=5,
+            )
+
+        self.assertIsNotNone(scan)
+        self.assertEqual(scan["hours_remaining"], 4)
+        self.assertEqual(scan["days_remaining"], 1)
+        self.assertEqual(scan["scan_status"], "upcoming")
+
+    def test_lunar_countdown_departure_scans_in_two_hour_steps(self):
+        row = {
+            "T_Planet": "TRANSIT_MOON",
+            "N_Planet": "NATAL_MERCURY",
+            "Aspect_Angle": 90,
+            "_input": {"natal_longitude": 100.0, "timezone_offset": 9},
+        }
+        scan_start = datetime(2026, 7, 17, 12)
+
+        def orb_at(_planet, sample_dt, _timezone_offset, _natal_longitude, _exact_angle):
+            hours = int((sample_dt - scan_start).total_seconds() / 3600)
+            if hours <= -4 or hours >= 6:
+                return 6.0, False
+            return 2.0, False
+
+        with patch("backend.app.services.reading_service._aspect_orb_at", side_effect=orb_at):
+            scan = reading_service._scan_lunar_countdown_departure(
+                row,
+                scan_start,
+                total_days=14,
+                threshold_orb=5,
+            )
+
+        self.assertIsNotNone(scan)
+        self.assertEqual(scan["hours_remaining"], 6)
+        self.assertEqual(scan["departure_hour"], 6)
+        self.assertEqual(scan["scan_status"], "departing")
+
+    def test_countdown_targets_allow_non_solar_lunar_aspects(self):
+        row = {
+            "T_Planet": "TRANSIT_MOON",
+            "N_Planet": "NATAL_MERCURY",
+            "Aspect_Angle": 60,
+            "Score_Impact": 30,
+            "Priority": 7,
+            "_orb_status": "Applying",
+            "_input": {"orb": 2.0},
+        }
+        self.assertEqual(reading_service._select_countdown_targets([row]), [row])
+
     def test_dashboard_data_includes_weekly_aspects_for_countdown_one(self):
         def fake_aspect_inputs(_birth_input, current_dt=None):
             target_date = current_dt.date() if isinstance(current_dt, datetime) else current_dt
@@ -836,17 +899,24 @@ class ApiTestCase(unittest.TestCase):
                 current_dt=date(2026, 5, 2),
             )
 
-        self.assertEqual(len(dashboard["weekly_aspects"]), 1)
-        self.assertEqual(dashboard["weekly_aspects"][0]["date"], "2026-05-02")
-        self.assertEqual(dashboard["weekly_aspects"][0]["days_until"], 0)
-        self.assertEqual(dashboard["weekly_aspects"][0]["start_date"], "2026-05-02")
-        self.assertEqual(dashboard["weekly_aspects"][0]["end_date"], "2026-05-07")
-        self.assertEqual(dashboard["weekly_aspects"][0]["start_days_until"], 0)
-        self.assertEqual(dashboard["weekly_aspects"][0]["end_days_until"], 5)
-        self.assertEqual(len(dashboard["weekly_aspects"][0]["active_dates"]), 6)
-        self.assertEqual(dashboard["weekly_aspects"][0]["scoreImpact"], -24)
+        self.assertEqual(len(dashboard["weekly_aspects"]), 2)
+        mercury_item = next(
+            item for item in dashboard["weekly_aspects"] if item["target"]["T_Planet"] == "TRANSIT_MERCURY"
+        )
+        lunar_item = next(
+            item for item in dashboard["weekly_aspects"] if item["target"]["T_Planet"] == "TRANSIT_MOON"
+        )
+        self.assertEqual(mercury_item["date"], "2026-05-02")
+        self.assertEqual(mercury_item["days_until"], 0)
+        self.assertEqual(mercury_item["start_date"], "2026-05-02")
+        self.assertEqual(mercury_item["end_date"], "2026-05-07")
+        self.assertEqual(mercury_item["start_days_until"], 0)
+        self.assertEqual(mercury_item["end_days_until"], 5)
+        self.assertEqual(len(mercury_item["active_dates"]), 6)
+        self.assertEqual(mercury_item["scoreImpact"], -24)
+        self.assertEqual(lunar_item["target"]["N_Planet"], "NATAL_MERCURY")
+        self.assertEqual(lunar_item["scoreImpact"], -30)
         self.assertFalse(any(item["priority"] < 5 for item in dashboard["weekly_aspects"]))
-        self.assertTrue(all(item["target"]["N_Planet"] == "NATAL_MOON" for item in dashboard["weekly_aspects"]))
 
     def test_display_countdown_items_prefer_future_days_over_past_peak(self):
         items = [
