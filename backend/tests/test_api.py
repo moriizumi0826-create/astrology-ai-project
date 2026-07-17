@@ -520,6 +520,56 @@ class ApiTestCase(unittest.TestCase):
         self.assertEqual(pressure["contribution"], 11.34)
         self.assertEqual(support["contribution"], -1.51)
 
+    def test_daily_performance_uses_venus_and_selected_jupiter_venus_support(self):
+        negative_row = {
+            "T_Planet": "TRANSIT_MOON",
+            "N_Planet": "NATAL_MOON",
+            "Aspect_Angle": 90,
+            "Score_Impact": -40,
+            "_input": {"orb": 1.0},
+        }
+        venus_row = {
+            "T_Planet": "TRANSIT_VENUS",
+            "N_Planet": "NATAL_SUN",
+            "Aspect_Angle": 60,
+            "Score_Impact": 40,
+            "_input": {"orb": 1.0},
+        }
+        jupiter_venus_row = {
+            "T_Planet": "TRANSIT_JUPITER",
+            "N_Planet": "NATAL_VENUS",
+            "Aspect_Angle": 0,
+            "Score_Impact": 40,
+            "_input": {"orb": 1.0},
+        }
+        empty_environment = {
+            "totals": {key: 0.0 for key in ("drive", "flow", "inspiration", "friction", "mars")},
+            "breakdown": {key: [] for key in ("drive", "flow", "inspiration", "friction", "mars")},
+        }
+
+        with patch.object(reading_service, "_build_natal_planet_rows", return_value=[]), patch.object(
+            reading_service,
+            "_build_slot_interpretations",
+            return_value=[negative_row, venus_row, jupiter_venus_row],
+        ), patch.object(
+            reading_service,
+            "_daily_performance_environment_layer",
+            return_value=empty_environment,
+        ):
+            point = reading_service._build_daily_performance(
+                object(),
+                date(2026, 10, 1),
+                {"modifier": 0, "items": []},
+            )[0]
+
+        supports = [
+            item for item in point["breakdown"]["friction"] if item["note"] == "Fast planet support"
+        ]
+        self.assertEqual(
+            {(item["t_planet"], item["n_planet"]) for item in supports},
+            {("VENUS", "SUN"), ("JUPITER", "VENUS")},
+        )
+
     def test_countdown_data_loads_master_and_calculates_progress(self):
         countdown = build_countdown_data(
             {

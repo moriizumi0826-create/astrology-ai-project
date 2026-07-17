@@ -2322,7 +2322,8 @@ DAILY_PERFORMANCE_FRICTION_ANGLES = {90, 150, 180}
 DAILY_PERFORMANCE_DECISION_PLANETS = {"SUN", "MERCURY", "SATURN"}
 DAILY_PERFORMANCE_FLOW_PLANETS = {"MOON", "VENUS", "JUPITER"}
 DAILY_PERFORMANCE_NOISE_PLANETS = {"URANUS", "NEPTUNE", "PLUTO"}
-DAILY_PERFORMANCE_FAST_PLANETS = {"MOON", "MERCURY", "MARS"}
+DAILY_PERFORMANCE_FAST_PLANETS = {"MOON", "MERCURY", "MARS", "VENUS"}
+DAILY_PERFORMANCE_JUPITER_SUPPORT_NATAL_PLANETS = {"VENUS"}
 DAILY_PERFORMANCE_FAST_FRICTION_MULTIPLIER = 1.4
 DAILY_PERFORMANCE_FAST_SUPPORT_BUFFER_RATE = 0.15
 DAILY_PERFORMANCE_INSPIRATION_ANGLES = {0, 60, 120}
@@ -3469,6 +3470,17 @@ def _build_daily_performance(
                     fast_support += contribution
                     if contribution:
                         fast_support_rows.append((row, contribution))
+
+            if (
+                transit_planet == "JUPITER"
+                and _normalize_planet(row.get("N_Planet")) in DAILY_PERFORMANCE_JUPITER_SUPPORT_NATAL_PLANETS
+                and angle == 0
+                and impact > 0
+            ):
+                contribution = closeness * (1 + min(abs(impact), 80) / 80) * transit_weight
+                fast_support += contribution
+                if contribution:
+                    fast_support_rows.append((row, contribution))
 
             if transit_planet == "MARS":
                 mars_activity_contribution = max(0.0, 5.0 - current_orb) + abs(dignity)
