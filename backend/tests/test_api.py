@@ -929,6 +929,34 @@ class ApiTestCase(unittest.TestCase):
 
         self.assertEqual([item["title"] for item in selected], ["future peak", "today exact", "past peak"])
 
+    def test_next_stellar_event_calendar_is_separate_from_personal_countdowns(self):
+        calendar = [{
+            "event_id": "new_moon|2026-05-10T12:00:00",
+            "event_type": "new_moon",
+            "event_datetime": "2026-05-10T12:00:00",
+            "event_date": "2026-05-10",
+            "title": "新月",
+            "priority": 98,
+        }]
+        rows = [{
+            "T_Planet": "TRANSIT_SUN",
+            "N_Planet": "NATAL_SUN",
+            "Aspect_Angle": 0,
+            "Countdown_ID": "WORK_SUCCESS_JUPITER",
+            "Countdown_Label": "個人カウントダウン",
+            "Score_Impact": 60,
+            "Priority": 8,
+            "_orb_status": "Applying",
+            "_input": {"orb": 2.0},
+        }]
+
+        with patch.object(reading_service, "_build_celestial_event_calendar", return_value=calendar):
+            dashboard = build_dashboard_data_from_interpretations(rows, {"modifier": 0, "items": []})
+
+        self.assertEqual(dashboard["celestial_event_calendar"], calendar)
+        self.assertEqual(dashboard["countdown"]["title"], "個人カウントダウン")
+        self.assertNotEqual(dashboard["celestial_event_calendar"][0]["title"], dashboard["countdown"]["title"])
+
     def test_countdown_scan_distinguishes_retrograde_turning_away(self):
         with patch("backend.app.services.reading_service._aspect_orb_at") as orb_mock, patch(
             "backend.app.services.reading_service._retrograde_calendar_start_day",

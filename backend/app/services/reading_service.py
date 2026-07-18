@@ -136,6 +136,16 @@ PLANET_STATION_SPEED_THRESHOLDS = {
 }
 STATIONARY_LOOKAHEAD_DAYS = 3
 MOTION_CHANGE_LOOKAHEAD_DAYS = 800
+CELESTIAL_EVENT_HORIZON_DAYS = 30
+CELESTIAL_EVENT_ASPECT_ANGLES = (0, 90, 180)
+CELESTIAL_SIGN_LABELS = (
+    "牡羊座", "牡牛座", "双子座", "蟹座", "獅子座", "乙女座",
+    "天秤座", "蠍座", "射手座", "山羊座", "水瓶座", "魚座",
+)
+CELESTIAL_EVENT_PLANET_PRIORITY = {
+    "SUN": 10, "MOON": 4, "MERCURY": 6, "VENUS": 7, "MARS": 8,
+    "JUPITER": 9, "SATURN": 10, "URANUS": 10, "NEPTUNE": 10, "PLUTO": 10,
+}
 
 COUNTDOWN_SHORT_PLANETS = {"MOON", "SUN", "MERCURY", "VENUS", "MARS"}
 COUNTDOWN_LONG_PLANETS = {"JUPITER", "SATURN", "URANUS", "NEPTUNE", "PLUTO"}
@@ -3168,6 +3178,271 @@ def _dashboard_retrograde_calendar(current_dt: datetime | date | None) -> list[d
     return calendar
 
 
+def _celestial_event_start(current_dt: datetime | date | None) -> datetime:
+    if isinstance(current_dt, datetime):
+        return current_dt.replace(microsecond=0)
+    if isinstance(current_dt, date):
+        return datetime.combine(current_dt, dt_time.min)
+    return _app_now().replace(microsecond=0)
+
+
+def _signed_longitude_delta(start: float, end: float) -> float:
+    return ((end - start + 180.0) % 360.0) - 180.0
+
+
+def _crossing_targets(start_value: float, end_value: float, targets: list[float]) -> list[tuple[float, float]]:
+    low, high = sorted((start_value, end_value))
+    crossings: list[tuple[float, float]] = []
+    for target in targets:
+        first_cycle = int((low - target) // 360) - 1
+        last_cycle = int((high - target) // 360) + 1
+        for cycle in range(first_cycle, last_cycle + 1):
+            unwrapped_target = target + (cycle * 360)
+            if low < unwrapped_target <= high:
+                crossings.append((target % 360, unwrapped_target))
+    return crossings
+
+
+def _refine_planet_crossing(
+    planet: str,
+    start_dt: datetime,
+    end_dt: datetime,
+    start_unwrapped: float,
+    target_unwrapped: float,
+    timezone_offset: float,
+) -> datetime:
+    ascending = target_unwrapped > start_unwrapped
+    low_dt, high_dt = start_dt, end_dt
+    start_longitude, _ = _calc_transit_planet_motion(planet, start_dt, timezone_offset)
+    for _ in range(12):
+        mid_dt = low_dt + ((high_dt - low_dt) / 2)
+        longitude, _ = _calc_transit_planet_motion(planet, mid_dt, timezone_offset)
+        mid_unwrapped = start_unwrapped + _signed_longitude_delta(start_longitude, longitude)
+        if (mid_unwrapped < target_unwrapped) == ascending:
+            low_dt = mid_dt
+        else:
+            high_dt = mid_dt
+    return (low_dt + ((high_dt - low_dt) / 2)).replace(microsecond=0)
+
+
+def _refine_lunation_crossing(
+    start_dt: datetime,
+    end_dt: datetime,
+    start_unwrapped: float,
+    target_unwrapped: float,
+    timezone_offset: float,
+) -> datetime:
+    ascending = target_unwrapped > start_unwrapped
+    start_moon, _ = _calc_transit_planet_motion("MOON", start_dt, timezone_offset)
+    start_sun, _ = _calc_transit_planet_motion("SUN", start_dt, timezone_offset)
+    start_relative = (start_moon - start_sun) % 360
+    low_dt, high_dt = start_dt, end_dt
+    for _ in range(12):
+        mid_dt = low_dt + ((high_dt - low_dt) / 2)
+        moon, _ = _calc_transit_planet_motion("MOON", mid_dt, timezone_offset)
+        sun, _ = _calc_transit_planet_motion("SUN", mid_dt, timezone_offset)
+        relative = (moon - sun) % 360
+        mid_unwrapped = start_unwrapped + _signed_longitude_delta(start_relative, relative)
+        if (mid_unwrapped < target_unwrapped) == ascending:
+            low_dt = mid_dt
+        else:
+            high_dt = mid_dt
+    return (low_dt + ((high_dt - low_dt) / 2)).replace(microsecond=0)
+
+
+def _celestial_planet_samples(
+    start_dt: datetime,
+    end_dt: datetime,
+    timezone_offset: float,
+) -> dict[str, list[tuple[datetime, float, float, float]]]:
+    samples: dict[str, list[tuple[datetime, float, float, float]]] = {}
+    for planet in TRANSIT_PLANET_ORDER:
+        planet_samples: list[tuple[datetime, float, float, float]] = []
+        sample_dt = start_dt
+        previous_longitude: float | None = None
+        unwrapped = 0.0
+        step_hours = 6 if planet in {"SUN", "MOON"} else 12 if planet in {"MERCURY", "VENUS"} else 24
+        while sample_dt <= end_dt:
+            longitude, speed = _calc_transit_planet_motion(planet, sample_dt, timezone_offset)
+            if previous_longitude is None:
+                unwrapped = longitude
+            else:
+                unwrapped += _signed_longitude_delta(previous_longitude, longitude)
+            planet_samples.append((sample_dt, longitude, speed, unwrapped))
+            previous_longitude = longitude
+            sample_dt += timedelta(hours=step_hours)
+        if planet_samples[-1][0] < end_dt:
+            longitude, speed = _calc_transit_planet_motion(planet, end_dt, timezone_offset)
+            unwrapped += _signed_longitude_delta(previous_longitude or longitude, longitude)
+            planet_samples.append((end_dt, longitude, speed, unwrapped))
+        samples[planet] = planet_samples
+    return samples
+
+
+def _celestial_event_item(
+    *,
+    event_type: str,
+    event_dt: datetime,
+    start_dt: datetime,
+    title: str,
+    note: str,
+    priority: int,
+    classification: str = "neutral",
+    **details: Any,
+) -> dict[str, Any]:
+    hours_remaining = max(0.0, (event_dt - start_dt).total_seconds() / 3600)
+    return {
+        "event_id": "|".join([
+            event_type,
+            event_dt.isoformat(timespec="seconds"),
+            str(details.get("transit_planet") or details.get("planet") or ""),
+            str(details.get("natal_planet") or details.get("house") or details.get("sign") or ""),
+            str(details.get("aspect_angle") or ""),
+        ]),
+        "event_type": event_type,
+        "event_datetime": event_dt.isoformat(timespec="seconds"),
+        "event_date": event_dt.date().isoformat(),
+        "hours_remaining": round(hours_remaining, 2),
+        "days_remaining": int(ceil(hours_remaining / 24)),
+        "title": title,
+        "note": note,
+        "priority": priority,
+        "classification": classification,
+        **details,
+    }
+
+
+def _build_celestial_event_calendar(
+    birth_input: BirthInput | None,
+    current_dt: datetime | date | None,
+    horizon_days: int = CELESTIAL_EVENT_HORIZON_DAYS,
+) -> list[dict[str, Any]]:
+    """Build the independent source of truth used only by Next Stellar Event."""
+    if birth_input is None or swe is None or not hasattr(birth_input, "timezone_offset"):
+        return []
+    start_dt = _celestial_event_start(current_dt)
+    end_dt = start_dt + timedelta(days=max(1, horizon_days))
+    timezone_offset = birth_input.timezone_offset
+    samples = _celestial_planet_samples(start_dt, end_dt, timezone_offset)
+    events: list[dict[str, Any]] = []
+
+    chart_rows = build_chart_rows(birth_input)
+    supported_natal_points = set(TRANSIT_PLANET_ORDER) | {"ASC", "MC"}
+    natal_points = [
+        point for point in _build_natal_aspect_points(birth_input)
+        if point.get("planet") in supported_natal_points
+    ]
+    house_cusps = [] if birth_input.birth_time_unknown else [
+        (int(row[0]), float(row[1]))
+        for row in chart_rows.get("houses", [])
+        if len(row) >= 2 and _normalize_float(row[1]) is not None
+    ]
+
+    for planet, planet_samples in samples.items():
+        planet_label = _planet_label(planet)
+        planet_priority = CELESTIAL_EVENT_PLANET_PRIORITY.get(planet, 5)
+        for index in range(len(planet_samples) - 1):
+            left_dt, _left_longitude, _left_speed, left_unwrapped = planet_samples[index]
+            right_dt, _right_longitude, _right_speed, right_unwrapped = planet_samples[index + 1]
+
+            for sign_target, target_unwrapped in _crossing_targets(left_unwrapped, right_unwrapped, [float(value) for value in range(0, 360, 30)]):
+                event_dt = _refine_planet_crossing(planet, left_dt, right_dt, left_unwrapped, target_unwrapped, timezone_offset)
+                direction = 1 if right_unwrapped > left_unwrapped else -1
+                sign_index = int((sign_target / 30 + (0 if direction > 0 else -1)) % 12)
+                sign_label = CELESTIAL_SIGN_LABELS[sign_index]
+                events.append(_celestial_event_item(
+                    event_type="sign_ingress", event_dt=event_dt, start_dt=start_dt,
+                    title=f"{planet_label}が{sign_label}へ移動",
+                    note=f"{planet_label}のテーマが{sign_label}の領域へ切り替わります。",
+                    priority=70 + planet_priority, planet=planet, transit_planet=planet,
+                    sign=sign_label, direction="direct" if direction > 0 else "retrograde",
+                ))
+
+            for house, cusp in house_cusps:
+                for _target, target_unwrapped in _crossing_targets(left_unwrapped, right_unwrapped, [cusp]):
+                    event_dt = _refine_planet_crossing(planet, left_dt, right_dt, left_unwrapped, target_unwrapped, timezone_offset)
+                    entered_house = house if right_unwrapped > left_unwrapped else (12 if house == 1 else house - 1)
+                    events.append(_celestial_event_item(
+                        event_type="natal_house_ingress", event_dt=event_dt, start_dt=start_dt,
+                        title=f"{planet_label}がネイタル第{entered_house}ハウスへ移動",
+                        note=f"{planet_label}が個人天体図の第{entered_house}ハウスへ入り、焦点が切り替わります。",
+                        priority=60 + planet_priority, planet=planet, transit_planet=planet, house=entered_house,
+                    ))
+
+            for natal in natal_points:
+                natal_label = _planet_label(natal["planet"])
+                for angle in CELESTIAL_EVENT_ASPECT_ANGLES:
+                    targets = {(natal["longitude"] + angle) % 360, (natal["longitude"] - angle) % 360}
+                    for _target, target_unwrapped in _crossing_targets(left_unwrapped, right_unwrapped, list(targets)):
+                        event_dt = _refine_planet_crossing(planet, left_dt, right_dt, left_unwrapped, target_unwrapped, timezone_offset)
+                        classification = "caution" if angle == 90 else "major"
+                        note = (
+                            "負荷や摩擦が高まりやすい時期です。結果を断定せず、調整余地を確保してください。"
+                            if angle == 90 else
+                            f"トランジット{planet_label}とネイタル{natal_label}の主要アスペクトが正確になります。"
+                        )
+                        events.append(_celestial_event_item(
+                            event_type="transit_natal_aspect", event_dt=event_dt, start_dt=start_dt,
+                            title=f"{planet_label} × ネイタル{natal_label} {angle}°",
+                            note=note, priority=80 + planet_priority + (3 if angle == 0 else 2 if angle == 180 else 0),
+                            classification=classification, planet=planet, transit_planet=planet,
+                            natal_planet=natal["planet"], aspect_angle=angle,
+                        ))
+
+    sun_samples = samples["SUN"]
+    moon_samples = samples["MOON"]
+    relative_unwrapped = (moon_samples[0][1] - sun_samples[0][1]) % 360
+    relative_samples: list[tuple[datetime, float]] = [(start_dt, relative_unwrapped)]
+    previous_relative = relative_unwrapped
+    for index in range(1, min(len(sun_samples), len(moon_samples))):
+        relative = (moon_samples[index][1] - sun_samples[index][1]) % 360
+        relative_unwrapped += _signed_longitude_delta(previous_relative, relative)
+        relative_samples.append((moon_samples[index][0], relative_unwrapped))
+        previous_relative = relative
+    for index in range(len(relative_samples) - 1):
+        left_dt, left_value = relative_samples[index]
+        right_dt, right_value = relative_samples[index + 1]
+        for target, target_unwrapped in _crossing_targets(left_value, right_value, [0.0, 180.0]):
+            event_dt = _refine_lunation_crossing(
+                left_dt, right_dt, left_value, target_unwrapped, timezone_offset
+            )
+            is_new = target == 0
+            events.append(_celestial_event_item(
+                event_type="new_moon" if is_new else "full_moon", event_dt=event_dt, start_dt=start_dt,
+                title="新月" if is_new else "満月",
+                note="新しいサイクルの始まりです。意図を定めるタイミングです。" if is_new else "サイクルの到達点です。成果と手放すものを確認するタイミングです。",
+                priority=98 if is_new else 96, planet="MOON", transit_planet="MOON", classification="major",
+            ))
+
+    for row in _dashboard_retrograde_calendar(start_dt):
+        raw_datetime = row.get("event_datetime_jst") or row.get("event_date")
+        try:
+            event_dt = datetime.fromisoformat(str(raw_datetime))
+        except ValueError:
+            continue
+        if not (start_dt <= event_dt <= end_dt):
+            continue
+        is_retrograde = row.get("event_type") == "RETROGRADE_START"
+        planet = _normalize_planet(row.get("planet"))
+        planet_label = row.get("planet_label") or _planet_label(planet)
+        events.append(_celestial_event_item(
+            event_type="retrograde_start" if is_retrograde else "direct_start",
+            event_dt=event_dt, start_dt=start_dt,
+            title=f"{planet_label}{'逆行開始' if is_retrograde else '順行復帰'}",
+            note=f"{planet_label}が{'逆行を開始します。見直しと再調整の期間に入ります。' if is_retrograde else '順行へ戻り、停滞していたテーマが動き始めます。'}",
+            priority=94 if is_retrograde else 92, planet=planet, transit_planet=planet,
+            classification="caution" if is_retrograde else "major",
+        ))
+
+    unique_events: dict[str, dict[str, Any]] = {}
+    for event in events:
+        unique_events[event["event_id"]] = event
+    return sorted(
+        unique_events.values(),
+        key=lambda event: (event["event_date"], -event["priority"], event["event_datetime"], event["event_id"]),
+    )
+
+
 def _classify_orb_status(
     sample_local_dt: datetime,
     timezone_offset: float,
@@ -4080,6 +4355,7 @@ def build_dashboard_data_from_interpretations(
             "header": _dashboard_header(),
             "hero": hero,
             "countdown": None,
+            "celestial_event_calendar": _build_celestial_event_calendar(birth_input, current_dt),
             "relief_countdown_items": [],
             "diagnostic": diagnostic,
             "dailyPerformance": daily_performance,
@@ -4189,6 +4465,7 @@ def build_dashboard_data_from_interpretations(
     diagnostic_data = _build_diagnostic_data(interpretations, daily_vibe, countdown_data)
     daily_performance = _build_daily_performance(birth_input, current_dt, daily_vibe)
     weekly_aspects = _build_weekly_aspect_items(birth_input, current_dt)
+    celestial_event_calendar = _build_celestial_event_calendar(birth_input, current_dt)
     topics = _build_topics_from_interpretations(interpretations, final_score)
     hero = {
         "rank": _score_to_rank(final_score),
@@ -4204,6 +4481,7 @@ def build_dashboard_data_from_interpretations(
         "header": _dashboard_header(),
         "hero": hero,
         "countdown": countdown_data,
+        "celestial_event_calendar": celestial_event_calendar,
         "countdown_items": countdown_items,
         "relief_countdown_items": relief_countdown_items,
         "pressure_countdown_items": pressure_countdown_items,

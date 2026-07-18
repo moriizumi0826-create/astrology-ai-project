@@ -1263,6 +1263,7 @@ function CountdownLane({
 
 function countdownSlideKey(slide) {
   if (!slide) return "";
+  if (slide.event_id) return slide.event_id;
   const target = slide.target || {};
   return [
     slide.countdown_id || slide.trigger_id || "",
@@ -2364,21 +2365,9 @@ function DashboardV2DailyThemeCard({ data, displayDate = "", onDateShift = () =>
 
 function DashboardV2CountdownCard({ data, onSelectAspect = () => {} }) {
   const [activeEventIndex, setActiveEventIndex] = useState(0);
-  const groups = data.countdown_groups || {};
   const displayDate = dashboardDisplayDate(data);
   const candidates = React.useMemo(() => {
-    const longByPriorityItems = groups.long_by_priority && typeof groups.long_by_priority === "object"
-      ? Object.values(groups.long_by_priority).flatMap((items) => Array.isArray(items) ? items : [])
-      : [];
-    const rawItems = [
-      ...(Array.isArray(groups.short) ? groups.short : []),
-      ...(Array.isArray(groups.legacy_short) ? groups.legacy_short : []),
-      ...longByPriorityItems,
-      ...(Array.isArray(groups.long) ? groups.long : []),
-      ...(Array.isArray(groups.legacy_long) ? groups.legacy_long : []),
-      ...(data.countdown ? [data.countdown] : []),
-      ...(Array.isArray(data.countdown_items) ? data.countdown_items : []),
-    ].filter((item) => {
+    const rawItems = (Array.isArray(data.celestial_event_calendar) ? data.celestial_event_calendar : []).filter((item) => {
       if (!item) return false;
       const daysUntil = countdownDaysUntil(item, displayDate);
       return daysUntil !== null && daysUntil >= 0 && daysUntil <= 30;
@@ -2390,7 +2379,7 @@ function DashboardV2CountdownCard({ data, onSelectAspect = () => {} }) {
       seen.add(key);
       return true;
     });
-  }, [data, groups, displayDate]);
+  }, [data.celestial_event_calendar, displayDate]);
   const eventCount = candidates.length;
   const candidateKeys = candidates.map((item) => countdownSlideKey(item)).join("|");
   useEffect(() => {
@@ -2403,19 +2392,16 @@ function DashboardV2CountdownCard({ data, onSelectAspect = () => {} }) {
   const visibleEventIndex = Math.min(activeEventIndex, Math.max(0, eventCount - 1));
   const slide = candidates[visibleEventIndex] || {};
   const days = countdownDaysUntil(slide, displayDate);
-  const remaining = countdownRemainingValue(slide, displayDate);
+  const eventHours = Number(slide.hours_remaining);
+  const remaining = Number.isFinite(eventHours) && eventHours < 48
+    ? { value: Math.max(0, Math.round(eventHours)), unit: "時間" }
+    : countdownRemainingValue(slide, displayDate);
   const hasEvent = eventCount > 0;
-  const slideFocusKey = aspectFocusKey(slide);
-  const weeklyAspects = Array.isArray(data.weekly_aspects)
-    ? data.weekly_aspects
-    : Array.isArray(data.weeklyAspects)
-      ? data.weeklyAspects
-      : [];
   const hasLinkedWeeklyAspect = false;
   const title = hasEvent ? (slide.title || slide.countdown_label || "カウントダウン") : "30日以内のイベントはありません";
   const handleSelectEvent = () => {
     if (!hasEvent || !hasLinkedWeeklyAspect) return;
-    onSelectAspect(slideFocusKey);
+    onSelectAspect(aspectFocusKey(slide));
   };
   return (
     <DashboardV2Card className="h-[185px]" bodyClassName="p-5">
@@ -2480,7 +2466,7 @@ function DashboardV2CountdownCard({ data, onSelectAspect = () => {} }) {
         </div>
         <div className="mt-4 h-px bg-[#e9c349]/25" />
         <p className="mt-2 line-clamp-1 text-[11px] font-bold leading-5 text-[#e2e2e2]">
-          {hasEvent ? (slide.note || data.countdown?.note || "次の流れに備えて、いま整えるべき行動を絞り込みます。") : "直近30日以内に表示対象のステラーイベントはありません。"}
+          {hasEvent ? (slide.note || "次の天体イベントに備えます。") : "直近30日以内に表示対象のステラーイベントはありません。"}
         </p>
         <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-white/10">
           <div className="h-full rounded-full bg-[#e9c349]" style={{ width: hasEvent ? `${Math.max(8, Math.min(100, 100 - Math.max(0, Number(days) || 0) * 8))}%` : "0%" }} />
