@@ -565,7 +565,7 @@ function CountdownLane({
   const totalDays = Number(activeSlide.total_days ?? activeSlide.totalDays ?? 0);
   const hoursRemaining = countdownHoursUntil(activeSlide);
   const totalHours = Number(activeSlide.total_hours ?? activeSlide.totalHours ?? activeSlide.scan?.total_hours);
-  const usesHourCountdown = isTransitMoonAspect(activeSlide) && Number.isFinite(hoursRemaining);
+  const usesHourCountdown = isTransitMoonAspect(activeSlide) && Number.isFinite(hoursRemaining) && hoursRemaining < 24;
   const remainingAmount = usesHourCountdown ? hoursRemaining : daysRemaining;
   const totalAmount = usesHourCountdown && Number.isFinite(totalHours) ? totalHours : totalDays;
   const countdownUnit = usesHourCountdown ? "時間" : "日";
@@ -905,7 +905,10 @@ function countdownHoursUntil(slide) {
 function countdownRemainingValue(slide, baseDateKey = "") {
   const hours = countdownHoursUntil(slide);
   if (isTransitMoonAspect(slide) && Number.isFinite(hours)) {
-    return { value: Math.max(0, Math.round(hours)), unit: "時間", sortHours: hours };
+    if (hours < 24) {
+      return { value: Math.max(0, Math.round(hours)), unit: "時間", sortHours: hours };
+    }
+    return { value: Math.max(0, Math.ceil(hours / 24)), unit: "日", sortHours: hours };
   }
   const days = countdownDaysUntil(slide, baseDateKey);
   return {
@@ -1698,8 +1701,8 @@ function PressureCountdownList({
         const orbValue = Number(item.current_orb ?? item.currentOrb ?? item.scan?.current_orb);
         const periodLabel = showInfluencePeriod ? pressurePeriodLabel(item, baseDateKey) : "";
         return (
-          <article key={`${countdownSlideKey(item)}-${index}`} className="relative rounded-lg border border-rose-200/15 bg-rose-950/15 p-3">
-            <div className="pr-24">
+          <article key={`${countdownSlideKey(item)}-${index}`} className="rounded-lg border border-rose-200/15 bg-rose-950/15 p-3">
+            <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-3">
               <div className="min-w-0">
                 {periodLabel ? (
                   <p className="mb-1 inline-flex max-w-full items-center rounded border border-[#e9c349]/35 bg-[#e9c349]/10 px-2 py-1 text-[10px] font-bold leading-none text-[#e7d38b]">
@@ -1716,8 +1719,10 @@ function PressureCountdownList({
                   </h3>
                 ) : null}
               </div>
-              <div className="absolute right-3 top-3 text-right">
-                <p className="mt-1 text-[10px] font-bold text-[#909096]">{countdownLabel}</p>
+              <div className="shrink-0 text-right">
+                <p className="mt-1 text-[10px] font-bold text-[#909096]">
+                  {String(item.countdown_mode || item.countdownMode || "").toLowerCase() === "departure" ? "抜けるまで" : countdownLabel}
+                </p>
                 <p className="mt-1 font-mono text-xl font-black leading-none text-[#e9c349]">
                   {Number.isFinite(remaining.value) ? `${remaining.value}${remaining.unit}` : "-"}
                 </p>
@@ -1862,7 +1867,7 @@ function DashboardV2DailyThemeCard({ data, displayDate = "", onDateShift = () =>
           summary={null}
           emptyMessage="Score Impact +25以上のアスペクトはありません。"
           countdownLabel="届くまで"
-          showInfluencePeriod={false}
+          showInfluencePeriod
           aspectFallbackLabel="Support Aspect"
         />
       ) : null}
@@ -1937,10 +1942,7 @@ function DashboardV2CountdownCard({ data, onSelectAspect = () => {} }) {
   const visibleEventIndex = Math.min(activeEventIndex, Math.max(0, eventCount - 1));
   const slide = candidates[visibleEventIndex] || {};
   const days = countdownDaysUntil(slide, displayDate);
-  const eventHours = Number(slide.hours_remaining);
-  const remaining = Number.isFinite(eventHours) && eventHours < 48
-    ? { value: Math.max(0, Math.round(eventHours)), unit: "時間" }
-    : countdownRemainingValue(slide, displayDate);
+  const remaining = countdownRemainingValue(slide, displayDate);
   const hasEvent = eventCount > 0;
   const hasLinkedWeeklyAspect = false;
   const title = hasEvent ? (slide.title || slide.countdown_label || "カウントダウン") : "30日以内のイベントはありません";

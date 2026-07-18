@@ -1304,6 +1304,16 @@ def _countdown_score(item: dict[str, Any]) -> float:
     return _normalize_float(target.get("Score_Impact", target.get("score_impact", target.get("scoreImpact")))) or 0.0
 
 
+def _countdown_item_identity(item: dict[str, Any]) -> tuple[Any, ...]:
+    target = item.get("target") if isinstance(item.get("target"), dict) else item
+    return (
+        _safe_text(target, "Countdown_ID"),
+        _normalize_planet(target.get("T_Planet")),
+        _normalize_planet(target.get("N_Planet")),
+        _normalize_int(target.get("Aspect_Angle")),
+    )
+
+
 def _is_pressure_countdown_target(row: dict[str, Any], pressure_lookup: dict[tuple[Any, ...], float] | None = None) -> bool:
     transit_planet = _normalize_planet(row.get("T_Planet"))
     if transit_planet not in PRESSURE_COUNTDOWN_TRANSIT_PLANETS:
@@ -1653,6 +1663,13 @@ def _scan_lunar_countdown_arrival(
     total_hours = max(max(total_days, 1) * 24, arrival_hour, LUNAR_COUNTDOWN_STEP_HOURS)
     percent = ((total_hours - arrival_hour) / total_hours) * 100
     arrival_dt = scan_start + timedelta(hours=arrival_hour)
+    impact_end_dt: datetime | None = None
+    for hour in range(arrival_hour + LUNAR_COUNTDOWN_STEP_HOURS, horizon_hours + 1, LUNAR_COUNTDOWN_STEP_HOURS):
+        sample_dt = scan_start + timedelta(hours=hour)
+        orb, _ = _aspect_orb_at("MOON", sample_dt, timezone_offset, natal_longitude, exact_angle)
+        if orb > threshold_orb:
+            impact_end_dt = sample_dt
+            break
     return {
         "days_remaining": ceil(arrival_hour / 24),
         "hours_remaining": arrival_hour,
@@ -1666,6 +1683,8 @@ def _scan_lunar_countdown_arrival(
         "arrival_retrograde": arrival_retrograde,
         "impact_start_date": arrival_dt.date().isoformat(),
         "impact_start_datetime": arrival_dt.isoformat(),
+        "impact_end_date": impact_end_dt.date().isoformat() if impact_end_dt else None,
+        "impact_end_datetime": impact_end_dt.isoformat() if impact_end_dt else None,
     }
 
 
@@ -1759,6 +1778,7 @@ def _scan_countdown_ephemeris(
     retrograde_started_day: int | None = None
     previous_retrograde: bool | None = None
     current_orb: float | None = None
+    impact_start_day: int | None = None
 
     for day in range(scan_horizon_days + 1):
         sample_dt = scan_start + timedelta(days=day)
@@ -1771,6 +1791,8 @@ def _scan_countdown_ephemeris(
         )
         if day == 0:
             current_orb = orb
+        if impact_start_day is None and orb <= threshold_orb:
+            impact_start_day = day
         if previous_retrograde is False and is_retrograde:
             retrograde_started_day = day
         if orb < minimum_orb:
@@ -1831,6 +1853,20 @@ def _scan_countdown_ephemeris(
     else:
         scan_status = "closest"
     days_remaining = reached_exact_day if reached_exact_day is not None else minimum_day
+    impact_end_day: int | None = None
+    if impact_start_day is not None and impact_start_day > 0:
+        for day in range(impact_start_day + 1, scan_horizon_days + 1):
+            sample_dt = scan_start + timedelta(days=day)
+            orb, _ = _aspect_orb_at(
+                transit_planet,
+                sample_dt,
+                timezone_offset,
+                natal_longitude,
+                exact_angle,
+            )
+            if orb > threshold_orb:
+                impact_end_day = day
+                break
     total_progress_days = max(total_days, days_remaining, 1)
     clamped_days_remaining = _clamp(days_remaining, 0, total_progress_days)
     percent = ((total_progress_days - clamped_days_remaining) / total_progress_days) * 100
@@ -1842,6 +1878,8 @@ def _scan_countdown_ephemeris(
         "peak_day": minimum_day,
         "peak_orb": round(minimum_orb, 3),
         "current_orb": round(current_orb if current_orb is not None else minimum_orb, 3),
+        "impact_start_date": (scan_start + timedelta(days=impact_start_day)).date().isoformat() if impact_start_day is not None else None,
+        "impact_end_date": (scan_start + timedelta(days=impact_end_day)).date().isoformat() if impact_end_day is not None else None,
         "peak_retrograde": minimum_retrograde,
         "retrograde_started_day": retrograde_started_day,
         "calendar_retrograde_start_day": calendar_retrograde_start_day,
@@ -3919,6 +3957,19 @@ def build_dashboard_data_from_interpretations(
         [item for item in long_countdown_candidates if _countdown_score(item) >= 25],
         limit=3,
     )
+    relief_active_candidates = [
+        item
+        for item in (
+            build_countdown_data(target, current_dt=current_dt, countdown_mode="departure", scan_scope="year_bound")
+            for target in [*short_countdown_targets, *long_countdown_targets]
+            if _safe_number(target, "Score_Impact") >= 25
+        )
+        if item and item.get("scan_status") == "departing"
+    ]
+    relief_active_items = _select_display_countdown_items(
+        relief_active_candidates,
+        limit=len(relief_active_candidates),
+    )
     long_countdown_all_items = _select_display_countdown_items(
         long_countdown_candidates,
         limit=len(long_countdown_candidates),
@@ -3959,7 +4010,16 @@ def build_dashboard_data_from_interpretations(
     long_countdown_group = [*long_countdown_all_items, *long_negative_countdown_items]
     long_countdown_priority_groups = _countdown_priority_band_groups(long_countdown_group)
     positive_countdown_items = [*short_countdown_items, *long_countdown_items][:3]
-    relief_countdown_items = [*relief_short_countdown_items, *relief_long_countdown_items][:3]
+    relief_upcoming_items = [*relief_short_countdown_items, *relief_long_countdown_items]
+    active_relief_keys = {_countdown_item_identity(item) for item in relief_active_items}
+    relief_countdown_items = [
+        *relief_active_items,
+        *[
+            item
+            for item in relief_upcoming_items
+            if _countdown_item_identity(item) not in active_relief_keys
+        ][:3],
+    ]
     _attach_pressure_timeline_advise(relief_countdown_items, timeline_advise_lookup)
     countdown_items = positive_countdown_items
     countdown_data = (positive_countdown_items or [None])[0]

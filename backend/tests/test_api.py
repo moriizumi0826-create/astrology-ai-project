@@ -711,13 +711,18 @@ class ApiTestCase(unittest.TestCase):
             "Aspect_Angle": 60,
             "_input": {"natal_longitude": 100.0, "timezone_offset": 9},
         }
-        with patch(
-            "backend.app.services.reading_service._aspect_orb_at",
-            side_effect=[(8.0, False), (6.0, False), (4.0, False)],
-        ):
+        scan_start = datetime(2026, 7, 17, 12)
+
+        def orb_at(_planet, sample_dt, _timezone_offset, _natal_longitude, _exact_angle):
+            hours = int((sample_dt - scan_start).total_seconds() / 3600)
+            if hours < 4 or hours >= 10:
+                return (8.0 if hours == 0 else 6.0), False
+            return 4.0, False
+
+        with patch("backend.app.services.reading_service._aspect_orb_at", side_effect=orb_at):
             scan = reading_service._scan_lunar_countdown_arrival(
                 row,
-                datetime(2026, 7, 17, 12),
+                scan_start,
                 total_days=14,
                 threshold_orb=5,
             )
@@ -726,6 +731,8 @@ class ApiTestCase(unittest.TestCase):
         self.assertEqual(scan["hours_remaining"], 4)
         self.assertEqual(scan["days_remaining"], 1)
         self.assertEqual(scan["scan_status"], "upcoming")
+        self.assertEqual(scan["impact_start_datetime"], "2026-07-17T16:00:00")
+        self.assertEqual(scan["impact_end_datetime"], "2026-07-17T22:00:00")
 
     def test_lunar_countdown_departure_scans_in_two_hour_steps(self):
         row = {
@@ -1002,6 +1009,30 @@ class ApiTestCase(unittest.TestCase):
         self.assertEqual(scan["reapproach_day"], 3)
         calendar_start_mock.assert_called_once()
 
+    def test_countdown_arrival_includes_influence_period(self):
+        scan_start = datetime(2026, 5, 2)
+
+        def orb_at(_planet, sample_dt, _timezone_offset, _natal_longitude, _exact_angle):
+            day = (sample_dt.date() - scan_start.date()).days
+            return {0: 8.0, 1: 6.0, 2: 4.0, 3: 0.4, 4: 3.0}.get(day, 6.0), False
+
+        with patch("backend.app.services.reading_service._aspect_orb_at", side_effect=orb_at):
+            scan = reading_service._scan_countdown_ephemeris(
+                {
+                    "T_Planet": "TRANSIT_MERCURY",
+                    "N_Planet": "NATAL_SUN",
+                    "Aspect_Angle": 120,
+                    "_input": {"natal_longitude": 15.0, "timezone_offset": 9},
+                },
+                current_dt=scan_start,
+                total_days=7,
+                threshold_orb=5,
+            )
+
+        self.assertEqual(scan["days_remaining"], 3)
+        self.assertEqual(scan["impact_start_date"], "2026-05-04")
+        self.assertEqual(scan["impact_end_date"], "2026-05-07")
+
     def test_countdown_scan_treats_after_peak_retrograde_start_as_regular_turning_away(self):
         with patch("backend.app.services.reading_service._aspect_orb_at") as orb_mock, patch(
             "backend.app.services.reading_service._retrograde_calendar_start_day",
@@ -1234,6 +1265,14 @@ class ApiTestCase(unittest.TestCase):
                 ("TRANSIT_SATURN", "NATAL_MOON", 90),
                 ("TRANSIT_URANUS", "NATAL_MOON", 90),
             ],
+        )
+        self.assertEqual(dashboard["relief_countdown_items"], dashboard["countdown_groups"]["relief"])
+        self.assertEqual(len(dashboard["relief_countdown_items"]), 7)
+        self.assertTrue(
+            all(item["countdown_mode"] == "departure" for item in dashboard["relief_countdown_items"])
+        )
+        self.assertTrue(
+            all(item["target"]["Score_Impact"] >= 25 for item in dashboard["relief_countdown_items"])
         )
         self.assertEqual(len(dashboard["countdown_groups"]["long_by_priority"]["high"]), 2)
         self.assertEqual(len(dashboard["countdown_groups"]["long_by_priority"]["middle"]), 2)
