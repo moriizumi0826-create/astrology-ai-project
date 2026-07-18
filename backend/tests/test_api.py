@@ -77,15 +77,15 @@ class ApiTestCase(unittest.TestCase):
             orb_status="Applying",
         )
 
-        self.assertEqual(dashboard_data["hero"]["score"], 100)
-        self.assertEqual(dashboard_data["hero"]["rank"], "S")
-        self.assertTrue(dashboard_data["hero"]["summary"])
+        self.assertTrue(dashboard_data["dailyStarVibe"])
+        self.assertIn("positive", dashboard_data["aspectHighlights"])
         self.assertIn("countdown", dashboard_data)
         self.assertIn("dailyPerformance", dashboard_data)
         self.assertNotIn("timeline", dashboard_data)
-        self.assertTrue(dashboard_data["topics"][0]["description"])
-        self.assertIn("developerMeta", dashboard_data)
-        self.assertIn("personalReading", dashboard_data["developerMeta"])
+        self.assertNotIn("hero", dashboard_data)
+        self.assertNotIn("topics", dashboard_data)
+        self.assertNotIn("diagnostic", dashboard_data)
+        self.assertNotIn("developerMeta", dashboard_data)
 
     def test_quincunx_uses_master_text_instead_of_generic_fallback(self):
         row = get_aspect_interpretation(
@@ -140,50 +140,6 @@ class ApiTestCase(unittest.TestCase):
         self.assertEqual([row["Sign_ID"] for row in basic_rows], ["ARIES", "GEMINI", "CANCER"])
         self.assertTrue(all(row["Text_General"] for row in basic_rows))
 
-    def test_dashboard_hero_combines_basic_and_aspect_context(self):
-        basic = get_basic_interpretation(planet="SUN", sign="ARIES", house=1)
-        dashboard_data = build_dashboard_data_from_aspects(
-            aspects=[
-                {
-                    "t_planet": "SUN",
-                    "n_planet": "SUN",
-                    "angle": 0,
-                    "house": 1,
-                    "is_retrograde": False,
-                    "orb_status": "Applying",
-                }
-            ],
-            basic_interpretations=[basic],
-        )
-
-        hero = dashboard_data["hero"]
-        self.assertEqual(hero["title"], "\u8ffd\u3044\u98a8\u3092\u6700\u5927\u9650\u306b\u6d3b\u304b\u3059\u65e5")
-        self.assertTrue(hero["description"])
-        self.assertTrue(hero["guideline"])
-        self.assertEqual(hero["basic"]["planet"], "SUN")
-        self.assertTrue(hero["basicTexts"]["general"])
-        self.assertTrue(hero["basicTexts"]["love"])
-        self.assertTrue(hero["basicTexts"]["work"])
-        self.assertTrue(hero["basicTexts"]["human"])
-        self.assertTrue(hero["basicTexts"]["health"])
-        self.assertNotIn("本来は", hero["summary"])
-        self.assertEqual(hero["summary"], dashboard_data["aspect_interpretations"][0]["Text_Description"])
-
-    def test_hero_title_changes_by_rank(self):
-        expected = {
-            "S": "\u8ffd\u3044\u98a8\u3092\u6700\u5927\u9650\u306b\u6d3b\u304b\u3059\u65e5",
-            "A": "\u8ffd\u3044\u98a8\u3092\u3064\u304b\u3080\u65e5",
-            "B+": "\u6d41\u308c\u3092\u6574\u3048\u3066\u524d\u9032\u3059\u308b\u65e5",
-            "B": "\u6d41\u308c\u3092\u4fdd\u3061\u306a\u304c\u3089\u9032\u3080\u65e5",
-            "C": "\u8db3\u5143\u3092\u6574\u3048\u308b\u65e5",
-            "D": "\u614e\u91cd\u306b\u4f59\u767d\u3092\u5b88\u308b\u65e5",
-            "E": "\u7121\u7406\u3092\u305b\u305a\u56de\u5fa9\u3092\u512a\u5148\u3059\u308b\u65e5",
-        }
-
-        for rank, title in expected.items():
-            with self.subTest(rank=rank):
-                self.assertEqual(reading_service._rank_to_catchcopy(rank), title)
-
     def test_dashboard_data_integrates_multiple_aspects_and_daily_vibe_modifier(self):
         dashboard_data = build_dashboard_data_from_aspects(
             aspects=[
@@ -217,19 +173,14 @@ class ApiTestCase(unittest.TestCase):
 
         self.assertEqual(len(dashboard_data["aspect_interpretations"]), 3)
         self.assertEqual(dashboard_data["daily_vibe"]["modifier"], -20)
-        self.assertEqual(dashboard_data["hero"]["score"], 77)
-        self.assertIn("diagnostic", dashboard_data)
-        self.assertEqual(dashboard_data["diagnostic"]["score"], 53)
-        self.assertEqual(
-            [item["value"] for item in dashboard_data["diagnostic"]["items"]],
-            [27, 61, 39],
-        )
-        self.assertEqual(len(dashboard_data["diagnostic"]["items"]), 3)
+        self.assertTrue(dashboard_data["dailyStarVibe"])
+        self.assertIn("positive", dashboard_data["aspectHighlights"])
         self.assertNotEqual(dashboard_data["countdown"]["title"], dashboard_data["countdown"]["note"])
         self.assertTrue(dashboard_data["countdown"]["trigger_id"])
-        self.assertTrue(any(topic["title"] == "Work" for topic in dashboard_data["topics"]))
-        self.assertTrue(dashboard_data["developerMeta"]["diagnostic"]["sources"])
-        self.assertTrue(dashboard_data["developerMeta"]["countdown"]["sources"])
+        self.assertNotIn("hero", dashboard_data)
+        self.assertNotIn("topics", dashboard_data)
+        self.assertNotIn("diagnostic", dashboard_data)
+        self.assertNotIn("developerMeta", dashboard_data)
 
     def test_important_points_only_include_mars_at_exact_peak(self):
         base_rows = [
@@ -258,14 +209,14 @@ class ApiTestCase(unittest.TestCase):
         ]
 
         dashboard_data = build_dashboard_data_from_interpretations(base_rows, {"modifier": 0, "items": []})
-        positive_descriptions = [item["description"] for item in dashboard_data["hero"]["aspectHighlights"]["positive"]]
+        positive_descriptions = [item["description"] for item in dashboard_data["aspectHighlights"]["positive"]]
 
         self.assertEqual(positive_descriptions, ["venus text"])
 
         peak_rows = [dict(row) for row in base_rows]
         peak_rows[0]["_input"] = {"orb": 0.0}
         dashboard_data = build_dashboard_data_from_interpretations(peak_rows, {"modifier": 0, "items": []})
-        positive_descriptions = [item["description"] for item in dashboard_data["hero"]["aspectHighlights"]["positive"]]
+        positive_descriptions = [item["description"] for item in dashboard_data["aspectHighlights"]["positive"]]
 
         self.assertEqual(positive_descriptions, ["mars text", "venus text"])
 
@@ -307,7 +258,7 @@ class ApiTestCase(unittest.TestCase):
                 {"modifier": 0, "items": []},
                 current_dt=date(2026, 5, 20),
             )
-            positive_descriptions = [item["description"] for item in dashboard_data["hero"]["aspectHighlights"]["positive"]]
+            positive_descriptions = [item["description"] for item in dashboard_data["aspectHighlights"]["positive"]]
             self.assertEqual(positive_descriptions, ["mars peak day text", "venus text"])
 
             dashboard_data = build_dashboard_data_from_interpretations(
@@ -315,7 +266,7 @@ class ApiTestCase(unittest.TestCase):
                 {"modifier": 0, "items": []},
                 current_dt=date(2026, 5, 19),
             )
-            positive_descriptions = [item["description"] for item in dashboard_data["hero"]["aspectHighlights"]["positive"]]
+            positive_descriptions = [item["description"] for item in dashboard_data["aspectHighlights"]["positive"]]
             self.assertEqual(positive_descriptions, ["venus text"])
 
     def test_dashboard_data_is_json_serializable(self):
@@ -336,7 +287,9 @@ class ApiTestCase(unittest.TestCase):
         encoded = jsonable_encoder(dashboard_data)
 
         self.assertIsInstance(encoded, dict)
-        self.assertIn("hero", encoded)
+        self.assertIn("dailyStarVibe", encoded)
+        self.assertIn("aspectHighlights", encoded)
+        self.assertNotIn("hero", encoded)
 
     def test_daily_performance_exposes_action_advice(self):
         dashboard_data = build_dashboard_data_from_aspects(
@@ -957,6 +910,67 @@ class ApiTestCase(unittest.TestCase):
         self.assertEqual(dashboard["countdown"]["title"], "個人カウントダウン")
         self.assertNotEqual(dashboard["celestial_event_calendar"][0]["title"], dashboard["countdown"]["title"])
 
+    def test_celestial_event_genres_support_multiple_categories(self):
+        self.assertEqual(reading_service._celestial_event_genres("Money,Work"), ["money", "work"])
+        self.assertEqual(reading_service._celestial_event_genres("Love,Money"), ["love", "money"])
+        self.assertEqual(reading_service._celestial_event_genres("General"), ["general"])
+
+    def test_celestial_aspect_categories_apply_planet_pair_policy(self):
+        self.assertEqual(reading_service._celestial_aspect_category("General", "SUN", "VENUS"), "Love")
+        self.assertEqual(reading_service._celestial_aspect_category("Work", "VENUS", "SATURN"), "Love,Work")
+        self.assertEqual(reading_service._celestial_aspect_category("General", "JUPITER", "VENUS"), "Love,Money")
+        self.assertEqual(reading_service._celestial_aspect_category("Work", "VENUS", "JUPITER"), "Love,Money,Work")
+        self.assertEqual(reading_service._celestial_aspect_category("General", "MARS", "SATURN"), "General")
+
+    def test_celestial_house_categories_follow_personal_genre_policy(self):
+        self.assertEqual(reading_service._celestial_house_category(2), "Money,Work")
+        self.assertEqual(reading_service._celestial_house_category(8), "Love,Money")
+        self.assertEqual(reading_service._celestial_house_category(11), "Love")
+        self.assertEqual(reading_service._celestial_house_category(12), "General")
+
+    @unittest.skipIf(reading_service.swe is None, "swisseph is not installed")
+    def test_celestial_event_calendar_excludes_transit_moon_squares(self):
+        birth_input = BirthInput(
+            full_name="Calendar Test",
+            birth_date="1984-08-26",
+            birth_time="12:00",
+            birth_time_unknown=False,
+            birthplace="Tokyo",
+            latitude=35.6762,
+            longitude=139.6503,
+            timezone_offset=9,
+        )
+
+        events = reading_service._build_celestial_event_calendar(
+            birth_input,
+            current_dt=datetime(2026, 7, 18, 12, 0),
+        )
+
+        self.assertFalse(any(
+            event.get("event_type") == "transit_natal_aspect"
+            and event.get("transit_planet") == "MOON"
+            and event.get("aspect_angle") == 90
+            for event in events
+        ))
+        self.assertTrue(any(
+            event.get("event_type") == "transit_natal_aspect"
+            and event.get("aspect_angle") == 90
+            and event.get("transit_planet") != "MOON"
+            for event in events
+        ))
+        self.assertTrue(all(
+            isinstance(event.get("genres"), list)
+            and event["genres"]
+            and set(event["genres"]) <= {"love", "general", "money", "work"}
+            for event in events
+            if event.get("event_type") == "transit_natal_aspect"
+        ))
+        self.assertTrue(all(
+            event.get("genres") == reading_service._celestial_event_genres(event.get("category"))
+            for event in events
+            if event.get("event_type") == "natal_house_ingress"
+        ))
+
     def test_countdown_scan_distinguishes_retrograde_turning_away(self):
         with patch("backend.app.services.reading_service._aspect_orb_at") as orb_mock, patch(
             "backend.app.services.reading_service._retrograde_calendar_start_day",
@@ -1342,18 +1356,6 @@ class ApiTestCase(unittest.TestCase):
         self.assertLess(daily_vibe["raw_modifier"], -60)
         self.assertEqual(daily_vibe["modifier"], -60)
 
-    def test_hero_score_adds_baseline_to_average_aspect_score(self):
-        dashboard_data = build_dashboard_data_from_interpretations(
-            [
-                {"Score_Impact": -20, "Priority": 1, "Text_Description": "a"},
-                {"Score_Impact": 10, "Priority": 1, "Text_Description": "b"},
-            ],
-            {"modifier": 0, "raw_modifier": 0, "items": []},
-        )
-
-        self.assertEqual(dashboard_data["hero"]["score"], 40)
-        self.assertEqual(dashboard_data["hero"]["rank"], "D")
-
     def test_current_retrograde_planets_uses_transit_state(self):
         def fake_transit_state(planet, sample_local_dt, timezone_offset):
             return 0.0, planet in {"MERCURY", "SATURN"}
@@ -1433,12 +1435,14 @@ class ApiTestCase(unittest.TestCase):
     def test_dashboard_data_falls_back_to_calm_day_without_aspects(self):
         dashboard_data = build_dashboard_data_from_aspects(aspects=[])
 
-        self.assertEqual(dashboard_data["hero"]["score"], 50)
+        self.assertTrue(dashboard_data["dailyStarVibe"])
+        self.assertEqual(dashboard_data["aspectHighlights"], {"positive": [], "negative": []})
         self.assertEqual(dashboard_data["aspect_interpretations"], [])
         self.assertNotIn("timeline", dashboard_data)
         self.assertIn("dailyPerformance", dashboard_data)
-        self.assertEqual(dashboard_data["diagnostic"]["score"], 50)
-        self.assertTrue(dashboard_data["topics"])
+        self.assertNotIn("hero", dashboard_data)
+        self.assertNotIn("diagnostic", dashboard_data)
+        self.assertNotIn("topics", dashboard_data)
 
     def test_location_search_success(self):
         fake_match = LocationMatch(

@@ -2,17 +2,14 @@ import React, { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { currentTokyoDate, getStoredReadingForm, getStoredReadingResult, getStoredReadingResultAsync } from "./reading-storage.js";
 import {
-  BatteryMedium,
-  BriefcaseBusiness,
+  CalendarDays,
   ChevronDown,
   ChevronLeft,
   ChevronRight,
   ChevronUp,
   Clock3,
   Code2,
-  Gauge,
   Moon,
-  Shield,
   Sparkles,
   Settings,
   UserCircle2,
@@ -27,14 +24,10 @@ export const dashboardData = {
     },
     actions: ["履歴", "マイページ", "プラン確認"],
   },
-  hero: {
-    rank: "B+",
-    title: "慎重に余白を守る日",
-    guidance: "今いちばん優先したいことを一つ選び、そこへ集中するほど流れが整います。",
-    summary:
-      "本来は着実に土台を築けるあなたです。今日は周囲の刺激が強まりやすいため、最優先の一手へ意識を絞るほど安定します。",
-    description: "品質管理、分析、医療、教育など、一つずつ確実に進める作業と好相性です。",
-    guideline: "腹痛や神経過敏、過労に注意して、休息と水分補給を意識してください。",
+  dailyStarVibe: "",
+  aspectHighlights: {
+    positive: [],
+    negative: [],
   },
   planetMotion: [
     { planet: "MERCURY", label: "水星", status: "direct", motion_tooltip: "次の逆行開始日: 2026年6月30日 蟹座26度15分" },
@@ -57,69 +50,6 @@ export const dashboardData = {
     totalDays: 21,
     note:
       "無理に動くより、対話ログの整理と自分の本音の確認を優先するほど、次の追い風を活かしやすくなります。",
-  },
-  diagnostic: {
-    score: 74,
-    statusLabel: "調整優先",
-    summary:
-      "流れは維持できていますが、優先順位を絞るほど精度が上がります。到達目安はあと12日です。",
-    primaryFactor: {
-      title: "恋愛運・追い風モード突入まで",
-      impact: -12,
-      advisedTask: "過去のやり取りを整理し、今いちばん必要な一歩へ集中する",
-    },
-    items: [
-      {
-        label: "意思決定の整合性",
-        value: 82,
-        description: "仕事運と日運の効率補正から、判断軸のブレにくさを算出しています。",
-      },
-      {
-        label: "感情と行動の同期",
-        value: 68,
-        description: "月や愛情・健康テーマのアスペクトから、内面と行動の噛み合いを見ています。",
-      },
-      {
-        label: "外部ノイズ耐性",
-        value: 74,
-        description: "負荷の強いアスペクトと安全度補正から、外圧への耐性を可視化しています。",
-      },
-    ],
-  },
-  topics: [
-    {
-      title: "仕事優位性",
-      icon: BriefcaseBusiness,
-      value: "74%",
-      caption: "オペレーション安定度",
-      tone: "gold",
-      body:
-        "分析や実務の精度を上げる作業に追い風があります。段取りを細かく刻むほど成果へつながりやすい日です。",
-    },
-    {
-      title: "対人バリア",
-      icon: Shield,
-      value: "60%",
-      caption: "バリア強度",
-      tone: "navy",
-      body:
-        "強い干渉は避けたい日です。必要な対話だけを選び、余計な摩擦を減らすほど安定します。",
-    },
-    {
-      title: "回復エネルギー",
-      icon: BatteryMedium,
-      value: "40%",
-      caption: "エネルギー残量",
-      tone: "signal",
-      body:
-        "消耗が出やすいので、頑張りすぎる前に休憩を入れる設計が有効です。",
-    },
-  ],
-  developerMeta: {
-    personalReading: { logic: "", sources: [] },
-    diagnostic: { logic: "", sources: [] },
-    countdown: { logic: "", sources: [] },
-    topics: { logic: "", sources: [] },
   },
 };
 function cx(...values) {
@@ -191,188 +121,6 @@ function DeveloperBlock({ title = "開発者用", meta, className = "" }) {
     </div>
   );
 }
-
-function PersonalReadingDeveloperBlock({ data, meta, className = "" }) {
-  if (!meta) return null;
-
-  const sources = Array.isArray(meta.sources) ? meta.sources : [];
-  const aspectSource = sources.find((source) =>
-    Array.isArray(source.columns) && source.columns.includes("Aspect_Logic_ID")
-  );
-  const basicSource = sources.find((source) =>
-    Array.isArray(source.columns) && source.columns.includes("Planet_ID")
-  );
-  const aspectDescription = String(data?.summary || "").trim();
-
-  const textEntries = [
-      {
-        label: "タイトル",
-        text: data?.title,
-        note: "Hero スコアからランクを判定し、そのランクに対応する定型キャッチコピーをバックエンドで生成しています。ランク判定は S: 90以上、A: 80以上、B+: 70以上、B: 60以上、C: 45以上、D: 30以上、E: 29以下です。",
-        columns: ["Score_Impact", "Work_Efficiency_Modifier", "rank"],
-        source: null,
-        generatedLabel: "生成ロジック",
-        generatedDetail: "CSV直参照ではなく、backend/app/services/reading_service.py の _score_to_rank と _rank_to_catchcopy で生成しています。S、A、B+、B、C、D、E それぞれに別のキャッチコピーを割り当てています。",
-      },
-    {
-      label: "強調バッジ",
-      text: data?.description,
-      note: "ネイタル基本解釈から、今日いちばん強いカテゴリに応じて Text_Work または Text_Love を採用し、無い場合は Text_General にフォールバックします。",
-      columns: ["Text_Work", "Text_Love", "Text_General"],
-      source: basicSource,
-    },
-    {
-      label: "行動ガイダンス",
-      text: data?.guidance,
-      note: "最優先アスペクト行の Advised_Task をそのまま表示しています。",
-      columns: ["Advised_Task"],
-      source: aspectSource,
-    },
-    {
-      label: "Text_Description",
-      text: aspectDescription,
-      note: "最優先アスペクト行の Text_Description を省略せず、そのまま全文表示しています。",
-        columns: ["Text_Description", "Advised_Task"],
-        source: aspectSource,
-    },
-    {
-      label: "処方箋",
-      text: data?.guideline,
-      note: "ネイタル基本解釈の Text_Health をそのまま使っています。",
-      columns: ["Text_Health"],
-      source: basicSource,
-    },
-  ].filter((entry) => entry.text);
-
-  return (
-    <div className={cx("mt-5 rounded-3xl border border-dashed border-[#D4AF37]/35 bg-[#fffaf0] p-4", className)}>
-      <div className="mb-3 flex items-center gap-2 text-[#0A192F]">
-        <Code2 size={16} className="text-[#D4AF37]" />
-        <p className="text-sm font-bold">PersonalReading の根拠</p>
-      </div>
-      {meta.logic ? <p className="mb-3 text-sm leading-6 text-slate-700">{meta.logic}</p> : null}
-      <div className="mb-4 space-y-2">
-        {textEntries.map((entry, index) => (
-          <div key={`${entry.label}-${index}`} className="rounded-2xl border border-[#D4AF37]/20 bg-white/70 px-3 py-3">
-            <p className="text-xs font-semibold text-[#0A192F]">{entry.label}</p>
-            <p className="mt-1 text-[11px] leading-5 text-slate-500">{entry.note}</p>
-              {entry.source ? (
-                <>
-                  <p className="mt-2 text-[11px] font-semibold text-slate-700">出典情報</p>
-                  <p className="mt-2 text-[11px] font-semibold text-[#0A192F]">
-                    {entry.source.csv || "CSV不明"}
-                    {entry.source.row ? ` / 行 ${entry.source.row}` : ""}
-                  {entry.source.key ? ` / ${entry.source.key}` : ""}
-                </p>
-                  <p className="mt-1 text-[11px] leading-5 text-slate-600">
-                    参照列: {entry.columns.join(", ")}
-                  </p>
-                  {entry.generatedDetail ? (
-                    <>
-                      <p className="mt-2 text-[11px] font-semibold text-slate-700">{entry.generatedLabel || "生成テンプレート"}</p>
-                      <p className="mt-1 text-[11px] leading-5 text-slate-600">{entry.generatedDetail}</p>
-                    </>
-                  ) : null}
-                </>
-              ) : (
-                <>
-                  <p className="mt-2 text-[11px] font-semibold text-slate-700">{entry.generatedLabel || "生成ロジック"}</p>
-                  <p className="mt-1 text-[11px] leading-5 text-slate-600">
-                    {entry.generatedDetail || "CSV直参照ではなく、backend/app/services/reading_service.py などのロジックで生成しています。"}
-                  </p>
-                </>
-              )}
-              <p className="mt-2 text-[11px] font-semibold text-slate-700">表示中の文</p>
-              <p className="mt-1 rounded-xl bg-slate-50 px-3 py-2 text-[11px] leading-5 text-slate-700">{entry.text}</p>
-            </div>
-          ))}
-        </div>
-      <DeveloperSourceList sources={sources} />
-    </div>
-  );
-}
-
-function Hero({ data }) {
-  return (
-    <Panel title="ユーザーステータス" eyebrow="Today Overview" className="overflow-hidden">
-      <div className="grid gap-6 lg:grid-cols-[1.2fr_0.8fr]">
-        <div className="space-y-5">
-          <div className="inline-flex items-center gap-3 rounded-full border border-[#D4AF37]/35 bg-[#D4AF37]/10 px-4 py-2">
-            <span className="rounded-full bg-[#D4AF37] px-3 py-1 text-xs font-bold uppercase tracking-[0.2em] text-[#0A192F]">
-              {data.title}
-            </span>
-            <span className="text-lg font-extrabold text-[#0A192F]">{data.rank}</span>
-          </div>
-          <div className="space-y-3">
-            <p className="text-xl font-bold leading-relaxed text-[#0A192F] md:text-2xl">
-              {data.guidance}
-            </p>
-            <p className="max-w-3xl text-sm leading-7 text-slate-600 md:text-base">{data.summary}</p>
-          </div>
-        </div>
-
-        <div className="rounded-3xl border border-[#0A192F]/10 bg-[#0A192F] p-5 text-white">
-          <div className="mb-4 flex items-center gap-3">
-            <div className="rounded-2xl bg-white/10 p-3 text-[#D4AF37]">
-              <Gauge size={20} />
-            </div>
-            <div className="flex items-start justify-between gap-3">
-              <p className="text-sm font-semibold uppercase tracking-[0.18em] text-white/60">
-                Diagnostic
-              </p>
-              <p className="text-lg font-bold">ロジック安定指標</p>
-            </div>
-          </div>
-          <div className="space-y-4">
-            {[
-              ["諢乗晄ｱｺ螳壹・謨ｴ蜷域ｧ", "88%"],
-              ["諢滓ュ縺ｨ陦悟虚縺ｮ蜷梧悄", "63%"],
-              ["螟夜Κ繝弱う繧ｺ閠先ｧ", "71%"],
-            ].map(([label, value]) => (
-              <div key={label} className="space-y-2">
-                <div className="flex items-center justify-between text-sm">
-                  <span className="text-white/72">{label}</span>
-                  <span className="font-bold text-[#D4AF37]">{value}</span>
-                </div>
-                <div className="h-2 rounded-full bg-white/10">
-                  <div
-                    className="h-2 rounded-full bg-gradient-to-r from-[#D4AF37] to-[#f2da8a]"
-                    style={{ width: value }}
-                  />
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-    </Panel>
-  );
-}
-
-const MOTION_STATUS_STYLES = {
-  direct: {
-    dot: "bg-sky-400 shadow-[0_0_12px_rgba(56,189,248,0.65)]",
-    label: "順行中",
-  },
-  stationary: {
-    dot: "bg-yellow-300 shadow-[0_0_12px_rgba(253,224,71,0.7)]",
-    label: "留/停止中",
-  },
-  retrograde: {
-    dot: "bg-rose-500 shadow-[0_0_12px_rgba(244,63,94,0.7)]",
-    label: "逆行中",
-  },
-};
-const MOTION_PLANET_SORT_ORDER = [
-  "MERCURY",
-  "VENUS",
-  "MARS",
-  "JUPITER",
-  "SATURN",
-  "URANUS",
-  "NEPTUNE",
-  "PLUTO",
-];
 
 function MotionDot({ status }) {
   const style = MOTION_STATUS_STYLES[status] || MOTION_STATUS_STYLES.direct;
@@ -742,189 +490,6 @@ function PersonalAspectHighlights({ positive = [], negative = [] }) {
   );
 }
 
-function TypographicHero({
-  data,
-  diagnosticData,
-  planetMotion = [],
-  retrogradeCalendar = [],
-  displayDate = "",
-  developerMode = false,
-  developerMeta = {},
-  showDiagnostic = true,
-}) {
-  const [personalReadingTab, setPersonalReadingTab] = useState("daily");
-  const rank = data.rank || "B";
-  const rankStyles = {
-    S: "text-amber-300 drop-shadow-[0_0_18px_rgba(251,191,36,0.42)]",
-    "S+": "text-amber-300 drop-shadow-[0_0_18px_rgba(251,191,36,0.42)]",
-    A: "text-amber-400 drop-shadow-[0_0_14px_rgba(251,191,36,0.32)]",
-    "A+": "text-amber-400 drop-shadow-[0_0_14px_rgba(251,191,36,0.32)]",
-    B: "text-[#D4AF37]",
-    "B+": "text-[#D4AF37]",
-    C: "text-slate-300",
-    D: "text-slate-400",
-  };
-  const rankClass = rankStyles[rank] || rankStyles[rank.slice(0, 1)] || "text-[#D4AF37]";
-  const personalBody = String(data.summary || "").trim();
-  const dailyStarVibe = String(data.dailyStarVibe || data.daily_star_vibe || "").trim();
-  const aspectHighlights = data.aspectHighlights || data.aspect_highlights || {};
-  const positiveHighlights = Array.isArray(aspectHighlights.positive) ? aspectHighlights.positive.slice(0, 2) : [];
-  const negativeHighlights = Array.isArray(aspectHighlights.negative) ? aspectHighlights.negative.slice(0, 2) : [];
-  const hasAspectHighlights = positiveHighlights.length > 0 || negativeHighlights.length > 0;
-    const diagnostic = diagnosticData || data.diagnostic || dashboardData.diagnostic;
-    const diagnosticItems =
-      Array.isArray(diagnostic?.items) && diagnostic.items.length
-        ? diagnostic.items
-        : dashboardData.diagnostic.items;
-    const diagnosticEntries = Array.isArray(developerMeta?.diagnostic?.entries)
-      ? developerMeta.diagnostic.entries
-      : [];
-
-  return (
-      <Panel
-        title="ユーザーステータス"
-        eyebrow="Today Overview"
-        bare
-        className="w-full max-w-full overflow-hidden"
-        headerClassName="border-0 bg-transparent px-5 py-0 md:px-6"
-        headerRowClassName="flex-row items-baseline gap-4"
-        headerAction={displayDate ? (
-          <span className="text-sm font-bold tabular-nums tracking-[0.08em] text-slate-500">
-            {displayDate}
-          </span>
-        ) : null}
-        bodyClassName="px-0 py-4 md:px-0 md:py-5"
-      >
-        <div className={cx(
-          "grid w-full min-w-0 max-w-full gap-4 sm:gap-6",
-          showDiagnostic ? "lg:grid-cols-[1.2fr_0.8fr]" : ""
-        )}>
-          <div className="min-w-0 space-y-5">
-            <div className="min-w-0 overflow-hidden rounded-none border border-[#D4AF37]/20 bg-[#050A17]/70 px-0 py-4 shadow-[0_24px_80px_rgba(3,7,18,0.45)] sm:p-6">
-            <div className="mb-5 flex flex-wrap items-center justify-between gap-3 px-4 sm:px-0">
-              <div className="inline-flex max-w-full items-center gap-2 rounded-full border border-[#D4AF37]/30 bg-[#D4AF37]/10 px-3 py-1 text-[10px] font-bold uppercase tracking-[0.18em] text-[#D4AF37] sm:text-[11px] sm:tracking-[0.24em]">
-                <Sparkles size={14} />
-                <span className="truncate">今日はどんな日？</span>
-              </div>
-              <span className={cx("text-4xl font-black tracking-[-0.08em] sm:text-5xl", rankClass)}>
-                {rank}
-              </span>
-            </div>
-
-            <h2 className={cx("break-words px-4 text-2xl font-black leading-tight tracking-[-0.04em] sm:px-0 sm:text-5xl", rankClass)}>
-              {data.title}
-            </h2>
-
-            <div className="mt-5 grid grid-cols-2 gap-1 rounded-2xl border border-white/10 bg-white/[0.04] p-1 text-[11px] font-bold text-slate-400 sm:gap-2 sm:text-xs">
-              {[
-                ["daily", "本日の星模様"],
-                    ["personal", "本日の重要ポイント"],
-              ].map(([value, label]) => (
-                <button
-                  key={value}
-                  type="button"
-                  onClick={() => setPersonalReadingTab(value)}
-                  className={cx(
-                    "min-w-0 rounded-xl px-1 py-2 transition sm:px-3",
-                    personalReadingTab === value
-                      ? "bg-[#D4AF37] text-[#050A17]"
-                      : "hover:bg-white/10 hover:text-slate-100"
-                  )}
-                >
-                  <span className="block truncate">{label}</span>
-                </button>
-              ))}
-            </div>
-
-            {personalReadingTab === "daily" ? (
-              <div className="mt-4 min-h-[4.5rem] rounded-2xl border border-white/10 bg-slate-950/35 px-4 py-4 text-sm font-semibold leading-7 text-slate-400">
-                {dailyStarVibe}
-              </div>
-            ) : hasAspectHighlights ? (
-              <PersonalAspectHighlights positive={positiveHighlights} negative={negativeHighlights} />
-            ) : personalBody && (
-              <div className="mt-6 border-l border-[#D4AF37]/25 pl-4 sm:pl-5">
-                <p className="break-words text-sm font-light leading-7 text-slate-300 sm:text-base sm:leading-8">
-                  {personalBody}
-                </p>
-              </div>
-            )}
-                {developerMode ? (
-                 <PersonalReadingDeveloperBlock data={data} meta={developerMeta.personalReading} className="bg-white/95" />
-                ) : null}
-              </div>
-            </div>
-
-        {showDiagnostic ? (
-        <div className="min-w-0 space-y-4">
-        <div className="min-w-0 overflow-hidden rounded-none border border-white/10 bg-gradient-to-br from-white/[0.08] to-white/[0.02] p-4 sm:p-6">
-          <div className="mb-5 flex items-start gap-3 sm:items-center">
-            <div className="shrink-0 rounded-2xl bg-[#D4AF37]/15 p-3 text-[#D4AF37]">
-              <Gauge size={24} />
-            </div>
-            <div className="min-w-0">
-              <p className="text-sm font-bold text-slate-100">Diagnostic</p>
-              <p className="break-words text-xs leading-5 text-slate-500">ロジック安定指標</p>
-            </div>
-          </div>
-
-            <div className="mb-4 rounded-2xl border border-white/10 bg-white/[0.04] p-3">
-              <div className="mb-1 flex items-center justify-between gap-3">
-                <span className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">
-                  {diagnostic?.statusLabel || "Diagnostic"}
-                </span>
-              <span className="text-lg font-black text-amber-300">{Number(diagnostic?.score ?? 0)}%</span>
-            </div>
-            {diagnostic?.summary && <p className="text-xs leading-5 text-slate-400">{diagnostic.summary}</p>}
-              {diagnostic?.primaryFactor?.title && (
-                <p className="mt-2 text-xs leading-5 text-slate-300">主要因: {diagnostic.primaryFactor.title}</p>
-              )}
-            </div>
-            {developerMode ? (
-              <DeveloperBlock
-                title="総合判定の根拠"
-                meta={developerMeta.diagnostic}
-                className="mb-4 mt-0 bg-white"
-              />
-            ) : null}
-
-            {diagnosticItems.map((item) => (
-              <div
-                key={item.label}
-                className="group relative mb-4 min-w-0"
-                tabIndex={item.description ? 0 : undefined}
-              >
-                <div className="mb-2 flex flex-col gap-1 text-xs text-slate-400 sm:flex-row sm:items-center sm:justify-between">
-                  <span className="break-words pr-2 leading-5">{item.label}</span>
-                  <span className="shrink-0 font-semibold text-slate-300">{Number(item.value || 0)}%</span>
-              </div>
-              <div className="h-2 overflow-hidden rounded-full bg-slate-800">
-                <div
-                  className="h-full rounded-full bg-gradient-to-r from-[#D4AF37] to-amber-200"
-                  style={{ width: `${Number(item.value || 0)}%` }}
-                />
-              </div>
-                {item.description && (
-                  <div className="pointer-events-none absolute left-0 top-full z-40 mt-2 max-w-[280px] rounded-xl border border-white/10 bg-slate-950 px-3 py-2 text-[11px] font-medium leading-5 text-slate-200 opacity-0 shadow-xl transition-opacity duration-150 group-hover:opacity-100 group-focus:opacity-100">
-                    {item.description}
-                  </div>
-                )}
-                {developerMode ? (
-                  <DeveloperBlock
-                    title={`${item.label} の根拠`}
-                    meta={diagnosticEntries.find((entry) => entry.label === item.label)}
-                    className="mt-3 bg-white"
-                  />
-                ) : null}
-              </div>
-            ))}
-          </div>
-        </div>
-        ) : null}
-        </div>
-      </Panel>
-  );
-}
 function CountdownDirectionArrow({ percent, direction = 'approach' }) {
   const isDeparting = direction === 'departing';
   const points = isDeparting ? '20 4 4 12 20 20' : '4 4 20 12 4 20';
@@ -1695,60 +1260,6 @@ function LunarCountdownWidget({ data, items = [], groups = {}, developerMode = f
     </div>
   );
 }
-function TopicGrid({ data, developerMode = false, developerMeta = {} }) {
-  const palette = {
-    gold: "bg-[#D4AF37]/14 text-[#D4AF37] border-[#D4AF37]/30",
-    navy: "bg-[#0A192F]/8 text-[#0A192F] border-[#0A192F]/15",
-    signal: "bg-[#8FB8D8]/16 text-[#31577A] border-[#8FB8D8]/35",
-  };
-
-  return (
-    <section className="rounded-3xl border border-slate-200/90 bg-white/95 shadow-[0_18px_36px_rgba(10,25,47,0.08)] backdrop-blur-sm">
-      <div className="border-b border-slate-200/90 px-5 py-4 md:px-6">
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-          <div>
-            <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.28em] text-slate-500">
-              Category Focus
-            </p>
-            <h2 className="text-lg font-bold text-[#0A192F] md:text-xl">トピック強化カード</h2>
-          </div>
-        </div>
-      </div>
-      <div className="px-0 py-5 md:px-0 md:py-6">
-        <div className="flex snap-x snap-mandatory gap-4 overflow-x-auto xl:grid xl:grid-cols-3 xl:overflow-visible">
-          {data.map((topic) => {
-            const Icon = topic.icon || BriefcaseBusiness;
-            const body = topic.body || topic.description || "";
-            return (
-              <article key={topic.title} className="w-[calc(100%-40px)] shrink-0 snap-start rounded-3xl border border-slate-200 bg-white p-5 xl:w-auto">
-                <div className="mb-5 flex items-start justify-between gap-4">
-                  <div>
-                    <p className="text-xs uppercase tracking-[0.2em] text-slate-500">{topic.caption}</p>
-                    <h3 className="mt-2 text-xl font-bold text-[#0A192F]">{topic.title}</h3>
-                  </div>
-                  <div className={cx("rounded-2xl border p-3", palette[topic.tone])}>
-                    <Icon size={20} />
-                  </div>
-                </div>
-                <div className="mb-4 flex items-end gap-2">
-                  <span className="text-4xl font-extrabold text-[#0A192F]">{topic.value}</span>
-                </div>
-                <p className="text-sm leading-7 text-slate-600">{body}</p>
-                {developerMode ? (
-                  <DeveloperBlock
-                    title={`${topic.title} の根拠`}
-                    meta={(developerMeta.sources || []).find((entry) => entry.topic === topic.title)}
-                  />
-                ) : null}
-              </article>
-            );
-          })}
-        </div>
-      </div>
-    </section>
-  );
-}
-
 function MobileWidgetCard({ title, eyebrow, value, children, onOpen, tone = "dark" }) {
   const toneClass =
     tone === "light"
@@ -1892,11 +1403,9 @@ function DashboardV2PersonalCard({ data, displayDate = "", onDateShift = () => {
   const [isSummaryDragging, setIsSummaryDragging] = useState(false);
   const [summaryScrollRatio, setSummaryScrollRatio] = useState(0);
   const activeDisplayDate = displayDate || dashboardDisplayDate(data);
-  const dailyStarVibe = String(data.hero?.dailyStarVibe || data.hero?.daily_star_vibe || "").trim();
+  const dailyStarVibe = String(data.dailyStarVibe || data.daily_star_vibe || "").trim();
   const summaryText = dailyStarVibe || "本日の星模様を表示できません。";
   const aspectHighlights =
-    data.hero?.aspectHighlights ||
-    data.hero?.aspect_highlights ||
     data.aspectHighlights ||
     data.aspect_highlights ||
     {};
@@ -2229,11 +1738,9 @@ function PressureCountdownList({
 function DashboardV2DailyThemeCard({ data, displayDate = "", onDateShift = () => {}, isDateLoading = false, focusedAspect = null }) {
   const [analysisMode, setAnalysisMode] = useState("theme");
   const activeDisplayDate = displayDate || dashboardDisplayDate(data);
-  const dailyStarVibe = String(data.hero?.dailyStarVibe || data.hero?.daily_star_vibe || "").trim();
+  const dailyStarVibe = String(data.dailyStarVibe || data.daily_star_vibe || "").trim();
   const summaryText = dailyStarVibe || "本日の星模様を表示できません。";
   const aspectHighlights =
-    data.hero?.aspectHighlights ||
-    data.hero?.aspect_highlights ||
     data.aspectHighlights ||
     data.aspect_highlights ||
     {};
@@ -2365,8 +1872,11 @@ function DashboardV2DailyThemeCard({ data, displayDate = "", onDateShift = () =>
 
 function DashboardV2CountdownCard({ data, onSelectAspect = () => {} }) {
   const [activeEventIndex, setActiveEventIndex] = useState(0);
+  const [isCalendarOpen, setIsCalendarOpen] = useState(false);
+  const [calendarFilter, setCalendarFilter] = useState("all");
+  const [personalGenreFilter, setPersonalGenreFilter] = useState("all");
   const displayDate = dashboardDisplayDate(data);
-  const candidates = React.useMemo(() => {
+  const calendarItems = React.useMemo(() => {
     const rawItems = (Array.isArray(data.celestial_event_calendar) ? data.celestial_event_calendar : []).filter((item) => {
       if (!item) return false;
       const daysUntil = countdownDaysUntil(item, displayDate);
@@ -2380,11 +1890,46 @@ function DashboardV2CountdownCard({ data, onSelectAspect = () => {} }) {
       return true;
     });
   }, [data.celestial_event_calendar, displayDate]);
+  const candidates = React.useMemo(() => {
+    let hasUpcomingMoonIngress = false;
+    let hasUpcomingLunation = false;
+    const houseIngressPlanets = new Set();
+    return calendarItems.filter((item) => {
+      if (item.event_type === "transit_natal_aspect" && Number(item.aspect_angle) === 90) {
+        return false;
+      }
+      const isMoonIngress = item.event_type === "sign_ingress" && String(item.transit_planet || item.planet || "").toUpperCase() === "MOON";
+      if (isMoonIngress) {
+        if (hasUpcomingMoonIngress) return false;
+        hasUpcomingMoonIngress = true;
+        return true;
+      }
+      const isLunation = item.event_type === "new_moon" || item.event_type === "full_moon";
+      if (isLunation) {
+        if (hasUpcomingLunation) return false;
+        hasUpcomingLunation = true;
+      }
+      if (item.event_type === "natal_house_ingress") {
+        const transitPlanet = String(item.transit_planet || item.planet || "").toUpperCase();
+        if (houseIngressPlanets.has(transitPlanet)) return false;
+        houseIngressPlanets.add(transitPlanet);
+      }
+      return true;
+    });
+  }, [calendarItems]);
   const eventCount = candidates.length;
   const candidateKeys = candidates.map((item) => countdownSlideKey(item)).join("|");
   useEffect(() => {
     setActiveEventIndex(0);
   }, [candidateKeys]);
+  useEffect(() => {
+    if (!isCalendarOpen) return undefined;
+    const handleKeyDown = (event) => {
+      if (event.key === "Escape") setIsCalendarOpen(false);
+    };
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [isCalendarOpen]);
   const goToEvent = (direction) => {
     if (eventCount <= 1) return;
     setActiveEventIndex((index) => (index + direction + eventCount) % eventCount);
@@ -2403,7 +1948,41 @@ function DashboardV2CountdownCard({ data, onSelectAspect = () => {} }) {
     if (!hasEvent || !hasLinkedWeeklyAspect) return;
     onSelectAspect(aspectFocusKey(slide));
   };
+  const celestialEventTypeMeta = {
+    sign_ingress: { label: "サイン移動", group: "celestial" },
+    retrograde_start: { label: "逆行開始", group: "celestial" },
+    direct_start: { label: "順行復帰", group: "celestial" },
+    new_moon: { label: "新月", group: "celestial" },
+    full_moon: { label: "満月", group: "celestial" },
+    natal_house_ingress: { label: "ハウス移動", group: "personal" },
+    transit_natal_aspect: { label: "個人アスペクト", group: "personal" },
+  };
+  const filteredCalendarItems = calendarItems.filter((item) => {
+    if (calendarFilter === "all") return true;
+    if (celestialEventTypeMeta[item.event_type]?.group !== calendarFilter) return false;
+    if (calendarFilter !== "personal" || personalGenreFilter === "all") return true;
+    const genres = Array.isArray(item.genres) && item.genres.length
+      ? item.genres.map((genre) => String(genre))
+      : [String(item.genre || "general")];
+    return genres.includes(personalGenreFilter);
+  });
+  const calendarGroups = filteredCalendarItems.reduce((groupsByDate, item) => {
+    const dateKey = item.event_date || "日付未設定";
+    if (!groupsByDate[dateKey]) groupsByDate[dateKey] = [];
+    groupsByDate[dateKey].push(item);
+    return groupsByDate;
+  }, {});
+  const formatEventDateHeading = (value) => {
+    const date = dateKeyToLocalDate(value);
+    if (!date) return value;
+    return `${date.getMonth() + 1}月${date.getDate()}日（${["日", "月", "火", "水", "木", "金", "土"][date.getDay()]}）`;
+  };
+  const formatEventTime = (value) => {
+    const match = String(value || "").match(/T(\d{2}):(\d{2})/);
+    return match ? `${match[1]}:${match[2]}` : "--:--";
+  };
   return (
+    <>
     <DashboardV2Card className="h-[185px]" bodyClassName="p-5">
       <div
         className="flex h-full w-full flex-col justify-between text-left"
@@ -2411,8 +1990,19 @@ function DashboardV2CountdownCard({ data, onSelectAspect = () => {} }) {
         <div>
           <div className="flex items-center justify-between gap-3">
             <p className="font-mono text-xs font-black uppercase tracking-[0.28em] text-[#e9c349]">Next Stellar Event</p>
-            {eventCount > 1 ? (
-              <div className="flex items-center gap-1">
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setIsCalendarOpen(true)}
+                disabled={!eventCount}
+                className="inline-flex h-7 items-center gap-1.5 rounded-full border border-[#e9c349]/35 px-2.5 font-mono text-[9px] font-black text-[#e9c349] transition hover:border-[#e9c349] hover:bg-[#e9c349]/10 disabled:cursor-not-allowed disabled:opacity-35"
+                aria-label="天体イベントカレンダーを開く"
+              >
+                <CalendarDays size={13} />
+                <span className="hidden sm:inline">30 DAYS</span>
+              </button>
+              {eventCount > 1 ? (
+                <div className="flex items-center gap-1">
                 <button
                   type="button"
                   onClick={(event) => {
@@ -2440,8 +2030,9 @@ function DashboardV2CountdownCard({ data, onSelectAspect = () => {} }) {
                 >
                   <ChevronRight size={15} />
                 </button>
-              </div>
-            ) : null}
+                </div>
+              ) : null}
+            </div>
           </div>
           <div className="mt-3 grid grid-cols-[1fr_auto] items-end gap-4">
             <div>
@@ -2473,6 +2064,134 @@ function DashboardV2CountdownCard({ data, onSelectAspect = () => {} }) {
         </div>
       </div>
     </DashboardV2Card>
+    {isCalendarOpen && typeof document !== "undefined" ? createPortal(
+      <div
+        className="fixed inset-0 z-[90] flex items-center justify-center bg-[#050607]/80 px-3 py-5 backdrop-blur-md sm:px-6"
+        role="presentation"
+        onMouseDown={(event) => {
+          if (event.target === event.currentTarget) setIsCalendarOpen(false);
+        }}
+      >
+        <section
+          className="flex max-h-[90vh] w-full max-w-5xl flex-col overflow-hidden rounded-[28px] border border-[#e9c349]/25 bg-[#111313] text-[#e2e2e2] shadow-[0_30px_100px_rgba(0,0,0,0.7)]"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="celestial-event-calendar-title"
+        >
+          <header className="shrink-0 border-b border-white/10 px-4 py-4 sm:px-6 sm:py-5">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="font-mono text-[10px] font-black uppercase tracking-[0.28em] text-[#e9c349]">Celestial Event Calendar</p>
+                <h2 id="celestial-event-calendar-title" className="mt-1 font-notoSerif text-xl font-black text-[#f3f3f0] sm:text-2xl">天体イベントカレンダー</h2>
+                <p className="mt-1 text-[11px] text-[#909096]">現在日時から30日以内に発生するイベント / {calendarItems.length}件</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsCalendarOpen(false)}
+                className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-white/10 text-[#c7c6cc] transition hover:border-[#e9c349]/60 hover:text-[#e9c349]"
+                aria-label="天体イベントカレンダーを閉じる"
+              >
+                <X size={17} />
+              </button>
+            </div>
+            <div className="mt-4 flex flex-wrap gap-2">
+              {[
+                ["all", "すべて"],
+                ["celestial", "天体現象"],
+                ["personal", "個人イベント"],
+              ].map(([value, label]) => (
+                <button
+                  key={value}
+                  type="button"
+                  onClick={() => setCalendarFilter(value)}
+                  className={cx(
+                    "rounded-full border px-3 py-1.5 text-[10px] font-black transition",
+                    calendarFilter === value
+                      ? "border-[#e9c349] bg-[#e9c349] text-[#241a00]"
+                      : "border-white/10 bg-white/[0.04] text-[#909096] hover:border-white/25 hover:text-[#f3f3f0]"
+                  )}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+            {calendarFilter === "personal" ? (
+              <div className="mt-3 flex flex-wrap items-center gap-1.5 border-t border-white/10 pt-3">
+                <span className="mr-1 font-mono text-[8px] font-black uppercase tracking-[0.18em] text-[#6f7075]">Genre</span>
+                {[
+                  ["all", "すべて"],
+                  ["love", "恋愛・対人"],
+                  ["general", "全般"],
+                  ["money", "金運"],
+                  ["work", "仕事"],
+                ].map(([value, label]) => (
+                  <button
+                    key={value}
+                    type="button"
+                    onClick={() => setPersonalGenreFilter(value)}
+                    className={cx(
+                      "rounded-full border px-2.5 py-1 text-[9px] font-black transition",
+                      personalGenreFilter === value
+                        ? "border-[#38bdf8]/70 bg-[#38bdf8]/15 text-[#7dd3fc]"
+                        : "border-white/10 bg-white/[0.025] text-[#77787d] hover:border-white/20 hover:text-[#c7c6cc]"
+                    )}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            ) : null}
+          </header>
+          <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4 [scrollbar-color:#e9c34933_transparent] sm:px-6">
+            {Object.keys(calendarGroups).length ? (
+              <div className="grid gap-5">
+                {Object.entries(calendarGroups).map(([dateKey, items]) => (
+                  <section key={dateKey} className="grid gap-2 sm:grid-cols-[132px_1fr] sm:gap-4">
+                    <div className="sm:sticky sm:top-0 sm:self-start">
+                      <p className="font-mono text-xs font-black text-[#e9c349]">{formatEventDateHeading(dateKey)}</p>
+                      <p className="mt-1 font-mono text-[9px] text-[#6f7075]">{items.length} EVENTS</p>
+                    </div>
+                    <div className="grid gap-2">
+                      {items.map((item) => {
+                        const typeMeta = celestialEventTypeMeta[item.event_type] || { label: item.event_type || "Event" };
+                        const isCaution = item.classification === "caution";
+                        return (
+                          <article
+                            key={item.event_id}
+                            className={cx(
+                              "grid gap-2 rounded-2xl border bg-white/[0.035] px-3 py-3 sm:grid-cols-[54px_1fr] sm:px-4",
+                              isCaution ? "border-[#ff5c68]/22" : "border-white/10"
+                            )}
+                          >
+                            <p className={cx("font-mono text-xs font-black", isCaution ? "text-[#ff8b94]" : "text-[#e9c349]")}>{formatEventTime(item.event_datetime)}</p>
+                            <div className="min-w-0">
+                              <div className="flex flex-wrap items-center gap-2">
+                                <h3 className="font-notoSerif text-sm font-black text-[#f3f3f0]">{item.title}</h3>
+                                <span className={cx(
+                                  "rounded-full border px-2 py-0.5 font-mono text-[8px] font-black",
+                                  isCaution
+                                    ? "border-[#ff5c68]/30 bg-[#ff5c68]/10 text-[#ff9aa3]"
+                                    : "border-[#38bdf8]/25 bg-[#38bdf8]/10 text-[#7dd3fc]"
+                                )}>{typeMeta.label}</span>
+                              </div>
+                              <p className="mt-1 text-[10px] leading-5 text-[#909096]">{item.note}</p>
+                            </div>
+                          </article>
+                        );
+                      })}
+                    </div>
+                  </section>
+                ))}
+              </div>
+            ) : (
+              <div className="flex min-h-[220px] items-center justify-center rounded-2xl border border-dashed border-white/10 text-sm text-[#909096]">該当するイベントはありません。</div>
+            )}
+          </div>
+        </section>
+      </div>,
+      document.body
+    ) : null}
+    </>
   );
 }
 

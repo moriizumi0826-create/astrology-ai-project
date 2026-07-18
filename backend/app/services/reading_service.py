@@ -44,21 +44,6 @@ DEFAULT_COUNTDOWN_TOTAL_DAYS = 1
 LUNAR_COUNTDOWN_STEP_HOURS = 2
 LUNAR_COUNTDOWN_HORIZON_DAYS = 32
 COUNTDOWN_ASPECT_ANGLES = (0, 60, 90, 120, 150, 180)
-HERO_ASPECT_AVERAGE_WEIGHT = 2.0
-DIAGNOSTIC_BASE_SCORE = 50
-DIAGNOSTIC_OVERALL_IMPACT_WEIGHT = 0.25
-DIAGNOSTIC_DECISION_IMPACT_WEIGHT = 0.30
-DIAGNOSTIC_EMOTION_IMPACT_WEIGHT = 0.30
-DIAGNOSTIC_DAILY_WORK_WEIGHT = 0.50
-DIAGNOSTIC_DAILY_LOVE_WEIGHT = 0.50
-DIAGNOSTIC_NOISE_NEGATIVE_WEIGHT = 0.25
-DIAGNOSTIC_NOISE_POSITIVE_WEIGHT = 0.10
-DIAGNOSTIC_SAFETY_WEIGHT = 0.50
-SAFETY_LEVEL_MODIFIERS = {
-    "HIGH": 5,
-    "MEDIUM": -4,
-    "LOW": -12,
-}
 
 LOGGER = logging.getLogger(__name__)
 DATABASE_DIR = PROJECT_ROOT / "database"
@@ -965,25 +950,6 @@ def get_daily_star_vibe_description(current_dt: datetime | date | None = None) -
     return ""
 
 
-def _score_to_rank(score: Any) -> str:
-    score_value = _normalize_int(score)
-    if score_value is None:
-        return "C"
-    if score_value >= 90:
-        return "S"
-    if score_value >= 80:
-        return "A"
-    if score_value >= 70:
-        return "B+"
-    if score_value >= 60:
-        return "B"
-    if score_value >= 45:
-        return "C"
-    if score_value >= 30:
-        return "D"
-    return "E"
-
-
 def _dashboard_header() -> dict[str, Any]:
     return {
         "brand": {"name": "The Celestial Atelier", "sublabel": "Transit Operations Dashboard"},
@@ -1019,94 +985,11 @@ def build_dashboard_data_from_aspect(row: dict[str, Any]) -> dict[str, Any]:
     return build_dashboard_data_from_interpretations([row] if row else [], {"modifier": 0, "raw_modifier": 0, "items": []})
 
 
-def _rank_to_catchcopy(rank: str) -> str:
-    catchcopies = {
-        "S": "\u8ffd\u3044\u98a8\u3092\u6700\u5927\u9650\u306b\u6d3b\u304b\u3059\u65e5",
-        "A": "\u8ffd\u3044\u98a8\u3092\u3064\u304b\u3080\u65e5",
-        "B+": "\u6d41\u308c\u3092\u6574\u3048\u3066\u524d\u9032\u3059\u308b\u65e5",
-        "B": "\u6d41\u308c\u3092\u4fdd\u3061\u306a\u304c\u3089\u9032\u3080\u65e5",
-        "C": "\u8db3\u5143\u3092\u6574\u3048\u308b\u65e5",
-        "D": "\u614e\u91cd\u306b\u4f59\u767d\u3092\u5b88\u308b\u65e5",
-        "E": "\u7121\u7406\u3092\u305b\u305a\u56de\u5fa9\u3092\u512a\u5148\u3059\u308b\u65e5",
-    }
-    return catchcopies.get(rank, catchcopies.get(rank[:1], catchcopies["C"]))
-
-
-def _first_sentence(text: str, max_length: int = 140) -> str:
-    normalized = str(text or "").strip()
-    if not normalized:
-        return ""
-    for separator in ("。", "、", ".", "\n"):
-        if separator in normalized:
-            normalized = normalized.split(separator, 1)[0].strip()
-            break
-    if len(normalized) > max_length:
-        return f"{normalized[:max_length].rstrip()}..."
-    return normalized
-
-
-def _primary_basic_row(basic_interpretations: list[dict[str, Any]]) -> dict[str, Any] | None:
-    for planet in PRIORITY_BASIC_PLANETS:
-        for row in basic_interpretations:
-            if _normalize_planet(row.get("_source_planet", row.get("Planet_ID"))) == planet:
-                return row
-    return basic_interpretations[0] if basic_interpretations else None
-
-
-def _strongest_topic_category(rows: list[dict[str, Any]]) -> str:
-    best_by_category: dict[str, int] = {}
-    for row in rows:
-        category = _safe_text(row, "Category", "General")
-        score = _safe_number(row, "Score_Impact")
-        best_by_category[category] = max(best_by_category.get(category, -999), score)
-
-    love_score = best_by_category.get("Love", -999)
-    work_score = best_by_category.get("Work", -999)
-    return "Love" if love_score > work_score else "Work"
-
-
-def _apply_basic_to_hero(
-    hero: dict[str, Any],
-    basic_interpretations: list[dict[str, Any]] | None,
-    aspect_row: dict[str, Any] | None,
-    aspect_rows: list[dict[str, Any]],
-) -> dict[str, Any]:
-    basic_row = _primary_basic_row(basic_interpretations or [])
-    rank = _safe_text(hero, "rank", "C")
-    hero["title"] = _rank_to_catchcopy(rank)
-    if not basic_row:
-        return hero
-
-    category = _strongest_topic_category(aspect_rows)
-    description_column = "Text_Love" if category == "Love" else "Text_Work"
-    description = _safe_text(basic_row, description_column) or _safe_text(basic_row, "Text_General")
-    aspect_description = _safe_text(aspect_row, "Text_Description")
-
-    hero["description"] = description
-    hero["guideline"] = _safe_text(basic_row, "Text_Health")
-    hero["basicTexts"] = {
-        "general": _safe_text(basic_row, "Text_General"),
-        "love": _safe_text(basic_row, "Text_Love"),
-        "work": _safe_text(basic_row, "Text_Work"),
-        "human": _safe_text(basic_row, "Text_Human"),
-        "health": _safe_text(basic_row, "Text_Health"),
-    }
-    hero["basic"] = {
-        "planet": _safe_text(basic_row, "Planet_ID"),
-        "sign": _safe_text(basic_row, "Sign_ID"),
-        "house": _safe_number(basic_row, "House_ID"),
-        "source_planet": _safe_text(basic_row, "_source_planet", _safe_text(basic_row, "Planet_ID")),
-    }
-    if aspect_description:
-        hero["summary"] = aspect_description
-    return hero
-
-
 def _top_priority_row(rows: list[dict[str, Any]]) -> dict[str, Any]:
     return max(rows, key=lambda row: (_safe_number(row, "Priority"), _safe_number(row, "Score_Impact")))
 
 
-def _hero_aspect_label(row: dict[str, Any]) -> str:
+def _aspect_label(row: dict[str, Any]) -> str:
     transit_label = _planet_label(row.get("T_Planet"))
     natal_label = _planet_label(row.get("N_Planet"))
     angle = _safe_number(row, "Aspect_Angle")
@@ -1117,11 +1000,11 @@ def _hero_aspect_label(row: dict[str, Any]) -> str:
     return _safe_text(row, "Aspect_Logic_ID") or "アスペクト"
 
 
-def _hero_aspect_highlight(row: dict[str, Any], polarity: str) -> dict[str, Any]:
+def _daily_aspect_highlight(row: dict[str, Any], polarity: str) -> dict[str, Any]:
     score = _safe_number(row, "Score_Impact")
     return {
         "polarity": polarity,
-        "label": _hero_aspect_label(row),
+        "label": _aspect_label(row),
         "score": score,
         "impact": abs(score),
         "priority": _safe_number(row, "Priority"),
@@ -1187,7 +1070,7 @@ def _build_weekly_aspect_items(
                 item["active_dates"].append(sample_dt.date().isoformat())
                 if row_rank > item["_rank"]:
                     item.update({
-                        "label": _hero_aspect_label(row),
+                        "label": _aspect_label(row),
                         "title": _safe_text(row, "Countdown_Label") or _safe_text(row, "Category", "Aspect"),
                         "category": _safe_text(row, "Category", "General"),
                         "scoreImpact": _safe_number(row, "Score_Impact"),
@@ -1208,7 +1091,7 @@ def _build_weekly_aspect_items(
                 "start_days_until": day_offset,
                 "end_days_until": day_offset,
                 "active_dates": [sample_dt.date().isoformat()],
-                "label": _hero_aspect_label(row),
+                "label": _aspect_label(row),
                 "title": _safe_text(row, "Countdown_Label") or _safe_text(row, "Category", "Aspect"),
                 "category": _safe_text(row, "Category", "General"),
                 "scoreImpact": _safe_number(row, "Score_Impact"),
@@ -1262,7 +1145,7 @@ def _mars_aspect_peaks_on_target_date(row: dict[str, Any], current_dt: datetime 
     return best_dt is not None and best_dt.date() == target_date and best_orb <= 0.01
 
 
-def _is_hero_aspect_highlight_candidate(row: dict[str, Any], current_dt: datetime | date | None = None) -> bool:
+def _is_daily_aspect_highlight_candidate(row: dict[str, Any], current_dt: datetime | date | None = None) -> bool:
     transit_planet = _normalize_planet(row.get("T_Planet"))
     if transit_planet not in PERSONAL_READING_TRANSIT_PLANETS:
         return False
@@ -1271,7 +1154,7 @@ def _is_hero_aspect_highlight_candidate(row: dict[str, Any], current_dt: datetim
     return True
 
 
-def _top_hero_aspect_highlights(
+def _top_daily_aspect_highlights(
     rows: list[dict[str, Any]],
     limit: int = 2,
     current_dt: datetime | date | None = None,
@@ -1279,7 +1162,7 @@ def _top_hero_aspect_highlights(
     eligible_rows = [
         row
         for row in rows
-        if _is_hero_aspect_highlight_candidate(row, current_dt)
+        if _is_daily_aspect_highlight_candidate(row, current_dt)
     ]
     positive_rows = [row for row in eligible_rows if _safe_number(row, "Score_Impact") > 0]
     negative_rows = [row for row in eligible_rows if _safe_number(row, "Score_Impact") < 0]
@@ -1295,21 +1178,9 @@ def _top_hero_aspect_highlights(
         reverse=True,
     )[:limit]
     return {
-        "positive": [_hero_aspect_highlight(row, "positive") for row in positive_ranked],
-        "negative": [_hero_aspect_highlight(row, "negative") for row in negative_ranked],
+        "positive": [_daily_aspect_highlight(row, "positive") for row in positive_ranked],
+        "negative": [_daily_aspect_highlight(row, "negative") for row in negative_ranked],
     }
-
-
-def _sum_daily_vibe_column(daily_vibe: dict[str, Any], column: str) -> int:
-    return sum(_safe_number(item, column) for item in daily_vibe.get("items", []))
-
-
-def _daily_vibe_safety_modifier(daily_vibe: dict[str, Any]) -> int:
-    total = 0
-    for item in daily_vibe.get("items", []):
-        safety_level = _safe_text(item, "Safety_Level").strip().upper()
-        total += SAFETY_LEVEL_MODIFIERS.get(safety_level, 0)
-    return total
 
 
 def _source_reference(
@@ -1333,198 +1204,6 @@ def _source_reference(
         "columns": columns or [],
         "note": note or "",
     }
-
-
-def _source_references(
-    rows: list[dict[str, Any]],
-    *,
-    columns: list[str] | None = None,
-    note_builder: Any | None = None,
-    limit: int | None = None,
-) -> list[dict[str, Any]]:
-    references: list[dict[str, Any]] = []
-    for row in rows[: limit or len(rows)]:
-        note = note_builder(row) if callable(note_builder) else None
-        reference = _source_reference(row, columns=columns, note=note)
-        if reference:
-            references.append(reference)
-    return references
-
-
-def _diagnostic_status(score: int) -> tuple[str, str]:
-    if score >= 80:
-        return (
-            "安定運転",
-            "ロジックは安定しています。計画通りの実行に適した状態です。",
-        )
-    if score >= 50:
-        return (
-            "調整局面",
-            "流れは中立に近く、外部要因を見ながら進めると安定しやすい状態です。",
-        )
-    return (
-        "負荷注意",
-        "外部要因や重いアスペクトの影響が強めです。無理を減らして足場を固めるのが安全です。",
-    )
-
-
-def _select_primary_diagnostic_row(rows: list[dict[str, Any]], overall_score: int) -> dict[str, Any] | None:
-    if not rows:
-        return None
-    if overall_score < 80:
-        negative_rows = [row for row in rows if _safe_number(row, "Score_Impact") < 0]
-        if negative_rows:
-            return max(negative_rows, key=lambda row: (_safe_number(row, "Priority"), abs(_safe_number(row, "Score_Impact"))))
-    return max(rows, key=lambda row: (_safe_number(row, "Priority"), abs(_safe_number(row, "Score_Impact"))))
-
-
-def _compute_diagnostic_scores(
-    total_impact: int,
-    decision_impact: int,
-    emotion_impact: int,
-    negative_load: int,
-    positive_buffer: int,
-    daily_work_modifier: int,
-    daily_love_modifier: int,
-    safety_modifier: int,
-) -> dict[str, int | float]:
-    d_total = _damp(total_impact, 200)
-    d_decision = _damp(decision_impact, 150)
-    d_emotion = _damp(emotion_impact, 150)
-    d_neg_load = _damp(negative_load, 150)
-    d_pos_buf = _damp(positive_buffer, 100)
-
-    overall_raw = (
-        DIAGNOSTIC_BASE_SCORE
-        + (d_total * DIAGNOSTIC_OVERALL_IMPACT_WEIGHT)
-        + (daily_work_modifier * DIAGNOSTIC_DAILY_WORK_WEIGHT)
-    )
-    decision_raw = (
-        DIAGNOSTIC_BASE_SCORE
-        + (d_decision * DIAGNOSTIC_DECISION_IMPACT_WEIGHT)
-        + (daily_work_modifier * DIAGNOSTIC_DAILY_WORK_WEIGHT)
-    )
-    emotion_raw = (
-        DIAGNOSTIC_BASE_SCORE
-        + (d_emotion * DIAGNOSTIC_EMOTION_IMPACT_WEIGHT)
-        + (daily_love_modifier * DIAGNOSTIC_DAILY_LOVE_WEIGHT)
-    )
-    noise_raw = (
-        DIAGNOSTIC_BASE_SCORE
-        - (d_neg_load * DIAGNOSTIC_NOISE_NEGATIVE_WEIGHT)
-        + (d_pos_buf * DIAGNOSTIC_NOISE_POSITIVE_WEIGHT)
-        + (safety_modifier * DIAGNOSTIC_SAFETY_WEIGHT)
-    )
-    return {
-        "overall_raw": overall_raw,
-        "decision_raw": decision_raw,
-        "emotion_raw": emotion_raw,
-        "noise_raw": noise_raw,
-        "overall_score": _clamp(overall_raw, 10, 95),
-        "decision_score": _clamp(decision_raw, 10, 95),
-        "emotion_score": _clamp(emotion_raw, 10, 95),
-        "noise_score": _clamp(noise_raw, 10, 95),
-    }
-
-
-def _build_diagnostic_data(
-    interpretations: list[dict[str, Any]],
-    daily_vibe: dict[str, Any],
-    countdown_data: dict[str, Any] | None = None,
-) -> dict[str, Any]:
-    total_impact = sum(_safe_number(row, "Score_Impact") for row in interpretations)
-    daily_work_modifier = _sum_daily_vibe_column(daily_vibe, "Work_Efficiency_Modifier")
-    daily_love_modifier = _sum_daily_vibe_column(daily_vibe, "Love_Vibe_Modifier")
-    safety_modifier = _daily_vibe_safety_modifier(daily_vibe)
-
-    decision_impact = 0
-    for row in interpretations:
-        if _safe_text(row, "Category", "General") == "Work":
-            impact = _safe_number(row, "Score_Impact")
-            if _safe_number(row, "N_House") == 10:
-                impact *= 2
-            decision_impact += impact
-    emotion_impact = sum(
-        _safe_number(row, "Score_Impact")
-        for row in interpretations
-        if _safe_text(row, "Category", "General") in {"Love", "Health"}
-        or _normalize_planet(row.get("T_Planet")) == "MOON"
-        or _normalize_planet(row.get("N_Planet")) == "MOON"
-    )
-    negative_load = sum(max(0, -_safe_number(row, "Score_Impact")) for row in interpretations)
-    positive_buffer = sum(max(0, _safe_number(row, "Score_Impact")) for row in interpretations)
-
-    score_bundle = _compute_diagnostic_scores(
-        total_impact=total_impact,
-        decision_impact=decision_impact,
-        emotion_impact=emotion_impact,
-        negative_load=negative_load,
-        positive_buffer=positive_buffer,
-        daily_work_modifier=daily_work_modifier,
-        daily_love_modifier=daily_love_modifier,
-        safety_modifier=safety_modifier,
-    )
-    overall_score = int(score_bundle["overall_score"])
-    decision_score = int(score_bundle["decision_score"])
-    emotion_score = int(score_bundle["emotion_score"])
-    noise_score = int(score_bundle["noise_score"])
-
-    status_label, summary = _diagnostic_status(overall_score)
-
-    return {
-        "score": overall_score,
-        "statusLabel": status_label,
-        "summary": summary,
-        "items": [
-            {
-                "label": "意思決定の整合性",
-                "value": decision_score,
-                "description": "仕事系と日運の仕事補正から、判断軸のぶれにくさを算出しています。",
-            },
-            {
-                "label": "感情と行動の同期",
-                "value": emotion_score,
-                "description": "月や愛情・健康テーマのアスペクトから、内面と行動の噛み合いを見ています。",
-            },
-            {
-                "label": "外部ノイズ耐性",
-                "value": noise_score,
-                "description": "負荷の強いアスペクトと安全度補正から、外圧への耐性を可視化しています。",
-            },
-        ],
-    }
-
-
-def _build_topics_from_interpretations(rows: list[dict[str, Any]], final_score: int) -> list[dict[str, Any]]:
-    best_by_category: dict[str, dict[str, Any]] = {}
-    for row in rows:
-        category = _safe_text(row, "Category", "General")
-        current = best_by_category.get(category)
-        if current is None or _safe_number(row, "Score_Impact") > _safe_number(current, "Score_Impact"):
-            best_by_category[category] = row
-    if not best_by_category:
-        return [
-            {
-                "title": "General",
-                "value": f"{final_score}%",
-                "caption": "Daily Vibe",
-                "tone": "navy",
-                "description": "穏やかな日です。無理に動くより、整える時間に向いています。",
-                "body": "穏やかな日です。無理に動くより、整える時間に向いています。",
-            }
-        ]
-    return [
-        {
-            "title": category,
-            "value": f"{_clamp(_safe_number(row, 'Score_Impact'), 0, 100)}%",
-            "caption": "Transit Aspect",
-            "tone": "gold" if _safe_number(row, "Score_Impact") >= 60 else "signal",
-            "description": _safe_text(row, "Advised_Task"),
-            "body": _safe_text(row, "Advised_Task"),
-            "sourceRow": row,
-        }
-        for category, row in best_by_category.items()
-    ]
 
 
 def _rank_aspect_influence_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -3312,6 +2991,51 @@ def _celestial_event_item(
     }
 
 
+def _celestial_event_genres(category: Any) -> list[str]:
+    genre_by_category = {
+        "LOVE": "love",
+        "RELATIONSHIP": "love",
+        "PARTNERSHIP": "love",
+        "FAMILY": "love",
+        "MONEY": "money",
+        "WORK": "work",
+    }
+    genres: list[str] = []
+    for value in str(category or "").split(","):
+        genre = genre_by_category.get(value.strip().upper())
+        if genre and genre not in genres:
+            genres.append(genre)
+    return genres or ["general"]
+
+
+def _celestial_house_category(house: Any) -> str:
+    return {
+        2: "Money,Work",
+        4: "Love",
+        5: "Love",
+        6: "Work",
+        7: "Love",
+        8: "Love,Money",
+        10: "Work",
+        11: "Love",
+    }.get(_normalize_int(house), "General")
+
+
+def _celestial_aspect_category(category: Any, transit_planet: Any, natal_planet: Any) -> str:
+    categories = {
+        value.strip().title()
+        for value in str(category or "").split(",")
+        if value.strip().upper() in {"LOVE", "MONEY", "WORK"}
+    }
+    planet_pair = {_normalize_planet(transit_planet), _normalize_planet(natal_planet)}
+    if "VENUS" in planet_pair:
+        categories.add("Love")
+    if planet_pair == {"VENUS", "JUPITER"}:
+        categories.add("Money")
+    ordered = [value for value in ("Love", "Money", "Work") if value in categories]
+    return ",".join(ordered) or "General"
+
+
 def _build_celestial_event_calendar(
     birth_input: BirthInput | None,
     current_dt: datetime | date | None,
@@ -3362,19 +3086,36 @@ def _build_celestial_event_calendar(
                 for _target, target_unwrapped in _crossing_targets(left_unwrapped, right_unwrapped, [cusp]):
                     event_dt = _refine_planet_crossing(planet, left_dt, right_dt, left_unwrapped, target_unwrapped, timezone_offset)
                     entered_house = house if right_unwrapped > left_unwrapped else (12 if house == 1 else house - 1)
+                    category = _celestial_house_category(entered_house)
                     events.append(_celestial_event_item(
                         event_type="natal_house_ingress", event_dt=event_dt, start_dt=start_dt,
                         title=f"{planet_label}がネイタル第{entered_house}ハウスへ移動",
                         note=f"{planet_label}が個人天体図の第{entered_house}ハウスへ入り、焦点が切り替わります。",
                         priority=60 + planet_priority, planet=planet, transit_planet=planet, house=entered_house,
+                        category=category, genres=_celestial_event_genres(category),
                     ))
 
             for natal in natal_points:
                 natal_label = _planet_label(natal["planet"])
                 for angle in CELESTIAL_EVENT_ASPECT_ANGLES:
+                    if planet == "MOON" and angle == 90:
+                        continue
                     targets = {(natal["longitude"] + angle) % 360, (natal["longitude"] - angle) % 360}
                     for _target, target_unwrapped in _crossing_targets(left_unwrapped, right_unwrapped, list(targets)):
                         event_dt = _refine_planet_crossing(planet, left_dt, right_dt, left_unwrapped, target_unwrapped, timezone_offset)
+                        interpretation = get_aspect_interpretation(
+                            t_planet=planet,
+                            n_planet=natal["planet"],
+                            angle=angle,
+                            house=natal["house"],
+                            is_retrograde=_right_speed < 0,
+                            orb_status="Applying",
+                        )
+                        category = _celestial_aspect_category(
+                            _safe_text(interpretation, "Category", "General"),
+                            planet,
+                            natal["planet"],
+                        )
                         classification = "caution" if angle == 90 else "major"
                         note = (
                             "負荷や摩擦が高まりやすい時期です。結果を断定せず、調整余地を確保してください。"
@@ -3387,6 +3128,7 @@ def _build_celestial_event_calendar(
                             note=note, priority=80 + planet_priority + (3 if angle == 0 else 2 if angle == 180 else 0),
                             classification=classification, planet=planet, transit_planet=planet,
                             natal_planet=natal["planet"], aspect_angle=angle,
+                            category=category, genres=_celestial_event_genres(category),
                         ))
 
     sun_samples = samples["SUN"]
@@ -3539,7 +3281,7 @@ def _daily_performance_transit_weight(planet: Any) -> float:
 
 def _daily_performance_aspect_breakdown(row: dict[str, Any], contribution: float, note: str) -> dict[str, Any]:
     return {
-        "label": _hero_aspect_label(row),
+        "label": _aspect_label(row),
         "contribution": round(contribution, 2),
         "rawContribution": round(contribution, 2),
         "scoreContribution": round(contribution, 2),
@@ -4040,7 +3782,7 @@ def _build_daily_performance(
 
         def transit_aspect_payload(row: dict[str, Any]) -> dict[str, Any]:
             return {
-                "label": _hero_aspect_label(row),
+                "label": _aspect_label(row),
                 "t_planet": _normalize_planet(row.get("T_Planet")),
                 "n_planet": _normalize_planet(row.get("N_Planet")),
                 "angle": _safe_number(row, "Aspect_Angle"),
@@ -4105,229 +3847,6 @@ def _build_daily_performance(
 
 
 
-def _build_developer_meta(
-    hero_row: dict[str, Any] | None,
-    interpretations: list[dict[str, Any]],
-    basic_interpretations: list[dict[str, Any]] | None,
-    daily_vibe: dict[str, Any],
-    countdown_data: dict[str, Any] | None,
-    topics: list[dict[str, Any]],
-    final_score: int,
-    average_score: int | float,
-) -> dict[str, Any]:
-    total_impact = sum(_safe_number(row, "Score_Impact") for row in interpretations)
-    daily_work_modifier = _sum_daily_vibe_column(daily_vibe, "Work_Efficiency_Modifier")
-    daily_love_modifier = _sum_daily_vibe_column(daily_vibe, "Love_Vibe_Modifier")
-    safety_modifier = _daily_vibe_safety_modifier(daily_vibe)
-    decision_rows = [row for row in interpretations if _safe_text(row, "Category", "General") == "Work"]
-    emotion_rows = [
-        row for row in interpretations
-        if _safe_text(row, "Category", "General") in {"Love", "Health"}
-        or _normalize_planet(row.get("T_Planet")) == "MOON"
-        or _normalize_planet(row.get("N_Planet")) == "MOON"
-    ]
-    decision_impact = sum(_safe_number(row, "Score_Impact") for row in decision_rows)
-    emotion_impact = sum(_safe_number(row, "Score_Impact") for row in emotion_rows)
-    negative_load = sum(max(0, -_safe_number(row, "Score_Impact")) for row in interpretations)
-    positive_buffer = sum(max(0, _safe_number(row, "Score_Impact")) for row in interpretations)
-    score_bundle = _compute_diagnostic_scores(
-        total_impact=total_impact,
-        decision_impact=decision_impact,
-        emotion_impact=emotion_impact,
-        negative_load=negative_load,
-        positive_buffer=positive_buffer,
-        daily_work_modifier=daily_work_modifier,
-        daily_love_modifier=daily_love_modifier,
-        safety_modifier=safety_modifier,
-    )
-    overall_score = int(score_bundle["overall_score"])
-    decision_score = int(score_bundle["decision_score"])
-    emotion_score = int(score_bundle["emotion_score"])
-    noise_score = int(score_bundle["noise_score"])
-    hero_score_breakdown = [_safe_number(row, "Score_Impact") for row in interpretations]
-    hero_score_breakdown_text = " + ".join(str(score) for score in hero_score_breakdown) if hero_score_breakdown else "0"
-    hero_score_count = len(hero_score_breakdown) if hero_score_breakdown else 1
-
-    personal_sources: list[dict[str, Any]] = []
-    if hero_row:
-        ref = _source_reference(
-            hero_row,
-            columns=["Aspect_Logic_ID", "Text_Description", "Advised_Task", "Score_Impact", "Priority"],
-            note="Hero の主採用アスペクトです。",
-        )
-        if ref:
-            personal_sources.append(ref)
-    basic_primary = _primary_basic_row(basic_interpretations or [])
-    if basic_primary:
-        ref = _source_reference(
-            basic_primary,
-            columns=["Planet_ID", "Sign_ID", "House_ID", "Text_General", "Text_Work", "Text_Love", "Text_Human", "Text_Health"],
-            note="ネイタル基本解釈の参照元です。",
-        )
-        if ref:
-            personal_sources.append(ref)
-
-    daily_sources = _source_references(
-        daily_vibe.get("items", []),
-        columns=["Event_Type", "Target_Planet", "Condition", "Work_Efficiency_Modifier", "Love_Vibe_Modifier", "Safety_Level"],
-        note_builder=lambda row: (
-            f"日運補正 Work={_safe_number(row, 'Work_Efficiency_Modifier')} / "
-            f"Love={_safe_number(row, 'Love_Vibe_Modifier')} / "
-            f"Safety={_safe_text(row, 'Safety_Level')}"
-        ),
-        limit=5,
-    )
-
-    topic_sources: list[dict[str, Any]] = []
-    for topic in topics:
-        topic_source = _source_reference(
-            topic.get("sourceRow"),
-            columns=["Aspect_Logic_ID", "Category", "Advised_Task", "Score_Impact", "Priority"],
-            note=f"{topic.get('title')} カードで採用した最大 Score_Impact 行です。",
-        )
-        topic_sources.append(
-            {
-                "topic": topic.get("title"),
-                "logic": (
-                    f"計算式は カテゴリ内の Score_Impact 最大値 = カード採用値 です。"
-                    f"{topic.get('title')} では、そのカテゴリ候補の中で最も高い 1 行だけを表示しています。"
-                ),
-                "sources": [topic_source] if topic_source else [],
-            }
-        )
-
-    countdown_logic = (
-        f"計算式は 100 - (現在オーブ {countdown_data.get('current_orb', 0)} / "
-        f"しきい値 {countdown_data.get('threshold_orb', 0)}) × 100 です。"
-        f"今回は進捗率 {countdown_data.get('percent', 0)}% を表示しています。"
-        f"残り日数は 現在オーブ {countdown_data.get('current_orb', 0)} を平均速度で割って "
-        f"{countdown_data.get('days_remaining', 0)} 日と見積もっています。"
-        if countdown_data
-        else "Applying かつ Score_Impact が正の候補から 1 件を選び、Countdown_ID で M_Countdown_Master と突き合わせて表示内容を決めています。"
-    )
-
-    countdown_sources: list[dict[str, Any]] = []
-    if countdown_data:
-        target_ref = _source_reference(
-            countdown_data.get("target"),
-            columns=["Aspect_Logic_ID", "Countdown_ID", "Countdown_Label", "Score_Impact", "Priority"],
-            note=f"採用したアスペクトです。現在オーブは {countdown_data.get('current_orb')} です。",
-        )
-        if target_ref:
-            countdown_sources.append(target_ref)
-        master_ref = _source_reference(
-            get_countdown_master_row(countdown_data.get("countdown_id") or countdown_data.get("trigger_id")),
-            columns=["Trigger_ID", "Display_Title", "Arrival_Text", "Next_Action_Hint", "Threshold_Orb", "Max_Progress_Days"],
-            note="表示タイトル、到達メッセージ、しきい値、総日数の参照元です。",
-        )
-        if master_ref:
-            countdown_sources.append(master_ref)
-
-    return {
-        "personalReading": {
-            "logic": (
-                f"計算式は 基準点 50 + 平均アスペクト値 × {HERO_ASPECT_AVERAGE_WEIGHT} + 日運補正 = Hero スコア です。"
-                f"平均アスペクト値の内訳は ({hero_score_breakdown_text}) / {hero_score_count} = {round(average_score, 2)} です。"
-                f"今回は 50 + {round(average_score, 2)} × {HERO_ASPECT_AVERAGE_WEIGHT} + {daily_work_modifier} = {final_score} として算出しています。"
-                f"つまり基準点 50 に、Score_Impact の合計 {total_impact} を {hero_score_count} 件で割った平均へ倍率をかけ、日運補正 {daily_work_modifier} を加えています。"
-            ),
-            "sources": personal_sources,
-        },
-        "diagnostic": {
-            "logic": (
-                f"計算式は 50 + 全アスペクト合計 × {DIAGNOSTIC_OVERALL_IMPACT_WEIGHT} + 日運の仕事補正 × {DIAGNOSTIC_DAILY_WORK_WEIGHT} です。"
-                f"全アスペクト合計の内訳は ({hero_score_breakdown_text}) = {total_impact} です。"
-                f"今回は 50 + {total_impact} × {DIAGNOSTIC_OVERALL_IMPACT_WEIGHT} + {daily_work_modifier} × {DIAGNOSTIC_DAILY_WORK_WEIGHT} = {round(score_bundle['overall_raw'], 2)} と計算し、0〜100 に収めて {overall_score} としています。"
-                f"文章はこの総合値をもとに、80以上なら 安定運転、50以上なら 調整局面、それ未満なら 負荷注意 へ振り分けています。"
-                f"本文は _diagnostic_status で総合ラベルごとの定型文を選び、主要因は _select_primary_diagnostic_row で最優先のアスペクト行を 1 件選んで表示しています。"
-            ),
-            "sources": [
-                *(_source_references(
-                    interpretations,
-                    columns=["Aspect_Logic_ID", "Category", "Score_Impact", "Priority"],
-                    note_builder=lambda row: (
-                        f"総合判定への内訳 {_safe_number(row, 'Score_Impact')} / "
-                        f"{_safe_text(row, 'Aspect_Logic_ID') or _safe_text(row, 'T_Planet')}"
-                    ),
-                )),
-                *daily_sources,
-            ],
-            "entries": [
-                {
-                    "label": "意思決定の整合性",
-                    "logic": (
-                        f"計算式は 50 + Category が Work の行だけを合計した値 × {DIAGNOSTIC_DECISION_IMPACT_WEIGHT} + "
-                        f"日運の仕事補正 × {DIAGNOSTIC_DAILY_WORK_WEIGHT} です。"
-                        f"ここで使う {decision_impact} は全アスペクト合計ではなく、Work に分類された行だけの Score_Impact 合計です。"
-                        f"今回は 50 + {decision_impact} × {DIAGNOSTIC_DECISION_IMPACT_WEIGHT} + "
-                        f"{daily_work_modifier} × {DIAGNOSTIC_DAILY_WORK_WEIGHT} = {round(score_bundle['decision_raw'], 2)} と計算し、"
-                        f"最終値を {decision_score} としています。"
-                    ),
-                    "sources": [
-                        *(_source_references(
-                            decision_rows,
-                            columns=["Aspect_Logic_ID", "Category", "Score_Impact", "Priority"],
-                            note_builder=lambda row: f"意思決定への内訳 {_safe_number(row, 'Score_Impact')}",
-                        )),
-                        *(_source_references(
-                            daily_vibe.get("items", []),
-                            columns=["Event_Type", "Target_Planet", "Condition", "Work_Efficiency_Modifier"],
-                            note_builder=lambda row: f"仕事補正 {_safe_number(row, 'Work_Efficiency_Modifier')}",
-                            limit=3,
-                        )),
-                    ],
-                },
-                {
-                    "label": "感情と行動の同期",
-                    "logic": (
-                        f"計算式は 50 + Category が Love または Health の行、または Transit/Natal のどちらかが Moon の行だけを合計した値 × {DIAGNOSTIC_EMOTION_IMPACT_WEIGHT} + 日運の感情補正 × {DIAGNOSTIC_DAILY_LOVE_WEIGHT} です。"
-                        f"今回は 50 + {emotion_impact} × {DIAGNOSTIC_EMOTION_IMPACT_WEIGHT} + {daily_love_modifier} × {DIAGNOSTIC_DAILY_LOVE_WEIGHT} = {round(score_bundle['emotion_raw'], 2)} と計算し、最終値を {emotion_score} としています。"
-                    ),
-                    "sources": [
-                        *(_source_references(
-                            emotion_rows,
-                            columns=["Aspect_Logic_ID", "Category", "Score_Impact", "Priority"],
-                            note_builder=lambda row: f"感情同期への内訳 {_safe_number(row, 'Score_Impact')}",
-                        )),
-                        *(_source_references(
-                            daily_vibe.get("items", []),
-                            columns=["Event_Type", "Target_Planet", "Condition", "Love_Vibe_Modifier"],
-                            note_builder=lambda row: f"感情補正 {_safe_number(row, 'Love_Vibe_Modifier')}",
-                            limit=3,
-                        )),
-                    ],
-                },
-                {
-                    "label": "外部ノイズ耐性",
-                    "logic": (
-                        f"計算式は 50 - 負荷合計 × {DIAGNOSTIC_NOISE_NEGATIVE_WEIGHT} + 正のバッファ × {DIAGNOSTIC_NOISE_POSITIVE_WEIGHT} + Safety補正 × {DIAGNOSTIC_SAFETY_WEIGHT} です。"
-                        f"今回は 50 - {negative_load} × {DIAGNOSTIC_NOISE_NEGATIVE_WEIGHT} + {positive_buffer} × {DIAGNOSTIC_NOISE_POSITIVE_WEIGHT} + {safety_modifier} × {DIAGNOSTIC_SAFETY_WEIGHT} = {round(score_bundle['noise_raw'], 2)} と計算し、最終値を {noise_score} としています。"
-                    ),
-                    "sources": [
-                        *(_source_references(
-                            interpretations,
-                            columns=["Aspect_Logic_ID", "Category", "Score_Impact", "Priority"],
-                            note_builder=lambda row: f"ノイズ耐性への内訳 {_safe_number(row, 'Score_Impact')}",
-                        )),
-                        *(_source_references(
-                            daily_vibe.get("items", []),
-                            columns=["Event_Type", "Target_Planet", "Condition", "Safety_Level"],
-                            note_builder=lambda row: f"Safety補正 {_safe_text(row, 'Safety_Level')}",
-                            limit=3,
-                        )),
-                    ],
-                },
-            ],
-        },
-        "countdown": {
-            "logic": countdown_logic,
-            "sources": countdown_sources,
-        },
-        "topics": {
-            "logic": "トピック強化カードは Category ごとに候補をまとめ、その中で Score_Impact が最も高い 1 行だけを採用しています。",
-            "sources": topic_sources,
-        },
-    }
 def build_dashboard_data_from_interpretations(
     interpretations: list[dict[str, Any]],
     daily_vibe: dict[str, Any],
@@ -4335,44 +3854,26 @@ def build_dashboard_data_from_interpretations(
     birth_input: BirthInput | None = None,
     current_dt: datetime | date | None = None,
 ) -> dict[str, Any]:
-    daily_modifier = _safe_number(daily_vibe, "modifier")
     daily_star_vibe = get_daily_star_vibe_description(current_dt)
     if not interpretations:
-        final_score = _clamp(50 + daily_modifier, 0, 100)
-        hero = {
-            "rank": _score_to_rank(final_score),
-            "score": final_score,
-            "title": "Today Overview",
-            "dailyStarVibe": daily_star_vibe,
-            "guidance": "穏やかな日です。予定を詰め込みすぎず、余白を保つほど安定します。",
-            "summary": "大きな追い風も逆風も薄い日です。整えること、記録すること、静かに選ぶことが今日の運気を底上げします。",
-        }
-        hero = _apply_basic_to_hero(hero, basic_interpretations, None, [])
-        diagnostic = _build_diagnostic_data([], daily_vibe, None)
-        daily_performance = _build_daily_performance(birth_input, current_dt, daily_vibe)
-        topics = _build_topics_from_interpretations([], final_score)
         return _to_json_compatible({
             "header": _dashboard_header(),
-            "hero": hero,
+            "dailyStarVibe": daily_star_vibe,
+            "aspectHighlights": {"positive": [], "negative": []},
             "countdown": None,
             "celestial_event_calendar": _build_celestial_event_calendar(birth_input, current_dt),
             "relief_countdown_items": [],
-            "diagnostic": diagnostic,
-            "dailyPerformance": daily_performance,
+            "dailyPerformance": _build_daily_performance(birth_input, current_dt, daily_vibe),
             "planetMotion": _dashboard_planet_motion(birth_input, current_dt),
             "retrogradeCalendar": _dashboard_retrograde_calendar(current_dt),
             "weekly_aspects": [],
-            "topics": topics,
             "premium": {"title": "Premium AI Preview", "description": "", "placeholder": "", "preview": ""},
             "aspect_interpretations": [],
             "basic_interpretations": basic_interpretations or [],
             "daily_vibe": daily_vibe,
-            "developerMeta": _build_developer_meta(None, [], basic_interpretations or [], daily_vibe, None, topics, final_score, 50),
         })
 
-    average_score = sum(_safe_number(row, "Score_Impact") for row in interpretations) / len(interpretations)
-    final_score = _clamp(50 + (average_score * HERO_ASPECT_AVERAGE_WEIGHT) + daily_modifier, 0, 100)
-    hero_row = _top_priority_row(interpretations)
+    preview_row = _top_priority_row(interpretations)
     countdown_interpretations = _countdown_interpretations_with_lunar_candidates(
         interpretations,
         birth_input,
@@ -4462,24 +3963,14 @@ def build_dashboard_data_from_interpretations(
     _attach_pressure_timeline_advise(relief_countdown_items, timeline_advise_lookup)
     countdown_items = positive_countdown_items
     countdown_data = (positive_countdown_items or [None])[0]
-    diagnostic_data = _build_diagnostic_data(interpretations, daily_vibe, countdown_data)
     daily_performance = _build_daily_performance(birth_input, current_dt, daily_vibe)
     weekly_aspects = _build_weekly_aspect_items(birth_input, current_dt)
     celestial_event_calendar = _build_celestial_event_calendar(birth_input, current_dt)
-    topics = _build_topics_from_interpretations(interpretations, final_score)
-    hero = {
-        "rank": _score_to_rank(final_score),
-        "score": final_score,
-        "title": "Today Overview",
-        "guidance": _safe_text(hero_row, "Advised_Task"),
-        "summary": _safe_text(hero_row, "Text_Description"),
-            "aspectHighlights": _top_hero_aspect_highlights(interpretations, current_dt=current_dt),
-        "dailyStarVibe": daily_star_vibe,
-    }
-    hero = _apply_basic_to_hero(hero, basic_interpretations, hero_row, interpretations)
+    aspect_highlights = _top_daily_aspect_highlights(interpretations, current_dt=current_dt)
     return _to_json_compatible({
         "header": _dashboard_header(),
-        "hero": hero,
+        "dailyStarVibe": daily_star_vibe,
+        "aspectHighlights": aspect_highlights,
         "countdown": countdown_data,
         "celestial_event_calendar": celestial_event_calendar,
         "countdown_items": countdown_items,
@@ -4499,22 +3990,19 @@ def build_dashboard_data_from_interpretations(
             "legacy_short": short_countdown_items,
             "legacy_long": long_countdown_items,
         },
-        "diagnostic": diagnostic_data,
         "dailyPerformance": daily_performance,
         "planetMotion": _dashboard_planet_motion(birth_input, current_dt),
         "retrogradeCalendar": _dashboard_retrograde_calendar(current_dt),
         "weekly_aspects": weekly_aspects,
-        "topics": topics,
         "premium": {
             "title": "Premium AI Preview",
             "description": "複数のトランジット条件と日運補正を組み合わせた追加解釈を提供します。",
             "placeholder": "将来的には、恋愛や仕事などテーマ別の深掘りリソースをここへ表示します。",
-            "preview": _safe_text(hero_row, "Text_Description"),
+            "preview": _safe_text(preview_row, "Text_Description"),
         },
         "aspect_interpretations": interpretations,
         "basic_interpretations": basic_interpretations or [],
         "daily_vibe": daily_vibe,
-        "developerMeta": _build_developer_meta(hero_row, interpretations, basic_interpretations or [], daily_vibe, countdown_data, topics, final_score, average_score),
     })
 
 

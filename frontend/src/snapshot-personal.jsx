@@ -19,25 +19,6 @@ const data = {
     },
     actions: [],
   },
-  diagnostic: {
-    theme: "ロジック安定指標",
-    total_score: 50,
-    lines: [
-      { label: "意思決定の整合性", score: 82, text: "仕事運と日運の効率補正から、判断軸のブレにくさを算出しています。" },
-      { label: "感情と行動の同期", score: 68, text: "月や愛情・健康テーマのアスペクトから、内面と行動の噛み合いを見ています。" },
-      { label: "外部ノイズ耐性", score: 74, text: "負荷の強いアスペクトと安全度補正から、外圧への耐性を可視化しています。" },
-    ],
-  },
-  hero: {
-    label: "PERSONAL READING",
-    title: "慎重に余白を守る日",
-    subtitle: "達成した成果を自分のキャリアシートに追記",
-    description: "ネイタル水星とトランジット太陽が120度を形成し、職務上の覚醒と有能さの発揮のピークを穏やかに過ぎたところです。",
-    summary: "離脱中の今は、得られた成果や評価を日常の業務に馴染ませる時期です。静かに自分の専門性を高めていく時期です。",
-    guideline: "健康面の基本解釈がここに表示されます。休息や体調管理の注意点を確認できます。",
-    rank: "E",
-    basicTexts,
-  },
   basic_interpretations: [
     {
       Text_General: basicTexts.general,
