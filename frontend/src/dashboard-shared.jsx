@@ -926,6 +926,12 @@ function isPressureCountdown(slide) {
   return mode === "departure" || scanStatus === "departing" || (Number.isFinite(score) && score < 0);
 }
 
+function isDepartureCountdown(slide) {
+  const mode = String(slide?.countdown_mode || slide?.countdownMode || "").trim().toLowerCase();
+  const scanStatus = String(slide?.scan_status || slide?.scan?.scan_status || "").trim().toLowerCase();
+  return mode === "departure" || scanStatus === "departing";
+}
+
 function pressureCountdownItems(data, groups, displayDate) {
   const explicitItems = [
     ...(Array.isArray(data?.pressure_countdown_items) ? data.pressure_countdown_items : []),
@@ -980,6 +986,8 @@ function reliefCountdownItems(data, groups, displayDate) {
     seen.add(key);
     return true;
   }).sort((left, right) => {
+    const phaseDifference = Number(isDepartureCountdown(left)) - Number(isDepartureCountdown(right));
+    if (phaseDifference !== 0) return phaseDifference;
     const leftHours = countdownRemainingValue(left, displayDate).sortHours;
     const rightHours = countdownRemainingValue(right, displayDate).sortHours;
     return (Number.isFinite(leftHours) ? leftHours : 999999) - (Number.isFinite(rightHours) ? rightHours : 999999);
@@ -1651,6 +1659,7 @@ function PressureCountdownList({
   countdownLabel = "抜けるまで",
   showInfluencePeriod = true,
   aspectFallbackLabel = "Pressure Aspect",
+  differentiateDeparture = false,
 }) {
   const visibleItems = Array.isArray(items) ? items : [];
   const summaryHeadline = String(summary?.headline || "").trim();
@@ -1695,21 +1704,39 @@ function PressureCountdownList({
       {summaryBlock}
       {visibleItems.map((item, index) => {
         const remaining = countdownRemainingValue(item, baseDateKey);
+        const isDeparture = isDepartureCountdown(item);
+        const useDepartureColors = differentiateDeparture && isDeparture;
         const aspectLabel = item.aspect_label || "";
         const title = String(item.title || item.countdown_label || item.fallback_label || "").trim();
         const timelineAdvise = String(item.timelineAdvise || item.timeline_advise || item.target?.timeline_advise || "").trim();
         const orbValue = Number(item.current_orb ?? item.currentOrb ?? item.scan?.current_orb);
         const periodLabel = showInfluencePeriod ? pressurePeriodLabel(item, baseDateKey) : "";
         return (
-          <article key={`${countdownSlideKey(item)}-${index}`} className="rounded-lg border border-rose-200/15 bg-rose-950/15 p-3">
+          <article
+            key={`${countdownSlideKey(item)}-${index}`}
+            className={cx(
+              "rounded-lg border p-3",
+              useDepartureColors
+                ? "border-sky-300/20 bg-sky-950/20"
+                : "border-rose-200/15 bg-rose-950/15"
+            )}
+          >
             <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-3">
               <div className="min-w-0">
                 {periodLabel ? (
-                  <p className="mb-1 inline-flex max-w-full items-center rounded border border-[#e9c349]/35 bg-[#e9c349]/10 px-2 py-1 text-[10px] font-bold leading-none text-[#e7d38b]">
+                  <p className={cx(
+                    "mb-1 inline-flex max-w-full items-center rounded border px-2 py-1 text-[10px] font-bold leading-none",
+                    useDepartureColors
+                      ? "border-sky-300/25 bg-sky-300/10 text-sky-200/80"
+                      : "border-[#e9c349]/35 bg-[#e9c349]/10 text-[#e7d38b]"
+                  )}>
                     {periodLabel}
                   </p>
                 ) : null}
-                <p className="whitespace-nowrap text-[8px] font-black leading-4 tracking-[-0.01em] text-[#e9c349] sm:text-[9px]">
+                <p className={cx(
+                  "whitespace-nowrap text-[8px] font-black leading-4 tracking-[-0.01em] sm:text-[9px]",
+                  useDepartureColors ? "text-sky-300" : "text-[#e9c349]"
+                )}>
                   {aspectLabel || aspectFallbackLabel}
                   {Number.isFinite(orbValue) ? ` / orb ${orbValue.toFixed(2)}°` : ""}
                 </p>
@@ -1720,10 +1747,16 @@ function PressureCountdownList({
                 ) : null}
               </div>
               <div className="shrink-0 text-right">
-                <p className="mt-1 text-[10px] font-bold text-[#909096]">
-                  {String(item.countdown_mode || item.countdownMode || "").toLowerCase() === "departure" ? "抜けるまで" : countdownLabel}
+                <p className={cx(
+                  "mt-1 text-[10px] font-bold",
+                  useDepartureColors ? "text-sky-200/65" : "text-[#909096]"
+                )}>
+                  {isDeparture ? "抜けるまで" : countdownLabel}
                 </p>
-                <p className="mt-1 font-mono text-xl font-black leading-none text-[#e9c349]">
+                <p className={cx(
+                  "mt-1 font-mono text-xl font-black leading-none",
+                  useDepartureColors ? "text-sky-300" : "text-[#e9c349]"
+                )}>
                   {Number.isFinite(remaining.value) ? `${remaining.value}${remaining.unit}` : "-"}
                 </p>
               </div>
@@ -1869,6 +1902,7 @@ function DashboardV2DailyThemeCard({ data, displayDate = "", onDateShift = () =>
           countdownLabel="届くまで"
           showInfluencePeriod
           aspectFallbackLabel="Support Aspect"
+          differentiateDeparture
         />
       ) : null}
     </DashboardV2Card>

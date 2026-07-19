@@ -1275,7 +1275,7 @@ def _countdown_targets_by_planet_group(
     return _select_countdown_targets(group_rows, limit=limit, score_sign=score_sign)
 
 
-def _select_display_countdown_items(items: list[dict[str, Any]], limit: int = 3) -> list[dict[str, Any]]:
+def _select_display_countdown_items(items: list[dict[str, Any]], limit: int | None = 3) -> list[dict[str, Any]]:
     def remaining_hours(item: dict[str, Any]) -> int:
         hours_remaining = _normalize_int(item.get("hours_remaining", item.get("hoursLeft")))
         if hours_remaining is not None:
@@ -1296,7 +1296,8 @@ def _select_display_countdown_items(items: list[dict[str, Any]], limit: int = 3)
         enumerate(items),
         key=lambda pair: (display_bucket(pair[1]), remaining_hours(pair[1]), pair[0]),
     )
-    return [item for _index, item in ranked[:limit]]
+    selected = ranked if limit is None else ranked[:limit]
+    return [item for _index, item in selected]
 
 
 def _countdown_score(item: dict[str, Any]) -> float:
@@ -3951,11 +3952,11 @@ def build_dashboard_data_from_interpretations(
     long_countdown_items = _select_display_countdown_items(long_countdown_candidates, limit=3)
     relief_short_countdown_items = _select_display_countdown_items(
         [item for item in short_countdown_candidates if _countdown_score(item) >= 25],
-        limit=3,
+        limit=None,
     )
     relief_long_countdown_items = _select_display_countdown_items(
         [item for item in long_countdown_candidates if _countdown_score(item) >= 25],
-        limit=3,
+        limit=None,
     )
     relief_active_candidates = [
         item
@@ -4013,12 +4014,12 @@ def build_dashboard_data_from_interpretations(
     relief_upcoming_items = [*relief_short_countdown_items, *relief_long_countdown_items]
     active_relief_keys = {_countdown_item_identity(item) for item in relief_active_items}
     relief_countdown_items = [
-        *relief_active_items,
         *[
             item
             for item in relief_upcoming_items
             if _countdown_item_identity(item) not in active_relief_keys
-        ][:3],
+        ],
+        *relief_active_items,
     ]
     _attach_pressure_timeline_advise(relief_countdown_items, timeline_advise_lookup)
     countdown_items = positive_countdown_items

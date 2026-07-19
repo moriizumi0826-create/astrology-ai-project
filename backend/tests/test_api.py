@@ -889,6 +889,19 @@ class ApiTestCase(unittest.TestCase):
 
         self.assertEqual([item["title"] for item in selected], ["future peak", "today exact", "past peak"])
 
+    def test_display_countdown_items_can_return_all_items_without_limit(self):
+        items = [
+            {"title": f"future {day}", "days_remaining": day, "scan_status": "closest"}
+            for day in range(5, 0, -1)
+        ]
+
+        selected = reading_service._select_display_countdown_items(items, limit=None)
+
+        self.assertEqual(
+            [item["title"] for item in selected],
+            ["future 1", "future 2", "future 3", "future 4", "future 5"],
+        )
+
     def test_next_stellar_event_calendar_is_separate_from_personal_countdowns(self):
         calendar = [{
             "event_id": "new_moon|2026-05-10T12:00:00",
