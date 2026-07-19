@@ -5,7 +5,7 @@ import sys
 from contextlib import contextmanager
 from contextvars import ContextVar
 from datetime import date, datetime, time as dt_time, timedelta
-from math import ceil
+from math import ceil, isfinite
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from threading import Lock
@@ -585,7 +585,7 @@ def _planet_label(value: Any) -> str:
 def _has_meaningful_aspect_content(row: dict[str, Any]) -> bool:
     return any(
         bool(_safe_text(row, column))
-        for column in ("Text_Description", "Advised_Task", "Countdown_Label")
+        for column in ("Text_Description", "Advised_Task")
     ) or _normalize_float(row.get("Score_Impact")) is not None
 
 
@@ -1043,6 +1043,15 @@ def _aspect_input_orb(row: dict[str, Any]) -> float | None:
     return None
 
 
+def _weekly_aspect_target(row: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "Countdown_ID": _safe_text(row, "Countdown_ID"),
+        "T_Planet": _safe_text(row, "T_Planet"),
+        "N_Planet": _safe_text(row, "N_Planet"),
+        "Aspect_Angle": _safe_number(row, "Aspect_Angle"),
+    }
+
+
 def _build_weekly_aspect_items(
     birth_input: BirthInput | None,
     current_dt: datetime | date | None,
@@ -1089,7 +1098,7 @@ def _build_weekly_aspect_items(
                 if row_rank > item["_rank"]:
                     item.update({
                         "label": _aspect_label(row),
-                        "title": _safe_text(row, "Countdown_Label") or _safe_text(row, "Category", "Aspect"),
+                        "title": _safe_text(row, "Category", "Aspect"),
                         "category": _safe_text(row, "Category", "General"),
                         "scoreImpact": _safe_number(row, "Score_Impact"),
                         "priority": _safe_number(row, "Priority"),
@@ -1097,7 +1106,7 @@ def _build_weekly_aspect_items(
                         "orbStatus": _safe_text(row, "_orb_status", _safe_text(row, "Orb_Status")),
                         "description": _safe_text(row, "Text_Description"),
                         "advisedTask": _safe_text(row, "Advised_Task"),
-                        "target": row,
+                        "target": _weekly_aspect_target(row),
                         "_rank": row_rank,
                     })
                 continue
@@ -1110,7 +1119,7 @@ def _build_weekly_aspect_items(
                 "end_days_until": day_offset,
                 "active_dates": [sample_dt.date().isoformat()],
                 "label": _aspect_label(row),
-                "title": _safe_text(row, "Countdown_Label") or _safe_text(row, "Category", "Aspect"),
+                "title": _safe_text(row, "Category", "Aspect"),
                 "category": _safe_text(row, "Category", "General"),
                 "scoreImpact": _safe_number(row, "Score_Impact"),
                 "priority": _safe_number(row, "Priority"),
@@ -1118,7 +1127,7 @@ def _build_weekly_aspect_items(
                 "orbStatus": _safe_text(row, "_orb_status", _safe_text(row, "Orb_Status")),
                 "description": _safe_text(row, "Text_Description"),
                 "advisedTask": _safe_text(row, "Advised_Task"),
-                "target": row,
+                "target": _weekly_aspect_target(row),
                 "_rank": row_rank,
             }
     items = list(grouped_items.values())
@@ -2214,17 +2223,14 @@ def build_countdown_data(
     if not countdown_target:
         return None
     countdown_id = _safe_text(countdown_target, "Countdown_ID")
-    fallback_label = _safe_text(countdown_target, "Countdown_Label")
     advised_task = _safe_text(countdown_target, "Advised_Task")
     current_orb = _extract_current_orb(countdown_target)
     master_row = get_countdown_master_row(countdown_id)
     if not master_row:
-        title = fallback_label or "谺｡縺ｮ霑ｽ縺・｢ｨ縺ｾ縺ｧ"
         return {
-            "title": title,
             "daysLeft": 0,
             "totalDays": DEFAULT_COUNTDOWN_TOTAL_DAYS,
-            "note": advised_task or title,
+            "note": advised_task,
             "days_remaining": 0,
             "total_days": DEFAULT_COUNTDOWN_TOTAL_DAYS,
             "percent": 0,
@@ -2234,7 +2240,6 @@ def build_countdown_data(
             "priority": _safe_number(countdown_target, "Priority"),
             "trigger_id": countdown_id,
             "countdown_id": countdown_id,
-            "fallback_label": fallback_label,
             "aspect_label": _countdown_aspect_label(countdown_target),
             "timeline_advise": _non_placeholder_text(countdown_target.get("timeline_advise")),
             "timelineAdvise": _non_placeholder_text(countdown_target.get("timeline_advise")),
@@ -2277,11 +2282,9 @@ def build_countdown_data(
     departure_days_remaining = days_remaining if countdown_mode_normalized == "departure" else exit_days_remaining
     hours_remaining = _normalize_int(scan.get("hours_remaining")) if scan else None
     total_hours = _normalize_int(scan.get("total_hours")) if scan else None
-    title = fallback_label
     note = _safe_text(master_row, "Next_Action_Hint") or advised_task
 
     return {
-        "title": title,
         "daysLeft": days_remaining,
         "totalDays": total_days,
         "note": note,
@@ -2306,7 +2309,6 @@ def build_countdown_data(
         "priority": _safe_number(countdown_target, "Priority"),
         "trigger_id": _safe_text(master_row, "Trigger_ID", countdown_id),
         "countdown_id": countdown_id,
-        "fallback_label": fallback_label,
         "aspect_label": _countdown_aspect_label(countdown_target),
         "timeline_advise": _non_placeholder_text(countdown_target.get("timeline_advise")),
         "timelineAdvise": _non_placeholder_text(countdown_target.get("timeline_advise")),
@@ -4432,9 +4434,13 @@ def _to_json_compatible(value: Any) -> Any:
         return [_to_json_compatible(item) for item in value]
     if isinstance(value, tuple):
         return [_to_json_compatible(item) for item in value]
+    if isinstance(value, float) and not isfinite(value):
+        return None
+    if value is pd.NA:
+        return None
     if hasattr(value, "item") and callable(value.item):
         try:
-            return value.item()
+            return _to_json_compatible(value.item())
         except (TypeError, ValueError):
             return value
     return value

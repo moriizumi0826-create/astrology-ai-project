@@ -603,7 +603,6 @@ function CountdownLane({
   const elapsedAmount = Math.max(0, totalAmount - remainingAmount);
   const progressLabel = `進行度 ${elapsedAmount}/${totalAmount || 0}${countdownUnit} (${percent}%)`;
   const note = String(activeSlide.note || '').trim();
-  const titleText = String(activeSlide.title || activeSlide.fallback_label || 'アスペクト').trim();
   const aspectLabel = String(activeSlide.aspect_label || '').trim();
   const scanStatus = String(activeSlide.scan_status || activeSlide.scan?.scan_status || '').trim();
   const isDepartingPeak =
@@ -691,7 +690,6 @@ function CountdownLane({
                 {aspectLabel}
               </p>
             ) : null}
-            <h3 className="text-base font-semibold leading-6 text-slate-300">{titleText}</h3>
           </div>
         </div>
 
@@ -1707,7 +1705,6 @@ function PressureCountdownList({
         const isDeparture = isDepartureCountdown(item);
         const useDepartureColors = differentiateDeparture && isDeparture;
         const aspectLabel = item.aspect_label || "";
-        const title = String(item.title || item.countdown_label || item.fallback_label || "").trim();
         const timelineAdvise = String(item.timelineAdvise || item.timeline_advise || item.target?.timeline_advise || "").trim();
         const orbValue = Number(item.current_orb ?? item.currentOrb ?? item.scan?.current_orb);
         const periodLabel = showInfluencePeriod ? pressurePeriodLabel(item, baseDateKey) : "";
@@ -1740,11 +1737,6 @@ function PressureCountdownList({
                   {aspectLabel || aspectFallbackLabel}
                   {Number.isFinite(orbValue) ? ` / orb ${orbValue.toFixed(2)}°` : ""}
                 </p>
-                {title ? (
-                  <h3 className="mt-1 line-clamp-2 font-notoSerif text-base font-black leading-6 text-[#f3f3f0]">
-                    {title}
-                  </h3>
-                ) : null}
               </div>
               <div className="shrink-0 text-right">
                 <p className={cx(
@@ -1979,7 +1971,7 @@ function DashboardV2CountdownCard({ data, onSelectAspect = () => {} }) {
   const remaining = countdownRemainingValue(slide, displayDate);
   const hasEvent = eventCount > 0;
   const hasLinkedWeeklyAspect = false;
-  const title = hasEvent ? (slide.title || slide.countdown_label || "カウントダウン") : "30日以内のイベントはありません";
+  const title = hasEvent ? (slide.title || "カウントダウン") : "30日以内のイベントはありません";
   const handleSelectEvent = () => {
     if (!hasEvent || !hasLinkedWeeklyAspect) return;
     onSelectAspect(aspectFocusKey(slide));

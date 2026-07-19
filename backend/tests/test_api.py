@@ -33,7 +33,6 @@ from backend.app.services.reading_service import (
     get_daily_vibe_modifiers,
 )
 from backend.app.services.yearly_forecast_service import (
-    _display_countdown_label,
     _orb_decay,
     _priority_weight,
     build_yearly_forecast_cache_payload,
@@ -348,7 +347,8 @@ class ApiTestCase(unittest.TestCase):
         self.assertEqual(dashboard_data["daily_vibe"]["modifier"], -20)
         self.assertTrue(dashboard_data["dailyStarVibe"])
         self.assertIn("positive", dashboard_data["aspectHighlights"])
-        self.assertNotEqual(dashboard_data["countdown"]["title"], dashboard_data["countdown"]["note"])
+        self.assertNotIn("title", dashboard_data["countdown"])
+        self.assertNotIn("fallback_label", dashboard_data["countdown"])
         self.assertTrue(dashboard_data["countdown"]["trigger_id"])
         self.assertNotIn("hero", dashboard_data)
         self.assertNotIn("topics", dashboard_data)
@@ -712,11 +712,11 @@ class ApiTestCase(unittest.TestCase):
         self.assertIsNotNone(countdown)
         self.assertEqual(countdown["trigger_id"], "LUCKY_LOVE_VENUS")
         self.assertEqual(countdown["countdown_id"].strip(), "lucky_love_venus")
-        self.assertEqual(countdown["fallback_label"], "譛鬮倥・諱区・驕九∪縺ｧ")
+        self.assertNotIn("fallback_label", countdown)
         self.assertEqual(countdown["percent"], 50)
         self.assertEqual(countdown["days_remaining"], 3)
         self.assertEqual(countdown["total_days"], 14)
-        self.assertTrue(countdown["title"])
+        self.assertNotIn("title", countdown)
         self.assertTrue(countdown["note"])
 
     def test_countdown_days_remaining_decreases_as_orb_approaches(self):
@@ -740,7 +740,7 @@ class ApiTestCase(unittest.TestCase):
         self.assertGreater(far_countdown["days_remaining"], near_countdown["days_remaining"])
         self.assertLess(far_countdown["percent"], near_countdown["percent"])
 
-    def test_countdown_keeps_aspect_countdown_label_within_half_degree(self):
+    def test_countdown_ignores_legacy_label_within_half_degree(self):
         countdown = build_countdown_data(
             {
                 "T_Planet": "TRANSIT_VENUS",
@@ -750,9 +750,10 @@ class ApiTestCase(unittest.TestCase):
             }
         )
 
-        self.assertEqual(countdown["title"], countdown["fallback_label"])
+        self.assertNotIn("title", countdown)
+        self.assertNotIn("fallback_label", countdown)
 
-    def test_countdown_prefers_aspect_label_and_keeps_master_action_hint(self):
+    def test_countdown_ignores_legacy_label_and_keeps_master_action_hint(self):
         countdown = build_countdown_data(
             {
                 "T_Planet": "TRANSIT_VENUS",
@@ -763,7 +764,8 @@ class ApiTestCase(unittest.TestCase):
             }
         )
 
-        self.assertEqual(countdown["title"], countdown["fallback_label"])
+        self.assertNotIn("title", countdown)
+        self.assertNotIn("fallback_label", countdown)
         self.assertNotEqual(countdown["note"], "個別タスクを使う")
         self.assertTrue(countdown["note"])
 
@@ -776,9 +778,10 @@ class ApiTestCase(unittest.TestCase):
             }
         )
 
-        self.assertEqual(countdown["title"], "")
+        self.assertNotIn("title", countdown)
+        self.assertNotIn("fallback_label", countdown)
 
-    def test_countdown_label_is_only_fallback_when_master_is_missing(self):
+    def test_countdown_ignores_legacy_label_when_master_is_missing(self):
         countdown = build_countdown_data(
             {
                 "T_Planet": "TRANSIT_VENUS",
@@ -788,11 +791,12 @@ class ApiTestCase(unittest.TestCase):
             }
         )
 
-        self.assertEqual(countdown["title"], "譌･譛ｬ隱槭ヵ繧ｩ繝ｼ繝ｫ繝舌ャ繧ｯ")
-        self.assertEqual(countdown["note"], "譌･譛ｬ隱槭ヵ繧ｩ繝ｼ繝ｫ繝舌ャ繧ｯ")
+        self.assertNotIn("title", countdown)
+        self.assertNotIn("fallback_label", countdown)
+        self.assertEqual(countdown["note"], "")
         self.assertEqual(countdown["trigger_id"], "UNKNOWN_TRIGGER")
 
-    def test_countdown_label_does_not_match_master_without_countdown_id(self):
+    def test_countdown_ignores_legacy_label_without_countdown_id(self):
         countdown = build_countdown_data(
             {
                 "T_Planet": "TRANSIT_VENUS",
@@ -801,8 +805,24 @@ class ApiTestCase(unittest.TestCase):
             }
         )
 
-        self.assertEqual(countdown["title"], "LUCKY_LOVE_VENUS")
+        self.assertNotIn("title", countdown)
+        self.assertNotIn("fallback_label", countdown)
         self.assertEqual(countdown["trigger_id"], "")
+
+    def test_countdown_without_id_or_legacy_label_does_not_add_title(self):
+        countdown = build_countdown_data(
+            {
+                "T_Planet": "TRANSIT_VENUS",
+                "N_Planet": "NATAL_MERCURY",
+                "Aspect_Angle": 0,
+                "timeline_advise": "会話を楽しめます。",
+                "_input": {"orb": 3.38},
+            }
+        )
+
+        self.assertNotIn("title", countdown)
+        self.assertNotIn("fallback_label", countdown)
+        self.assertEqual(countdown["timeline_advise"], "会話を楽しめます。")
 
     def test_countdown_turning_away_after_peak_keeps_zero_days(self):
         with patch("backend.app.services.reading_service._scan_countdown_ephemeris") as scan_mock:
@@ -1050,6 +1070,20 @@ class ApiTestCase(unittest.TestCase):
         self.assertEqual(lunar_item["target"]["N_Planet"], "NATAL_MERCURY")
         self.assertEqual(lunar_item["scoreImpact"], -30)
         self.assertFalse(any(item["priority"] < 5 for item in dashboard["weekly_aspects"]))
+        self.assertTrue(
+            all("Countdown_Label" not in item["target"] for item in dashboard["weekly_aspects"])
+        )
+
+    def test_json_compatible_replaces_non_finite_numbers(self):
+        payload = reading_service._to_json_compatible({
+            "python_nan": float("nan"),
+            "pandas_nan": pd.NA,
+            "nested": [float("inf"), float("-inf")],
+        })
+
+        self.assertIsNone(payload["python_nan"])
+        self.assertIsNone(payload["pandas_nan"])
+        self.assertEqual(payload["nested"], [None, None])
 
     def test_display_countdown_items_prefer_future_days_over_past_peak(self):
         items = [
@@ -1089,7 +1123,6 @@ class ApiTestCase(unittest.TestCase):
             "N_Planet": "NATAL_SUN",
             "Aspect_Angle": 0,
             "Countdown_ID": "WORK_SUCCESS_JUPITER",
-            "Countdown_Label": "個人カウントダウン",
             "Score_Impact": 60,
             "Priority": 8,
             "_orb_status": "Applying",
@@ -1100,8 +1133,8 @@ class ApiTestCase(unittest.TestCase):
             dashboard = build_dashboard_data_from_interpretations(rows, {"modifier": 0, "items": []})
 
         self.assertEqual(dashboard["celestial_event_calendar"], calendar)
-        self.assertEqual(dashboard["countdown"]["title"], "個人カウントダウン")
-        self.assertNotEqual(dashboard["celestial_event_calendar"][0]["title"], dashboard["countdown"]["title"])
+        self.assertNotIn("title", dashboard["countdown"])
+        self.assertNotIn("fallback_label", dashboard["countdown"])
 
     def test_celestial_event_genres_support_multiple_categories(self):
         self.assertEqual(reading_service._celestial_event_genres("Money,Work"), ["money", "work"])
@@ -1519,12 +1552,6 @@ class ApiTestCase(unittest.TestCase):
         self.assertEqual(_priority_weight(3), 1.0)
         self.assertEqual(_orb_decay(0, 180), 1.0)
         self.assertEqual(_orb_decay(8, 180), 0.2)
-
-    def test_yearly_forecast_countdown_label_trims_display_suffix(self):
-        self.assertEqual(_display_countdown_label("恋愛運ピーク日"), "恋愛運ピーク")
-        self.assertEqual(_display_countdown_label("大きな転機まで"), "大きな転機")
-        self.assertEqual(_display_countdown_label("収穫日まで"), "収穫")
-        self.assertEqual(_display_countdown_label("そのまま表示"), "そのまま表示")
 
     def test_yearly_forecast_extracts_extreme_and_sudden_change_milestones(self):
         yearly_data = [

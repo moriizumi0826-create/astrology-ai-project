@@ -515,14 +515,6 @@ def _peak_event(
     }
 
 
-def _display_countdown_label(value: Any) -> str:
-    label = str(value or "").strip()
-    for suffix in ("日まで", "まで", "日"):
-        if label.endswith(suffix):
-            return label[: -len(suffix)].rstrip()
-    return label
-
-
 def _event_from_interpretation(
     interpretation: dict[str, Any],
     transit_planet: str,
@@ -549,8 +541,7 @@ def _event_from_interpretation(
     return {
         "id": reading_service._safe_text(interpretation, "Aspect_Logic_ID")
         or f"{transit_planet}_{natal_point['planet']}_{exact_angle}",
-        "title": _display_countdown_label(reading_service._safe_text(interpretation, "Countdown_Label"))
-        or reading_service._safe_text(interpretation, "Category", "Transit Aspect"),
+        "title": reading_service._safe_text(interpretation, "Category", "Transit Aspect"),
         "description": _yearly_text(interpretation, "Text_Description"),
         "advised_task": _yearly_text(interpretation, "Advised_Task"),
         "priority": priority,
