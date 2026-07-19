@@ -446,12 +446,7 @@ form.addEventListener("submit", async (event) => {
   submitButton.classList.add("opacity-70", "cursor-not-allowed");
 
   try {
-    const [data, yearlyForecast] = await Promise.all([
-      postJson("/api/readings", payload),
-      postJson("/api/yearly-forecast", payload),
-    ]);
-    data.yearly_forecast = yearlyForecast;
-
+    const data = await postJson("/api/readings?defer_widgets=true", payload);
     await storeReadingResult(data);
     persistFormData(collectFormSnapshot());
     window.location.href = "/forecast-detail.html";

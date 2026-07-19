@@ -160,15 +160,6 @@ async function getJson(path) {
   return data;
 }
 
-async function reloadCsvMasters() {
-  const response = await requestJson(`${resolveApiBaseUrl()}/api/dev/reload-csv`);
-  if (!response.ok) {
-    const errorPayload = response.data || {};
-    throw new Error(formatApiError(errorPayload.detail, `CSV reload failed: ${response.status}`));
-  }
-  return response.data;
-}
-
 function formatApiError(detail, fallback) {
   if (!detail) return fallback;
   if (typeof detail === "string") return detail;
@@ -8358,13 +8349,16 @@ function YearCalculationDialog({
 
 function ForecastDetailPage() {
   const forceRefresh = shouldForceRefresh();
-  const [forecast, setForecast] = useState(() => getForecast() || (forceRefresh ? null : demoForecast()));
+  const [forecast, setForecast] = useState(() => getForecast() || null);
   const [readingPayload, setReadingPayload] = useState(() => getStoredReadingResult({ allowStale: true }) || {});
+  const [readingStorageHydrated, setReadingStorageHydrated] = useState(forceRefresh);
   const activeYear = forecastYear(forecast);
   const [yearDialogOpen, setYearDialogOpen] = useState(false);
   const [targetYear, setTargetYear] = useState(String(activeYear));
   const [calculatingYear, setCalculatingYear] = useState(false);
   const [yearCalculationError, setYearCalculationError] = useState("");
+  const [deferredContentLoading, setDeferredContentLoading] = useState(false);
+  const [deferredContentError, setDeferredContentError] = useState("");
   const [latestUpdateError, setLatestUpdateError] = useState("");
   const [refreshingLatest, setRefreshingLatest] = useState(false);
   const [versionState, setVersionState] = useState({
@@ -8382,19 +8376,110 @@ function ForecastDetailPage() {
       return () => {};
     }
     let active = true;
-    getStoredReadingResultAsync({ allowStale: true }).then((payload) => {
-      const indexedForecast = payload?.yearly_forecast || payload?.yearlyForecast || null;
-      if (active && payload) {
-        setReadingPayload(payload);
-        if (indexedForecast) {
-          setForecast(indexedForecast);
+    getStoredReadingResultAsync({ allowStale: true })
+      .then((payload) => {
+        const indexedForecast = payload?.yearly_forecast || payload?.yearlyForecast || null;
+        if (active && payload) {
+          setReadingPayload(payload);
+          if (indexedForecast) {
+            setForecast(indexedForecast);
+          }
         }
-      }
-    });
+      })
+      .finally(() => {
+        if (active) {
+          setReadingStorageHydrated(true);
+        }
+      });
     return () => {
       active = false;
     };
   }, [forceRefresh]);
+  const storedDashboard = readingPayload?.dashboard_data || readingPayload?.dashboardData || {};
+  const needsDeferredWidgets = readingStorageHydrated && !forceRefresh && storedDashboard?.deferred_widgets_pending === true;
+  const needsInitialForecast = readingStorageHydrated && !forceRefresh && !forecast;
+  useEffect(() => {
+    if (!needsDeferredWidgets && !needsInitialForecast) {
+      return () => {};
+    }
+    const formPayload = getQueryReadingForm() || getStoredReadingForm();
+    if (!formPayload) {
+      setDeferredContentError("保存済みの出生情報がないため、追加データを取得できません。入力画面から再計算してください。");
+      return () => {};
+    }
+
+    let active = true;
+    setDeferredContentLoading(true);
+    setDeferredContentError("");
+    const widgetRequest = needsDeferredWidgets
+      ? postJson("/api/readings/deferred", formPayload)
+      : Promise.resolve(null);
+    const forecastRequest = needsInitialForecast
+      ? postJson(`/api/yearly-forecast?year=${activeYear}`, formPayload)
+      : Promise.resolve(null);
+
+    Promise.allSettled([widgetRequest, forecastRequest])
+      .then(async ([widgetResult, forecastResult]) => {
+        if (!active) return;
+        const storedPayload = await getStoredReadingResultAsync({ allowStale: true });
+        if (!active) return;
+        let nextPayload = { ...(storedPayload || readingPayload || {}) };
+        let nextForecast = forecast;
+        let changed = false;
+        const errors = [];
+
+        if (needsDeferredWidgets) {
+          if (widgetResult.status === "fulfilled") {
+            const deferredDashboard = widgetResult.value?.dashboard_data || {};
+            nextPayload = {
+              ...nextPayload,
+              dashboard_data: {
+                ...(nextPayload.dashboard_data || nextPayload.dashboardData || {}),
+                ...deferredDashboard,
+                deferred_widgets_pending: false,
+              },
+            };
+            changed = true;
+          } else {
+            errors.push(`追加ウィジェットの取得に失敗しました: ${readableErrorMessage(widgetResult.reason, "API通信に失敗しました")}`);
+          }
+        }
+
+        if (needsInitialForecast) {
+          if (forecastResult.status === "fulfilled") {
+            nextForecast = forecastWithSelectedYear(forecastResult.value, activeYear);
+            nextPayload = { ...nextPayload, yearly_forecast: nextForecast };
+            changed = true;
+          } else {
+            errors.push(`年間予測の取得に失敗しました: ${readableErrorMessage(forecastResult.reason, "API通信に失敗しました")}`);
+          }
+        }
+
+        if (changed) {
+          await storeReadingResult(nextPayload);
+          if (!active) return;
+          setReadingPayload(nextPayload);
+          if (nextForecast) {
+            setForecast(nextForecast);
+          }
+        }
+        setDeferredContentError(errors.join(" / "));
+      })
+      .catch((error) => {
+        if (active) {
+          setDeferredContentError(readableErrorMessage(error, "追加データの取得に失敗しました。"));
+        }
+      })
+      .finally(() => {
+        if (active) {
+          setDeferredContentLoading(false);
+        }
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [activeYear, forceRefresh, needsDeferredWidgets, needsInitialForecast]);
   useEffect(() => {
     let active = true;
     Promise.allSettled([
@@ -8480,7 +8565,7 @@ function ForecastDetailPage() {
       active = false;
     };
   }, [activeYear, forceRefresh]);
-  const data = useMemo(() => monthlyData(forecast, !forceRefresh), [forecast, forceRefresh]);
+  const data = useMemo(() => monthlyData(forecast, false), [forecast]);
   const stats = useMemo(() => aggregateStats(data), [data]);
   const [selectedSeriesKey, setSelectedSeriesKey] = useState("general");
   const [selectedMonthIndex, setSelectedMonthIndex] = useState(() => realtimeMonthIndex(data));
@@ -8531,14 +8616,19 @@ function ForecastDetailPage() {
     setRefreshingLatest(true);
     setLatestUpdateError("");
     try {
-      const reloadPayload = await reloadCsvMasters().catch(() => null);
-      const [nextReading, nextForecastPayload, currentVersionPayload] = await Promise.all([
-        postJson("/api/readings", formPayload),
-        postJson(`/api/yearly-forecast?year=${activeYear}`, formPayload),
-        reloadPayload ? Promise.resolve(reloadPayload) : getJson("/api/master-version"),
+      const [nextReading, nextForecastPayload] = await Promise.all([
+        postJson("/api/readings", formPayload).catch((error) => {
+          throw new Error(`ホロスコープの再計算に失敗しました: ${readableErrorMessage(error, "API通信に失敗しました")}`);
+        }),
+        postJson(`/api/yearly-forecast?year=${activeYear}`, formPayload).catch((error) => {
+          throw new Error(`年次予測の再計算に失敗しました: ${readableErrorMessage(error, "API通信に失敗しました")}`);
+        }),
       ]);
       const selectedYearForecast = forecastWithSelectedYear(nextForecastPayload, activeYear);
-      const masterVersion = versionFromPayload(currentVersionPayload) || versionFromPayload(nextReading);
+      const masterVersion = versionFromPayload(nextReading) || versionFromPayload(nextForecastPayload);
+      if (!masterVersion) {
+        throw new Error("再計算結果に最新版データのバージョン情報がありません。");
+      }
       const nextPayload = {
         ...nextReading,
         master_version: masterVersion,
@@ -8630,6 +8720,16 @@ function ForecastDetailPage() {
           <div className="rounded-2xl border border-[#ffb4ab]/30 bg-[#3a1d1d]/45 px-4 py-3 text-xs leading-6 text-[#ffb4ab] sm:text-sm">
             {latestUpdateError}
           </div>
+        ) : null}
+        {deferredContentError ? (
+          <div className="rounded-2xl border border-[#ffb4ab]/30 bg-[#3a1d1d]/45 px-4 py-3 text-xs leading-6 text-[#ffb4ab] sm:text-sm">
+            {deferredContentError}
+          </div>
+        ) : null}
+        {deferredContentLoading ? (
+          <GlassPanel className="p-4 text-center font-mono text-xs font-bold uppercase tracking-[0.18em] text-mist">
+            年間予測と追加ウィジェットを読み込み中...
+          </GlassPanel>
         ) : null}
         {forceRefresh && calculatingYear && !forecast ? (
           <GlassPanel className="p-6 text-center font-mono text-xs font-bold uppercase tracking-[0.18em] text-mist">

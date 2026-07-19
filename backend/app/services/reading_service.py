@@ -2,11 +2,14 @@ import io
 import logging
 import re
 import sys
+from contextlib import contextmanager
+from contextvars import ContextVar
 from datetime import date, datetime, time as dt_time, timedelta
 from math import ceil
 from pathlib import Path
 from tempfile import TemporaryDirectory
-from typing import Any
+from threading import Lock
+from typing import Any, Iterator
 from zoneinfo import ZoneInfo
 
 import pandas as pd
@@ -48,6 +51,17 @@ COUNTDOWN_ASPECT_ANGLES = (0, 60, 90, 120, 150, 180)
 LOGGER = logging.getLogger(__name__)
 DATABASE_DIR = PROJECT_ROOT / "database"
 APP_TIMEZONE = ZoneInfo("Asia/Tokyo")
+
+_TRANSIT_MOTION_REQUEST_CACHE: ContextVar[
+    dict[tuple[str, datetime, float], tuple[float, float]] | None
+] = ContextVar("transit_motion_request_cache", default=None)
+_COUNTDOWN_ORB_REQUEST_CACHE: ContextVar[
+    dict[tuple[str, datetime, float, float, int], tuple[float, bool]] | None
+] = ContextVar("countdown_orb_request_cache", default=None)
+_NATAL_DATA_REQUEST_CACHE: ContextVar[dict[tuple[str, tuple[Any, ...]], Any] | None] = ContextVar(
+    "natal_data_request_cache",
+    default=None,
+)
 
 MASTER_CSV_FILES = {
     "basic": "M_Basic_Interpretation.csv",
@@ -359,18 +373,35 @@ def _csv_file_signature(paths: list[Path]) -> tuple[tuple[str, int | None, int |
 MASTER_DATAFRAMES = load_master_dataframes()
 _MASTER_CSV_SIGNATURE = _csv_file_signature(_master_csv_paths())
 _ASPECT_CANDIDATES_BY_KEY: dict[tuple[str, str, int], list[dict[str, Any]]] | None = None
+_MASTER_TIMELINE_ADVISE_LOOKUP: dict[tuple[Any, ...], str] | None = None
+_MASTER_PRESSURE_SCORE_LOOKUP: dict[tuple[Any, ...], float] | None = None
+_COUNTDOWN_MASTER_LOOKUP: dict[str, dict[str, Any]] | None = None
+_TRANSIT_RETROGRADE_START_DATES_BY_PLANET: dict[str, tuple[date, ...]] | None = None
+_RETROGRADE_CALENDAR_INDEX: dict[
+    tuple[str, str], tuple[tuple[date, dict[str, Any]], ...]
+] | None = None
 _ASPECT_INTERPRETATION_CACHE: dict[tuple[str, str, int, int, bool, str], dict[str, Any]] = {}
+_ASPECT_MASTER_INDEX_LOCK = Lock()
 
 
 def reload_master_dataframes_if_changed(force: bool = False) -> bool:
     global MASTER_DATAFRAMES, _MASTER_CSV_SIGNATURE, _ASPECT_CANDIDATES_BY_KEY
+    global _MASTER_TIMELINE_ADVISE_LOOKUP, _MASTER_PRESSURE_SCORE_LOOKUP, _COUNTDOWN_MASTER_LOOKUP
+    global _TRANSIT_RETROGRADE_START_DATES_BY_PLANET, _RETROGRADE_CALENDAR_INDEX
     current_signature = _csv_file_signature(_master_csv_paths())
     if not force and current_signature == _MASTER_CSV_SIGNATURE:
         return False
-    MASTER_DATAFRAMES = load_master_dataframes()
-    _MASTER_CSV_SIGNATURE = current_signature
-    _ASPECT_CANDIDATES_BY_KEY = None
-    _ASPECT_INTERPRETATION_CACHE.clear()
+    reloaded_dataframes = load_master_dataframes()
+    with _ASPECT_MASTER_INDEX_LOCK:
+        MASTER_DATAFRAMES = reloaded_dataframes
+        _MASTER_CSV_SIGNATURE = current_signature
+        _ASPECT_CANDIDATES_BY_KEY = None
+        _MASTER_TIMELINE_ADVISE_LOOKUP = None
+        _MASTER_PRESSURE_SCORE_LOOKUP = None
+        _COUNTDOWN_MASTER_LOOKUP = None
+        _TRANSIT_RETROGRADE_START_DATES_BY_PLANET = None
+        _RETROGRADE_CALENDAR_INDEX = None
+        _ASPECT_INTERPRETATION_CACHE.clear()
     return True
 
 
@@ -746,7 +777,6 @@ def get_aspect_interpretation(
     is_retrograde: bool,
     orb_status: str,
 ) -> dict[str, Any]:
-    global _ASPECT_CANDIDATES_BY_KEY
     aspect_df = MASTER_DATAFRAMES.get("aspect", pd.DataFrame())
     if aspect_df.empty:
         LOGGER.error("Aspect interpretation master is empty or failed to load.")
@@ -770,21 +800,9 @@ def get_aspect_interpretation(
     if cache_key in _ASPECT_INTERPRETATION_CACHE:
         return dict(_ASPECT_INTERPRETATION_CACHE[cache_key])
 
-    if _ASPECT_CANDIDATES_BY_KEY is None:
-        candidates_by_key: dict[tuple[str, str, int], list[dict[str, Any]]] = {}
-        for row in aspect_df.to_dict(orient="records"):
-            row_angle = _normalize_int(row.get("Aspect_Angle"))
-            if row_angle is None:
-                continue
-            key = (
-                _normalize_planet(row.get("T_Planet")),
-                _normalize_planet(row.get("N_Planet")),
-                row_angle,
-            )
-            candidates_by_key.setdefault(key, []).append(row)
-        _ASPECT_CANDIDATES_BY_KEY = candidates_by_key
-
-    base_candidate_rows = _ASPECT_CANDIDATES_BY_KEY.get((transit_planet, natal_planet, normalized_angle or 0), [])
+    _ensure_aspect_master_indexes()
+    candidates_by_key = _ASPECT_CANDIDATES_BY_KEY or {}
+    base_candidate_rows = candidates_by_key.get((transit_planet, natal_planet, normalized_angle or 0), [])
     if not base_candidate_rows:
         LOGGER.info(
             "No aspect interpretation found for required conditions: %s/%s/%s",
@@ -1420,10 +1438,8 @@ def _build_timeline_advise_lookup(rows: list[dict[str, Any]]) -> dict[tuple[Any,
 
 
 def _build_master_timeline_advise_lookup() -> dict[tuple[Any, ...], str]:
-    aspect_df = MASTER_DATAFRAMES.get("aspect", pd.DataFrame())
-    if aspect_df.empty:
-        return {}
-    return _build_timeline_advise_lookup(aspect_df.to_dict(orient="records"))
+    _ensure_aspect_master_indexes()
+    return _MASTER_TIMELINE_ADVISE_LOOKUP or {}
 
 
 def _build_pressure_score_lookup(rows: list[dict[str, Any]]) -> dict[tuple[Any, ...], float]:
@@ -1437,10 +1453,58 @@ def _build_pressure_score_lookup(rows: list[dict[str, Any]]) -> dict[tuple[Any, 
 
 
 def _build_master_pressure_score_lookup() -> dict[tuple[Any, ...], float]:
-    aspect_df = MASTER_DATAFRAMES.get("aspect", pd.DataFrame())
-    if aspect_df.empty:
-        return {}
-    return _build_pressure_score_lookup(aspect_df.to_dict(orient="records"))
+    _ensure_aspect_master_indexes()
+    return _MASTER_PRESSURE_SCORE_LOOKUP or {}
+
+
+def _build_aspect_master_indexes(
+    rows: list[dict[str, Any]],
+) -> tuple[
+    dict[tuple[str, str, int], list[dict[str, Any]]],
+    dict[tuple[Any, ...], str],
+    dict[tuple[Any, ...], float],
+]:
+    candidates_by_key: dict[tuple[str, str, int], list[dict[str, Any]]] = {}
+    for row in rows:
+        row_angle = _normalize_int(row.get("Aspect_Angle"))
+        if row_angle is None:
+            continue
+        key = (
+            _normalize_planet(row.get("T_Planet")),
+            _normalize_planet(row.get("N_Planet")),
+            row_angle,
+        )
+        candidates_by_key.setdefault(key, []).append(row)
+    return (
+        candidates_by_key,
+        _build_timeline_advise_lookup(rows),
+        _build_pressure_score_lookup(rows),
+    )
+
+
+def _ensure_aspect_master_indexes() -> None:
+    global _ASPECT_CANDIDATES_BY_KEY, _MASTER_TIMELINE_ADVISE_LOOKUP, _MASTER_PRESSURE_SCORE_LOOKUP
+    if (
+        _ASPECT_CANDIDATES_BY_KEY is not None
+        and _MASTER_TIMELINE_ADVISE_LOOKUP is not None
+        and _MASTER_PRESSURE_SCORE_LOOKUP is not None
+    ):
+        return
+
+    with _ASPECT_MASTER_INDEX_LOCK:
+        if (
+            _ASPECT_CANDIDATES_BY_KEY is not None
+            and _MASTER_TIMELINE_ADVISE_LOOKUP is not None
+            and _MASTER_PRESSURE_SCORE_LOOKUP is not None
+        ):
+            return
+        aspect_df = MASTER_DATAFRAMES.get("aspect", pd.DataFrame())
+        rows = [] if aspect_df.empty else aspect_df.to_dict(orient="records")
+        (
+            _ASPECT_CANDIDATES_BY_KEY,
+            _MASTER_TIMELINE_ADVISE_LOOKUP,
+            _MASTER_PRESSURE_SCORE_LOOKUP,
+        ) = _build_aspect_master_indexes(rows)
 
 
 def _pressure_score_for_row(row: dict[str, Any], lookup: dict[tuple[Any, ...], float] | None = None) -> float | None:
@@ -1493,13 +1557,36 @@ def get_countdown_master_row(trigger_id: Any) -> dict[str, Any] | None:
     normalized_trigger_id = _normalize_trigger_id(trigger_id)
     if not normalized_trigger_id:
         return None
-    countdown_df = MASTER_DATAFRAMES.get("countdown", pd.DataFrame())
+    _ensure_countdown_master_lookup()
+    return (_COUNTDOWN_MASTER_LOOKUP or {}).get(normalized_trigger_id)
+
+
+def _build_countdown_master_lookup(countdown_df: pd.DataFrame) -> dict[str, dict[str, Any]]:
     if countdown_df.empty or "Trigger_ID" not in countdown_df.columns:
-        LOGGER.error("Countdown master is empty, failed to load, or missing Trigger_ID.")
-        return None
-    matches = countdown_df[countdown_df["Trigger_ID"].map(_normalize_trigger_id) == normalized_trigger_id]
-    selected = _pick_highest_priority(matches) if not matches.empty else None
-    return selected
+        return {}
+    candidates_by_trigger: dict[str, list[dict[str, Any]]] = {}
+    for row in countdown_df.to_dict(orient="records"):
+        trigger_id = _normalize_trigger_id(row.get("Trigger_ID"))
+        if trigger_id:
+            candidates_by_trigger.setdefault(trigger_id, []).append(row)
+    return {
+        trigger_id: selected
+        for trigger_id, candidates in candidates_by_trigger.items()
+        if (selected := _pick_highest_priority(pd.DataFrame(candidates))) is not None
+    }
+
+
+def _ensure_countdown_master_lookup() -> None:
+    global _COUNTDOWN_MASTER_LOOKUP
+    if _COUNTDOWN_MASTER_LOOKUP is not None:
+        return
+    with _ASPECT_MASTER_INDEX_LOCK:
+        if _COUNTDOWN_MASTER_LOOKUP is not None:
+            return
+        countdown_df = MASTER_DATAFRAMES.get("countdown", pd.DataFrame())
+        if countdown_df.empty or "Trigger_ID" not in countdown_df.columns:
+            LOGGER.error("Countdown master is empty, failed to load, or missing Trigger_ID.")
+        _COUNTDOWN_MASTER_LOOKUP = _build_countdown_master_lookup(countdown_df)
 
 
 def _extract_current_orb(row: dict[str, Any] | None) -> float:
@@ -1571,27 +1658,77 @@ def _parse_transit_calendar_date(value: Any) -> date | None:
     return parsed.date()
 
 
+def _build_calendar_indexes() -> tuple[
+    dict[str, tuple[date, ...]],
+    dict[tuple[str, str], tuple[tuple[date, dict[str, Any]], ...]],
+]:
+    transit_dates: dict[str, list[date]] = {}
+    transit_df = MASTER_DATAFRAMES.get("transit_calendar", pd.DataFrame())
+    required_transit_columns = {"Date", "Planet", "Retrograde_Start_Flag"}
+    if not transit_df.empty and required_transit_columns.issubset(transit_df.columns):
+        for row in transit_df.to_dict(orient="records"):
+            if _normalize_bool_flag(row.get("Retrograde_Start_Flag")) != 1:
+                continue
+            event_date = _parse_transit_calendar_date(row.get("Date"))
+            if event_date is None:
+                continue
+            planet = _normalize_planet(row.get("Planet"))
+            transit_dates.setdefault(planet, []).append(event_date)
+
+    retrograde_rows: list[tuple[date, dict[str, Any]]] = []
+    retrograde_df = MASTER_DATAFRAMES.get("retrograde_calendar", pd.DataFrame())
+    if not retrograde_df.empty:
+        for raw_row in retrograde_df.to_dict(orient="records"):
+            event_date = _parse_transit_calendar_date(raw_row.get("Event_Date"))
+            if event_date is None:
+                continue
+            row = dict(raw_row)
+            row["Event_Date"] = event_date.isoformat()
+            retrograde_rows.append((event_date, row))
+    retrograde_rows.sort(
+        key=lambda item: (
+            str(item[1].get("Event_DateTime_JST") or item[1].get("Event_Date")),
+            str(item[1].get("Planet") or ""),
+        )
+    )
+
+    retrograde_index: dict[tuple[str, str], list[tuple[date, dict[str, Any]]]] = {}
+    for event_date, row in retrograde_rows:
+        planet = _normalize_planet(row.get("Planet"))
+        event_type = str(row.get("Event_Type") or "").strip().upper()
+        keys = dict.fromkeys((("", ""), (planet, ""), ("", event_type), (planet, event_type)))
+        for key in keys:
+            retrograde_index.setdefault(key, []).append((event_date, row))
+    return (
+        {planet: tuple(dates) for planet, dates in transit_dates.items()},
+        {key: tuple(rows) for key, rows in retrograde_index.items()},
+    )
+
+
+def _ensure_calendar_indexes() -> None:
+    global _TRANSIT_RETROGRADE_START_DATES_BY_PLANET, _RETROGRADE_CALENDAR_INDEX
+    if _TRANSIT_RETROGRADE_START_DATES_BY_PLANET is not None and _RETROGRADE_CALENDAR_INDEX is not None:
+        return
+    with _ASPECT_MASTER_INDEX_LOCK:
+        if _TRANSIT_RETROGRADE_START_DATES_BY_PLANET is not None and _RETROGRADE_CALENDAR_INDEX is not None:
+            return
+        (
+            _TRANSIT_RETROGRADE_START_DATES_BY_PLANET,
+            _RETROGRADE_CALENDAR_INDEX,
+        ) = _build_calendar_indexes()
+
+
 def _retrograde_calendar_start_day(
     transit_planet: str,
     scan_start: datetime,
     through_day: int,
 ) -> int | None:
-    calendar_df = MASTER_DATAFRAMES.get("transit_calendar", pd.DataFrame())
-    if calendar_df.empty:
-        return None
-    required_columns = {"Date", "Planet", "Retrograde_Start_Flag"}
-    if not required_columns.issubset(calendar_df.columns):
-        return None
+    _ensure_calendar_indexes()
     normalized_planet = _normalize_planet(transit_planet)
     start_date = scan_start.date()
     end_date = (scan_start + timedelta(days=max(through_day, 0))).date()
-    for row in calendar_df.to_dict("records"):
-        if _normalize_planet(row.get("Planet")) != normalized_planet:
-            continue
-        if _normalize_bool_flag(row.get("Retrograde_Start_Flag")) != 1:
-            continue
-        event_date = _parse_transit_calendar_date(row.get("Date"))
-        if event_date is None or not (start_date <= event_date <= end_date):
+    for event_date in (_TRANSIT_RETROGRADE_START_DATES_BY_PLANET or {}).get(normalized_planet, ()):
+        if not (start_date <= event_date <= end_date):
             continue
         return (event_date - start_date).days
     return None
@@ -1618,13 +1755,27 @@ def _aspect_orb_at(
     natal_longitude: float,
     exact_angle: int,
 ) -> tuple[float, bool]:
+    normalized_planet = _normalize_planet(transit_planet)
+    cache = _COUNTDOWN_ORB_REQUEST_CACHE.get()
+    cache_key = (
+        normalized_planet,
+        sample_local_dt,
+        float(timezone_offset),
+        float(natal_longitude),
+        int(exact_angle),
+    )
+    if cache is not None and cache_key in cache:
+        return cache[cache_key]
     transit_longitude, is_retrograde = _calc_transit_planet_state(
-        transit_planet,
+        normalized_planet,
         sample_local_dt,
         timezone_offset,
     )
     orb = abs(get_angle_diff(transit_longitude, natal_longitude) - exact_angle)
-    return orb, is_retrograde
+    result = (orb, is_retrograde)
+    if cache is not None:
+        cache[cache_key] = result
+    return result
 
 
 def _scan_lunar_countdown_arrival(
@@ -2529,8 +2680,52 @@ def _pressure_load_summary(items: list[dict[str, Any]]) -> dict[str, Any]:
     }
 
 
-def _build_natal_planet_rows(birth_input: BirthInput) -> list[dict[str, Any]]:
+def _birth_input_cache_key(birth_input: BirthInput) -> tuple[Any, ...]:
+    return (
+        birth_input.birth_date,
+        birth_input.birth_time,
+        bool(birth_input.birth_time_unknown),
+        birth_input.birthplace,
+        float(birth_input.latitude),
+        float(birth_input.longitude),
+        float(birth_input.timezone_offset),
+    )
+
+
+@contextmanager
+def _natal_data_request_cache() -> Iterator[dict[tuple[str, tuple[Any, ...]], Any]]:
+    active_cache = _NATAL_DATA_REQUEST_CACHE.get()
+    if active_cache is not None:
+        yield active_cache
+        return
+
+    request_cache: dict[tuple[str, tuple[Any, ...]], Any] = {}
+    token = _NATAL_DATA_REQUEST_CACHE.set(request_cache)
+    try:
+        yield request_cache
+    finally:
+        _NATAL_DATA_REQUEST_CACHE.reset(token)
+
+
+def _chart_rows_for_request(birth_input: BirthInput) -> dict[str, list[list[Any]]]:
+    cache = _NATAL_DATA_REQUEST_CACHE.get()
+    cache_key = ("chart_rows", _birth_input_cache_key(birth_input))
+    if cache is not None and cache_key in cache:
+        return cache[cache_key]
+
     chart_rows = build_chart_rows(birth_input)
+    if cache is not None:
+        cache[cache_key] = chart_rows
+    return chart_rows
+
+
+def _build_natal_planet_rows(birth_input: BirthInput) -> list[dict[str, Any]]:
+    cache = _NATAL_DATA_REQUEST_CACHE.get()
+    cache_key = ("natal_planet_rows", _birth_input_cache_key(birth_input))
+    if cache is not None and cache_key in cache:
+        return cache[cache_key]
+
+    chart_rows = _chart_rows_for_request(birth_input)
     natal_rows: list[dict[str, Any]] = []
     for row in chart_rows["planets"]:
         if len(row) < 6:
@@ -2543,11 +2738,18 @@ def _build_natal_planet_rows(birth_input: BirthInput) -> list[dict[str, Any]]:
             "longitude": longitude,
             "house": _normalize_int(row[5]) or 1,
         })
+    if cache is not None:
+        cache[cache_key] = natal_rows
     return natal_rows
 
 
 def _build_natal_aspect_points(birth_input: BirthInput) -> list[dict[str, Any]]:
-    chart_rows = build_chart_rows(birth_input)
+    cache = _NATAL_DATA_REQUEST_CACHE.get()
+    cache_key = ("natal_aspect_points", _birth_input_cache_key(birth_input))
+    if cache is not None and cache_key in cache:
+        return cache[cache_key]
+
+    chart_rows = _chart_rows_for_request(birth_input)
     natal_rows: list[dict[str, Any]] = []
     for row in chart_rows["planets"]:
         if len(row) < 6:
@@ -2575,6 +2777,8 @@ def _build_natal_aspect_points(birth_input: BirthInput) -> list[dict[str, Any]]:
                 "longitude": longitude,
                 "house": angle_house[point],
             })
+    if cache is not None:
+        cache[cache_key] = natal_rows
     return natal_rows
 
 
@@ -2675,13 +2879,55 @@ def _calc_transit_planet_state(planet: str, sample_local_dt: datetime, timezone_
 
 
 def _calc_transit_planet_motion(planet: str, sample_local_dt: datetime, timezone_offset: float) -> tuple[float, float]:
+    normalized_planet = _normalize_planet(planet)
+    normalized_timezone_offset = float(timezone_offset)
+    cache = _TRANSIT_MOTION_REQUEST_CACHE.get()
+    cache_key = (normalized_planet, sample_local_dt, normalized_timezone_offset)
+    if cache is not None and cache_key in cache:
+        return cache[cache_key]
+
     planet_ids = _transit_planet_ids()
-    planet_id = planet_ids[_normalize_planet(planet)]
-    utc_dt = sample_local_dt - timedelta(hours=timezone_offset)
+    planet_id = planet_ids[normalized_planet]
+    utc_dt = sample_local_dt - timedelta(hours=normalized_timezone_offset)
     hour_decimal = utc_dt.hour + (utc_dt.minute / 60) + (utc_dt.second / 3600)
     jd = swe.julday(utc_dt.year, utc_dt.month, utc_dt.day, hour_decimal)
     result = swe.calc_ut(jd, planet_id, swe.FLG_SPEED)
-    return float(result[0][0]), float(result[0][3])
+    motion = (float(result[0][0]), float(result[0][3]))
+    if cache is not None:
+        cache[cache_key] = motion
+    return motion
+
+
+@contextmanager
+def _transit_motion_request_cache() -> Iterator[dict[tuple[str, datetime, float], tuple[float, float]]]:
+    active_cache = _TRANSIT_MOTION_REQUEST_CACHE.get()
+    if active_cache is not None:
+        yield active_cache
+        return
+
+    request_cache: dict[tuple[str, datetime, float], tuple[float, float]] = {}
+    token = _TRANSIT_MOTION_REQUEST_CACHE.set(request_cache)
+    try:
+        yield request_cache
+    finally:
+        _TRANSIT_MOTION_REQUEST_CACHE.reset(token)
+
+
+@contextmanager
+def _countdown_orb_request_cache() -> Iterator[
+    dict[tuple[str, datetime, float, float, int], tuple[float, bool]]
+]:
+    active_cache = _COUNTDOWN_ORB_REQUEST_CACHE.get()
+    if active_cache is not None:
+        yield active_cache
+        return
+
+    request_cache: dict[tuple[str, datetime, float, float, int], tuple[float, bool]] = {}
+    token = _COUNTDOWN_ORB_REQUEST_CACHE.set(request_cache)
+    try:
+        yield request_cache
+    finally:
+        _COUNTDOWN_ORB_REQUEST_CACHE.reset(token)
 
 
 def _motion_status_from_speed(
@@ -2710,28 +2956,17 @@ def _retrograde_calendar_rows(
     planet: str | None = None,
     event_type: str | None = None,
 ) -> list[dict[str, Any]]:
-    calendar_df = MASTER_DATAFRAMES.get("retrograde_calendar", pd.DataFrame())
-    if calendar_df.empty:
-        return []
+    _ensure_calendar_indexes()
     target_date = current_dt.date() if isinstance(current_dt, datetime) else current_dt
     if target_date is None:
         target_date = _app_today()
     normalized_planet = _normalize_planet(planet) if planet else ""
     normalized_event = str(event_type or "").strip().upper()
-    rows: list[dict[str, Any]] = []
-    for raw_row in calendar_df.to_dict("records"):
-        event_date = _parse_transit_calendar_date(raw_row.get("Event_Date"))
-        if event_date is None or event_date < target_date:
-            continue
-        if normalized_planet and _normalize_planet(raw_row.get("Planet")) != normalized_planet:
-            continue
-        if normalized_event and str(raw_row.get("Event_Type") or "").strip().upper() != normalized_event:
-            continue
-        row = dict(raw_row)
-        row["Event_Date"] = event_date.isoformat()
-        rows.append(row)
-    rows.sort(key=lambda row: (str(row.get("Event_DateTime_JST") or row.get("Event_Date")), str(row.get("Planet") or "")))
-    return rows
+    indexed_rows = (_RETROGRADE_CALENDAR_INDEX or {}).get(
+        (normalized_planet, normalized_event),
+        (),
+    )
+    return [dict(row) for event_date, row in indexed_rows if event_date >= target_date]
 
 
 def _next_motion_change_from_calendar(
@@ -3089,7 +3324,7 @@ def _build_celestial_event_calendar(
     samples = _celestial_planet_samples(start_dt, end_dt, timezone_offset)
     events: list[dict[str, Any]] = []
 
-    chart_rows = build_chart_rows(birth_input)
+    chart_rows = _chart_rows_for_request(birth_input)
     supported_natal_points = set(TRANSIT_PLANET_ORDER) | {"ASC", "MC"}
     natal_points = [
         point for point in _build_natal_aspect_points(birth_input)
@@ -3892,17 +4127,26 @@ def build_dashboard_data_from_interpretations(
     basic_interpretations: list[dict[str, Any]] | None = None,
     birth_input: BirthInput | None = None,
     current_dt: datetime | date | None = None,
+    include_deferred_widgets: bool = True,
 ) -> dict[str, Any]:
     daily_star_vibe = get_daily_star_vibe_description(current_dt)
     if not interpretations:
-        return _to_json_compatible({
+        dashboard_data = {
             "header": _dashboard_header(),
             "dailyStarVibe": daily_star_vibe,
             "aspectHighlights": {"positive": [], "negative": []},
             "countdown": None,
-            "celestial_event_calendar": _build_celestial_event_calendar(birth_input, current_dt),
+            "celestial_event_calendar": (
+                _build_celestial_event_calendar(birth_input, current_dt)
+                if include_deferred_widgets
+                else []
+            ),
             "relief_countdown_items": [],
-            "dailyPerformance": _build_daily_performance(birth_input, current_dt, daily_vibe),
+            "dailyPerformance": (
+                _build_daily_performance(birth_input, current_dt, daily_vibe)
+                if include_deferred_widgets
+                else []
+            ),
             "planetMotion": _dashboard_planet_motion(birth_input, current_dt),
             "retrogradeCalendar": _dashboard_retrograde_calendar(current_dt),
             "weekly_aspects": [],
@@ -3910,7 +4154,10 @@ def build_dashboard_data_from_interpretations(
             "aspect_interpretations": [],
             "basic_interpretations": basic_interpretations or [],
             "daily_vibe": daily_vibe,
-        })
+        }
+        if not include_deferred_widgets:
+            dashboard_data["deferred_widgets_pending"] = True
+        return _to_json_compatible(dashboard_data)
 
     preview_row = _top_priority_row(interpretations)
     countdown_interpretations = _countdown_interpretations_with_lunar_candidates(
@@ -4024,11 +4271,23 @@ def build_dashboard_data_from_interpretations(
     _attach_pressure_timeline_advise(relief_countdown_items, timeline_advise_lookup)
     countdown_items = positive_countdown_items
     countdown_data = (positive_countdown_items or [None])[0]
-    daily_performance = _build_daily_performance(birth_input, current_dt, daily_vibe)
-    weekly_aspects = _build_weekly_aspect_items(birth_input, current_dt)
-    celestial_event_calendar = _build_celestial_event_calendar(birth_input, current_dt)
+    daily_performance = (
+        _build_daily_performance(birth_input, current_dt, daily_vibe)
+        if include_deferred_widgets
+        else []
+    )
+    weekly_aspects = (
+        _build_weekly_aspect_items(birth_input, current_dt)
+        if include_deferred_widgets
+        else []
+    )
+    celestial_event_calendar = (
+        _build_celestial_event_calendar(birth_input, current_dt)
+        if include_deferred_widgets
+        else []
+    )
     aspect_highlights = _top_daily_aspect_highlights(interpretations, current_dt=current_dt)
-    return _to_json_compatible({
+    dashboard_data = {
         "header": _dashboard_header(),
         "dailyStarVibe": daily_star_vibe,
         "aspectHighlights": aspect_highlights,
@@ -4064,7 +4323,10 @@ def build_dashboard_data_from_interpretations(
         "aspect_interpretations": interpretations,
         "basic_interpretations": basic_interpretations or [],
         "daily_vibe": daily_vibe,
-    })
+    }
+    if not include_deferred_widgets:
+        dashboard_data["deferred_widgets_pending"] = True
+    return _to_json_compatible(dashboard_data)
 
 
 def build_dashboard_data_from_aspects(
@@ -4075,6 +4337,7 @@ def build_dashboard_data_from_aspects(
     moon_sign: str | None = None,
     basic_interpretations: list[dict[str, Any]] | None = None,
     birth_input: BirthInput | None = None,
+    include_deferred_widgets: bool = True,
 ) -> dict[str, Any]:
     interpretations = get_all_aspect_interpretations(aspects)
     daily_vibe = get_daily_vibe_modifiers(
@@ -4089,6 +4352,7 @@ def build_dashboard_data_from_aspects(
         basic_interpretations,
         birth_input=birth_input,
         current_dt=current_dt,
+        include_deferred_widgets=include_deferred_widgets,
     )
 
 
@@ -4209,8 +4473,7 @@ def get_aspect_dashboard_data(
     return build_dashboard_data_from_aspect(interpretation)
 
 
-def generate_readings(payload: ReadingRequest) -> ReadingResponse:
-    reload_master_dataframes_if_changed()
+def _birth_input_from_request(payload: ReadingRequest) -> BirthInput:
     timezone_offset = payload.timezone_offset
     if timezone_offset is None:
         if not payload.timezone_name:
@@ -4223,8 +4486,7 @@ def generate_readings(payload: ReadingRequest) -> ReadingResponse:
             birth_time=payload.birth_time.strftime("%H:%M") if payload.birth_time else None,
             birth_time_unknown=payload.birth_time_unknown,
         )
-
-    birth_input = BirthInput(
+    return BirthInput(
         full_name=payload.full_name,
         birth_date=payload.birth_date.isoformat(),
         birth_time=payload.birth_time.strftime("%H:%M") if payload.birth_time else "",
@@ -4235,10 +4497,54 @@ def generate_readings(payload: ReadingRequest) -> ReadingResponse:
         timezone_offset=timezone_offset,
     )
 
-    chart_rows = build_chart_rows(birth_input)
+
+def _reading_current_datetime(payload: ReadingRequest) -> datetime:
     current_dt = _app_now()
     if payload.target_date and payload.target_date != _app_today():
-        current_dt = datetime.combine(payload.target_date, dt_time(hour=12))
+        return datetime.combine(payload.target_date, dt_time(hour=12))
+    return current_dt
+
+
+def generate_readings(
+    payload: ReadingRequest,
+    include_deferred_widgets: bool = True,
+) -> ReadingResponse:
+    with _transit_motion_request_cache(), _countdown_orb_request_cache(), _natal_data_request_cache():
+        if include_deferred_widgets:
+            return _generate_readings(payload)
+        return _generate_readings(payload, include_deferred_widgets=False)
+
+
+def generate_deferred_dashboard_widgets(payload: ReadingRequest) -> dict[str, Any]:
+    with _transit_motion_request_cache(), _countdown_orb_request_cache(), _natal_data_request_cache():
+        reload_master_dataframes_if_changed()
+        birth_input = _birth_input_from_request(payload)
+        current_dt = _reading_current_datetime(payload)
+        daily_vibe = get_daily_vibe_modifiers(
+            current_dt=current_dt,
+            retrograde_planets=build_current_retrograde_planets(
+                current_dt,
+                birth_input.timezone_offset,
+            ),
+        )
+        return _to_json_compatible({
+            "dailyPerformance": _build_daily_performance(birth_input, current_dt, daily_vibe),
+            "weekly_aspects": _build_weekly_aspect_items(birth_input, current_dt),
+            "celestial_event_calendar": _build_celestial_event_calendar(birth_input, current_dt),
+            "deferred_widgets_pending": False,
+        })
+
+
+def _generate_readings(
+    payload: ReadingRequest,
+    include_deferred_widgets: bool = True,
+) -> ReadingResponse:
+    reload_master_dataframes_if_changed()
+    birth_input = _birth_input_from_request(payload)
+    timezone_offset = birth_input.timezone_offset
+
+    chart_rows = _chart_rows_for_request(birth_input)
+    current_dt = _reading_current_datetime(payload)
     dashboard_data = build_dashboard_data_from_aspects(
         aspects=build_transit_aspect_inputs(birth_input, current_dt),
         current_dt=current_dt,
@@ -4251,6 +4557,7 @@ def generate_readings(payload: ReadingRequest) -> ReadingResponse:
             chart_rows["angles"],
         ),
         birth_input=birth_input,
+        include_deferred_widgets=include_deferred_widgets,
     )
 
     with TemporaryDirectory(prefix="chart_run_") as tmp:

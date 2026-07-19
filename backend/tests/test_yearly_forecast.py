@@ -23,6 +23,46 @@ DATABASE_DIR = PROJECT_ROOT / "database"
 
 
 class YearlyForecastTestCase(unittest.TestCase):
+    def test_yearly_forecast_reuses_same_input_and_year_result(self):
+        payload = BirthInput(
+            full_name="Cache Test",
+            birth_date="1984-08-26",
+            birth_time="19:20",
+            birth_time_unknown=False,
+            birthplace="Tokyo",
+            latitude=35.6812,
+            longitude=139.7671,
+            timezone_offset=9,
+        )
+        yearly_forecast_service._cached_yearly_forecast.cache_clear()
+        with patch.object(
+            yearly_forecast_service,
+            "_generate_yearly_forecast_uncached",
+            side_effect=[{"year": 2026}, {"year": "refreshed"}, {"year": 2027}],
+        ) as generate_uncached:
+            first = generate_yearly_forecast(payload, 2026)
+            second = generate_yearly_forecast(payload, 2026)
+            reload_yearly_master_caches_if_changed(force=True)
+            refreshed = generate_yearly_forecast(payload, 2026)
+            other_year = generate_yearly_forecast(payload, 2027)
+
+        self.assertIs(first, second)
+        self.assertEqual(refreshed, {"year": "refreshed"})
+        self.assertEqual(other_year, {"year": 2027})
+        self.assertEqual(generate_uncached.call_count, 3)
+        yearly_forecast_service._cached_yearly_forecast.cache_clear()
+
+    def test_yearly_master_version_paths_include_monthly_peak_rules(self):
+        filenames = {
+            path.name for path in yearly_forecast_service.yearly_csv_paths_for_version()
+        }
+        self.assertTrue({
+            monthly_peak_service.RULES_FILENAME,
+            monthly_peak_service.SCORING_FILENAME,
+            monthly_peak_service.PERIOD_FILENAME,
+            monthly_peak_service.NARRATIVE_TEMPLATES_FILENAME,
+        }.issubset(filenames))
+
     def test_yearly_summary_csv_reload_reflects_updated_file(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             temp_path = Path(temp_dir)

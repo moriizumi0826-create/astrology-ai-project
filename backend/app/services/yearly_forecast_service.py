@@ -99,6 +99,15 @@ def _yearly_csv_paths() -> list[Path]:
         DATABASE_DIR / "M_Yearly_Summary_Interpretation.csv",
         DATABASE_DIR / "M_Aspect_Interpretation_Yearly.csv",
     ]
+    paths.extend(
+        DATABASE_DIR / filename
+        for filename in (
+            monthly_peak_service.RULES_FILENAME,
+            monthly_peak_service.SCORING_FILENAME,
+            monthly_peak_service.PERIOD_FILENAME,
+            monthly_peak_service.NARRATIVE_TEMPLATES_FILENAME,
+        )
+    )
     paths.extend(sorted(DATABASE_DIR.glob("M_Transit_Calendar_*.csv")))
     return paths
 
@@ -130,6 +139,8 @@ def _clear_yearly_master_caches() -> None:
     _aspect_yearly_rows.cache_clear()
     _cached_aspect_interpretation.cache_clear()
     _aspect_master_index.cache_clear()
+    _cached_yearly_forecast.cache_clear()
+    monthly_peak_service.clear_monthly_peak_caches()
 
 
 def reload_yearly_master_caches_if_changed(force: bool = False) -> bool:
@@ -1252,15 +1263,10 @@ def build_annual_summaries(
     return summaries
 
 
-def generate_yearly_forecast(
+def _generate_yearly_forecast_uncached(
     birth_input: BirthInput,
     year: int = FORECAST_YEAR,
 ) -> dict[str, Any]:
-    reading_service.reload_master_dataframes_if_changed()
-    reload_yearly_master_caches_if_changed()
-    if swe is None:
-        raise RuntimeError("swisseph is not installed")
-
     start = date(year, 1, 1)
     end = date(year, 12, 31)
     natal_points, house_cusps, natal_sun_sign = _build_natal_points(birth_input)
@@ -1340,6 +1346,61 @@ def generate_yearly_forecast(
         "monthly_mars_themes": monthly_mars_themes,
         "cache": build_yearly_forecast_cache_payload(birth_input, year),
     }
+
+
+@lru_cache(maxsize=1)
+def _cached_yearly_forecast(
+    full_name: str,
+    birth_date: str,
+    birth_time: str,
+    birth_time_unknown: bool,
+    birthplace: str,
+    latitude: float,
+    longitude: float,
+    timezone_offset: float,
+    year: int,
+    _reading_master_signature: tuple[tuple[str, int | None, int | None], ...],
+    _yearly_master_signature: tuple[tuple[str, int | None, int | None], ...],
+) -> dict[str, Any]:
+    return _generate_yearly_forecast_uncached(
+        BirthInput(
+            full_name=full_name,
+            birth_date=birth_date,
+            birth_time=birth_time,
+            birth_time_unknown=birth_time_unknown,
+            birthplace=birthplace,
+            latitude=latitude,
+            longitude=longitude,
+            timezone_offset=timezone_offset,
+        ),
+        year,
+    )
+
+
+def generate_yearly_forecast(
+    birth_input: BirthInput,
+    year: int = FORECAST_YEAR,
+) -> dict[str, Any]:
+    reading_reloaded = reading_service.reload_master_dataframes_if_changed()
+    yearly_reloaded = reload_yearly_master_caches_if_changed()
+    if reading_reloaded and not yearly_reloaded:
+        _cached_yearly_forecast.cache_clear()
+    if swe is None:
+        raise RuntimeError("swisseph is not installed")
+
+    return _cached_yearly_forecast(
+        birth_input.full_name,
+        birth_input.birth_date,
+        birth_input.birth_time,
+        birth_input.birth_time_unknown,
+        birth_input.birthplace,
+        float(birth_input.latitude),
+        float(birth_input.longitude),
+        float(birth_input.timezone_offset),
+        year,
+        reading_service._MASTER_CSV_SIGNATURE,
+        _YEARLY_CSV_SIGNATURE,
+    )
 
 
 def build_yearly_forecast_cache_payload(birth_input: BirthInput, year: int = FORECAST_YEAR) -> dict[str, Any]:

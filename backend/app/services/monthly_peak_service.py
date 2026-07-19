@@ -118,6 +118,7 @@ def load_monthly_peak_narrative_templates(database_dir: Path | None = None) -> t
 def clear_monthly_peak_caches() -> None:
     _read_csv_rows.cache_clear()
     _default_monthly_peak_rule_index.cache_clear()
+    _default_peak_aggregation_context.cache_clear()
     _default_narrative_template_index.cache_clear()
 
 
@@ -235,6 +236,16 @@ def monthly_peak_rule_matches(rule: dict[str, Any], event: dict[str, Any]) -> bo
     return True
 
 
+def _monthly_peak_rule_orb_matches(rule: dict[str, Any], event: dict[str, Any]) -> bool:
+    orb_max = _as_float(rule.get("Orb_Max"), -1)
+    event_orb = event.get("orb")
+    return not (
+        orb_max >= 0
+        and event_orb not in (None, "")
+        and _as_float(event_orb) > orb_max
+    )
+
+
 def _find_scoring_rule(
     peak_rule: dict[str, Any],
     scoring_rules: Iterable[dict[str, Any]],
@@ -265,6 +276,50 @@ def _category_scoring_rule(
     return min(candidates, key=lambda row: _as_int(row.get("Priority"), 999999))
 
 
+def _scoring_match_key(rule: dict[str, Any]) -> tuple[str, str, str, str]:
+    return tuple(
+        _normalise(rule.get(column))
+        for column in ("Category", "Factor_Type", "Tone", "Intensity_Hint")
+    )
+
+
+def _build_peak_aggregation_context(
+    peak_rules: Iterable[dict[str, Any]],
+    scoring_rules: Iterable[dict[str, Any]],
+) -> dict[str, Any]:
+    peak_rule_index = _build_monthly_peak_rule_index(tuple(peak_rules))
+    score_rules = tuple(scoring_rules)
+    scoring_rule_by_key = {
+        _scoring_match_key(rule): _find_scoring_rule(rule, score_rules)
+        for rule in peak_rule_index["rules"]
+    }
+    return {
+        "peak_rule_index": peak_rule_index,
+        "rule_runtime_by_id": {
+            id(rule): (
+                _normalise(rule.get("Category")).lower(),
+                scoring_rule_by_key.get(_scoring_match_key(rule)),
+            )
+            for rule in peak_rule_index["rules"]
+        },
+        "calibrations": {
+            category: _category_scoring_rule(category, score_rules)
+            for category in CATEGORY_KEYS
+        },
+    }
+
+
+@lru_cache(maxsize=1)
+def _default_peak_aggregation_context(
+    _rule_signature: tuple[int, int],
+    _scoring_signature: tuple[int, int],
+) -> dict[str, Any]:
+    return _build_peak_aggregation_context(
+        load_monthly_peak_rules(),
+        load_monthly_peak_scoring_rules(),
+    )
+
+
 def _orb_exactness_multiplier(rule: dict[str, Any], event: dict[str, Any]) -> float:
     """Scale aspect effects from 0 at the configured orb edge to 1 when exact."""
     if _normalise(rule.get("Factor_Type")) not in {"TRANSIT_TO_NATAL", "TRANSIT_TO_TRANSIT"}:
@@ -283,18 +338,19 @@ def aggregate_daily_peak_categories(
     scoring_rules: Iterable[dict[str, Any]] | None = None,
 ) -> dict[str, dict[str, Any]]:
     """Match normalized events and independently sum activation and caution."""
-    peak_rule_index = (
-        _build_monthly_peak_rule_index(tuple(rules))
-        if rules is not None
-        else _default_monthly_peak_rule_index(
-            _file_signature(DATABASE_DIR / RULES_FILENAME)
+    if rules is None and scoring_rules is None:
+        context = _default_peak_aggregation_context(
+            _file_signature(DATABASE_DIR / RULES_FILENAME),
+            _file_signature(DATABASE_DIR / SCORING_FILENAME),
         )
-    )
-    score_rules = tuple(scoring_rules) if scoring_rules is not None else load_monthly_peak_scoring_rules()
-    calibrations = {
-        category: _category_scoring_rule(category, score_rules)
-        for category in CATEGORY_KEYS
-    }
+    else:
+        context = _build_peak_aggregation_context(
+            tuple(rules) if rules is not None else load_monthly_peak_rules(),
+            tuple(scoring_rules) if scoring_rules is not None else load_monthly_peak_scoring_rules(),
+        )
+    peak_rule_index = context["peak_rule_index"]
+    rule_runtime_by_id = context["rule_runtime_by_id"]
+    calibrations = context["calibrations"]
     result = {
         category: {
             "activation": 0.0,
@@ -309,15 +365,15 @@ def aggregate_daily_peak_categories(
     for index, event in enumerate(events):
         event_id = str(event.get("id") or index)
         for rule in _candidate_monthly_peak_rules(event, peak_rule_index):
-            category = _normalise(rule.get("Category")).lower()
-            if category not in result or not monthly_peak_rule_matches(rule, event):
+            category, scoring_rule = rule_runtime_by_id[id(rule)]
+            # The candidate index has already checked every non-orb match column.
+            if category not in result or not _monthly_peak_rule_orb_matches(rule, event):
                 continue
             match_key = (str(rule.get("Rule_ID") or ""), event_id)
             if match_key in matched_keys:
                 continue
             matched_keys.add(match_key)
 
-            scoring_rule = _find_scoring_rule(rule, score_rules)
             exactness = _orb_exactness_multiplier(rule, event)
             activation = exactness * _as_float(rule.get("Activation_Weight")) * _as_float(
                 scoring_rule.get("Activation_Multiplier") if scoring_rule else 1,

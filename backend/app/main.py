@@ -138,9 +138,30 @@ def location_search(
 
 
 @app.post("/api/readings")
-def create_reading(payload: ReadingRequest):
+def create_reading(payload: ReadingRequest, defer_widgets: bool = False):
     try:
-        return _attach_master_version(reading_service.generate_readings(payload))
+        return _attach_master_version(
+            reading_service.generate_readings(payload)
+            if not defer_widgets
+            else reading_service.generate_readings(payload, include_deferred_widgets=False)
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Internal server error: {exc}") from exc
+
+
+@app.post("/api/readings/deferred")
+def create_deferred_reading_widgets(payload: ReadingRequest):
+    try:
+        version_payload = _master_version_payload()
+        return {
+            "dashboard_data": reading_service.generate_deferred_dashboard_widgets(payload),
+            "masterVersion": version_payload["masterVersion"],
+            "master_version": version_payload["masterVersion"],
+        }
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except FileNotFoundError as exc:

@@ -4,11 +4,20 @@ from datetime import date, datetime, time
 from pathlib import Path
 from unittest.mock import patch
 
+import pandas as pd
 from fastapi.encoders import jsonable_encoder
 from fastapi import HTTPException
 from pydantic import ValidationError
 
-from backend.app.main import create_reading, create_yearly_forecast, health_check, location_search, master_version, root
+from backend.app.main import (
+    create_deferred_reading_widgets,
+    create_reading,
+    create_yearly_forecast,
+    health_check,
+    location_search,
+    master_version,
+    root,
+)
 from backend.app.services.chart_calculator import BirthInput, build_chart_rows, write_chart_csvs
 from backend.app.services.geocoding_service import LocationMatch
 from backend.app.services import reading_service
@@ -51,6 +60,170 @@ class ApiTestCase(unittest.TestCase):
         self.assertTrue(response["masterVersion"])
         self.assertEqual(response["masterVersion"], response["master_version"])
         self.assertGreater(response["fileCount"], 0)
+
+    def test_aspect_master_indexes_share_single_records_conversion(self):
+        class CountingDataFrame(pd.DataFrame):
+            conversion_count = 0
+
+            def to_dict(self, *args, **kwargs):
+                self.conversion_count += 1
+                return super().to_dict(*args, **kwargs)
+
+        aspect_df = CountingDataFrame([
+            {
+                "T_Planet": "TRANSIT_SUN",
+                "N_Planet": "NATAL_MOON",
+                "Aspect_Angle": 90,
+                "timeline_advise": "take a break",
+                "Pressure_Score": -40,
+            },
+            {
+                "T_Planet": "TRANSIT_SUN",
+                "N_Planet": "NATAL_MOON",
+                "Aspect_Angle": 90,
+                "timeline_advise": "",
+                "Pressure_Score": -30,
+            },
+        ])
+
+        with patch.object(reading_service, "MASTER_DATAFRAMES", {"aspect": aspect_df}), patch.object(
+            reading_service, "_ASPECT_CANDIDATES_BY_KEY", None
+        ), patch.object(
+            reading_service, "_MASTER_TIMELINE_ADVISE_LOOKUP", None
+        ), patch.object(
+            reading_service, "_MASTER_PRESSURE_SCORE_LOOKUP", None
+        ):
+            reading_service._ensure_aspect_master_indexes()
+            timeline_lookup = reading_service._build_master_timeline_advise_lookup()
+            pressure_lookup = reading_service._build_master_pressure_score_lookup()
+            reading_service._ensure_aspect_master_indexes()
+
+            candidates = reading_service._ASPECT_CANDIDATES_BY_KEY[("SUN", "MOON", 90)]
+            self.assertEqual(len(candidates), 2)
+            self.assertEqual(timeline_lookup[("SUN", "MOON", 90)], "take a break")
+            self.assertEqual(pressure_lookup[("SUN", "MOON", 90)], -30)
+            self.assertEqual(aspect_df.conversion_count, 1)
+
+    def test_master_reload_invalidates_all_aspect_indexes(self):
+        replacement_frames = {"aspect": pd.DataFrame()}
+
+        with patch.object(reading_service, "MASTER_DATAFRAMES", reading_service.MASTER_DATAFRAMES), patch.object(
+            reading_service, "_MASTER_CSV_SIGNATURE", reading_service._MASTER_CSV_SIGNATURE
+        ), patch.object(
+            reading_service, "load_master_dataframes", return_value=replacement_frames
+        ), patch.object(
+            reading_service, "_csv_file_signature", return_value=(("replacement", 1, 1),)
+        ), patch.object(
+            reading_service, "_ASPECT_CANDIDATES_BY_KEY", {("SUN", "MOON", 90): [{}]}
+        ), patch.object(
+            reading_service, "_MASTER_TIMELINE_ADVISE_LOOKUP", {("SUN", "MOON", 90): "old"}
+        ), patch.object(
+            reading_service, "_MASTER_PRESSURE_SCORE_LOOKUP", {("SUN", "MOON", 90): -40}
+        ), patch.object(
+            reading_service, "_COUNTDOWN_MASTER_LOOKUP", {"LUCKY": {"Trigger_ID": "LUCKY"}}
+        ), patch.object(
+            reading_service, "_TRANSIT_RETROGRADE_START_DATES_BY_PLANET", {"MERCURY": (date(2026, 1, 1),)}
+        ), patch.object(
+            reading_service, "_RETROGRADE_CALENDAR_INDEX", {("", ""): ()}
+        ), patch.object(
+            reading_service, "_ASPECT_INTERPRETATION_CACHE", {("SUN", "MOON", 90, 1, False, "Applying"): {}}
+        ):
+            reloaded = reading_service.reload_master_dataframes_if_changed(force=True)
+
+            self.assertTrue(reloaded)
+            self.assertIs(reading_service.MASTER_DATAFRAMES, replacement_frames)
+            self.assertIsNone(reading_service._ASPECT_CANDIDATES_BY_KEY)
+            self.assertIsNone(reading_service._MASTER_TIMELINE_ADVISE_LOOKUP)
+            self.assertIsNone(reading_service._MASTER_PRESSURE_SCORE_LOOKUP)
+            self.assertIsNone(reading_service._COUNTDOWN_MASTER_LOOKUP)
+            self.assertIsNone(reading_service._TRANSIT_RETROGRADE_START_DATES_BY_PLANET)
+            self.assertIsNone(reading_service._RETROGRADE_CALENDAR_INDEX)
+            self.assertEqual(reading_service._ASPECT_INTERPRETATION_CACHE, {})
+
+    def test_countdown_master_lookup_is_built_once_and_keeps_highest_priority(self):
+        class CountingDataFrame(pd.DataFrame):
+            conversion_count = 0
+
+            def to_dict(self, *args, **kwargs):
+                self.conversion_count += 1
+                return super().to_dict(*args, **kwargs)
+
+        countdown_df = CountingDataFrame([
+            {"Trigger_ID": "LUCKY", "Priority": 2, "Next_Action_Hint": "low"},
+            {"Trigger_ID": "LUCKY", "Priority": 8, "Next_Action_Hint": "high"},
+            {"Trigger_ID": "RELIEF", "Priority": 4, "Next_Action_Hint": "rest"},
+        ])
+
+        with patch.object(reading_service, "MASTER_DATAFRAMES", {"countdown": countdown_df}), patch.object(
+            reading_service, "_COUNTDOWN_MASTER_LOOKUP", None
+        ):
+            first = reading_service.get_countdown_master_row("LUCKY")
+            second = reading_service.get_countdown_master_row("LUCKY")
+            relief = reading_service.get_countdown_master_row("RELIEF")
+
+            self.assertEqual(first["Next_Action_Hint"], "high")
+            self.assertIs(first, second)
+            self.assertEqual(relief["Next_Action_Hint"], "rest")
+            self.assertEqual(countdown_df.conversion_count, 1)
+
+    def test_calendar_indexes_convert_each_master_once_and_preserve_filters(self):
+        class CountingDataFrame(pd.DataFrame):
+            conversion_count = 0
+
+            def to_dict(self, *args, **kwargs):
+                self.conversion_count += 1
+                return super().to_dict(*args, **kwargs)
+
+        transit_df = CountingDataFrame([
+            {"Date": "2026-07-20", "Planet": "MERCURY", "Retrograde_Start_Flag": 1},
+            {"Date": "2026-07-22", "Planet": "VENUS", "Retrograde_Start_Flag": 1},
+            {"Date": "2026-07-25", "Planet": "MERCURY", "Retrograde_Start_Flag": 0},
+        ])
+        retrograde_df = CountingDataFrame([
+            {
+                "Planet": "MERCURY",
+                "Event_Type": "DIRECT_START",
+                "Event_Date": "2026-07-24",
+                "Event_DateTime_JST": "2026-07-24 07:00:00",
+            },
+            {
+                "Planet": "NEPTUNE",
+                "Event_Type": "RETROGRADE_START",
+                "Event_Date": "2026-07-21",
+                "Event_DateTime_JST": "2026-07-21 19:00:00",
+            },
+            {
+                "Planet": "MERCURY",
+                "Event_Type": "RETROGRADE_START",
+                "Event_Date": "2026-07-19",
+                "Event_DateTime_JST": "2026-07-19 02:00:00",
+            },
+        ])
+
+        with patch.object(
+            reading_service,
+            "MASTER_DATAFRAMES",
+            {"transit_calendar": transit_df, "retrograde_calendar": retrograde_df},
+        ), patch.object(
+            reading_service, "_TRANSIT_RETROGRADE_START_DATES_BY_PLANET", None
+        ), patch.object(
+            reading_service, "_RETROGRADE_CALENDAR_INDEX", None
+        ):
+            start_day = reading_service._retrograde_calendar_start_day(
+                "TRANSIT_MERCURY", datetime(2026, 7, 19, 12), 3
+            )
+            future_rows = reading_service._retrograde_calendar_rows(date(2026, 7, 20))
+            mercury_direct = reading_service._retrograde_calendar_rows(
+                date(2026, 7, 20), planet="MERCURY", event_type="DIRECT_START"
+            )
+            reading_service._retrograde_calendar_rows(date(2026, 7, 20))
+
+            self.assertEqual(start_day, 1)
+            self.assertEqual([row["Planet"] for row in future_rows], ["NEPTUNE", "MERCURY"])
+            self.assertEqual(len(mercury_direct), 1)
+            self.assertEqual(mercury_direct[0]["Event_Date"], "2026-07-24")
+            self.assertEqual(transit_df.conversion_count, 1)
+            self.assertEqual(retrograde_df.conversion_count, 1)
 
     def test_aspect_interpretation_loads_sun_conjunction_from_master_csv(self):
         row = get_aspect_interpretation(
@@ -1421,6 +1594,138 @@ class ApiTestCase(unittest.TestCase):
 
         self.assertEqual(retrograde_planets, ["MERCURY", "SATURN"])
 
+    def test_transit_motion_request_cache_reuses_identical_calculations(self):
+        class FakeSwissEphemeris:
+            FLG_SPEED = 1
+
+            def __init__(self):
+                self.calc_calls = 0
+
+            @staticmethod
+            def julday(year, month, day, hour):
+                return float(year + month + day + hour)
+
+            def calc_ut(self, julian_day, planet_id, flags):
+                self.calc_calls += 1
+                return ([123.45, 0.0, 0.0, -0.25], 0)
+
+        fake_swe = FakeSwissEphemeris()
+        sample_dt = datetime(2026, 5, 8, 12, 0)
+
+        with patch.object(reading_service, "swe", fake_swe), patch.object(
+            reading_service,
+            "_transit_planet_ids",
+            return_value={"SUN": 0},
+        ):
+            with reading_service._transit_motion_request_cache() as request_cache:
+                first = reading_service._calc_transit_planet_motion("SUN", sample_dt, 9)
+                second = reading_service._calc_transit_planet_motion("TRANSIT_SUN", sample_dt, 9.0)
+                reading_service._calc_transit_planet_motion("SUN", datetime(2026, 5, 9, 12, 0), 9)
+                reading_service._calc_transit_planet_motion("SUN", sample_dt, 8)
+
+            self.assertEqual(first, second)
+            self.assertEqual(fake_swe.calc_calls, 3)
+            self.assertEqual(len(request_cache), 3)
+
+            with reading_service._transit_motion_request_cache():
+                reading_service._calc_transit_planet_motion("SUN", sample_dt, 9)
+
+        self.assertEqual(fake_swe.calc_calls, 4)
+
+    def test_generate_readings_limits_transit_motion_cache_to_request(self):
+        observed_caches = []
+        observed_countdown_orb_caches = []
+        observed_natal_caches = []
+
+        def fake_generate(_payload):
+            observed_caches.append(reading_service._TRANSIT_MOTION_REQUEST_CACHE.get())
+            observed_countdown_orb_caches.append(reading_service._COUNTDOWN_ORB_REQUEST_CACHE.get())
+            observed_natal_caches.append(reading_service._NATAL_DATA_REQUEST_CACHE.get())
+            return "reading"
+
+        with patch.object(reading_service, "_generate_readings", side_effect=fake_generate):
+            result = reading_service.generate_readings(object())
+
+        self.assertEqual(result, "reading")
+        self.assertEqual(observed_caches, [{}])
+        self.assertEqual(observed_countdown_orb_caches, [{}])
+        self.assertEqual(observed_natal_caches, [{}])
+        self.assertIsNone(reading_service._TRANSIT_MOTION_REQUEST_CACHE.get())
+        self.assertIsNone(reading_service._COUNTDOWN_ORB_REQUEST_CACHE.get())
+        self.assertIsNone(reading_service._NATAL_DATA_REQUEST_CACHE.get())
+
+    def test_countdown_orb_request_cache_reuses_identical_trajectory_points(self):
+        sample_dt = datetime(2026, 5, 8, 12, 0)
+
+        with patch.object(
+            reading_service,
+            "_calc_transit_planet_state",
+            return_value=(123.0, False),
+        ) as state_mock:
+            with reading_service._countdown_orb_request_cache() as request_cache:
+                first = reading_service._aspect_orb_at("SUN", sample_dt, 9, 33.0, 90)
+                second = reading_service._aspect_orb_at("TRANSIT_SUN", sample_dt, 9.0, 33, 90)
+                reading_service._aspect_orb_at("SUN", sample_dt, 8, 33.0, 90)
+
+            self.assertEqual(first, second)
+            self.assertEqual(state_mock.call_count, 2)
+            self.assertEqual(len(request_cache), 2)
+
+            with reading_service._countdown_orb_request_cache():
+                reading_service._aspect_orb_at("SUN", sample_dt, 9, 33.0, 90)
+
+        self.assertEqual(state_mock.call_count, 3)
+
+    def test_natal_data_request_cache_reuses_chart_rows_and_derived_points(self):
+        birth_input = BirthInput(
+            full_name="Test User",
+            birth_date="1984-08-26",
+            birth_time="19:20",
+            birth_time_unknown=False,
+            birthplace="Tokyo",
+            latitude=35.6812,
+            longitude=139.7671,
+            timezone_offset=9,
+        )
+        chart_rows = {
+            "planets": [["Sun", 150.0, "Virgo", 0, "D", 6]],
+            "angles": [["ASC", 330.0], ["MC", 240.0]],
+            "houses": [[1, 330.0]],
+            "aspects": [],
+        }
+        other_timezone_input = BirthInput(
+            full_name="Test User",
+            birth_date="1984-08-26",
+            birth_time="19:20",
+            birth_time_unknown=False,
+            birthplace="Tokyo",
+            latitude=35.6812,
+            longitude=139.7671,
+            timezone_offset=8,
+        )
+
+        with patch.object(reading_service, "build_chart_rows", return_value=chart_rows) as build_mock:
+            with reading_service._natal_data_request_cache() as request_cache:
+                first_chart = reading_service._chart_rows_for_request(birth_input)
+                second_chart = reading_service._chart_rows_for_request(birth_input)
+                planet_rows = reading_service._build_natal_planet_rows(birth_input)
+                repeated_planet_rows = reading_service._build_natal_planet_rows(birth_input)
+                aspect_points = reading_service._build_natal_aspect_points(birth_input)
+                repeated_aspect_points = reading_service._build_natal_aspect_points(birth_input)
+                reading_service._chart_rows_for_request(other_timezone_input)
+
+            self.assertIs(first_chart, second_chart)
+            self.assertIs(planet_rows, repeated_planet_rows)
+            self.assertIs(aspect_points, repeated_aspect_points)
+            self.assertEqual(build_mock.call_count, 2)
+            self.assertEqual(len(request_cache), 4)
+            self.assertEqual([point["planet"] for point in aspect_points], ["SUN", "ASC", "MC"])
+
+            with reading_service._natal_data_request_cache():
+                reading_service._chart_rows_for_request(birth_input)
+
+        self.assertEqual(build_mock.call_count, 3)
+
     def test_planet_motion_indicators_exclude_sun_and_moon(self):
         current_speeds = {
             "MERCURY": 0.4,
@@ -1495,6 +1800,25 @@ class ApiTestCase(unittest.TestCase):
         self.assertNotIn("hero", dashboard_data)
         self.assertNotIn("diagnostic", dashboard_data)
         self.assertNotIn("topics", dashboard_data)
+
+    def test_dashboard_core_mode_skips_deferred_widget_builders(self):
+        with patch.object(reading_service, "_build_daily_performance") as performance_mock, patch.object(
+            reading_service, "_build_weekly_aspect_items"
+        ) as weekly_mock, patch.object(
+            reading_service, "_build_celestial_event_calendar"
+        ) as celestial_mock:
+            dashboard_data = build_dashboard_data_from_aspects(
+                aspects=[],
+                include_deferred_widgets=False,
+            )
+
+        self.assertTrue(dashboard_data["deferred_widgets_pending"])
+        self.assertEqual(dashboard_data["dailyPerformance"], [])
+        self.assertEqual(dashboard_data["weekly_aspects"], [])
+        self.assertEqual(dashboard_data["celestial_event_calendar"], [])
+        performance_mock.assert_not_called()
+        weekly_mock.assert_not_called()
+        celestial_mock.assert_not_called()
 
     def test_location_search_success(self):
         fake_match = LocationMatch(
@@ -1588,6 +1912,66 @@ class ApiTestCase(unittest.TestCase):
 
         self.assertEqual(response.meta.full_name, "Test User")
         self.assertEqual(response.readings[0].type, "personality")
+
+    def test_create_reading_can_defer_heavy_widgets(self):
+        response = ReadingResponse(
+            meta=ReadingMeta(
+                full_name="Test User",
+                birthplace="Tokyo",
+                birth_date="1984-08-26",
+                birth_time="19:20",
+                birth_time_unknown=False,
+                timezone_offset=9,
+            ),
+            chart_data={},
+            readings=[],
+            transit_ready=True,
+            dashboard_data={"deferred_widgets_pending": True},
+        )
+        payload = ReadingRequest(
+            full_name="Test User",
+            birth_date="1984-08-26",
+            birth_time="19:20",
+            birth_time_unknown=False,
+            birthplace="Tokyo",
+            latitude=35.6812,
+            longitude=139.7671,
+            timezone_offset=9,
+        )
+
+        with patch.object(reading_service, "generate_readings", return_value=response) as generate_mock:
+            result = create_reading(payload, defer_widgets=True)
+
+        self.assertTrue(result.dashboard_data["deferred_widgets_pending"])
+        generate_mock.assert_called_once_with(payload, include_deferred_widgets=False)
+
+    def test_create_deferred_reading_widgets_wraps_dashboard_payload(self):
+        payload = ReadingRequest(
+            full_name="Test User",
+            birth_date="1984-08-26",
+            birth_time="19:20",
+            birth_time_unknown=False,
+            birthplace="Tokyo",
+            latitude=35.6812,
+            longitude=139.7671,
+            timezone_offset=9,
+        )
+        widgets = {
+            "dailyPerformance": [{"time": "08:00"}],
+            "weekly_aspects": [],
+            "celestial_event_calendar": [],
+            "deferred_widgets_pending": False,
+        }
+
+        with patch.object(
+            reading_service,
+            "generate_deferred_dashboard_widgets",
+            return_value=widgets,
+        ):
+            result = create_deferred_reading_widgets(payload)
+
+        self.assertEqual(result["dashboard_data"], widgets)
+        self.assertTrue(result["masterVersion"])
 
     def test_create_reading_success_with_unknown_birth_time(self):
         def fake_generate_readings(payload):
