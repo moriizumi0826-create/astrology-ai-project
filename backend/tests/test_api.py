@@ -1500,7 +1500,7 @@ class ApiTestCase(unittest.TestCase):
             all(item["priority_band"] == "high" for item in dashboard["countdown_groups"]["long_by_priority"]["high"])
         )
 
-    def test_pressure_countdown_excludes_jupiter_but_allows_neptune_trine(self):
+    def test_pressure_countdown_excludes_jupiter_and_neptune_above_planet_threshold(self):
         rows = [
             {
                 "T_Planet": "TRANSIT_JUPITER",
@@ -1543,8 +1543,28 @@ class ApiTestCase(unittest.TestCase):
 
         self.assertEqual(
             [item["target"]["Countdown_Label"] for item in dashboard["pressure_countdown_items"]],
-            ["neptune trine pressure"],
+            [],
         )
+
+    def test_pressure_countdown_uses_stricter_neptune_threshold(self):
+        self.assertFalse(reading_service._is_pressure_countdown_target({
+            "T_Planet": "TRANSIT_NEPTUNE",
+            "N_Planet": "NATAL_MOON",
+            "Aspect_Angle": 120,
+            "Pressure_Score": -29,
+        }))
+        self.assertTrue(reading_service._is_pressure_countdown_target({
+            "T_Planet": "TRANSIT_NEPTUNE",
+            "N_Planet": "NATAL_MOON",
+            "Aspect_Angle": 90,
+            "Pressure_Score": -30,
+        }))
+        self.assertTrue(reading_service._is_pressure_countdown_target({
+            "T_Planet": "TRANSIT_SATURN",
+            "N_Planet": "NATAL_MOON",
+            "Aspect_Angle": 90,
+            "Pressure_Score": -25,
+        }))
 
     def test_yearly_forecast_weight_and_orb_decay_helpers(self):
         self.assertEqual(_priority_weight(10), 3.0)

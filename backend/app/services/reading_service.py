@@ -153,6 +153,7 @@ PRESSURE_COUNTDOWN_TRANSIT_PLANETS = {
     "SATURN", "URANUS", "NEPTUNE", "PLUTO",
 }
 PRESSURE_COUNTDOWN_SCORE_THRESHOLD = -25
+PRESSURE_COUNTDOWN_PLANET_THRESHOLDS = {"NEPTUNE": -30}
 PERSONAL_READING_TRANSIT_PLANETS = {"MOON", "MERCURY", "VENUS", "MARS"}
 COUNTDOWN_PRIORITY_BANDS = {
     "high": {"label": "高", "min": 8, "max": None},
@@ -1347,7 +1348,11 @@ def _is_pressure_countdown_target(row: dict[str, Any], pressure_lookup: dict[tup
     if transit_planet not in PRESSURE_COUNTDOWN_TRANSIT_PLANETS:
         return False
     pressure_score = _pressure_score_for_row(row, pressure_lookup)
-    return pressure_score is not None and pressure_score <= PRESSURE_COUNTDOWN_SCORE_THRESHOLD
+    score_threshold = PRESSURE_COUNTDOWN_PLANET_THRESHOLDS.get(
+        transit_planet,
+        PRESSURE_COUNTDOWN_SCORE_THRESHOLD,
+    )
+    return pressure_score is not None and pressure_score <= score_threshold
 
 
 def _is_pressure_countdown_item(
