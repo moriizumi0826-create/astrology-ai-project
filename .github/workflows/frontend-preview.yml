@@ -1,4 +1,4 @@
-name: Frontend Preview
+name: Frontend Build Check
 
 on:
   push:
@@ -10,16 +10,14 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
-  pages: write
-  id-token: write
+  contents: read
 
 concurrency:
   group: frontend-preview-${{ github.ref_name }}
   cancel-in-progress: true
 
 jobs:
-  deploy-preview:
+  build-check:
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -42,59 +40,3 @@ jobs:
 
       - name: Build
         run: npm run build
-
-      - name: Prepare preview path
-        shell: bash
-        run: |
-          SAFE_BRANCH="${GITHUB_REF_NAME//\//-}"
-          if [ "$GITHUB_REF_NAME" = "main" ]; then
-            PREVIEW_PATH="main"
-          else
-            PREVIEW_PATH="previews/$SAFE_BRANCH"
-          fi
-          echo "PREVIEW_PATH=$PREVIEW_PATH" >> "$GITHUB_ENV"
-          echo "SAFE_BRANCH=$SAFE_BRANCH" >> "$GITHUB_ENV"
-
-      - name: Publish to gh-pages
-        uses: peaceiris/actions-gh-pages@v4
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_branch: gh-pages
-          publish_dir: frontend/dist
-          destination_dir: ${{ env.PREVIEW_PATH }}
-          keep_files: true
-          commit_message: "Deploy frontend preview for ${{ github.ref_name }}"
-
-      - name: Enable GitHub Pages
-        shell: bash
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          set -euo pipefail
-          API="https://api.github.com/repos/${GITHUB_REPOSITORY}/pages"
-          BODY='{"source":{"branch":"gh-pages","path":"/"}}'
-          STATUS="$(curl -sS -o /tmp/pages.json -w "%{http_code}" \
-            -H "Authorization: Bearer ${GH_TOKEN}" \
-            -H "Accept: application/vnd.github+json" \
-            -H "X-GitHub-Api-Version: 2022-11-28" \
-            "${API}")"
-          if [ "${STATUS}" = "404" ]; then
-            curl -sS -X POST \
-              -H "Authorization: Bearer ${GH_TOKEN}" \
-              -H "Accept: application/vnd.github+json" \
-              -H "X-GitHub-Api-Version: 2022-11-28" \
-              "${API}" \
-              -d "${BODY}" >/tmp/pages-create.json
-          else
-            curl -sS -X PATCH \
-              -H "Authorization: Bearer ${GH_TOKEN}" \
-              -H "Accept: application/vnd.github+json" \
-              -H "X-GitHub-Api-Version: 2022-11-28" \
-              "${API}" \
-              -d "${BODY}" >/tmp/pages-update.json
-          fi
-
-      - name: Preview URL
-        run: |
-          echo "Preview URL:"
-          echo "https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/${{ env.PREVIEW_PATH }}/forecast-detail.html"
