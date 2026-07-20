@@ -7351,6 +7351,7 @@ function OraclePanel({ stats, forecast }) {
     themeSupplement: "補足",
     lesson: "成長課題",
     summary: "総括",
+    test1: "test1",
     test2: "test2",
   }[analysisMode] || "総括";
   const isThemeSectionActive = analysisMode === "theme" || analysisMode === "themeSupplement";
@@ -7433,6 +7434,7 @@ function OraclePanel({ stats, forecast }) {
             </div>
             {[ 
               ["lesson", "成長課題"],
+              ["test1", "test1"],
               ["test2", "test2"],
             ].map(([value, label]) => (
               <button
@@ -7509,7 +7511,7 @@ function OraclePanel({ stats, forecast }) {
             </div>
           </div>
         ) : null}
-        {analysisMode === "themeSupplement" ? (
+        {analysisMode === "themeSupplement" || analysisMode === "test1" ? (
           <div className="mt-6 flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto pr-2 [scrollbar-color:#e9c349_rgba(255,255,255,0.08)] [scrollbar-width:thin] sm:mt-8">
             {jupiterAspectItems.length ? (
               jupiterAspectItems.map((item) => {
