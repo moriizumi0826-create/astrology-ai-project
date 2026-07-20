@@ -7348,11 +7348,12 @@ function OraclePanel({ stats, forecast }) {
   const saturnAspectItems = saturnAspectItemsFromForecast(forecast);
   const analysisTitle = {
     theme: "幸運拡大",
+    themeSupplement: "補足",
     lesson: "成長課題",
     summary: "総括",
-    test1: "test1",
     test2: "test2",
   }[analysisMode] || "総括";
+  const isThemeSectionActive = analysisMode === "theme" || analysisMode === "themeSupplement";
   const fallbackThemeItems = [
     { color: "#e9c349", label: "THEME 01", body: "作成中" },
     { color: "#d3bcf9", label: "THEME 02", body: "作成中" },
@@ -7394,12 +7395,44 @@ function OraclePanel({ stats, forecast }) {
               {analysisTitle}
             </h2>
           </div>
-          <div className="flex w-full overflow-x-auto rounded-full border border-white/10 bg-white/[0.04] p-1 font-mono text-[7px] font-bold text-mist [scrollbar-width:none] sm:w-auto sm:shrink-0 sm:text-[10px]">
+          <div className="flex w-full items-start overflow-x-auto rounded-full border border-white/10 bg-white/[0.04] p-1 font-mono text-[7px] font-bold text-mist [scrollbar-width:none] sm:w-auto sm:shrink-0 sm:text-[10px]">
+            {[["summary", "総括"]].map(([value, label]) => (
+              <button
+                key={value}
+                type="button"
+                onClick={() => setAnalysisMode(value)}
+                className={cx(
+                  "shrink-0 rounded-full px-2 py-1.5 transition sm:px-3",
+                  analysisMode === value ? "bg-gold text-[#241a00]" : "hover:bg-white/10 hover:text-starlight"
+                )}
+              >
+                {label}
+              </button>
+            ))}
+            <div className="flex shrink-0 flex-col border-l border-white/10 pl-1">
+              <button
+                type="button"
+                onClick={() => setAnalysisMode("theme")}
+                className={cx(
+                  "rounded-full px-2 py-1.5 text-left transition sm:px-3",
+                  isThemeSectionActive ? "bg-gold text-[#241a00]" : "hover:bg-white/10 hover:text-starlight"
+                )}
+              >
+                幸運拡大
+              </button>
+              <button
+                type="button"
+                onClick={() => setAnalysisMode("themeSupplement")}
+                className={cx(
+                  "ml-2 rounded-full px-2 py-1 text-left text-[6px] transition sm:ml-3 sm:text-[8px]",
+                  analysisMode === "themeSupplement" ? "bg-white/15 text-gold" : "text-mist/70 hover:bg-white/10 hover:text-starlight"
+                )}
+              >
+                補足
+              </button>
+            </div>
             {[ 
-              ["summary", "総括"],
-              ["theme", "幸運拡大"],
               ["lesson", "成長課題"],
-              ["test1", "test1"],
               ["test2", "test2"],
             ].map(([value, label]) => (
               <button
@@ -7476,7 +7509,7 @@ function OraclePanel({ stats, forecast }) {
             </div>
           </div>
         ) : null}
-        {analysisMode === "test1" ? (
+        {analysisMode === "themeSupplement" ? (
           <div className="mt-6 flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto pr-2 [scrollbar-color:#e9c349_rgba(255,255,255,0.08)] [scrollbar-width:thin] sm:mt-8">
             {jupiterAspectItems.length ? (
               jupiterAspectItems.map((item) => {
