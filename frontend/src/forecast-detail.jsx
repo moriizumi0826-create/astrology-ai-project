@@ -639,11 +639,6 @@ function demoForecast() {
     summary: "2026年の運勢推移を、主要カテゴリごとのスコア変化として可視化します。",
     reading_date: currentTokyoDate(),
     yearly_data,
-    milestones: [
-      { date: "2026-03-15", title: "成長テーマの加速", score: 88 },
-      { date: "2026-08-15", title: "年間ピーク", score: 94 },
-      { date: "2026-10-15", title: "見直しの谷", score: -30 },
-    ],
   };
 }
 
@@ -2495,16 +2490,6 @@ function collectTransitHouseCusps(day, transits = []) {
     return normalizedTransitChartCusps.slice(0, 12);
   }
 
-  const events = Array.isArray(day?.events) ? day.events : [];
-  for (const event of events) {
-    const house = Number(event?.solar_house ?? event?.solarHouse);
-    const longitude = normalizeLongitude(event?.transit_longitude ?? event?.transitLongitude);
-    if (Number.isFinite(house) && house >= 1 && house <= 12 && longitude !== null) {
-      const signStart = Math.floor(longitude / 30) * 30;
-      const firstHouseCusp = normalizeLongitude(signStart - (house - 1) * 30) ?? 0;
-      return Array.from({ length: 12 }, (_, index) => normalizeLongitude(firstHouseCusp + index * 30) ?? 0);
-    }
-  }
   const sunLongitude = normalizeLongitude(transits.find((item) => item?.planet === "SUN")?.longitude) ?? 0;
   const firstHouseCusp = Math.floor(sunLongitude / 30) * 30;
   return Array.from({ length: 12 }, (_, index) => normalizeLongitude(firstHouseCusp + index * 30) ?? 0);
@@ -2600,17 +2585,6 @@ function collectNatalPoints(forecast) {
       : [];
   directPoints.forEach((point) => addPoint(point?.planet || point?.name, point?.longitude));
 
-  const yearlyData = Array.isArray(forecast?.yearly_data)
-    ? forecast.yearly_data
-    : Array.isArray(forecast?.yearlyData)
-      ? forecast.yearlyData
-      : [];
-  yearlyData.forEach((dayItem) => {
-    (Array.isArray(dayItem?.events) ? dayItem.events : []).forEach((event) => {
-      addPoint(event?.n_planet || event?.natal_planet, event?.natal_longitude ?? event?.natalLongitude);
-    });
-  });
-
   NATAL_POINT_ORDER.forEach((planet) => {
     if (!byPlanet.has(planet)) {
       addPoint(planet, fallbackNatalLongitude(planet), true);
@@ -2624,10 +2598,7 @@ function transitSkyMapData(day, forecast, selectedNatalPlanet = "SUN") {
     ? day.all_aspects
     : Array.isArray(day?.allAspects)
       ? day.allAspects
-      : Array.isArray(day?.events)
-        ? day.events
-        : [];
-  const displayEvents = Array.isArray(day?.events) ? day.events : events;
+      : [];
   const transitChartItems = Array.isArray(day?.transit_chart?.transits)
     ? day.transit_chart.transits
     : Array.isArray(day?.transitChart?.transits)
@@ -2646,18 +2617,6 @@ function transitSkyMapData(day, forecast, selectedNatalPlanet = "SUN") {
       longitude,
       color: PLANET_COLORS[planet] || "#e2e2e2",
       retrograde: Boolean(item?.retrograde),
-    });
-  });
-  displayEvents.forEach((event) => {
-    const planet = normalizedPlanet(event?.t_planet || event?.transit_planet);
-    const longitude = Number(event?.transit_longitude ?? event?.transitLongitude);
-    if (!TRANSIT_PLANET_ORDER.includes(planet) || !Number.isFinite(longitude) || byPlanet.has(planet)) return;
-    preciseTransitCount += 1;
-    byPlanet.set(planet, {
-      planet,
-      label: planetLabel(planet),
-      longitude: ((longitude % 360) + 360) % 360,
-      color: PLANET_COLORS[planet] || "#e2e2e2",
     });
   });
   TRANSIT_PLANET_ORDER.forEach((planet) => {
@@ -6702,98 +6661,6 @@ function dailyDataForMonth(forecast, year, index) {
   }));
 }
 
-function dateRangesOverlap(firstStart, firstEnd, secondStart, secondEnd) {
-  return Boolean(firstStart && firstEnd && secondStart && secondEnd && firstStart <= secondEnd && secondStart <= firstEnd);
-}
-
-function itemOverlapsDateRange(item, startDate, endDate) {
-  return dateRangesOverlap(item?.startDate, item?.endDate, startDate, endDate);
-}
-
-function compoundKindIsFullyCoveredBy(lowerKind, upperKind) {
-  return {
-    tSquare: ["grandCross"],
-    grandTrine: ["kite", "grandSextile"],
-    yod: ["boomerang"],
-    mysticRectangle: ["homeBase"],
-  }[lowerKind]?.includes(upperKind);
-}
-
-function compoundIdsSubset(lowerIds = [], upperIds = []) {
-  const upperSet = new Set(upperIds);
-  return lowerIds.length > 0 && lowerIds.every((id) => upperSet.has(id));
-}
-
-function removeCoveredCompoundItems(items = []) {
-  return items.filter((item) => !items.some((candidate) => (
-    candidate.key !== item.key
-    && compoundKindIsFullyCoveredBy(item.kind, candidate.kind)
-    && compoundIdsSubset(item.ids, candidate.ids)
-    && itemOverlapsDateRange(item, candidate.startDate, candidate.endDate)
-  )));
-}
-
-function compoundAspectItemsForMonth(forecast, year, monthIndexValue) {
-  const source = Array.isArray(forecast?.yearly_data) ? forecast.yearly_data : [];
-  const days = source.length ? source : dailyDataForYear(forecast, year);
-  const byAspect = new Map();
-  days.forEach((day) => {
-    const sky = transitSkyMapData(day, forecast, "SUN");
-    const preciseTransits = sky.transits.filter((item) => !item.estimated);
-    const transits = preciseTransits.length ? preciseTransits : sky.transits;
-    const transitNatalAspects = liveAspectsFromChart({ transits }, sky.natalPoints);
-    const transitTransitAspects = transitTransitAspectsFromTransits(transits);
-    const natalNatalAspects = natalNatalAspectsFromPoints(sky.natalPoints);
-    const groups = detectCompoundAspects([
-      ...transitNatalAspects,
-      ...transitTransitAspects,
-      ...natalNatalAspects,
-    ]);
-    groups.forEach((group) => {
-      const date = dateKey(day?.date);
-      if (!date) return;
-      const current = byAspect.get(group.key) || {
-        kind: group.kind,
-        ids: group.ids || [],
-        dates: [],
-        item: {
-          key: group.key,
-          label: group.title,
-          title: group.title,
-          description: group.description || "複合アスペクトです。",
-          startDate: date,
-          endDate: date,
-          color: group.color,
-          detailText: compoundKindDetailText(group.kind),
-          kind: group.kind,
-          ids: group.ids || [],
-        },
-      };
-      current.dates.push(date);
-      byAspect.set(group.key, current);
-    });
-  });
-
-  const monthStart = `${year}-${String(monthIndexValue + 1).padStart(2, "0")}-01`;
-  const monthEnd = `${year}-${String(monthIndexValue + 1).padStart(2, "0")}-${String(new Date(year, monthIndexValue + 1, 0).getDate()).padStart(2, "0")}`;
-  const rangedItems = [];
-  byAspect.forEach(({ dates, item }) => {
-    const sortedDates = Array.from(new Set(dates)).sort();
-    sortedDates.forEach((date) => {
-      const previous = rangedItems[rangedItems.length - 1];
-      if (previous && previous.key === item.key && addDays(previous.endDate, 1) === date) {
-        previous.endDate = date;
-        return;
-      }
-      rangedItems.push({ ...item, startDate: date, endDate: date });
-    });
-  });
-
-  return removeCoveredCompoundItems(rangedItems)
-    .filter((item) => itemOverlapsDateRange(item, monthStart, monthEnd))
-    .sort((a, b) => a.startDate.localeCompare(b.startDate) || a.label.localeCompare(b.label));
-}
-
 function dailyDataForYear(forecast, year) {
   const source = Array.isArray(forecast?.yearly_data) ? forecast.yearly_data : [];
   const byDate = new Map(source.map((day) => [dateKey(day?.date), day]).filter(([date]) => Boolean(date)));
@@ -7348,11 +7215,13 @@ function OraclePanel({ stats, forecast }) {
   const saturnAspectItems = saturnAspectItemsFromForecast(forecast);
   const analysisTitle = {
     theme: "幸運拡大",
+    themeSupplement: "補足",
     lesson: "成長課題",
     summary: "総括",
     test1: "test1",
     test2: "test2",
   }[analysisMode] || "総括";
+  const isThemeSectionActive = analysisMode === "theme" || analysisMode === "themeSupplement";
   const fallbackThemeItems = [
     { color: "#e9c349", label: "THEME 01", body: "作成中" },
     { color: "#d3bcf9", label: "THEME 02", body: "作成中" },
@@ -7394,10 +7263,43 @@ function OraclePanel({ stats, forecast }) {
               {analysisTitle}
             </h2>
           </div>
-          <div className="flex w-full overflow-x-auto rounded-full border border-white/10 bg-white/[0.04] p-1 font-mono text-[7px] font-bold text-mist [scrollbar-width:none] sm:w-auto sm:shrink-0 sm:text-[10px]">
+          <div className="flex w-full items-start overflow-x-auto rounded-full border border-white/10 bg-white/[0.04] p-1 font-mono text-[7px] font-bold text-mist [scrollbar-width:none] sm:w-auto sm:shrink-0 sm:text-[10px]">
+            {[["summary", "総括"]].map(([value, label]) => (
+              <button
+                key={value}
+                type="button"
+                onClick={() => setAnalysisMode(value)}
+                className={cx(
+                  "shrink-0 rounded-full px-2 py-1.5 transition sm:px-3",
+                  analysisMode === value ? "bg-gold text-[#241a00]" : "hover:bg-white/10 hover:text-starlight"
+                )}
+              >
+                {label}
+              </button>
+            ))}
+            <div className="flex shrink-0 flex-col border-l border-white/10 pl-1">
+              <button
+                type="button"
+                onClick={() => setAnalysisMode("theme")}
+                className={cx(
+                  "rounded-full px-2 py-1.5 text-left transition sm:px-3",
+                  isThemeSectionActive ? "bg-gold text-[#241a00]" : "hover:bg-white/10 hover:text-starlight"
+                )}
+              >
+                幸運拡大
+              </button>
+              <button
+                type="button"
+                onClick={() => setAnalysisMode("themeSupplement")}
+                className={cx(
+                  "ml-2 rounded-full px-2 py-1 text-left text-[6px] transition sm:ml-3 sm:text-[8px]",
+                  analysisMode === "themeSupplement" ? "bg-white/15 text-gold" : "text-mist/70 hover:bg-white/10 hover:text-starlight"
+                )}
+              >
+                補足
+              </button>
+            </div>
             {[ 
-              ["summary", "総括"],
-              ["theme", "幸運拡大"],
               ["lesson", "成長課題"],
               ["test1", "test1"],
               ["test2", "test2"],
@@ -7476,7 +7378,7 @@ function OraclePanel({ stats, forecast }) {
             </div>
           </div>
         ) : null}
-        {analysisMode === "test1" ? (
+        {analysisMode === "themeSupplement" || analysisMode === "test1" ? (
           <div className="mt-6 flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto pr-2 [scrollbar-color:#e9c349_rgba(255,255,255,0.08)] [scrollbar-width:thin] sm:mt-8">
             {jupiterAspectItems.length ? (
               jupiterAspectItems.map((item) => {
@@ -8031,14 +7933,9 @@ function Matrix({
   const marsThemeItems = monthlyItems(monthlyThemeItemsFromForecast(forecast, "monthly_mars_themes"), activeYear, selectedMonth);
   const sunAspectItems = monthlyItems(sunAspectItemsFromForecast(forecast), activeYear, selectedMonth);
   const marsAspectItems = monthlyItems(marsAspectItemsFromForecast(forecast), activeYear, selectedMonth);
-  const monthlyCompoundAspectItems = useMemo(
-    () => compoundAspectItemsForMonth(forecast, activeYear, selectedMonth),
-    [forecast, activeYear, selectedMonth]
-  );
   const modeTitle = {
     theme: "今月のテーマ",
     lesson: "今月のアクション",
-    summary: "今月の総括",
     test1: "太陽の時期",
     test2: "火星の時期",
   }[analysisMode] || "今月のテーマ";
@@ -8085,7 +7982,6 @@ function Matrix({
             {[
               ["theme", "テーマ"],
               ["lesson", "アクション"],
-              ["summary", "総括"],
               ["test1", "太陽時期"],
               ["test2", "火星時期"],
             ].map(([value, label]) => (
@@ -8109,9 +8005,6 @@ function Matrix({
         ) : null}
         {analysisMode === "lesson" ? (
           <MonthlyArticleList items={marsThemeItems.length ? marsThemeItems : fallbackItems} />
-        ) : null}
-        {analysisMode === "summary" ? (
-          <TransitAspectList items={monthlyCompoundAspectItems} openKeys={openMonthlyAspectKeys} onToggle={toggleMonthlyAspect} prefix="monthly-compound" />
         ) : null}
         {analysisMode === "test1" ? (
           <TransitAspectList items={sunAspectItems} openKeys={openMonthlyAspectKeys} onToggle={toggleMonthlyAspect} prefix="monthly-sun" />

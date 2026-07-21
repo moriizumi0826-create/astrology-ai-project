@@ -902,7 +902,7 @@ function countdownHoursUntil(slide) {
 
 function countdownRemainingValue(slide, baseDateKey = "") {
   const hours = countdownHoursUntil(slide);
-  if (isTransitMoonAspect(slide) && Number.isFinite(hours)) {
+  if (Number.isFinite(hours)) {
     if (hours < 24) {
       return { value: Math.max(0, Math.round(hours)), unit: "時間", sortHours: hours };
     }
@@ -1926,8 +1926,8 @@ function DashboardV2CountdownCard({ data, onSelectAspect = () => {} }) {
     let hasUpcomingLunation = false;
     const houseIngressPlanets = new Set();
     return calendarItems.filter((item) => {
-      if (item.event_type === "transit_natal_aspect" && Number(item.aspect_angle) === 90) {
-        return false;
+      if (item.event_type === "transit_natal_aspect") {
+        if (isTransitMoonAspect(item) || Number(item.aspect_angle) === 90) return false;
       }
       const isMoonIngress = item.event_type === "sign_ingress" && String(item.transit_planet || item.planet || "").toUpperCase() === "MOON";
       if (isMoonIngress) {
@@ -3228,9 +3228,6 @@ function monthlyYearlyDeveloperData(forecast) {
         .filter((value) => Number.isFinite(value));
       scores[key] = blendedMonthlyScore(values);
     });
-    const events = days
-      .flatMap((day) => (Array.isArray(day?.events) ? day.events.map((event) => ({ ...event, date: day.date })) : []))
-      .sort((a, b) => Number(b.priority || 0) - Number(a.priority || 0) || Math.abs(Number(b.weighted_score || 0)) - Math.abs(Number(a.weighted_score || 0)));
     const peakDay = days.length
       ? days.reduce((best, day) => Number(day?.scores?.total ?? -Infinity) > Number(best?.scores?.total ?? -Infinity) ? day : best, days[0])
       : null;
@@ -3244,7 +3241,6 @@ function monthlyYearlyDeveloperData(forecast) {
       date: `${year}-${String(month).padStart(2, "0")}-01`,
       days,
       scores,
-      events,
       peakDay,
       lowDay,
     };
@@ -3276,7 +3272,6 @@ export function AnnualBiorhythmDeveloperView({ data = dashboardData }) {
     return commands.join(" ");
   };
   const selectedX = chartX(selected.month - 1);
-  const topEvents = selected.events.slice(0, 30);
   const strongestCategory = YEARLY_DEV_SCORE_KEYS.reduce((best, item) =>
     Math.abs(Number(selected.scores[item.key] || 0)) > Math.abs(Number(selected.scores[best.key] || 0)) ? item : best
   , YEARLY_DEV_SCORE_KEYS[0]);
@@ -3373,45 +3368,6 @@ export function AnnualBiorhythmDeveloperView({ data = dashboardData }) {
           </div>
 
           <div className="grid gap-3 overflow-y-auto pr-1" style={{ maxHeight: "calc(100vh - 220px)" }}>
-            <details open className="rounded-xl border border-white/10 bg-[#0d0e0f]/55">
-              <summary className="cursor-pointer list-none px-3 py-2">
-                <div className="flex items-center justify-between gap-3">
-                  <p className="font-mono text-xs font-black text-[#e9c349]">Top Events</p>
-                  <span className="font-mono text-[11px] text-[#909096]">{topEvents.length} events</span>
-                </div>
-              </summary>
-              <div className="grid gap-2 border-t border-white/10 p-3">
-                {topEvents.length ? topEvents.map((event, index) => (
-                  <article key={`${event.id || event.title || "event"}-${event.date || index}-${index}`} className="rounded-lg border border-white/10 bg-white/[0.035] p-3">
-                    <div className="flex flex-wrap items-start justify-between gap-2">
-                      <div className="min-w-0">
-                        <p className="break-words text-sm font-bold leading-5 text-[#f3f3f0]">{event.title || event.id || "Event"}</p>
-                        <p className="mt-1 font-mono text-[10px] uppercase tracking-[0.12em] text-[#909096]">
-                          {event.date} / {event.category || "-"} / {event.duration_type || "-"} / {event.orb_status || "-"}
-                        </p>
-                      </div>
-                      <div className="shrink-0 text-right font-mono">
-                        <p className="text-xs text-[#909096]">weighted</p>
-                        <p className="text-lg font-black text-[#e9c349]">{event.weighted_score ?? 0}</p>
-                        <p className="text-[10px] text-[#909096]">priority {event.priority ?? "-"}</p>
-                      </div>
-                    </div>
-                    <div className="mt-2 grid grid-cols-4 gap-2 font-mono text-[10px] text-[#c7c6cc]">
-                      <span>Impact {event.score_impact ?? "-"}</span>
-                      <span>Weight {event.priority_weight ?? "-"}</span>
-                      <span>Orb {event.orb ?? "-"}</span>
-                      <span>Decay {event.orb_decay ?? "-"}</span>
-                    </div>
-                    {event.description ? (
-                      <p className="mt-2 line-clamp-2 text-xs leading-5 text-[#c7c6cc]">{event.description}</p>
-                    ) : null}
-                  </article>
-                )) : (
-                  <p className="rounded-lg border border-white/10 bg-white/[0.03] p-3 text-xs text-[#909096]">該当イベントなし</p>
-                )}
-              </div>
-            </details>
-
             <details open className="rounded-xl border border-white/10 bg-[#0d0e0f]/55">
               <summary className="cursor-pointer list-none px-3 py-2">
                 <div className="flex items-center justify-between gap-3">

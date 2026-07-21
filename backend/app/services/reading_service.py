@@ -2019,6 +2019,31 @@ def _scan_countdown_ephemeris(
     else:
         scan_status = "closest"
     days_remaining = reached_exact_day if reached_exact_day is not None else minimum_day
+    hours_remaining: int | None = None
+    if days_remaining <= 1:
+        hourly_minimum_orb = float("inf")
+        hourly_minimum_hour = 0
+        previous_hourly_orb: float | None = None
+        for hour in range(25):
+            sample_dt = scan_start + timedelta(hours=hour)
+            orb, _ = _aspect_orb_at(
+                transit_planet,
+                sample_dt,
+                timezone_offset,
+                natal_longitude,
+                exact_angle,
+            )
+            if orb < hourly_minimum_orb:
+                hourly_minimum_orb = orb
+                hourly_minimum_hour = hour
+            if orb <= 0.5:
+                hourly_minimum_hour = hour
+                break
+            if previous_hourly_orb is not None and orb > previous_hourly_orb + 0.01 and hour > hourly_minimum_hour:
+                break
+            previous_hourly_orb = orb
+        if hourly_minimum_hour < 24:
+            hours_remaining = hourly_minimum_hour
     impact_end_day: int | None = None
     if impact_start_day is not None and impact_start_day > 0:
         for day in range(impact_start_day + 1, scan_horizon_days + 1):
@@ -2038,6 +2063,7 @@ def _scan_countdown_ephemeris(
     percent = ((total_progress_days - clamped_days_remaining) / total_progress_days) * 100
     return {
         "days_remaining": clamped_days_remaining,
+        "hours_remaining": hours_remaining,
         "total_days": total_progress_days,
         "percent": _clamp(percent, 0, 100),
         "scan_status": scan_status,
@@ -2108,10 +2134,29 @@ def _scan_countdown_departure(
         if orb <= threshold_orb:
             has_been_within_threshold = True
         if has_been_within_threshold and day > 0 and orb > threshold_orb:
+            hours_remaining: int | None = None
+            departure_dt = sample_dt
+            if day == 1:
+                for hour in range(1, 25):
+                    hourly_dt = scan_start + timedelta(hours=hour)
+                    hourly_orb, hourly_retrograde = _aspect_orb_at(
+                        transit_planet,
+                        hourly_dt,
+                        timezone_offset,
+                        natal_longitude,
+                        exact_angle,
+                    )
+                    if hourly_orb > threshold_orb:
+                        hours_remaining = hour
+                        departure_dt = hourly_dt
+                        orb = hourly_orb
+                        is_retrograde = hourly_retrograde
+                        break
             total_progress_days = max(total_days, day, 1)
             percent = ((total_progress_days - day) / total_progress_days) * 100
             return {
                 "days_remaining": _clamp(day, 0, total_progress_days),
+                "hours_remaining": hours_remaining,
                 "total_days": total_progress_days,
                 "percent": _clamp(percent, 0, 100),
                 "scan_status": "departing",
@@ -2120,7 +2165,8 @@ def _scan_countdown_departure(
                 "departure_orb": round(orb, 3),
                 "departure_retrograde": is_retrograde,
                 "impact_start_date": impact_start_date,
-                "impact_end_date": sample_dt.date().isoformat(),
+                "impact_end_date": departure_dt.date().isoformat(),
+                "impact_end_datetime": departure_dt.isoformat(),
             }
     return None
 
@@ -2190,10 +2236,29 @@ def _scan_countdown_departure_year_bound(
             departure_retrograde = is_retrograde
             break
 
+    hours_remaining: int | None = None
+    if days_remaining == 1:
+        for hour in range(1, 25):
+            sample_dt = scan_start + timedelta(hours=hour)
+            orb, is_retrograde = _aspect_orb_at(
+                transit_planet,
+                sample_dt,
+                timezone_offset,
+                natal_longitude,
+                exact_angle,
+            )
+            if orb > threshold_orb:
+                hours_remaining = hour
+                impact_end = sample_dt
+                departure_orb = orb
+                departure_retrograde = is_retrograde
+                break
+
     total_progress_days = max((impact_end.date() - impact_start.date()).days, days_remaining or 0, 1)
     percent = 0 if days_remaining is None else ((total_progress_days - days_remaining) / total_progress_days) * 100
     return {
         "days_remaining": days_remaining,
+        "hours_remaining": hours_remaining,
         "total_days": total_progress_days,
         "percent": _clamp(percent, 0, 100),
         "scan_status": "departing",
@@ -2203,6 +2268,7 @@ def _scan_countdown_departure_year_bound(
         "departure_retrograde": departure_retrograde,
         "impact_start_date": impact_start.date().isoformat(),
         "impact_end_date": impact_end.date().isoformat(),
+        "impact_end_datetime": impact_end.isoformat(),
         "impact_start_is_before": impact_start_is_before,
         "impact_end_is_after": impact_end_is_after,
         "countdown_unavailable": days_remaining is None,

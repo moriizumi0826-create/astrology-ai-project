@@ -9,7 +9,7 @@ from typing import Any
 import pandas as pd
 
 from backend.app.services import monthly_peak_service, reading_service
-from backend.app.services.chart_calculator import ASPECT_DEFS, BirthInput, get_angle_diff, get_aspect, get_house
+from backend.app.services.chart_calculator import BirthInput, get_angle_diff, get_aspect, get_house
 
 try:
     import swisseph as swe
@@ -37,7 +37,6 @@ SIGNS = (
     "AQUARIUS",
     "PISCES",
 )
-MILESTONE_LIMIT = 12
 YEARLY_TEXT_PLACEHOLDER = "----"
 
 PEAK_TARGET_ROLES = {
@@ -93,7 +92,6 @@ def _read_csv_dicts(path: Path) -> list[dict[str, Any]]:
 
 def _yearly_csv_paths() -> list[Path]:
     paths = [
-        DATABASE_DIR / "M_Yearly_Base_Logic.csv",
         DATABASE_DIR / "M_Long_Term_House_Interpretation.csv",
         DATABASE_DIR / "M_Short_Term_House_Interpretation.csv",
         DATABASE_DIR / "M_Yearly_Summary_Interpretation.csv",
@@ -132,7 +130,6 @@ _YEARLY_CSV_SIGNATURE = _csv_file_signature(_yearly_csv_paths())
 
 def _clear_yearly_master_caches() -> None:
     _transit_calendar.cache_clear()
-    _base_logic_rows.cache_clear()
     _long_term_house_rows.cache_clear()
     _short_term_house_rows.cache_clear()
     _yearly_summary_rows.cache_clear()
@@ -157,20 +154,6 @@ def reload_yearly_master_caches_if_changed(force: bool = False) -> bool:
 def _transit_calendar(year: int = FORECAST_YEAR) -> dict[tuple[str, str], dict[str, Any]]:
     path = DATABASE_DIR / f"M_Transit_Calendar_{year}.csv"
     return {(row["Date"], row["Planet"]): row for row in _read_csv_dicts(path)}
-
-
-@lru_cache(maxsize=1)
-def _base_logic_rows() -> dict[tuple[str, str, int], dict[str, Any]]:
-    path = DATABASE_DIR / "M_Yearly_Base_Logic.csv"
-    rows = {}
-    for row in _read_csv_dicts(path):
-        key = (
-            reading_service._normalize_sign(row.get("Target_Solar_Sign")),
-            reading_service._normalize_planet(row.get("T_Planet")),
-            reading_service._normalize_int(row.get("Transit_House")) or 0,
-        )
-        rows[key] = row
-    return rows
 
 
 @lru_cache(maxsize=1)
@@ -325,32 +308,6 @@ def _indexed_aspect_interpretation(
     return {}
 
 
-def _priority_weight(priority: Any) -> float:
-    normalized = reading_service._normalize_int(priority) or 0
-    if normalized >= 10:
-        return 3.0
-    if normalized >= 7:
-        return 2.0
-    return 1.0
-
-
-def _aspect_orb_limit(angle: int) -> float:
-    for aspect in ASPECT_DEFS:
-        if aspect["angle"] == angle:
-            return float(aspect["orb"])
-    return 8.0
-
-
-def _orb_decay(orb: float | None, exact_angle: int) -> float:
-    if orb is None:
-        return 0.2
-    max_orb = _aspect_orb_limit(exact_angle)
-    if max_orb <= 0:
-        return 1.0
-    closeness = max(0.0, min(1.0, 1.0 - (abs(float(orb)) / max_orb)))
-    return round(0.2 + (closeness * 0.8), 4)
-
-
 def _sample_local_datetime(day: date) -> datetime:
     return datetime.combine(day, dt_time(hour=12))
 
@@ -394,6 +351,34 @@ def build_transit_chart(
         "time": target_time.strftime("%H:%M"),
         "timezone_offset": birth_input.timezone_offset,
         "transits": transits,
+        "house_cusps": [round(float(cusp) % 360, 4) for cusp in house_cusps],
+        "house_system": "Placidus",
+    }
+
+
+def _build_daily_transit_chart(
+    day: date,
+    birth_input: BirthInput,
+    transit_states: dict[str, tuple[float, bool]],
+) -> dict[str, Any]:
+    local_dt = _sample_local_datetime(day)
+    moon_longitude, moon_retrograde = _calc_transit_state("MOON", local_dt, birth_input.timezone_offset)
+    complete_states = {**transit_states, "MOON": (moon_longitude, moon_retrograde)}
+    planet_order = ("SUN", "MOON", "MERCURY", "VENUS", "MARS", "JUPITER", "SATURN", "URANUS", "NEPTUNE", "PLUTO")
+    jd = _julian_day(local_dt, birth_input.timezone_offset)
+    house_cusps, _ascmc = swe.houses(jd, birth_input.latitude, birth_input.longitude, b"P")
+    return {
+        "date": day.isoformat(),
+        "time": "12:00",
+        "timezone_offset": birth_input.timezone_offset,
+        "transits": [
+            {
+                "planet": planet,
+                "longitude": round(float(complete_states[planet][0]) % 360, 4),
+                "retrograde": bool(complete_states[planet][1]),
+            }
+            for planet in planet_order
+        ],
         "house_cusps": [round(float(cusp) % 360, 4) for cusp in house_cusps],
         "house_system": "Placidus",
     }
@@ -530,13 +515,7 @@ def _event_from_interpretation(
     if reading_service._safe_number(yearly_row, "Graph_Visibility", 1) == 0:
         return {}
 
-    score_impact = reading_service._safe_number(interpretation, "Score_Impact")
     priority = reading_service._safe_number(yearly_row, "Priority") or reading_service._safe_number(interpretation, "Priority", 1)
-    priority_weight = _priority_weight(priority)
-    orb_decay = _orb_decay(orb, exact_angle)
-    yearly_weight = reading_service._normalize_float(yearly_row.get("Yearly_Weight")) if yearly_row else None
-    yearly_weight = yearly_weight if yearly_weight is not None else 1.0
-    weighted_score = score_impact * priority_weight * orb_decay * yearly_weight
 
     return {
         "id": reading_service._safe_text(interpretation, "Aspect_Logic_ID")
@@ -548,18 +527,12 @@ def _event_from_interpretation(
         "category": reading_service._safe_text(interpretation, "Category", "General"),
         "layer": _event_layer(transit_planet),
         "duration_type": reading_service._safe_text(yearly_row, "Duration_Type", "LONG"),
-        "milestone_eligible": bool(reading_service._safe_number(yearly_row, "Milestone_Eligible", 1)),
         "t_planet": transit_planet,
         "n_planet": natal_point["planet"],
         "aspect_angle": exact_angle,
         "orb": orb,
         "orb_status": orb_status,
         "is_retrograde": bool(is_retrograde),
-        "score_impact": score_impact,
-        "priority_weight": priority_weight,
-        "orb_decay": orb_decay,
-        "yearly_weight": yearly_weight,
-        "weighted_score": round(weighted_score, 2),
         "transit_longitude": round(transit_longitude, 2),
         "natal_longitude": round(natal_point["longitude"], 2),
         "angle_diff": round(angle_diff, 2),
@@ -568,72 +541,6 @@ def _event_from_interpretation(
             "row": reading_service._safe_number(interpretation, "_csv_row"),
         },
     }
-
-
-def _base_event_from_logic(base_row: dict[str, Any], planet: str, house: int, calendar_row: dict[str, Any]) -> dict[str, Any]:
-    score = reading_service._safe_number(base_row, "Base_Score")
-    priority = reading_service._safe_number(base_row, "Priority", 1)
-    priority_weight = _priority_weight(priority)
-    return {
-        "id": f"BASE_{planet}_HOUSE_{house}_{calendar_row.get('Date')}",
-        "title": reading_service._safe_text(base_row, "Milestone_Label") or reading_service._safe_text(base_row, "Text_Theme"),
-        "description": _yearly_text(base_row, "Text_Theme"),
-        "advised_task": _yearly_text(base_row, "Advised_Task"),
-        "priority": priority,
-        "category": reading_service._safe_text(base_row, "Category", "General"),
-        "layer": "Main_Trend",
-        "duration_type": reading_service._safe_text(base_row, "Duration_Type", "LONG"),
-        "milestone_eligible": True,
-        "t_planet": planet,
-        "n_planet": f"SOLAR_HOUSE_{house}",
-        "aspect_angle": None,
-        "orb": None,
-        "orb_status": "Baseline",
-        "score_impact": score,
-        "priority_weight": priority_weight,
-        "orb_decay": 1.0,
-        "yearly_weight": 1.0,
-        "weighted_score": round(score * priority_weight, 2),
-        "transit_longitude": reading_service._normalize_float(calendar_row.get("Ecliptic_Longitude")),
-        "solar_house": house,
-    }
-
-
-def _calendar_trigger_events(day: date, planet: str, calendar_row: dict[str, Any], solar_house: int) -> list[dict[str, Any]]:
-    triggers = []
-    if reading_service._safe_number(calendar_row, "Sign_Ingress_Flag"):
-        triggers.append(("SIGN_INGRESS", "Sign ingress", 7))
-    if reading_service._safe_number(calendar_row, "Retrograde_Start_Flag"):
-        triggers.append(("RETROGRADE_START", "Retrograde starts", 8))
-    if reading_service._safe_number(calendar_row, "Retrograde_End_Flag"):
-        triggers.append(("RETROGRADE_END", "Retrograde ends", 8))
-
-    events = []
-    for trigger_id, title, priority in triggers:
-        events.append({
-            "id": f"{trigger_id}_{planet}_{day.isoformat()}",
-            "title": f"{planet} {title}",
-            "description": YEARLY_TEXT_PLACEHOLDER,
-            "advised_task": YEARLY_TEXT_PLACEHOLDER,
-            "priority": priority,
-            "category": "General",
-            "layer": _event_layer(planet),
-            "duration_type": "LONG" if planet in MAIN_TREND_PLANETS else "MID",
-            "milestone_eligible": True,
-            "t_planet": planet,
-            "n_planet": f"SOLAR_HOUSE_{solar_house}",
-            "aspect_angle": None,
-            "orb": None,
-            "orb_status": trigger_id,
-            "score_impact": 0,
-            "priority_weight": 1.0,
-            "orb_decay": 1.0,
-            "yearly_weight": 1.0,
-            "weighted_score": 0,
-            "transit_longitude": reading_service._normalize_float(calendar_row.get("Ecliptic_Longitude")),
-            "solar_house": solar_house,
-        })
-    return events
 
 
 def _build_day_forecast(
@@ -700,11 +607,6 @@ def _build_day_forecast(
                 target_role=_peak_target_roles(transit_planet),
                 transit_state="direct",
             ))
-        base_row = _base_logic_rows().get((natal_sun_sign, transit_planet, solar_house))
-        if base_row:
-            events.append(_base_event_from_logic(base_row, transit_planet, solar_house, calendar_row))
-        events.extend(_calendar_trigger_events(day, transit_planet, calendar_row, solar_house))
-
         for natal_point in natal_points:
             angle_diff = get_angle_diff(transit_longitude, natal_point["longitude"])
             _, exact_angle, orb = get_aspect(angle_diff)
@@ -862,93 +764,17 @@ def _build_day_forecast(
     ]
 
     jupiter_aspects = transit_aspects_for("JUPITER")
-    top_events = sorted(events, key=lambda event: (event["priority"], abs(event["weighted_score"])), reverse=True)[:5]
     return {
         "date": day.isoformat(),
         "scores": scores,
         "monthly_peak": monthly_peak,
-        "events": top_events,
+        "transit_chart": _build_daily_transit_chart(day, birth_input, transit_states),
         "all_aspects": all_aspects,
         "jupiter_aspects": jupiter_aspects,
         "saturn_aspects": saturn_aspects,
         "sun_aspects": sun_aspects,
         "mars_aspects": mars_aspects,
     }
-
-
-def _is_local_extreme(values: list[int], index: int) -> bool:
-    previous_value = values[index - 1]
-    current_value = values[index]
-    next_value = values[index + 1]
-    return (current_value >= previous_value and current_value > next_value) or (
-        current_value <= previous_value and current_value < next_value
-    )
-
-
-def _has_peak_transition(day: dict[str, Any], previous_day: dict[str, Any] | None) -> bool:
-    if not previous_day:
-        return False
-    previous_status = {
-        (event.get("t_planet"), event.get("n_planet"), event.get("aspect_angle")): event.get("orb_status")
-        for event in previous_day.get("events", [])
-    }
-    for event in day.get("events", []):
-        key = (event.get("t_planet"), event.get("n_planet"), event.get("aspect_angle"))
-        if previous_status.get(key) == "Applying" and event.get("orb_status") == "Separating":
-            return True
-    return False
-
-
-def _has_calendar_trigger(day: dict[str, Any]) -> bool:
-    return any(
-        event.get("orb_status") in {"SIGN_INGRESS", "RETROGRADE_START", "RETROGRADE_END"}
-        for event in day.get("events", [])
-    )
-
-
-def _milestone_from_day(day: dict[str, Any], label: str) -> dict[str, Any]:
-    event = day.get("events", [{}])[0] if day.get("events") else {}
-    return {
-        "date": day["date"],
-        "label": label,
-        "id": event.get("id") or f"MILESTONE_{day['date']}",
-        "title": event.get("title", label),
-        "description": _yearly_text(event.get("description")),
-        "advised_task": _yearly_text(event.get("advised_task")),
-        "priority": event.get("priority", 1),
-        "score": day["scores"]["total"],
-    }
-
-
-def extract_milestones(yearly_data: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    if len(yearly_data) < 3:
-        return []
-
-    total_scores = [day["scores"]["total"] for day in yearly_data]
-    candidates: dict[str, dict[str, Any]] = {}
-    max_index = max(range(len(yearly_data)), key=lambda index: total_scores[index])
-    min_index = min(range(len(yearly_data)), key=lambda index: total_scores[index])
-    candidates[yearly_data[max_index]["date"]] = _milestone_from_day(yearly_data[max_index], "年間最高点")
-    candidates[yearly_data[min_index]["date"]] = _milestone_from_day(yearly_data[min_index], "年間最低点")
-
-    for index in range(1, len(yearly_data) - 1):
-        day = yearly_data[index]
-        if _is_local_extreme(total_scores, index):
-            label = "運命の頂点" if total_scores[index] >= total_scores[index - 1] else "見直しの谷"
-            candidates[day["date"]] = _milestone_from_day(day, label)
-        if abs(total_scores[index] - total_scores[index - 1]) >= 25:
-            candidates[day["date"]] = _milestone_from_day(day, "運命の分岐点")
-        if _has_peak_transition(day, yearly_data[index - 1]):
-            candidates[day["date"]] = _milestone_from_day(day, "ピーク通過")
-        if _has_calendar_trigger(day):
-            candidates[day["date"]] = _milestone_from_day(day, "空気が変わる日")
-
-    ranked = sorted(
-        candidates.values(),
-        key=lambda item: (item.get("priority", 0), abs(item.get("score", 0))),
-        reverse=True,
-    )
-    return ranked[:MILESTONE_LIMIT]
 
 
 def build_yearly_summary(yearly_data: list[dict[str, Any]]) -> str:
@@ -1324,7 +1150,6 @@ def _generate_yearly_forecast_uncached(
         "monthly_peak_periods": monthly_peak_periods,
         "natal_points": natal_points,
         "natal_house_cusps": house_cusps,
-        "milestones": extract_milestones(yearly_data),
         "annual_themes": annual_themes,
         "annual_lessons": annual_lessons,
         "annual_summary_columns": annual_summary_columns,

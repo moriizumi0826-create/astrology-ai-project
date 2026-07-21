@@ -33,10 +33,7 @@ from backend.app.services.reading_service import (
     get_daily_vibe_modifiers,
 )
 from backend.app.services.yearly_forecast_service import (
-    _orb_decay,
-    _priority_weight,
     build_yearly_forecast_cache_payload,
-    extract_milestones,
 )
 from backend.app.schemas import ReadingMeta, ReadingRequest, ReadingResponse, ReadingSection
 from scripts.natal_loader import build_natal_chart_data
@@ -927,6 +924,95 @@ class ApiTestCase(unittest.TestCase):
         self.assertEqual(scan["impact_start_datetime"], "2026-07-17T16:00:00")
         self.assertEqual(scan["impact_end_datetime"], "2026-07-17T22:00:00")
 
+    def test_non_lunar_countdown_arrival_refines_zero_days_to_hours(self):
+        row = {
+            "T_Planet": "TRANSIT_MERCURY",
+            "N_Planet": "NATAL_SUN",
+            "Aspect_Angle": 120,
+            "_input": {"natal_longitude": 100.0, "timezone_offset": 9},
+        }
+        scan_start = datetime(2026, 7, 20, 12)
+
+        def orb_at(_planet, sample_dt, _timezone_offset, _natal_longitude, _exact_angle):
+            hours = (sample_dt - scan_start).total_seconds() / 3600
+            if hours < 0:
+                return 6.0, False
+            if hours <= 5:
+                return 2.0 - (hours * 0.32), False
+            return 0.4 + ((hours - 5) * 0.3), False
+
+        with patch.object(reading_service, "swe", object()), patch(
+            "backend.app.services.reading_service._aspect_orb_at",
+            side_effect=orb_at,
+        ), patch(
+            "backend.app.services.reading_service._retrograde_calendar_start_day",
+            return_value=None,
+        ):
+            scan = reading_service._scan_countdown_ephemeris(
+                row,
+                scan_start,
+                total_days=14,
+                threshold_orb=5,
+            )
+
+        self.assertEqual(scan["days_remaining"], 0)
+        self.assertEqual(scan["hours_remaining"], 5)
+
+    def test_non_lunar_countdown_departure_refines_one_day_to_hours(self):
+        row = {
+            "T_Planet": "TRANSIT_MERCURY",
+            "N_Planet": "NATAL_SUN",
+            "Aspect_Angle": 90,
+            "_input": {"natal_longitude": 100.0, "timezone_offset": 9},
+        }
+        scan_start = datetime(2026, 7, 20, 12)
+
+        def orb_at(_planet, sample_dt, _timezone_offset, _natal_longitude, _exact_angle):
+            hours = (sample_dt - scan_start).total_seconds() / 3600
+            return (4.0 if 0 <= hours < 7 else 6.0), False
+
+        with patch.object(reading_service, "swe", object()), patch(
+            "backend.app.services.reading_service._aspect_orb_at",
+            side_effect=orb_at,
+        ):
+            scan = reading_service._scan_countdown_departure(
+                row,
+                scan_start,
+                total_days=14,
+                threshold_orb=5,
+            )
+
+        self.assertEqual(scan["days_remaining"], 1)
+        self.assertEqual(scan["hours_remaining"], 7)
+        self.assertEqual(scan["impact_end_datetime"], "2026-07-20T19:00:00")
+
+    def test_non_lunar_year_bound_departure_refines_one_day_to_hours(self):
+        row = {
+            "T_Planet": "TRANSIT_SATURN",
+            "N_Planet": "NATAL_SUN",
+            "Aspect_Angle": 90,
+            "_input": {"natal_longitude": 100.0, "timezone_offset": 9},
+        }
+        scan_start = datetime(2026, 1, 2, 12)
+
+        def orb_at(_planet, sample_dt, _timezone_offset, _natal_longitude, _exact_angle):
+            hours = (sample_dt - scan_start).total_seconds() / 3600
+            return (4.0 if 0 <= hours < 7 else 6.0), False
+
+        with patch.object(reading_service, "swe", object()), patch(
+            "backend.app.services.reading_service._aspect_orb_at",
+            side_effect=orb_at,
+        ):
+            scan = reading_service._scan_countdown_departure_year_bound(
+                row,
+                scan_start,
+                threshold_orb=5,
+            )
+
+        self.assertEqual(scan["days_remaining"], 1)
+        self.assertEqual(scan["hours_remaining"], 7)
+        self.assertEqual(scan["impact_end_datetime"], "2026-01-02T19:00:00")
+
     def test_lunar_countdown_departure_scans_in_two_hour_steps(self):
         row = {
             "T_Planet": "TRANSIT_MOON",
@@ -1207,7 +1293,7 @@ class ApiTestCase(unittest.TestCase):
                 (1.0, True),
                 (1.2, True),
                 (1.1, True),
-            ]
+            ] + [(1.1, True)] * 25
             scan = reading_service._scan_countdown_ephemeris(
                 {
                     "T_Planet": "TRANSIT_MERCURY",
@@ -1262,7 +1348,7 @@ class ApiTestCase(unittest.TestCase):
                 (1.0, False),
                 (1.2, True),
                 (1.1, True),
-            ]
+            ] + [(1.1, True)] * 25
             scan = reading_service._scan_countdown_ephemeris(
                 {
                     "T_Planet": "TRANSIT_MERCURY",
@@ -1288,7 +1374,7 @@ class ApiTestCase(unittest.TestCase):
                 (1.0, True),
                 (1.2, True),
                 (1.1, True),
-            ]
+            ] + [(1.1, True)] * 25
             scan = reading_service._scan_countdown_ephemeris(
                 {
                     "T_Planet": "TRANSIT_MERCURY",
@@ -1565,42 +1651,6 @@ class ApiTestCase(unittest.TestCase):
             "Aspect_Angle": 90,
             "Pressure_Score": -25,
         }))
-
-    def test_yearly_forecast_weight_and_orb_decay_helpers(self):
-        self.assertEqual(_priority_weight(10), 3.0)
-        self.assertEqual(_priority_weight(8), 2.0)
-        self.assertEqual(_priority_weight(3), 1.0)
-        self.assertEqual(_orb_decay(0, 180), 1.0)
-        self.assertEqual(_orb_decay(8, 180), 0.2)
-
-    def test_yearly_forecast_extracts_extreme_and_sudden_change_milestones(self):
-        yearly_data = [
-            {"date": "2026-01-01", "scores": {"total": 10}, "events": []},
-            {
-                "date": "2026-01-02",
-                "scores": {"total": 50},
-                "events": [
-                    {
-                        "id": "LUCKY_GOLDEN_PERIOD",
-                        "title": "Career peak",
-                        "description": "A strong shift.",
-                        "advised_task": "Focus on work.",
-                        "priority": 10,
-                        "t_planet": "JUPITER",
-                        "n_planet": "MC",
-                        "aspect_angle": 120,
-                        "orb_status": "Separating",
-                    }
-                ],
-            },
-            {"date": "2026-01-03", "scores": {"total": 20}, "events": []},
-        ]
-
-        milestones = extract_milestones(yearly_data)
-
-        self.assertEqual(milestones[0]["date"], "2026-01-02")
-        self.assertEqual(milestones[0]["id"], "LUCKY_GOLDEN_PERIOD")
-        self.assertIn(milestones[0]["label"], {"運命の頂点", "運命の分岐点"})
 
     def test_yearly_forecast_cache_payload_targets_cache_table(self):
         payload = BirthInput(
@@ -2056,7 +2106,6 @@ class ApiTestCase(unittest.TestCase):
         fake_forecast = {
             "summary": "2026年は後半に向けて仕事運が上昇します",
             "yearly_data": [],
-            "milestones": [],
         }
 
         with patch(
