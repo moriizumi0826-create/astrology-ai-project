@@ -484,8 +484,10 @@ def _peak_event(
     aspect_class: str = "none",
     transit_state: str = "direct",
     orb: float | None = None,
+    score_impact: float | None = None,
+    yearly_weight: float | None = None,
 ) -> dict[str, Any]:
-    return {
+    event = {
         "id": event_id,
         "factor_type": factor_type,
         "transit_planet": transit_planet,
@@ -498,6 +500,10 @@ def _peak_event(
         "transit_state": transit_state,
         "orb": orb,
     }
+    if score_impact is not None:
+        event["score_impact"] = score_impact
+        event["yearly_weight"] = yearly_weight if yearly_weight is not None else 1.0
+    return event
 
 
 def _event_from_interpretation(
@@ -612,19 +618,6 @@ def _build_day_forecast(
             _, exact_angle, orb = get_aspect(angle_diff)
             if exact_angle is None:
                 continue
-            peak_events.append(_peak_event(
-                f"PEAK_T2N_{transit_planet}_{natal_point['planet']}_{exact_angle}_{day.isoformat()}",
-                factor_type="transit_to_natal",
-                transit_planet=transit_planet,
-                natal_target=natal_point["planet"],
-                target_role=_peak_target_roles(natal_point["planet"]),
-                house_system="natal",
-                target_house=natal_point["house"],
-                aspect_angle=exact_angle,
-                aspect_class=_peak_aspect_class(exact_angle),
-                transit_state="retrograde" if is_retrograde else "direct",
-                orb=orb,
-            ))
             orb_status = _orb_status_for_day(
                 transit_planet,
                 day,
@@ -682,6 +675,26 @@ def _build_day_forecast(
                 angle_diff,
             )
             if event:
+                yearly_row = _aspect_yearly_rows().get(
+                    str(interpretation.get("Aspect_Logic_ID") or "").strip(),
+                    {},
+                )
+                yearly_weight = reading_service._normalize_float(yearly_row.get("Yearly_Weight"))
+                peak_events.append(_peak_event(
+                    f"PEAK_T2N_{transit_planet}_{natal_point['planet']}_{exact_angle}_{day.isoformat()}",
+                    factor_type="transit_to_natal",
+                    transit_planet=transit_planet,
+                    natal_target=natal_point["planet"],
+                    target_role=_peak_target_roles(natal_point["planet"]),
+                    house_system="natal",
+                    target_house=natal_point["house"],
+                    aspect_angle=exact_angle,
+                    aspect_class=_peak_aspect_class(exact_angle),
+                    transit_state="retrograde" if is_retrograde else "direct",
+                    orb=orb,
+                    score_impact=reading_service._safe_number(interpretation, "Score_Impact"),
+                    yearly_weight=yearly_weight if yearly_weight is not None else 1.0,
+                ))
                 events.append(event)
                 if saturn_export_item is not None:
                     saturn_export_item.update({

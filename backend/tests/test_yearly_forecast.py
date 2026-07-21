@@ -255,6 +255,77 @@ class YearlyForecastTestCase(unittest.TestCase):
         self.assertEqual(result["work"]["matched_rules"][0]["exactness"], 0.6)
         self.assertEqual(result["love"]["activation"], 0.0)
 
+    def test_monthly_peak_aspect_uses_score_impact_yearly_weight_and_orb(self):
+        rule = {
+            "Rule_ID": "TEST_WORK_ASPECT_SCORE",
+            "Category": "work",
+            "Factor_Type": "transit_to_natal",
+            "Peak_Type": "career",
+            "Transit_Planet": "SATURN",
+            "Natal_Target": "MC",
+            "Target_Role": "career_axis",
+            "House_System": "natal",
+            "Target_House": "10",
+            "Aspect_Angle": "90",
+            "Aspect_Class": "hard",
+            "Transit_State": "direct",
+            "Orb_Max": "3",
+            "Activation_Weight": "6",
+            "Caution_Weight": "2",
+            "Intensity_Hint": "high",
+            "Tone": "mixed",
+            "Monthly_Title": "Work test",
+            "Monthly_Summary": "Summary",
+            "Monthly_Description": "Description",
+            "Monthly_Caution": "Caution",
+            "Yearly_Summary": "Yearly",
+            "Priority": "1",
+            "Tags": "career;square",
+            "Active_Flag": "1",
+        }
+        scoring_rule = {
+            "Rule_ID": "TEST_WORK_ASPECT_SCORE_SCORING",
+            "Category": "work",
+            "Factor_Type": "transit_to_natal",
+            "Tone": "ANY",
+            "Intensity_Hint": "ANY",
+            "Activation_Multiplier": "1.5",
+            "Caution_Multiplier": "2",
+            "Daily_Cap": "12",
+            "Priority": "1",
+            "Active_Flag": "1",
+        }
+        base_event = {
+            "id": "EVENT_SCORE",
+            "factor_type": "transit_to_natal",
+            "transit_planet": "SATURN",
+            "natal_target": "MC",
+            "target_role": ("career_axis",),
+            "house_system": "natal",
+            "target_house": 10,
+            "aspect_angle": 90,
+            "aspect_class": "hard",
+            "transit_state": "direct",
+            "orb": 1.2,
+            "yearly_weight": 0.7,
+        }
+
+        negative = monthly_peak_service.aggregate_daily_peak_categories(
+            [{**base_event, "score_impact": -50}],
+            rules=[rule],
+            scoring_rules=[scoring_rule],
+        )["work"]
+        positive = monthly_peak_service.aggregate_daily_peak_categories(
+            [{**base_event, "id": "EVENT_SCORE_POSITIVE", "score_impact": 50}],
+            rules=[rule],
+            scoring_rules=[scoring_rule],
+        )["work"]
+
+        self.assertEqual(negative["activation"], 0.0)
+        self.assertEqual(negative["caution"], 2.52)
+        self.assertEqual(positive["activation"], 1.89)
+        self.assertEqual(positive["caution"], 0.0)
+
     def test_monthly_peak_periods_respect_constraints_and_keep_caution(self):
         period_rules = [{
             "Rule_ID": "WORK_PERIOD",

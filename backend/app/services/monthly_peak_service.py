@@ -375,14 +375,32 @@ def aggregate_daily_peak_categories(
             matched_keys.add(match_key)
 
             exactness = _orb_exactness_multiplier(rule, event)
-            activation = exactness * _as_float(rule.get("Activation_Weight")) * _as_float(
+            activation_weight = _as_float(rule.get("Activation_Weight"))
+            caution_weight = _as_float(rule.get("Caution_Weight"))
+            activation_multiplier = _as_float(
                 scoring_rule.get("Activation_Multiplier") if scoring_rule else 1,
                 1,
             )
-            caution = exactness * _as_float(rule.get("Caution_Weight")) * _as_float(
+            caution_multiplier = _as_float(
                 scoring_rule.get("Caution_Multiplier") if scoring_rule else 1,
                 1,
             )
+            has_score_impact = event.get("score_impact") not in (None, "")
+            if _normalise(event.get("factor_type")) == "TRANSIT_TO_NATAL" and has_score_impact:
+                score_impact = max(-100.0, min(100.0, _as_float(event.get("score_impact"))))
+                yearly_weight = max(0.0, _as_float(event.get("yearly_weight"), 1.0))
+                category_weight = max(abs(activation_weight), abs(caution_weight))
+                signed_contribution = (
+                    exactness
+                    * (score_impact / 100.0)
+                    * yearly_weight
+                    * category_weight
+                )
+                activation = max(0.0, signed_contribution) * activation_multiplier
+                caution = max(0.0, -signed_contribution) * caution_multiplier
+            else:
+                activation = exactness * activation_weight * activation_multiplier
+                caution = exactness * caution_weight * caution_multiplier
             match = {
                 "rule_id": rule.get("Rule_ID"),
                 "peak_type": rule.get("Peak_Type"),

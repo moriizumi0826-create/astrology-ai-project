@@ -6616,13 +6616,30 @@ function monthlyItems(items, year, index) {
   return items.filter((item) => itemOverlapsMonth(item, year, index));
 }
 
-function blendedMonthlyScore(values) {
+const YEARLY_MONTHLY_SCORE_SCALE = 2.5;
+
+function yearlyMonthlyPercentile(values, percentile) {
   if (!values.length) return 0;
+  const sorted = [...values].sort((left, right) => left - right);
+  const position = (sorted.length - 1) * percentile;
+  const lowerIndex = Math.floor(position);
+  const upperIndex = Math.ceil(position);
+  const ratio = position - lowerIndex;
+  return sorted[lowerIndex] + ((sorted[upperIndex] - sorted[lowerIndex]) * ratio);
+}
+
+function monthlyScoreSummary(values) {
+  if (!values.length) return { score: 0, low: 0, high: 0 };
   const average = values.reduce((sum, value) => sum + value, 0) / values.length;
-  const strongestValue = values.reduce((strongest, value) => (
-    Math.abs(value) > Math.abs(strongest) ? value : strongest
-  ), values[0]);
-  return Math.round((average * 0.6) + (strongestValue * 0.4));
+  const scale = (value) => clamp(Math.round(value * YEARLY_MONTHLY_SCORE_SCALE), -100, 100);
+  const score = scale(average);
+  const percentileLow = scale(yearlyMonthlyPercentile(values, 0.1));
+  const percentileHigh = scale(yearlyMonthlyPercentile(values, 0.9));
+  return {
+    score,
+    low: Math.min(score, percentileLow),
+    high: Math.max(score, percentileHigh),
+  };
 }
 
 function monthlyData(forecast, useDemoFallback = true) {
@@ -6634,17 +6651,22 @@ function monthlyData(forecast, useDemoFallback = true) {
       return {
         date: `2026-${String(index + 1).padStart(2, "0")}-01`,
         scores: { total: 0, general: 0, work: 0, love: 0, money: 0 },
+        scoreRanges: Object.fromEntries(["total", ...SCORE_KEYS.map((item) => item.key)].map((key) => [key, { low: 0, high: 0 }])),
         text_description: "",
       };
     }
     const scores = {};
+    const scoreRanges = {};
     ["total", ...SCORE_KEYS.map((item) => item.key)].forEach((key) => {
       const values = items.map((day) => scoreFor(day, key)).filter((value) => Number.isFinite(value));
-      scores[key] = blendedMonthlyScore(values);
+      const summary = monthlyScoreSummary(values);
+      scores[key] = summary.score;
+      scoreRanges[key] = { low: summary.low, high: summary.high };
     });
     return {
       ...items[Math.floor(items.length / 2)],
       scores,
+      scoreRanges,
     };
   });
 }
@@ -7483,6 +7505,19 @@ function AnnualChart({
   const tooltipX = chartX(selectedMonth, data.length);
   const tooltipY = chartY(scoreFor(selectedDay, selectedSeries.key));
   const selectedPoints = data.map((day, index) => ({ x: chartX(index, data.length), y: chartY(scoreFor(day, selectedSeries.key)) }));
+  const selectedRangePoints = [
+    ...data.map((day, index) => ({
+      x: chartX(index, data.length),
+      y: chartY(day?.scoreRanges?.[selectedSeries.key]?.high ?? scoreFor(day, selectedSeries.key)),
+    })),
+    ...data.map((day, index) => ({
+      x: chartX(index, data.length),
+      y: chartY(day?.scoreRanges?.[selectedSeries.key]?.low ?? scoreFor(day, selectedSeries.key)),
+    })).reverse(),
+  ];
+  const selectedRangePath = selectedRangePoints
+    .map((point, index) => `${index === 0 ? "M" : "L"} ${point.x.toFixed(1)} ${point.y.toFixed(1)}`)
+    .join(" ") + " Z";
   const orderedSeries = [
     ...SCORE_KEYS.filter((item) => item.key !== selectedSeries.key),
     selectedSeries,
@@ -7532,6 +7567,7 @@ function AnnualChart({
         {[75, 25, -25, -75].map((tick) => (
           <line key={tick} x1={CHART.left} x2={CHART.width - CHART.right} y1={chartY(tick)} y2={chartY(tick)} stroke="rgba(255,255,255,0.07)" />
         ))}
+        <path d={selectedRangePath} fill={selectedSeries.color} opacity="0.14" />
         <path
           d={`${smoothPath(selectedPoints)} L ${CHART.width - CHART.right} ${CHART.height - CHART.bottom} L ${CHART.left} ${CHART.height - CHART.bottom} Z`}
           fill="url(#forecastGoldArea)"

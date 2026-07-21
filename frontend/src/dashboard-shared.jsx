@@ -3203,13 +3203,30 @@ function monthNumberFromDate(value) {
   return Number.isFinite(month) && month >= 1 && month <= 12 ? month : 0;
 }
 
-function blendedMonthlyScore(values) {
+const YEARLY_MONTHLY_SCORE_SCALE = 2.5;
+
+function yearlyMonthlyPercentile(values, percentile) {
   if (!values.length) return 0;
+  const sorted = [...values].sort((left, right) => left - right);
+  const position = (sorted.length - 1) * percentile;
+  const lowerIndex = Math.floor(position);
+  const upperIndex = Math.ceil(position);
+  const ratio = position - lowerIndex;
+  return sorted[lowerIndex] + ((sorted[upperIndex] - sorted[lowerIndex]) * ratio);
+}
+
+function monthlyScoreSummary(values) {
+  if (!values.length) return { score: 0, low: 0, high: 0 };
   const average = values.reduce((sum, value) => sum + value, 0) / values.length;
-  const strongestValue = values.reduce((strongest, value) => (
-    Math.abs(value) > Math.abs(strongest) ? value : strongest
-  ), values[0]);
-  return Math.round((average * 0.6) + (strongestValue * 0.4));
+  const scale = (value) => Math.max(-100, Math.min(100, Math.round(value * YEARLY_MONTHLY_SCORE_SCALE)));
+  const score = scale(average);
+  const percentileLow = scale(yearlyMonthlyPercentile(values, 0.1));
+  const percentileHigh = scale(yearlyMonthlyPercentile(values, 0.9));
+  return {
+    score,
+    low: Math.min(score, percentileLow),
+    high: Math.max(score, percentileHigh),
+  };
 }
 
 function monthlyYearlyDeveloperData(forecast) {
@@ -3223,11 +3240,14 @@ function monthlyYearlyDeveloperData(forecast) {
     const month = index + 1;
     const days = yearlyData.filter((day) => monthNumberFromDate(day?.date) === month);
     const scores = {};
+    const scoreRanges = {};
     ["total", ...YEARLY_DEV_SCORE_KEYS.map((item) => item.key)].forEach((key) => {
       const values = days
         .map((day) => Number(day?.scores?.[key]))
         .filter((value) => Number.isFinite(value));
-      scores[key] = blendedMonthlyScore(values);
+      const summary = monthlyScoreSummary(values);
+      scores[key] = summary.score;
+      scoreRanges[key] = { low: summary.low, high: summary.high };
     });
     const peakDay = days.length
       ? days.reduce((best, day) => Number(day?.scores?.total ?? -Infinity) > Number(best?.scores?.total ?? -Infinity) ? day : best, days[0])
@@ -3242,6 +3262,7 @@ function monthlyYearlyDeveloperData(forecast) {
       date: `${year}-${String(month).padStart(2, "0")}-01`,
       days,
       scores,
+      scoreRanges,
       peakDay,
       lowDay,
     };
@@ -3271,6 +3292,19 @@ export function AnnualBiorhythmDeveloperView({ data = dashboardData }) {
       commands.push(`C ${controlX.toFixed(1)} ${current.y.toFixed(1)}, ${controlX.toFixed(1)} ${next.y.toFixed(1)}, ${next.x.toFixed(1)} ${next.y.toFixed(1)}`);
     }
     return commands.join(" ");
+  };
+  const rangePathFor = (key) => {
+    const upper = months.map((month, index) => ({
+      x: chartX(index),
+      y: chartY(month.scoreRanges?.[key]?.high ?? month.scores[key]),
+    }));
+    const lower = months.map((month, index) => ({
+      x: chartX(index),
+      y: chartY(month.scoreRanges?.[key]?.low ?? month.scores[key]),
+    })).reverse();
+    return [...upper, ...lower]
+      .map((point, index) => `${index === 0 ? "M" : "L"} ${point.x.toFixed(1)} ${point.y.toFixed(1)}`)
+      .join(" ") + " Z";
   };
   const selectedX = chartX(selected.month - 1);
   const strongestCategory = YEARLY_DEV_SCORE_KEYS.reduce((best, item) =>
@@ -3307,6 +3341,9 @@ export function AnnualBiorhythmDeveloperView({ data = dashboardData }) {
                   <line x1={padX} x2={width - padX} y1={chartY(score)} y2={chartY(score)} stroke="rgba(255,255,255,0.08)" />
                   <text x={padX - 12} y={chartY(score) + 4} textAnchor="end" fill="#909096" fontSize="12" fontFamily="monospace">{score}</text>
                 </g>
+              ))}
+              {YEARLY_DEV_SCORE_KEYS.map((item) => (
+                <path key={`${item.key}-range`} d={rangePathFor(item.key)} fill={item.color} opacity="0.07" />
               ))}
               {YEARLY_DEV_SCORE_KEYS.map((item) => (
                 <path key={item.key} d={smoothPathFor(item.key)} fill="none" stroke={item.color} strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" opacity="0.95" />
@@ -3412,7 +3449,8 @@ function DashboardV2YearlyCard({ forecast, developerMode }) {
       text_description: "年運の流れを確認し、強まるテーマに合わせて行動の優先順位を整えます。",
     };
   });
-  const chartData = data.length ? data : demoData;
+  const usesDemoData = !data.length;
+  const chartData = usesDemoData ? demoData : data;
   const width = 900;
   const height = 420;
   const padX = 68;
@@ -3428,18 +3466,25 @@ function DashboardV2YearlyCard({ forecast, developerMode }) {
       return {
         date: `2026-${String(monthIndex + 1).padStart(2, "0")}-01`,
         scores: Object.fromEntries(scoreKeys.map((key) => [key, 0])),
+        scoreRanges: Object.fromEntries(scoreKeys.map((key) => [key, { low: 0, high: 0 }])),
       };
     }
     const scores = {};
+    const scoreRanges = {};
     scoreKeys.forEach((key) => {
       const values = monthItems
         .map((day) => Number(day?.scores?.[key]))
         .filter((value) => Number.isFinite(value));
-      scores[key] = blendedMonthlyScore(values);
+      const summary = usesDemoData
+        ? { score: values[0] || 0, low: values[0] || 0, high: values[0] || 0 }
+        : monthlyScoreSummary(values);
+      scores[key] = summary.score;
+      scoreRanges[key] = { low: summary.low, high: summary.high };
     });
     return {
       ...monthItems[Math.floor(monthItems.length / 2)],
       scores,
+      scoreRanges,
     };
   });
   const visibleData = monthlyData;
@@ -3481,6 +3526,19 @@ function DashboardV2YearlyCard({ forecast, developerMode }) {
     }
     return commands.join(" ");
   };
+  const rangePathFor = (key) => {
+    const upper = visibleData.map((day, index) => ({
+      x: visibleData.length <= 1 ? padX : padX + (index / (visibleData.length - 1)) * (width - padX * 2),
+      y: padY + ((100 - Math.max(-100, Math.min(100, Number(day?.scoreRanges?.[key]?.high ?? day?.scores?.[key] ?? 0)))) / 200) * (height - padY * 2),
+    }));
+    const lower = visibleData.map((day, index) => ({
+      x: visibleData.length <= 1 ? padX : padX + (index / (visibleData.length - 1)) * (width - padX * 2),
+      y: padY + ((100 - Math.max(-100, Math.min(100, Number(day?.scoreRanges?.[key]?.low ?? day?.scores?.[key] ?? 0)))) / 200) * (height - padY * 2),
+    })).reverse();
+    return [...upper, ...lower]
+      .map((point, index) => `${index === 0 ? "M" : "L"} ${point.x.toFixed(1)} ${point.y.toFixed(1)}`)
+      .join(" ") + " Z";
+  };
   return (
     <DashboardV2Card bodyClassName="p-5">
       {chartData.length ? (
@@ -3514,6 +3572,9 @@ function DashboardV2YearlyCard({ forecast, developerMode }) {
                 </g>
               );
             })}
+            {["love", "money", "work", "general"].map((key) => (
+              <path key={`${key}-range`} d={rangePathFor(key)} fill={scoreColors[key]} opacity="0.055" />
+            ))}
             {["love", "money", "work", "general"].map((key) => (
               <path
                 key={key}
