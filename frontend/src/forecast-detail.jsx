@@ -6719,10 +6719,10 @@ function nearestMonthIndexFromPointer(event, count) {
   return clamp(Math.round(ratio * (count - 1)), 0, count - 1);
 }
 
-function smoothPath(points) {
+function smoothPath(points, startCommand = "M") {
   if (!points.length) return "";
-  if (points.length === 1) return `M ${points[0].x.toFixed(1)} ${points[0].y.toFixed(1)}`;
-  const commands = [`M ${points[0].x.toFixed(1)} ${points[0].y.toFixed(1)}`];
+  if (points.length === 1) return `${startCommand} ${points[0].x.toFixed(1)} ${points[0].y.toFixed(1)}`;
+  const commands = [`${startCommand} ${points[0].x.toFixed(1)} ${points[0].y.toFixed(1)}`];
   for (let index = 0; index < points.length - 1; index += 1) {
     const current = points[index];
     const next = points[index + 1];
@@ -7505,19 +7505,15 @@ function AnnualChart({
   const tooltipX = chartX(selectedMonth, data.length);
   const tooltipY = chartY(scoreFor(selectedDay, selectedSeries.key));
   const selectedPoints = data.map((day, index) => ({ x: chartX(index, data.length), y: chartY(scoreFor(day, selectedSeries.key)) }));
-  const selectedRangePoints = [
-    ...data.map((day, index) => ({
-      x: chartX(index, data.length),
-      y: chartY(day?.scoreRanges?.[selectedSeries.key]?.high ?? scoreFor(day, selectedSeries.key)),
-    })),
-    ...data.map((day, index) => ({
-      x: chartX(index, data.length),
-      y: chartY(day?.scoreRanges?.[selectedSeries.key]?.low ?? scoreFor(day, selectedSeries.key)),
-    })).reverse(),
-  ];
-  const selectedRangePath = selectedRangePoints
-    .map((point, index) => `${index === 0 ? "M" : "L"} ${point.x.toFixed(1)} ${point.y.toFixed(1)}`)
-    .join(" ") + " Z";
+  const selectedRangeUpper = data.map((day, index) => ({
+    x: chartX(index, data.length),
+    y: chartY(day?.scoreRanges?.[selectedSeries.key]?.high ?? scoreFor(day, selectedSeries.key)),
+  }));
+  const selectedRangeLower = data.map((day, index) => ({
+    x: chartX(index, data.length),
+    y: chartY(day?.scoreRanges?.[selectedSeries.key]?.low ?? scoreFor(day, selectedSeries.key)),
+  })).reverse();
+  const selectedRangePath = `${smoothPath(selectedRangeUpper)} ${smoothPath(selectedRangeLower, "L")} Z`;
   const orderedSeries = [
     ...SCORE_KEYS.filter((item) => item.key !== selectedSeries.key),
     selectedSeries,
