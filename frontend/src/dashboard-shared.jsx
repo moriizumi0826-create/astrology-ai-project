@@ -3229,6 +3229,25 @@ function monthlyScoreSummary(values) {
   };
 }
 
+function yearlySmoothPointPath(points, startCommand = "M") {
+  if (!points.length) return "";
+  const commands = [`${startCommand} ${points[0].x.toFixed(1)} ${points[0].y.toFixed(1)}`];
+  for (let index = 0; index < points.length - 1; index += 1) {
+    const current = points[index];
+    const next = points[index + 1];
+    const controlX = (current.x + next.x) / 2;
+    commands.push(
+      `C ${controlX.toFixed(1)} ${current.y.toFixed(1)}, ${controlX.toFixed(1)} ${next.y.toFixed(1)}, ${next.x.toFixed(1)} ${next.y.toFixed(1)}`
+    );
+  }
+  return commands.join(" ");
+}
+
+function yearlySmoothRangePath(upper, lower) {
+  if (!upper.length || !lower.length) return "";
+  return `${yearlySmoothPointPath(upper)} ${yearlySmoothPointPath([...lower].reverse(), "L")} Z`;
+}
+
 function monthlyYearlyDeveloperData(forecast) {
   const yearlyData = Array.isArray(forecast?.yearly_data) ? forecast.yearly_data : [];
   const year =
@@ -3301,10 +3320,8 @@ export function AnnualBiorhythmDeveloperView({ data = dashboardData }) {
     const lower = months.map((month, index) => ({
       x: chartX(index),
       y: chartY(month.scoreRanges?.[key]?.low ?? month.scores[key]),
-    })).reverse();
-    return [...upper, ...lower]
-      .map((point, index) => `${index === 0 ? "M" : "L"} ${point.x.toFixed(1)} ${point.y.toFixed(1)}`)
-      .join(" ") + " Z";
+    }));
+    return yearlySmoothRangePath(upper, lower);
   };
   const selectedX = chartX(selected.month - 1);
   const strongestCategory = YEARLY_DEV_SCORE_KEYS.reduce((best, item) =>
@@ -3534,10 +3551,8 @@ function DashboardV2YearlyCard({ forecast, developerMode }) {
     const lower = visibleData.map((day, index) => ({
       x: visibleData.length <= 1 ? padX : padX + (index / (visibleData.length - 1)) * (width - padX * 2),
       y: padY + ((100 - Math.max(-100, Math.min(100, Number(day?.scoreRanges?.[key]?.low ?? day?.scores?.[key] ?? 0)))) / 200) * (height - padY * 2),
-    })).reverse();
-    return [...upper, ...lower]
-      .map((point, index) => `${index === 0 ? "M" : "L"} ${point.x.toFixed(1)} ${point.y.toFixed(1)}`)
-      .join(" ") + " Z";
+    }));
+    return yearlySmoothRangePath(upper, lower);
   };
   return (
     <DashboardV2Card bodyClassName="p-5">
