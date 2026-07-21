@@ -8,8 +8,6 @@ from unittest.mock import patch
 from backend.app.services.chart_calculator import BirthInput
 from backend.app.services import monthly_peak_service, yearly_forecast_service
 from backend.app.services.yearly_forecast_service import (
-    _calendar_trigger_events,
-    _milestone_from_day,
     _yearly_summary_rows,
     _solar_house,
     reload_yearly_master_caches_if_changed,
@@ -98,17 +96,17 @@ class YearlyForecastTestCase(unittest.TestCase):
         self.assertEqual(len({(row["Date"], row["Planet"]) for row in rows}), 3285)
         self.assertTrue({"Ecliptic_Longitude", "Sign_ID", "Retrograde_Flag", "Speed"}.issubset(rows[0]))
 
-    def test_yearly_base_logic_and_aspect_yearly_masters_exist(self):
-        base_path = DATABASE_DIR / "M_Yearly_Base_Logic.csv"
+    def test_aspect_yearly_master_exists_and_obsolete_base_logic_is_not_versioned(self):
         yearly_path = DATABASE_DIR / "M_Aspect_Interpretation_Yearly.csv"
-        with base_path.open("r", encoding="utf-8-sig", newline="") as f:
-            base_rows = list(csv.DictReader(f))
         with yearly_path.open("r", encoding="utf-8-sig", newline="") as f:
             yearly_rows = list(csv.DictReader(f))
 
-        self.assertEqual(len(base_rows), 720)
         self.assertGreater(len(yearly_rows), 30000)
         self.assertTrue({"Duration_Type", "Yearly_Weight", "Graph_Visibility"}.issubset(yearly_rows[0]))
+        self.assertNotIn(
+            "M_Yearly_Base_Logic.csv",
+            {path.name for path in yearly_forecast_service.yearly_csv_paths_for_version()},
+        )
 
     def test_yearly_summary_master_has_solar_and_natal_patterns(self):
         summary_path = DATABASE_DIR / "M_Yearly_Summary_Interpretation.csv"
@@ -256,6 +254,77 @@ class YearlyForecastTestCase(unittest.TestCase):
         self.assertEqual(len(result["work"]["matched_rules"]), 1)
         self.assertEqual(result["work"]["matched_rules"][0]["exactness"], 0.6)
         self.assertEqual(result["love"]["activation"], 0.0)
+
+    def test_monthly_peak_aspect_uses_score_impact_yearly_weight_and_orb(self):
+        rule = {
+            "Rule_ID": "TEST_WORK_ASPECT_SCORE",
+            "Category": "work",
+            "Factor_Type": "transit_to_natal",
+            "Peak_Type": "career",
+            "Transit_Planet": "SATURN",
+            "Natal_Target": "MC",
+            "Target_Role": "career_axis",
+            "House_System": "natal",
+            "Target_House": "10",
+            "Aspect_Angle": "90",
+            "Aspect_Class": "hard",
+            "Transit_State": "direct",
+            "Orb_Max": "3",
+            "Activation_Weight": "6",
+            "Caution_Weight": "2",
+            "Intensity_Hint": "high",
+            "Tone": "mixed",
+            "Monthly_Title": "Work test",
+            "Monthly_Summary": "Summary",
+            "Monthly_Description": "Description",
+            "Monthly_Caution": "Caution",
+            "Yearly_Summary": "Yearly",
+            "Priority": "1",
+            "Tags": "career;square",
+            "Active_Flag": "1",
+        }
+        scoring_rule = {
+            "Rule_ID": "TEST_WORK_ASPECT_SCORE_SCORING",
+            "Category": "work",
+            "Factor_Type": "transit_to_natal",
+            "Tone": "ANY",
+            "Intensity_Hint": "ANY",
+            "Activation_Multiplier": "1.5",
+            "Caution_Multiplier": "2",
+            "Daily_Cap": "12",
+            "Priority": "1",
+            "Active_Flag": "1",
+        }
+        base_event = {
+            "id": "EVENT_SCORE",
+            "factor_type": "transit_to_natal",
+            "transit_planet": "SATURN",
+            "natal_target": "MC",
+            "target_role": ("career_axis",),
+            "house_system": "natal",
+            "target_house": 10,
+            "aspect_angle": 90,
+            "aspect_class": "hard",
+            "transit_state": "direct",
+            "orb": 1.2,
+            "yearly_weight": 0.7,
+        }
+
+        negative = monthly_peak_service.aggregate_daily_peak_categories(
+            [{**base_event, "score_impact": -50}],
+            rules=[rule],
+            scoring_rules=[scoring_rule],
+        )["work"]
+        positive = monthly_peak_service.aggregate_daily_peak_categories(
+            [{**base_event, "id": "EVENT_SCORE_POSITIVE", "score_impact": 50}],
+            rules=[rule],
+            scoring_rules=[scoring_rule],
+        )["work"]
+
+        self.assertEqual(negative["activation"], 0.0)
+        self.assertEqual(negative["caution"], 2.52)
+        self.assertEqual(positive["activation"], 1.89)
+        self.assertEqual(positive["caution"], 0.0)
 
     def test_monthly_peak_periods_respect_constraints_and_keep_caution(self):
         period_rules = [{
@@ -472,8 +541,19 @@ class YearlyForecastTestCase(unittest.TestCase):
             set(forecast["monthly_peak_periods"]),
             {"general_health", "work", "love", "money"},
         )
-        self.assertIn("events", first_day)
-        self.assertTrue(forecast["milestones"])
+        self.assertNotIn("events", first_day)
+        self.assertNotIn("milestones", forecast)
+        transit_chart = first_day["transit_chart"]
+        self.assertEqual(transit_chart["date"], first_day["date"])
+        self.assertEqual(transit_chart["time"], "12:00")
+        self.assertEqual(
+            {row["planet"] for row in transit_chart["transits"]},
+            {
+                "SUN", "MOON", "MERCURY", "VENUS", "MARS",
+                "JUPITER", "SATURN", "URANUS", "NEPTUNE", "PLUTO",
+            },
+        )
+        self.assertEqual(len(transit_chart["house_cusps"]), 12)
         self.assertTrue(forecast["annual_summaries"])
         self.assertIn("annual_summary_columns", forecast)
         self.assertTrue(forecast["annual_summary_columns"]["environment"])
@@ -515,39 +595,6 @@ class YearlyForecastTestCase(unittest.TestCase):
                 )
             self.assertTrue(columns[key][0]["title"])
             self.assertTrue(columns[key][0]["text"])
-
-    def test_calendar_trigger_text_falls_back_to_placeholder(self):
-        events = _calendar_trigger_events(
-            day=date(2026, 1, 1),
-            planet="MERCURY",
-            calendar_row={
-                "Date": "2026-01-01",
-                "Sign_ID": "ARIES",
-                "Ecliptic_Longitude": "0",
-                "Sign_Ingress_Flag": "1",
-                "Retrograde_Start_Flag": "1",
-                "Retrograde_End_Flag": "0",
-            },
-            solar_house=1,
-        )
-
-        self.assertTrue(events)
-        self.assertTrue(all(event["description"] == "----" for event in events))
-        self.assertTrue(all(event["advised_task"] == "----" for event in events))
-
-    def test_empty_milestone_text_falls_back_to_placeholder(self):
-        milestone = _milestone_from_day(
-            {
-                "date": "2026-01-01",
-                "scores": {"total": 0},
-                "events": [{"id": "EMPTY_TEXT", "description": "", "advised_task": ""}],
-            },
-            "Test",
-        )
-
-        self.assertEqual(milestone["description"], "----")
-        self.assertEqual(milestone["advised_task"], "----")
-
 
 if __name__ == "__main__":
     unittest.main()

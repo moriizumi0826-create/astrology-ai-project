@@ -639,11 +639,6 @@ function demoForecast() {
     summary: "2026年の運勢推移を、主要カテゴリごとのスコア変化として可視化します。",
     reading_date: currentTokyoDate(),
     yearly_data,
-    milestones: [
-      { date: "2026-03-15", title: "成長テーマの加速", score: 88 },
-      { date: "2026-08-15", title: "年間ピーク", score: 94 },
-      { date: "2026-10-15", title: "見直しの谷", score: -30 },
-    ],
   };
 }
 
@@ -2495,16 +2490,6 @@ function collectTransitHouseCusps(day, transits = []) {
     return normalizedTransitChartCusps.slice(0, 12);
   }
 
-  const events = Array.isArray(day?.events) ? day.events : [];
-  for (const event of events) {
-    const house = Number(event?.solar_house ?? event?.solarHouse);
-    const longitude = normalizeLongitude(event?.transit_longitude ?? event?.transitLongitude);
-    if (Number.isFinite(house) && house >= 1 && house <= 12 && longitude !== null) {
-      const signStart = Math.floor(longitude / 30) * 30;
-      const firstHouseCusp = normalizeLongitude(signStart - (house - 1) * 30) ?? 0;
-      return Array.from({ length: 12 }, (_, index) => normalizeLongitude(firstHouseCusp + index * 30) ?? 0);
-    }
-  }
   const sunLongitude = normalizeLongitude(transits.find((item) => item?.planet === "SUN")?.longitude) ?? 0;
   const firstHouseCusp = Math.floor(sunLongitude / 30) * 30;
   return Array.from({ length: 12 }, (_, index) => normalizeLongitude(firstHouseCusp + index * 30) ?? 0);
@@ -2600,17 +2585,6 @@ function collectNatalPoints(forecast) {
       : [];
   directPoints.forEach((point) => addPoint(point?.planet || point?.name, point?.longitude));
 
-  const yearlyData = Array.isArray(forecast?.yearly_data)
-    ? forecast.yearly_data
-    : Array.isArray(forecast?.yearlyData)
-      ? forecast.yearlyData
-      : [];
-  yearlyData.forEach((dayItem) => {
-    (Array.isArray(dayItem?.events) ? dayItem.events : []).forEach((event) => {
-      addPoint(event?.n_planet || event?.natal_planet, event?.natal_longitude ?? event?.natalLongitude);
-    });
-  });
-
   NATAL_POINT_ORDER.forEach((planet) => {
     if (!byPlanet.has(planet)) {
       addPoint(planet, fallbackNatalLongitude(planet), true);
@@ -2624,10 +2598,7 @@ function transitSkyMapData(day, forecast, selectedNatalPlanet = "SUN") {
     ? day.all_aspects
     : Array.isArray(day?.allAspects)
       ? day.allAspects
-      : Array.isArray(day?.events)
-        ? day.events
-        : [];
-  const displayEvents = Array.isArray(day?.events) ? day.events : events;
+      : [];
   const transitChartItems = Array.isArray(day?.transit_chart?.transits)
     ? day.transit_chart.transits
     : Array.isArray(day?.transitChart?.transits)
@@ -2646,18 +2617,6 @@ function transitSkyMapData(day, forecast, selectedNatalPlanet = "SUN") {
       longitude,
       color: PLANET_COLORS[planet] || "#e2e2e2",
       retrograde: Boolean(item?.retrograde),
-    });
-  });
-  displayEvents.forEach((event) => {
-    const planet = normalizedPlanet(event?.t_planet || event?.transit_planet);
-    const longitude = Number(event?.transit_longitude ?? event?.transitLongitude);
-    if (!TRANSIT_PLANET_ORDER.includes(planet) || !Number.isFinite(longitude) || byPlanet.has(planet)) return;
-    preciseTransitCount += 1;
-    byPlanet.set(planet, {
-      planet,
-      label: planetLabel(planet),
-      longitude: ((longitude % 360) + 360) % 360,
-      color: PLANET_COLORS[planet] || "#e2e2e2",
     });
   });
   TRANSIT_PLANET_ORDER.forEach((planet) => {
@@ -6657,13 +6616,30 @@ function monthlyItems(items, year, index) {
   return items.filter((item) => itemOverlapsMonth(item, year, index));
 }
 
-function blendedMonthlyScore(values) {
+const YEARLY_MONTHLY_SCORE_SCALE = 2.5;
+
+function yearlyMonthlyPercentile(values, percentile) {
   if (!values.length) return 0;
+  const sorted = [...values].sort((left, right) => left - right);
+  const position = (sorted.length - 1) * percentile;
+  const lowerIndex = Math.floor(position);
+  const upperIndex = Math.ceil(position);
+  const ratio = position - lowerIndex;
+  return sorted[lowerIndex] + ((sorted[upperIndex] - sorted[lowerIndex]) * ratio);
+}
+
+function monthlyScoreSummary(values) {
+  if (!values.length) return { score: 0, low: 0, high: 0 };
   const average = values.reduce((sum, value) => sum + value, 0) / values.length;
-  const strongestValue = values.reduce((strongest, value) => (
-    Math.abs(value) > Math.abs(strongest) ? value : strongest
-  ), values[0]);
-  return Math.round((average * 0.6) + (strongestValue * 0.4));
+  const scale = (value) => clamp(Math.round(value * YEARLY_MONTHLY_SCORE_SCALE), -100, 100);
+  const score = scale(average);
+  const percentileLow = scale(yearlyMonthlyPercentile(values, 0.1));
+  const percentileHigh = scale(yearlyMonthlyPercentile(values, 0.9));
+  return {
+    score,
+    low: Math.min(score, percentileLow),
+    high: Math.max(score, percentileHigh),
+  };
 }
 
 function monthlyData(forecast, useDemoFallback = true) {
@@ -6675,17 +6651,22 @@ function monthlyData(forecast, useDemoFallback = true) {
       return {
         date: `2026-${String(index + 1).padStart(2, "0")}-01`,
         scores: { total: 0, general: 0, work: 0, love: 0, money: 0 },
+        scoreRanges: Object.fromEntries(["total", ...SCORE_KEYS.map((item) => item.key)].map((key) => [key, { low: 0, high: 0 }])),
         text_description: "",
       };
     }
     const scores = {};
+    const scoreRanges = {};
     ["total", ...SCORE_KEYS.map((item) => item.key)].forEach((key) => {
       const values = items.map((day) => scoreFor(day, key)).filter((value) => Number.isFinite(value));
-      scores[key] = blendedMonthlyScore(values);
+      const summary = monthlyScoreSummary(values);
+      scores[key] = summary.score;
+      scoreRanges[key] = { low: summary.low, high: summary.high };
     });
     return {
       ...items[Math.floor(items.length / 2)],
       scores,
+      scoreRanges,
     };
   });
 }
@@ -6700,98 +6681,6 @@ function dailyDataForMonth(forecast, year, index) {
     scores: { total: 0, general: 0, work: 0, love: 0, money: 0 },
     text_description: "",
   }));
-}
-
-function dateRangesOverlap(firstStart, firstEnd, secondStart, secondEnd) {
-  return Boolean(firstStart && firstEnd && secondStart && secondEnd && firstStart <= secondEnd && secondStart <= firstEnd);
-}
-
-function itemOverlapsDateRange(item, startDate, endDate) {
-  return dateRangesOverlap(item?.startDate, item?.endDate, startDate, endDate);
-}
-
-function compoundKindIsFullyCoveredBy(lowerKind, upperKind) {
-  return {
-    tSquare: ["grandCross"],
-    grandTrine: ["kite", "grandSextile"],
-    yod: ["boomerang"],
-    mysticRectangle: ["homeBase"],
-  }[lowerKind]?.includes(upperKind);
-}
-
-function compoundIdsSubset(lowerIds = [], upperIds = []) {
-  const upperSet = new Set(upperIds);
-  return lowerIds.length > 0 && lowerIds.every((id) => upperSet.has(id));
-}
-
-function removeCoveredCompoundItems(items = []) {
-  return items.filter((item) => !items.some((candidate) => (
-    candidate.key !== item.key
-    && compoundKindIsFullyCoveredBy(item.kind, candidate.kind)
-    && compoundIdsSubset(item.ids, candidate.ids)
-    && itemOverlapsDateRange(item, candidate.startDate, candidate.endDate)
-  )));
-}
-
-function compoundAspectItemsForMonth(forecast, year, monthIndexValue) {
-  const source = Array.isArray(forecast?.yearly_data) ? forecast.yearly_data : [];
-  const days = source.length ? source : dailyDataForYear(forecast, year);
-  const byAspect = new Map();
-  days.forEach((day) => {
-    const sky = transitSkyMapData(day, forecast, "SUN");
-    const preciseTransits = sky.transits.filter((item) => !item.estimated);
-    const transits = preciseTransits.length ? preciseTransits : sky.transits;
-    const transitNatalAspects = liveAspectsFromChart({ transits }, sky.natalPoints);
-    const transitTransitAspects = transitTransitAspectsFromTransits(transits);
-    const natalNatalAspects = natalNatalAspectsFromPoints(sky.natalPoints);
-    const groups = detectCompoundAspects([
-      ...transitNatalAspects,
-      ...transitTransitAspects,
-      ...natalNatalAspects,
-    ]);
-    groups.forEach((group) => {
-      const date = dateKey(day?.date);
-      if (!date) return;
-      const current = byAspect.get(group.key) || {
-        kind: group.kind,
-        ids: group.ids || [],
-        dates: [],
-        item: {
-          key: group.key,
-          label: group.title,
-          title: group.title,
-          description: group.description || "複合アスペクトです。",
-          startDate: date,
-          endDate: date,
-          color: group.color,
-          detailText: compoundKindDetailText(group.kind),
-          kind: group.kind,
-          ids: group.ids || [],
-        },
-      };
-      current.dates.push(date);
-      byAspect.set(group.key, current);
-    });
-  });
-
-  const monthStart = `${year}-${String(monthIndexValue + 1).padStart(2, "0")}-01`;
-  const monthEnd = `${year}-${String(monthIndexValue + 1).padStart(2, "0")}-${String(new Date(year, monthIndexValue + 1, 0).getDate()).padStart(2, "0")}`;
-  const rangedItems = [];
-  byAspect.forEach(({ dates, item }) => {
-    const sortedDates = Array.from(new Set(dates)).sort();
-    sortedDates.forEach((date) => {
-      const previous = rangedItems[rangedItems.length - 1];
-      if (previous && previous.key === item.key && addDays(previous.endDate, 1) === date) {
-        previous.endDate = date;
-        return;
-      }
-      rangedItems.push({ ...item, startDate: date, endDate: date });
-    });
-  });
-
-  return removeCoveredCompoundItems(rangedItems)
-    .filter((item) => itemOverlapsDateRange(item, monthStart, monthEnd))
-    .sort((a, b) => a.startDate.localeCompare(b.startDate) || a.label.localeCompare(b.label));
 }
 
 function dailyDataForYear(forecast, year) {
@@ -7616,6 +7505,19 @@ function AnnualChart({
   const tooltipX = chartX(selectedMonth, data.length);
   const tooltipY = chartY(scoreFor(selectedDay, selectedSeries.key));
   const selectedPoints = data.map((day, index) => ({ x: chartX(index, data.length), y: chartY(scoreFor(day, selectedSeries.key)) }));
+  const selectedRangePoints = [
+    ...data.map((day, index) => ({
+      x: chartX(index, data.length),
+      y: chartY(day?.scoreRanges?.[selectedSeries.key]?.high ?? scoreFor(day, selectedSeries.key)),
+    })),
+    ...data.map((day, index) => ({
+      x: chartX(index, data.length),
+      y: chartY(day?.scoreRanges?.[selectedSeries.key]?.low ?? scoreFor(day, selectedSeries.key)),
+    })).reverse(),
+  ];
+  const selectedRangePath = selectedRangePoints
+    .map((point, index) => `${index === 0 ? "M" : "L"} ${point.x.toFixed(1)} ${point.y.toFixed(1)}`)
+    .join(" ") + " Z";
   const orderedSeries = [
     ...SCORE_KEYS.filter((item) => item.key !== selectedSeries.key),
     selectedSeries,
@@ -7665,6 +7567,7 @@ function AnnualChart({
         {[75, 25, -25, -75].map((tick) => (
           <line key={tick} x1={CHART.left} x2={CHART.width - CHART.right} y1={chartY(tick)} y2={chartY(tick)} stroke="rgba(255,255,255,0.07)" />
         ))}
+        <path d={selectedRangePath} fill={selectedSeries.color} opacity="0.14" />
         <path
           d={`${smoothPath(selectedPoints)} L ${CHART.width - CHART.right} ${CHART.height - CHART.bottom} L ${CHART.left} ${CHART.height - CHART.bottom} Z`}
           fill="url(#forecastGoldArea)"
@@ -8066,14 +7969,9 @@ function Matrix({
   const marsThemeItems = monthlyItems(monthlyThemeItemsFromForecast(forecast, "monthly_mars_themes"), activeYear, selectedMonth);
   const sunAspectItems = monthlyItems(sunAspectItemsFromForecast(forecast), activeYear, selectedMonth);
   const marsAspectItems = monthlyItems(marsAspectItemsFromForecast(forecast), activeYear, selectedMonth);
-  const monthlyCompoundAspectItems = useMemo(
-    () => compoundAspectItemsForMonth(forecast, activeYear, selectedMonth),
-    [forecast, activeYear, selectedMonth]
-  );
   const modeTitle = {
     theme: "今月のテーマ",
     lesson: "今月のアクション",
-    summary: "今月の総括",
     test1: "太陽の時期",
     test2: "火星の時期",
   }[analysisMode] || "今月のテーマ";
@@ -8120,7 +8018,6 @@ function Matrix({
             {[
               ["theme", "テーマ"],
               ["lesson", "アクション"],
-              ["summary", "総括"],
               ["test1", "太陽時期"],
               ["test2", "火星時期"],
             ].map(([value, label]) => (
@@ -8144,9 +8041,6 @@ function Matrix({
         ) : null}
         {analysisMode === "lesson" ? (
           <MonthlyArticleList items={marsThemeItems.length ? marsThemeItems : fallbackItems} />
-        ) : null}
-        {analysisMode === "summary" ? (
-          <TransitAspectList items={monthlyCompoundAspectItems} openKeys={openMonthlyAspectKeys} onToggle={toggleMonthlyAspect} prefix="monthly-compound" />
         ) : null}
         {analysisMode === "test1" ? (
           <TransitAspectList items={sunAspectItems} openKeys={openMonthlyAspectKeys} onToggle={toggleMonthlyAspect} prefix="monthly-sun" />
