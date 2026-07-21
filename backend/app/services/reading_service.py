@@ -2454,6 +2454,7 @@ DAILY_PERFORMANCE_PRESSURE_FLOOR_MAX = 55.0
 DAILY_PERFORMANCE_PRESSURE_FLOOR_SCORE_RATE = 0.6
 DAILY_PERFORMANCE_PRESSURE_FLOOR_PRIORITY_BASE = 5
 DAILY_PERFORMANCE_PRESSURE_FLOOR_PRIORITY_RATE = 1.5
+DAILY_PERFORMANCE_PRESSURE_FLOOR_TRANSIT_PLANETS = frozenset(COUNTDOWN_SHORT_PLANETS)
 DAILY_PERFORMANCE_ASPECT_ORBS = {
     int(aspect["angle"]): float(aspect["orb"])
     for aspect in ASPECT_DEFS
@@ -3620,6 +3621,9 @@ def _daily_performance_angle(row: dict[str, Any]) -> int:
 
 
 def _daily_performance_pressure_floor(row: dict[str, Any]) -> float | None:
+    transit_planet = _normalize_planet(row.get("T_Planet"))
+    if transit_planet not in DAILY_PERFORMANCE_PRESSURE_FLOOR_TRANSIT_PLANETS:
+        return None
     impact = _safe_number(row, "Score_Impact")
     if impact > DAILY_PERFORMANCE_PRESSURE_FLOOR_SCORE_THRESHOLD:
         return None

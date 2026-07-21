@@ -657,17 +657,31 @@ class ApiTestCase(unittest.TestCase):
 
     def test_daily_performance_pressure_floor_ignores_mild_or_out_of_orb_rows(self):
         self.assertIsNone(reading_service._daily_performance_pressure_floor({
+            "T_Planet": "TRANSIT_MOON",
             "Aspect_Angle": 0,
             "Score_Impact": -24,
             "Priority": 10,
             "_input": {"orb": 0},
         }))
         self.assertIsNone(reading_service._daily_performance_pressure_floor({
+            "T_Planet": "TRANSIT_MOON",
             "Aspect_Angle": 90,
             "Score_Impact": -60,
             "Priority": 10,
             "_input": {"orb": 6},
         }))
+
+    def test_daily_performance_pressure_floor_ignores_long_term_transits(self):
+        for planet in ("JUPITER", "SATURN", "URANUS", "NEPTUNE", "PLUTO"):
+            with self.subTest(planet=planet):
+                self.assertIsNone(reading_service._daily_performance_pressure_floor({
+                    "T_Planet": f"TRANSIT_{planet}",
+                    "N_Planet": "NATAL_MARS",
+                    "Aspect_Angle": 180,
+                    "Score_Impact": -60,
+                    "Priority": 10,
+                    "_input": {"orb": 0},
+                }))
 
     def test_daily_performance_uses_venus_and_selected_jupiter_venus_support(self):
         negative_row = {
