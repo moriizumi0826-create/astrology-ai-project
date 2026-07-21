@@ -890,13 +890,14 @@ function countdownDaysUntil(slide, baseDateKey = "") {
 }
 
 function countdownHoursUntil(slide) {
-  const explicitHours = Number(
+  const rawHours =
     slide?.hours_remaining ??
     slide?.hoursRemaining ??
     slide?.hoursLeft ??
     slide?.hours_left ??
-    slide?.scan?.hours_remaining
-  );
+    slide?.scan?.hours_remaining;
+  if (rawHours === null || rawHours === undefined || rawHours === "") return null;
+  const explicitHours = Number(rawHours);
   return Number.isFinite(explicitHours) ? explicitHours : null;
 }
 
