@@ -16,6 +16,7 @@ import pandas as pd
 
 from backend.app.schemas import ReadingMeta, ReadingRequest, ReadingResponse, ReadingSection
 from backend.app.services.chart_calculator import (
+    ASPECT_DEFS,
     BirthInput,
     build_chart_rows,
     get_angle_diff,
@@ -2446,6 +2447,17 @@ DAILY_PERFORMANCE_ENVIRONMENT_PLANETS = (
     "PLUTO",
 )
 DAILY_PERFORMANCE_MARS_HARD_ENVIRONMENT_PLANETS = ("SATURN", "URANUS", "NEPTUNE", "PLUTO")
+DAILY_PERFORMANCE_PRESSURE_FLOOR_SCORE_THRESHOLD = -25
+DAILY_PERFORMANCE_PRESSURE_FLOOR_BASE = 10.0
+DAILY_PERFORMANCE_PRESSURE_FLOOR_MIN = 25.0
+DAILY_PERFORMANCE_PRESSURE_FLOOR_MAX = 55.0
+DAILY_PERFORMANCE_PRESSURE_FLOOR_SCORE_RATE = 0.6
+DAILY_PERFORMANCE_PRESSURE_FLOOR_PRIORITY_BASE = 5
+DAILY_PERFORMANCE_PRESSURE_FLOOR_PRIORITY_RATE = 1.5
+DAILY_PERFORMANCE_ASPECT_ORBS = {
+    int(aspect["angle"]): float(aspect["orb"])
+    for aspect in ASPECT_DEFS
+}
 
 
 def _daily_performance_action_advice_rows() -> pd.DataFrame:
@@ -3607,6 +3619,37 @@ def _daily_performance_angle(row: dict[str, Any]) -> int:
     return _safe_number(row, "Aspect_Angle")
 
 
+def _daily_performance_pressure_floor(row: dict[str, Any]) -> float | None:
+    impact = _safe_number(row, "Score_Impact")
+    if impact > DAILY_PERFORMANCE_PRESSURE_FLOOR_SCORE_THRESHOLD:
+        return None
+
+    orb_limit = DAILY_PERFORMANCE_ASPECT_ORBS.get(_daily_performance_angle(row))
+    if not orb_limit:
+        return None
+    current_orb = abs(_extract_current_orb(row))
+    if current_orb >= orb_limit:
+        return None
+
+    priority = _safe_number(row, "Priority")
+    exact_floor = (
+        DAILY_PERFORMANCE_PRESSURE_FLOOR_BASE
+        + (abs(impact) * DAILY_PERFORMANCE_PRESSURE_FLOOR_SCORE_RATE)
+        + (
+            max(0, priority - DAILY_PERFORMANCE_PRESSURE_FLOOR_PRIORITY_BASE)
+            * DAILY_PERFORMANCE_PRESSURE_FLOOR_PRIORITY_RATE
+        )
+    )
+    exact_floor = max(
+        DAILY_PERFORMANCE_PRESSURE_FLOOR_MIN,
+        min(DAILY_PERFORMANCE_PRESSURE_FLOOR_MAX, exact_floor),
+    )
+    orb_strength = max(0.0, 1.0 - (current_orb / orb_limit))
+    return DAILY_PERFORMANCE_PRESSURE_FLOOR_BASE + (
+        (exact_floor - DAILY_PERFORMANCE_PRESSURE_FLOOR_BASE) * orb_strength
+    )
+
+
 def _daily_performance_mars_bonus(daily_vibe: dict[str, Any]) -> int:
     bonus = 0
     for item in daily_vibe.get("items", []):
@@ -3935,6 +3978,7 @@ def _build_daily_performance(
         mars_drive = 0.0
         mars_friction = 0.0
         mars_activity_raw = 0.0
+        strongest_pressure_floor = 0.0
         source_rows: list[dict[str, Any]] = []
         breakdown: dict[str, list[dict[str, Any]]] = {
             "drive": [],
@@ -3956,6 +4000,9 @@ def _build_daily_performance(
             is_hard_angle = angle in DAILY_PERFORMANCE_FRICTION_ANGLES
             has_neptune = transit_planet == "NEPTUNE" or _normalize_planet(row.get("N_Planet")) == "NEPTUNE"
             transit_weight = _daily_performance_transit_weight(transit_planet)
+            pressure_floor = _daily_performance_pressure_floor(row)
+            if pressure_floor is not None:
+                strongest_pressure_floor = max(strongest_pressure_floor, pressure_floor)
 
             if transit_planet in DAILY_PERFORMANCE_DECISION_PLANETS:
                 decision_flag = _safe_number(row, "Decision_Flag")
@@ -4099,7 +4146,7 @@ def _build_daily_performance(
                     )
                 )
 
-        friction = _clamp(
+        additive_friction = (
             10
             + (_damp(noise_sum, 90) * 0.08)
             + (_damp(mars_friction, 60) * 0.12)
@@ -4108,7 +4155,10 @@ def _build_daily_performance(
                 * DAILY_PERFORMANCE_FAST_FRICTION_MULTIPLIER
             )
             + (mars_activity * 0.04)
-            + env_totals["friction"],
+            + env_totals["friction"]
+        )
+        friction = _clamp(
+            max(additive_friction, strongest_pressure_floor),
             0,
             100,
         )

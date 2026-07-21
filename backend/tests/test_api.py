@@ -639,9 +639,35 @@ class ApiTestCase(unittest.TestCase):
         friction_items = point["breakdown"]["friction"]
         pressure = next(item for item in friction_items if item["note"] == "Fast planet friction")
         support = next(item for item in friction_items if item["note"] == "Fast planet support")
-        self.assertEqual(point["friction"], 20)
+        self.assertEqual(point["friction"], 30)
         self.assertEqual(pressure["contribution"], 11.34)
         self.assertEqual(support["contribution"], -1.51)
+
+    def test_daily_performance_pressure_floor_uses_score_priority_and_angle_orb(self):
+        floor = reading_service._daily_performance_pressure_floor({
+            "T_Planet": "TRANSIT_MOON",
+            "N_Planet": "NATAL_PLUTO",
+            "Aspect_Angle": 0,
+            "Score_Impact": -54,
+            "Priority": 7,
+            "_input": {"orb": 0.76},
+        })
+
+        self.assertAlmostEqual(floor, 42.04, places=2)
+
+    def test_daily_performance_pressure_floor_ignores_mild_or_out_of_orb_rows(self):
+        self.assertIsNone(reading_service._daily_performance_pressure_floor({
+            "Aspect_Angle": 0,
+            "Score_Impact": -24,
+            "Priority": 10,
+            "_input": {"orb": 0},
+        }))
+        self.assertIsNone(reading_service._daily_performance_pressure_floor({
+            "Aspect_Angle": 90,
+            "Score_Impact": -60,
+            "Priority": 10,
+            "_input": {"orb": 6},
+        }))
 
     def test_daily_performance_uses_venus_and_selected_jupiter_venus_support(self):
         negative_row = {
