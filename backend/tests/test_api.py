@@ -112,6 +112,14 @@ class ApiTestCase(unittest.TestCase):
         ), patch.object(
             reading_service, "_ASPECT_CANDIDATES_BY_KEY", {("SUN", "MOON", 90): [{}]}
         ), patch.object(
+            reading_service,
+            "_ASPECT_GENRE_DESCRIPTION_LOOKUP",
+            {("SUN", "MOON", 90, 1): {"love": "old", "work": "old", "money": "old"}},
+        ), patch.object(
+            reading_service,
+            "_ASPECT_GENRE_SCORE_IMPACT_LOOKUP",
+            {("SUN", "MOON", 90, 1): {"love": 1, "work": 2, "money": 3}},
+        ), patch.object(
             reading_service, "_MASTER_TIMELINE_ADVISE_LOOKUP", {("SUN", "MOON", 90): "old"}
         ), patch.object(
             reading_service, "_MASTER_PRESSURE_SCORE_LOOKUP", {("SUN", "MOON", 90): -40}
@@ -129,6 +137,8 @@ class ApiTestCase(unittest.TestCase):
             self.assertTrue(reloaded)
             self.assertIs(reading_service.MASTER_DATAFRAMES, replacement_frames)
             self.assertIsNone(reading_service._ASPECT_CANDIDATES_BY_KEY)
+            self.assertIsNone(reading_service._ASPECT_GENRE_DESCRIPTION_LOOKUP)
+            self.assertIsNone(reading_service._ASPECT_GENRE_SCORE_IMPACT_LOOKUP)
             self.assertIsNone(reading_service._MASTER_TIMELINE_ADVISE_LOOKUP)
             self.assertIsNone(reading_service._MASTER_PRESSURE_SCORE_LOOKUP)
             self.assertIsNone(reading_service._COUNTDOWN_MASTER_LOOKUP)
@@ -220,6 +230,166 @@ class ApiTestCase(unittest.TestCase):
             self.assertEqual(mercury_direct[0]["Event_Date"], "2026-07-24")
             self.assertEqual(transit_df.conversion_count, 1)
             self.assertEqual(retrograde_df.conversion_count, 1)
+
+    def test_aspect_genre_descriptions_use_house_level_representative_row(self):
+        base = {
+            "T_Planet": "TRANSIT_VENUS",
+            "N_Planet": "NATAL_MARS",
+            "Aspect_Angle": 120,
+            "N_House": 7,
+        }
+        rows = [
+            {
+                **base,
+                "N_Sign_Element": "Earth",
+                "T_Retrograde_Flag": 0,
+                "Orb_Status": "Applying",
+                "Love_Text_Description": "Earth love",
+                "Work_Text_Description": "Earth work",
+                "Money_Text_Description": "Earth money",
+                "_csv_row": 2,
+            },
+            {
+                **base,
+                "N_Sign_Element": "Fire",
+                "T_Retrograde_Flag": 1,
+                "Orb_Status": "Applying",
+                "Love_Text_Description": "Retrograde love",
+                "Work_Text_Description": "Retrograde work",
+                "Money_Text_Description": "Retrograde money",
+                "_csv_row": 3,
+            },
+            {
+                **base,
+                "N_Sign_Element": "Fire",
+                "T_Retrograde_Flag": 0,
+                "Orb_Status": "Separating",
+                "Love_Text_Description": "Separating love",
+                "Work_Text_Description": "Separating work",
+                "Money_Text_Description": "Separating money",
+                "_csv_row": 4,
+            },
+            {
+                **base,
+                "N_Sign_Element": "Fire",
+                "T_Retrograde_Flag": 0,
+                "Orb_Status": "Applying",
+                "Love_Text_Description": "Representative love",
+                "Work_Text_Description": "Representative work",
+                "Money_Text_Description": "Representative money",
+                "_csv_row": 5,
+            },
+            {
+                **base,
+                "N_House": 8,
+                "N_Sign_Element": "Fire",
+                "T_Retrograde_Flag": 0,
+                "Orb_Status": "Applying",
+                "Love_Text_Description": "-",
+                "Work_Text_Description": "",
+                "Money_Text_Description": None,
+                "_csv_row": 6,
+            },
+        ]
+
+        lookup = reading_service._build_aspect_genre_description_lookup(rows)
+
+        self.assertEqual(
+            lookup[("VENUS", "MARS", 120, 7)],
+            {
+                "love": "Representative love",
+                "work": "Representative work",
+                "money": "Representative money",
+            },
+        )
+        self.assertEqual(
+            lookup[("VENUS", "MARS", 120, 8)],
+            {"love": "", "work": "", "money": ""},
+        )
+
+    def test_aspect_genre_scores_use_house_level_representative_row(self):
+        base = {
+            "T_Planet": "TRANSIT_VENUS",
+            "N_Planet": "NATAL_MARS",
+            "Aspect_Angle": 120,
+            "N_House": 7,
+        }
+        rows = [
+            {
+                **base,
+                "N_Sign_Element": "Earth",
+                "T_Retrograde_Flag": 0,
+                "Orb_Status": "Applying",
+                "Love_Score_Impact": "99",
+                "Work_Score_Impact": "99",
+                "Money_Score_Impact": "99",
+                "_csv_row": 2,
+            },
+            {
+                **base,
+                "N_Sign_Element": "Fire",
+                "T_Retrograde_Flag": 0,
+                "Orb_Status": "Applying",
+                "Love_Score_Impact": "42",
+                "Work_Score_Impact": "-31",
+                "Money_Score_Impact": "-",
+                "_csv_row": 3,
+            },
+        ]
+
+        lookup = reading_service._build_aspect_genre_score_impact_lookup(rows)
+
+        self.assertEqual(
+            lookup[("VENUS", "MARS", 120, 7)],
+            {"love": 42.0, "work": -31.0, "money": None},
+        )
+
+    def test_aspect_genre_dual_scores_use_house_level_representative_row(self):
+        base = {
+            "T_Planet": "TRANSIT_VENUS",
+            "N_Planet": "NATAL_MARS",
+            "Aspect_Angle": 90,
+            "N_House": 7,
+        }
+        rows = [
+            {
+                **base,
+                "N_Sign_Element": "Earth",
+                "T_Retrograde_Flag": 0,
+                "Orb_Status": "Applying",
+                "Love_Positive_Impact": "99",
+                "Love_Negative_Impact": "99",
+                "Work_Positive_Impact": "99",
+                "Work_Negative_Impact": "99",
+                "Money_Positive_Impact": "99",
+                "Money_Negative_Impact": "99",
+                "_csv_row": 2,
+            },
+            {
+                **base,
+                "N_Sign_Element": "Fire",
+                "T_Retrograde_Flag": 0,
+                "Orb_Status": "Applying",
+                "Love_Positive_Impact": "15",
+                "Love_Negative_Impact": "65",
+                "Work_Positive_Impact": "0",
+                "Work_Negative_Impact": "50",
+                "Money_Positive_Impact": "",
+                "Money_Negative_Impact": "",
+                "_csv_row": 3,
+            },
+        ]
+
+        lookup = reading_service._build_aspect_genre_dual_score_lookup(rows)
+
+        self.assertEqual(
+            lookup[("VENUS", "MARS", 90, 7)],
+            {
+                "love": {"positive": 15.0, "negative": 65.0},
+                "work": {"positive": 0.0, "negative": 50.0},
+                "money": {"positive": None, "negative": None},
+            },
+        )
 
     def test_aspect_interpretation_loads_sun_conjunction_from_master_csv(self):
         row = get_aspect_interpretation(

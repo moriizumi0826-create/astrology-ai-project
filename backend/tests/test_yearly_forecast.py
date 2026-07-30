@@ -14,6 +14,9 @@ from backend.app.services.yearly_forecast_service import (
     generate_yearly_forecast,
 )
 from backend.tests.monthly_peak_narrative_quality_fixture import NARRATIVE_QUALITY_BIRTH_INPUT
+from scripts.generate_yearly_forecast_masters import duration_type, yearly_weight
+from scripts.apply_aspect_genre_scores_full import _score as full_genre_score
+from scripts.apply_aspect_genre_dual_scores import dual_genre_score
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -21,6 +24,164 @@ DATABASE_DIR = PROJECT_ROOT / "database"
 
 
 class YearlyForecastTestCase(unittest.TestCase):
+    def test_full_genre_score_keeps_transit_direction_and_house_context(self):
+        self.assertEqual(full_genre_score("MARS", "VENUS", 0, 2, "money"), -65)
+        self.assertEqual(full_genre_score("VENUS", "MARS", 0, 2, "money"), 55)
+        self.assertEqual(full_genre_score("SATURN", "MC", 90, 10, "work"), -90)
+
+    def test_dual_genre_score_separates_positive_and_negative_components(self):
+        self.assertEqual(
+            dual_genre_score("VENUS", "MARS", 60, 7, "love"),
+            {"positive": 70, "negative": 0},
+        )
+        self.assertEqual(
+            dual_genre_score("MARS", "VENUS", 90, 2, "money"),
+            {"positive": 0, "negative": 65},
+        )
+        self.assertEqual(
+            dual_genre_score("SUN", "NEPTUNE", 150, 2, "work"),
+            {"positive": 0, "negative": 50},
+        )
+
+    def test_genre_importance_uses_stronger_dual_component(self):
+        scores = yearly_forecast_service._aspect_genre_importance_scores(
+            {
+                "love": {"positive": 80.0, "negative": 15.0},
+                "work": {"positive": 10.0, "negative": 50.0},
+                "money": {"positive": None, "negative": None},
+            },
+        )
+
+        self.assertEqual(scores, {"love": 80.0, "work": 50.0, "money": None})
+
+    def test_genre_score_pilot_is_loaded_by_four_part_key(self):
+        get_scores = yearly_forecast_service.reading_service.get_aspect_genre_score_components
+
+        self.assertEqual(
+            get_scores("SUN", "NEPTUNE", 150, 2),
+            {
+                "love": {"positive": None, "negative": None},
+                "work": {"positive": 0.0, "negative": 50.0},
+                "money": {"positive": 0.0, "negative": 55.0},
+            },
+        )
+        self.assertEqual(
+            get_scores("VENUS", "MARS", 120, 7),
+            {
+                "love": {"positive": 80.0, "negative": 0.0},
+                "work": {"positive": 40.0, "negative": 0.0},
+                "money": {"positive": 45.0, "negative": 0.0},
+            },
+        )
+        self.assertEqual(
+            get_scores("MARS", "VENUS", 0, 2),
+            {
+                "love": {"positive": 50.0, "negative": 0.0},
+                "work": {"positive": 45.0, "negative": 0.0},
+                "money": {"positive": 0.0, "negative": 40.0},
+            },
+        )
+
+    def test_yearly_weight_is_transit_duration_only(self):
+        expected = {
+            "SUN": ("SHORT", 0.35),
+            "MERCURY": ("SHORT", 0.35),
+            "VENUS": ("SHORT", 0.35),
+            "MOON": ("SHORT", 0.35),
+            "MARS": ("MID", 0.7),
+            "JUPITER": ("LONG", 1.0),
+            "SATURN": ("LONG", 1.0),
+            "URANUS": ("LONG", 1.0),
+            "NEPTUNE": ("LONG", 1.0),
+            "PLUTO": ("LONG", 1.0),
+        }
+        for transit_planet, (kind, weight) in expected.items():
+            with self.subTest(transit_planet=transit_planet):
+                self.assertEqual(duration_type(transit_planet, "NATAL_PLUTO"), kind)
+                self.assertEqual(yearly_weight(kind), weight)
+
+    def test_yearly_aspect_event_includes_house_level_genre_descriptions(self):
+        genre_descriptions = {
+            "love": "Love description",
+            "work": "Work description",
+            "money": "Money description",
+        }
+        genre_scores = {"love": 45.0, "work": -20.0, "money": None}
+        genre_components = {
+            "love": {"positive": 45.0, "negative": 10.0},
+            "work": {"positive": 5.0, "negative": 20.0},
+            "money": {"positive": None, "negative": None},
+        }
+        with patch.object(
+            yearly_forecast_service,
+            "_aspect_yearly_rows",
+            return_value={},
+        ), patch.object(
+            yearly_forecast_service.reading_service,
+            "get_aspect_genre_descriptions",
+            return_value=genre_descriptions,
+        ) as get_genre_descriptions:
+            with patch.object(
+                yearly_forecast_service.reading_service,
+                "get_aspect_genre_score_impacts",
+                return_value=genre_scores,
+            ) as get_genre_scores:
+                with patch.object(
+                    yearly_forecast_service.reading_service,
+                    "get_aspect_genre_score_components",
+                    return_value=genre_components,
+                ) as get_genre_components:
+                    event = yearly_forecast_service._event_from_interpretation(
+                    {
+                        "Aspect_Logic_ID": "TRANSIT_VENUS_NATAL_MARS_120_7",
+                        "Category": "Love,Money,Work",
+                        "Text_Description": "Generic description",
+                        "Advised_Task": "Generic task",
+                        "Priority": 8,
+                    },
+                    "VENUS",
+                    {"planet": "MARS", "house": 7, "longitude": 244.0},
+                    120,
+                    0.5,
+                    "Applying",
+                    False,
+                    4.0,
+                    120.5,
+                )
+
+        get_genre_descriptions.assert_called_once_with("VENUS", "MARS", 120, 7)
+        get_genre_scores.assert_called_once_with("VENUS", "MARS", 120, 7)
+        get_genre_components.assert_called_once_with("VENUS", "MARS", 120, 7)
+        self.assertEqual(event["genre_descriptions"], genre_descriptions)
+        self.assertEqual(event["genre_score_impacts"], genre_scores)
+        self.assertEqual(event["genre_score_components"], genre_components)
+        self.assertEqual(
+            event["genre_importance_scores"],
+            {"love": 45.0, "work": 20.0, "money": None},
+        )
+        self.assertEqual(event["yearly_weight"], 1.0)
+        self.assertEqual(
+            event["genre_applicability"]["genres"],
+            ["love", "work", "money"],
+        )
+        self.assertEqual(event["natal_house"], 7)
+        self.assertEqual(event["description"], "Generic description")
+
+    def test_aspect_genre_applicability_combines_house_and_planet_rules(self):
+        yearly_forecast_service._aspect_genre_applicability.cache_clear()
+
+        moon_in_sixth = yearly_forecast_service._aspect_genre_applicability(
+            "Work", "MARS", "MOON", 150, 6
+        )
+        pluto_in_seventh = yearly_forecast_service._aspect_genre_applicability(
+            "Love", "SUN", "PLUTO", 150, 7
+        )
+
+        self.assertEqual(moon_in_sixth["category_genres"], ["work"])
+        self.assertEqual(moon_in_sixth["planet_rule_genres"], ["love"])
+        self.assertEqual(moon_in_sixth["genres"], ["love", "work"])
+        self.assertEqual(pluto_in_seventh["genres"], ["love"])
+
     def test_yearly_forecast_reuses_same_input_and_year_result(self):
         payload = BirthInput(
             full_name="Cache Test",
@@ -190,6 +351,34 @@ class YearlyForecastTestCase(unittest.TestCase):
         self.assertIn(seed_rule["Rule_ID"], expected)
         self.assertEqual(actual, expected)
 
+    def test_monthly_peak_numeric_zero_matches_conjunction_rules(self):
+        rule = next(
+            row
+            for row in monthly_peak_service.load_monthly_peak_rules()
+            if row["Rule_ID"] == "AUTO_LOVE_T2N_SUN_SUN_A0"
+        )
+        event = {
+            "factor_type": "transit_to_natal",
+            "transit_planet": "SUN",
+            "natal_target": "SUN",
+            "target_role": ("core_theme", "core_self", "vitality"),
+            "house_system": "natal",
+            "target_house": 6,
+            "aspect_angle": 0,
+            "aspect_class": "conjunction",
+            "transit_state": "direct",
+            "orb": 0.0,
+        }
+
+        self.assertTrue(monthly_peak_service.monthly_peak_rule_matches(rule, event))
+        self.assertTrue(monthly_peak_service.monthly_peak_rule_matches(
+            rule, {**event, "aspect_angle": 0.0}
+        ))
+        self.assertEqual(
+            monthly_peak_service.matching_monthly_peak_categories(event),
+            ("love", "work"),
+        )
+
     def test_monthly_peak_aggregation_keeps_activation_and_caution_separate(self):
         rule = {
             "Rule_ID": "TEST_WORK_ASPECT",
@@ -320,11 +509,43 @@ class YearlyForecastTestCase(unittest.TestCase):
             rules=[rule],
             scoring_rules=[scoring_rule],
         )["work"]
+        genre_specific = monthly_peak_service.aggregate_daily_peak_categories(
+            [{
+                **base_event,
+                "id": "EVENT_GENRE_SCORE",
+                "score_impact": -50,
+                "genre_score_impacts": {"love": None, "work": 80, "money": None},
+            }],
+            rules=[rule],
+            scoring_rules=[scoring_rule],
+        )["work"]
+        pending_genre_score = monthly_peak_service.aggregate_daily_peak_categories(
+            [{
+                **base_event,
+                "id": "EVENT_PENDING_GENRE_SCORE",
+                "score_impact": -50,
+                "genre_score_impacts": {"love": None, "work": None, "money": None},
+            }],
+            rules=[rule],
+            scoring_rules=[scoring_rule],
+        )["work"]
 
         self.assertEqual(negative["activation"], 0.0)
         self.assertEqual(negative["caution"], 2.52)
         self.assertEqual(positive["activation"], 1.89)
         self.assertEqual(positive["caution"], 0.0)
+        self.assertEqual(genre_specific["activation"], 3.02)
+        self.assertEqual(genre_specific["caution"], 0.0)
+        self.assertEqual(
+            genre_specific["matched_rules"][0]["score_impact_source"],
+            "genre",
+        )
+        self.assertEqual(pending_genre_score["activation"], 5.4)
+        self.assertEqual(pending_genre_score["caution"], 2.4)
+        self.assertEqual(
+            pending_genre_score["matched_rules"][0]["score_impact_source"],
+            "rule_weight",
+        )
 
     def test_monthly_peak_periods_respect_constraints_and_keep_caution(self):
         period_rules = [{
@@ -531,6 +752,9 @@ class YearlyForecastTestCase(unittest.TestCase):
         forecast = generate_yearly_forecast(payload, 2026)
 
         self.assertEqual(len(forecast["yearly_data"]), 365)
+        self.assertEqual(forecast["aspect_genre_description_schema"], 2)
+        self.assertEqual(forecast["aspect_genre_applicability_schema"], 1)
+        self.assertEqual(forecast["aspect_genre_score_schema"], 3)
         first_day = forecast["yearly_data"][0]
         self.assertTrue({"total", "work", "love", "money", "general"}.issubset(first_day["scores"]))
         self.assertEqual(
@@ -554,10 +778,36 @@ class YearlyForecastTestCase(unittest.TestCase):
             },
         )
         self.assertEqual(len(transit_chart["house_cusps"]), 12)
+        self.assertTrue(first_day["all_aspects"])
+        first_aspect = first_day["all_aspects"][0]
+        self.assertEqual(set(first_aspect["genre_descriptions"]), {"love", "work", "money"})
+        self.assertEqual(set(first_aspect["genre_score_components"]), {"love", "work", "money"})
+        self.assertEqual(set(first_aspect["genre_importance_scores"]), {"love", "work", "money"})
+        self.assertTrue(first_aspect["genre_applicability"]["genres"])
+        self.assertIn("natal_house", first_aspect)
         self.assertTrue(forecast["annual_summaries"])
         self.assertIn("annual_summary_columns", forecast)
         self.assertTrue(forecast["annual_summary_columns"]["environment"])
         self.assertTrue(forecast["annual_summary_columns"]["mental"])
+        transitions = forecast["annual_transit_house_transitions"]
+        self.assertTrue(transitions)
+        self.assertNotIn("MOON", {item["planet"] for item in transitions})
+        self.assertEqual(
+            [item["date"] for item in transitions],
+            sorted(item["date"] for item in transitions),
+        )
+        self.assertTrue(any("SOLAR_HOUSE_INGRESS" in item["transition_types"] for item in transitions))
+        self.assertTrue(any("NATAL_HOUSE_INGRESS" in item["transition_types"] for item in transitions))
+        activations = forecast["annual_house_activation_events"]
+        self.assertTrue(activations)
+        self.assertTrue({"TRANSIT_TO_TRANSIT", "TRANSIT_TO_NATAL", "HOUSE_CLUSTER"}.issubset(
+            {item["activation_type"] for item in activations}
+        ))
+        self.assertTrue(all(
+            target in {"SUN", "MOON", "MERCURY", "VENUS", "MARS", "JUPITER", "SATURN", "URANUS", "NEPTUNE", "PLUTO", "ASC", "MC"}
+            for item in activations
+            for target in ([item["natal_target"]] if item["natal_target"] else [])
+        ))
         self.assertTrue(forecast["monthly_sun_themes"])
         self.assertTrue(forecast["monthly_mars_themes"])
         self.assertEqual(forecast["monthly_sun_themes"][0]["planet"], "SUN")

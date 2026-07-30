@@ -82,6 +82,37 @@ ASPECT_MASTER_CSV_FILES = [
     "M_Aspect_Interpretation neptune,pluto.csv",
 ]
 
+ASPECT_GENRE_DESCRIPTION_COLUMNS = {
+    "love": "Love_Text_Description",
+    "work": "Work_Text_Description",
+    "money": "Money_Text_Description",
+}
+ASPECT_GENRE_SCORE_IMPACT_COLUMNS = {
+    "love": "Love_Score_Impact",
+    "work": "Work_Score_Impact",
+    "money": "Money_Score_Impact",
+}
+ASPECT_GENRE_DUAL_SCORE_COLUMNS = {
+    "love": {
+        "positive": "Love_Positive_Impact",
+        "negative": "Love_Negative_Impact",
+    },
+    "work": {
+        "positive": "Work_Positive_Impact",
+        "negative": "Work_Negative_Impact",
+    },
+    "money": {
+        "positive": "Money_Positive_Impact",
+        "negative": "Money_Negative_Impact",
+    },
+}
+ASPECT_GENRE_REPRESENTATIVE_ELEMENT_ORDER = {
+    "FIRE": 0,
+    "EARTH": 1,
+    "AIR": 2,
+    "WATER": 3,
+}
+
 AVERAGE_PLANET_SPEED_DEGREES_PER_DAY = {
     "SUN": 1.0,
     "MOON": 13.0,
@@ -375,6 +406,11 @@ def _csv_file_signature(paths: list[Path]) -> tuple[tuple[str, int | None, int |
 MASTER_DATAFRAMES = load_master_dataframes()
 _MASTER_CSV_SIGNATURE = _csv_file_signature(_master_csv_paths())
 _ASPECT_CANDIDATES_BY_KEY: dict[tuple[str, str, int], list[dict[str, Any]]] | None = None
+_ASPECT_GENRE_DESCRIPTION_LOOKUP: dict[tuple[str, str, int, int], dict[str, str]] | None = None
+_ASPECT_GENRE_SCORE_IMPACT_LOOKUP: dict[tuple[str, str, int, int], dict[str, float | None]] | None = None
+_ASPECT_GENRE_DUAL_SCORE_LOOKUP: dict[
+    tuple[str, str, int, int], dict[str, dict[str, float | None]]
+] | None = None
 _MASTER_TIMELINE_ADVISE_LOOKUP: dict[tuple[Any, ...], str] | None = None
 _MASTER_PRESSURE_SCORE_LOOKUP: dict[tuple[Any, ...], float] | None = None
 _COUNTDOWN_MASTER_LOOKUP: dict[str, dict[str, Any]] | None = None
@@ -388,6 +424,8 @@ _ASPECT_MASTER_INDEX_LOCK = Lock()
 
 def reload_master_dataframes_if_changed(force: bool = False) -> bool:
     global MASTER_DATAFRAMES, _MASTER_CSV_SIGNATURE, _ASPECT_CANDIDATES_BY_KEY
+    global _ASPECT_GENRE_DESCRIPTION_LOOKUP, _ASPECT_GENRE_SCORE_IMPACT_LOOKUP
+    global _ASPECT_GENRE_DUAL_SCORE_LOOKUP
     global _MASTER_TIMELINE_ADVISE_LOOKUP, _MASTER_PRESSURE_SCORE_LOOKUP, _COUNTDOWN_MASTER_LOOKUP
     global _TRANSIT_RETROGRADE_START_DATES_BY_PLANET, _RETROGRADE_CALENDAR_INDEX
     current_signature = _csv_file_signature(_master_csv_paths())
@@ -398,6 +436,9 @@ def reload_master_dataframes_if_changed(force: bool = False) -> bool:
         MASTER_DATAFRAMES = reloaded_dataframes
         _MASTER_CSV_SIGNATURE = current_signature
         _ASPECT_CANDIDATES_BY_KEY = None
+        _ASPECT_GENRE_DESCRIPTION_LOOKUP = None
+        _ASPECT_GENRE_SCORE_IMPACT_LOOKUP = None
+        _ASPECT_GENRE_DUAL_SCORE_LOOKUP = None
         _MASTER_TIMELINE_ADVISE_LOOKUP = None
         _MASTER_PRESSURE_SCORE_LOOKUP = None
         _COUNTDOWN_MASTER_LOOKUP = None
@@ -1497,6 +1538,139 @@ def _build_aspect_master_indexes(
     )
 
 
+def _genre_description_text(value: Any) -> str:
+    if value is None or pd.isna(value):
+        return ""
+    text = str(value).strip()
+    return "" if not text or text == "-" else text
+
+
+def _aspect_genre_representative_rank(row: dict[str, Any]) -> tuple[int, int, int, int]:
+    element = str(row.get("N_Sign_Element") or "").strip().upper()
+    element_rank = ASPECT_GENRE_REPRESENTATIVE_ELEMENT_ORDER.get(element, 4)
+    retrograde_rank = 0 if _normalize_bool_flag(row.get("T_Retrograde_Flag")) == 0 else 1
+    orb_rank = 0 if _normalize_orb_status(row.get("Orb_Status")) == "APPLYING" else 1
+    source_row = _normalize_int(row.get("_csv_row")) or 10**9
+    return element_rank, retrograde_rank, orb_rank, source_row
+
+
+def _build_aspect_genre_description_lookup(
+    rows: list[dict[str, Any]],
+) -> dict[tuple[str, str, int, int], dict[str, str]]:
+    representative_rows: dict[tuple[str, str, int, int], dict[str, Any]] = {}
+    representative_ranks: dict[tuple[str, str, int, int], tuple[int, int, int, int]] = {}
+    for row in rows:
+        angle = _normalize_int(row.get("Aspect_Angle"))
+        house = _normalize_int(row.get("N_House"))
+        if angle is None or house is None:
+            continue
+        key = (
+            _normalize_planet(row.get("T_Planet")),
+            _normalize_planet(row.get("N_Planet")),
+            angle,
+            house,
+        )
+        rank = _aspect_genre_representative_rank(row)
+        if key not in representative_ranks or rank < representative_ranks[key]:
+            representative_rows[key] = row
+            representative_ranks[key] = rank
+
+    return {
+        key: {
+            genre: _genre_description_text(row.get(column))
+            for genre, column in ASPECT_GENRE_DESCRIPTION_COLUMNS.items()
+        }
+        for key, row in representative_rows.items()
+    }
+
+
+def _genre_score_impact(value: Any) -> float | None:
+    if value is None or pd.isna(value):
+        return None
+    text = str(value).strip()
+    if not text or text == "-":
+        return None
+    score = _normalize_float(value)
+    if score is None or not -100 <= score <= 100:
+        return None
+    return score
+
+
+def _genre_score_component(value: Any) -> float | None:
+    if value is None or pd.isna(value):
+        return None
+    text = str(value).strip()
+    if not text or text == "-":
+        return None
+    score = _normalize_float(value)
+    if score is None or not 0 <= score <= 100:
+        return None
+    return score
+
+
+def _build_aspect_genre_score_impact_lookup(
+    rows: list[dict[str, Any]],
+) -> dict[tuple[str, str, int, int], dict[str, float | None]]:
+    representative_rows: dict[tuple[str, str, int, int], dict[str, Any]] = {}
+    representative_ranks: dict[tuple[str, str, int, int], tuple[int, int, int, int]] = {}
+    for row in rows:
+        angle = _normalize_int(row.get("Aspect_Angle"))
+        house = _normalize_int(row.get("N_House"))
+        if angle is None or house is None:
+            continue
+        key = (
+            _normalize_planet(row.get("T_Planet")),
+            _normalize_planet(row.get("N_Planet")),
+            angle,
+            house,
+        )
+        rank = _aspect_genre_representative_rank(row)
+        if key not in representative_ranks or rank < representative_ranks[key]:
+            representative_rows[key] = row
+            representative_ranks[key] = rank
+
+    return {
+        key: {
+            genre: _genre_score_impact(row.get(column))
+            for genre, column in ASPECT_GENRE_SCORE_IMPACT_COLUMNS.items()
+        }
+        for key, row in representative_rows.items()
+    }
+
+
+def _build_aspect_genre_dual_score_lookup(
+    rows: list[dict[str, Any]],
+) -> dict[tuple[str, str, int, int], dict[str, dict[str, float | None]]]:
+    representative_rows: dict[tuple[str, str, int, int], dict[str, Any]] = {}
+    representative_ranks: dict[tuple[str, str, int, int], tuple[int, int, int, int]] = {}
+    for row in rows:
+        angle = _normalize_int(row.get("Aspect_Angle"))
+        house = _normalize_int(row.get("N_House"))
+        if angle is None or house is None:
+            continue
+        key = (
+            _normalize_planet(row.get("T_Planet")),
+            _normalize_planet(row.get("N_Planet")),
+            angle,
+            house,
+        )
+        rank = _aspect_genre_representative_rank(row)
+        if key not in representative_ranks or rank < representative_ranks[key]:
+            representative_rows[key] = row
+            representative_ranks[key] = rank
+
+    return {
+        key: {
+            genre: {
+                component: _genre_score_component(row.get(column))
+                for component, column in columns.items()
+            }
+            for genre, columns in ASPECT_GENRE_DUAL_SCORE_COLUMNS.items()
+        }
+        for key, row in representative_rows.items()
+    }
+
+
 def _ensure_aspect_master_indexes() -> None:
     global _ASPECT_CANDIDATES_BY_KEY, _MASTER_TIMELINE_ADVISE_LOOKUP, _MASTER_PRESSURE_SCORE_LOOKUP
     if (
@@ -1520,6 +1694,106 @@ def _ensure_aspect_master_indexes() -> None:
             _MASTER_TIMELINE_ADVISE_LOOKUP,
             _MASTER_PRESSURE_SCORE_LOOKUP,
         ) = _build_aspect_master_indexes(rows)
+
+
+def get_aspect_genre_descriptions(
+    t_planet: str,
+    n_planet: str,
+    angle: int,
+    house: int,
+) -> dict[str, str]:
+    global _ASPECT_GENRE_DESCRIPTION_LOOKUP
+    _ensure_aspect_master_indexes()
+    if _ASPECT_GENRE_DESCRIPTION_LOOKUP is None:
+        with _ASPECT_MASTER_INDEX_LOCK:
+            if _ASPECT_GENRE_DESCRIPTION_LOOKUP is None:
+                rows = [
+                    row
+                    for candidates in (_ASPECT_CANDIDATES_BY_KEY or {}).values()
+                    for row in candidates
+                ]
+                _ASPECT_GENRE_DESCRIPTION_LOOKUP = _build_aspect_genre_description_lookup(rows)
+
+    key = (
+        _normalize_planet(t_planet),
+        _normalize_planet(n_planet),
+        _normalize_int(angle) or 0,
+        _normalize_int(house) or 1,
+    )
+    descriptions = (_ASPECT_GENRE_DESCRIPTION_LOOKUP or {}).get(key, {})
+    return {
+        genre: descriptions.get(genre, "")
+        for genre in ASPECT_GENRE_DESCRIPTION_COLUMNS
+    }
+
+
+def get_aspect_genre_score_impacts(
+    t_planet: str,
+    n_planet: str,
+    angle: int,
+    house: int,
+) -> dict[str, float | None]:
+    global _ASPECT_GENRE_SCORE_IMPACT_LOOKUP
+    _ensure_aspect_master_indexes()
+    if _ASPECT_GENRE_SCORE_IMPACT_LOOKUP is None:
+        with _ASPECT_MASTER_INDEX_LOCK:
+            if _ASPECT_GENRE_SCORE_IMPACT_LOOKUP is None:
+                rows = [
+                    row
+                    for candidates in (_ASPECT_CANDIDATES_BY_KEY or {}).values()
+                    for row in candidates
+                ]
+                _ASPECT_GENRE_SCORE_IMPACT_LOOKUP = (
+                    _build_aspect_genre_score_impact_lookup(rows)
+                )
+
+    key = (
+        _normalize_planet(t_planet),
+        _normalize_planet(n_planet),
+        _normalize_int(angle) or 0,
+        _normalize_int(house) or 1,
+    )
+    scores = (_ASPECT_GENRE_SCORE_IMPACT_LOOKUP or {}).get(key, {})
+    return {
+        genre: scores.get(genre)
+        for genre in ASPECT_GENRE_SCORE_IMPACT_COLUMNS
+    }
+
+
+def get_aspect_genre_score_components(
+    t_planet: str,
+    n_planet: str,
+    angle: int,
+    house: int,
+) -> dict[str, dict[str, float | None]]:
+    global _ASPECT_GENRE_DUAL_SCORE_LOOKUP
+    _ensure_aspect_master_indexes()
+    if _ASPECT_GENRE_DUAL_SCORE_LOOKUP is None:
+        with _ASPECT_MASTER_INDEX_LOCK:
+            if _ASPECT_GENRE_DUAL_SCORE_LOOKUP is None:
+                rows = [
+                    row
+                    for candidates in (_ASPECT_CANDIDATES_BY_KEY or {}).values()
+                    for row in candidates
+                ]
+                _ASPECT_GENRE_DUAL_SCORE_LOOKUP = (
+                    _build_aspect_genre_dual_score_lookup(rows)
+                )
+
+    key = (
+        _normalize_planet(t_planet),
+        _normalize_planet(n_planet),
+        _normalize_int(angle) or 0,
+        _normalize_int(house) or 1,
+    )
+    scores = (_ASPECT_GENRE_DUAL_SCORE_LOOKUP or {}).get(key, {})
+    return {
+        genre: {
+            component: scores.get(genre, {}).get(component)
+            for component in ("positive", "negative")
+        }
+        for genre in ASPECT_GENRE_DUAL_SCORE_COLUMNS
+    }
 
 
 def _pressure_score_for_row(row: dict[str, Any], lookup: dict[tuple[Any, ...], float] | None = None) -> float | None:
