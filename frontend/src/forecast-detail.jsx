@@ -25,6 +25,7 @@ const SCORE_KEYS = [
   { key: "love", label: "恋愛・対人", color: "#ff8b84" },
   { key: "money", label: "お金", color: "#f2c14e" },
 ];
+const ANNUAL_GENRE_ASPECT_MIN_COMPONENT_SCORE = 55;
 const CHART = { width: 920, height: 360, left: 34, right: 18, top: 34, bottom: 42 };
 const PLANET_LABELS = {
   SUN: "太陽",
@@ -464,6 +465,101 @@ function transitChartCacheKey(dateValue, timeValue) {
   return `${dateKey(dateValue) || ""}T${timeValue || ""}`;
 }
 
+function zodiacSignLabel(value) {
+  const key = String(value || "").trim().toUpperCase();
+  const index = [
+    "ARIES", "TAURUS", "GEMINI", "CANCER", "LEO", "VIRGO",
+    "LIBRA", "SCORPIO", "SAGITTARIUS", "CAPRICORN", "AQUARIUS", "PISCES",
+  ].indexOf(key);
+  return index >= 0 ? `${ZODIAC_SIGN_NAMES[index]}座` : value || "";
+}
+
+function annualAspectGenreDescriptions(event) {
+  const source = event?.genre_descriptions || event?.genreDescriptions || {};
+  const normalize = (value) => {
+    const text = String(value || "").trim();
+    return text === "-" ? "" : text;
+  };
+  return {
+    love: normalize(source.love || event?.love_text_description || event?.loveTextDescription),
+    work: normalize(source.work || event?.work_text_description || event?.workTextDescription),
+    money: normalize(source.money || event?.money_text_description || event?.moneyTextDescription),
+  };
+}
+
+function annualAspectGenreNumbers(event, snakeKey, camelKey) {
+  const source = event?.[snakeKey] || event?.[camelKey] || {};
+  const normalize = (value) => {
+    if (value === null || value === undefined || value === "" || value === "-") return null;
+    const number = Number(value);
+    return Number.isFinite(number) ? number : null;
+  };
+  return {
+    love: normalize(source.love),
+    work: normalize(source.work),
+    money: normalize(source.money),
+  };
+}
+
+function annualAspectGenreScores(event) {
+  return annualAspectGenreNumbers(event, "genre_score_impacts", "genreScoreImpacts");
+}
+
+function annualAspectGenreScoreComponents(event) {
+  const source = event?.genre_score_components || event?.genreScoreComponents || {};
+  const normalize = (value) => {
+    if (value === null || value === undefined || value === "" || value === "-") return null;
+    const number = Number(value);
+    return Number.isFinite(number) && number >= 0 ? number : null;
+  };
+  return Object.fromEntries(["love", "work", "money"].map((genre) => {
+    const components = source?.[genre] || {};
+    return [genre, {
+      positive: normalize(components.positive),
+      negative: normalize(components.negative),
+    }];
+  }));
+}
+
+function annualAspectGenreImportanceScores(event) {
+  return annualAspectGenreNumbers(event, "genre_importance_scores", "genreImportanceScores");
+}
+
+function annualAspectApplicableGenres(event) {
+  const source = event?.genre_applicability || event?.genreApplicability || {};
+  const values = Array.isArray(source.genres)
+    ? source.genres
+    : Array.isArray(event?.applicable_genres)
+      ? event.applicable_genres
+      : Array.isArray(event?.applicableGenres)
+        ? event.applicableGenres
+        : String(event?.category || event?.title || "").split(",");
+  return [...new Set(
+    values
+      .map((value) => String(value || "").trim().toLowerCase())
+      .filter((value) => ["love", "work", "money"].includes(value))
+  )];
+}
+
+function hasAnnualAspectGenreDescriptions(forecast) {
+  const descriptionSchema = Number(
+    forecast?.aspect_genre_description_schema
+    || forecast?.aspectGenreDescriptionSchema
+    || 0
+  );
+  const applicabilitySchema = Number(
+    forecast?.aspect_genre_applicability_schema
+    || forecast?.aspectGenreApplicabilitySchema
+    || 0
+  );
+  const scoreSchema = Number(
+    forecast?.aspect_genre_score_schema
+    || forecast?.aspectGenreScoreSchema
+    || 0
+  );
+  return descriptionSchema >= 2 && applicabilitySchema >= 1 && scoreSchema >= 3;
+}
+
 function formatShortDate(value) {
   const normalized = dateKey(value);
   if (!normalized) return value || "";
@@ -495,15 +591,22 @@ function transitAspectItemsFromForecast(forecast, transitPlanetName, annualKeys,
     const transitPlanet = String(event?.t_planet || event?.transit_planet || "").trim().toUpperCase();
     const natalPlanet = String(event?.n_planet || event?.natal_planet || "").trim().toUpperCase();
     const angle = event?.aspect_angle ?? event?.angle ?? event?.exact_angle;
-    if (!date || transitPlanet !== transitPlanetFilter || !natalPlanet || angle === null || angle === undefined || angle === "") return;
+    const natalHouse = event?.natal_house ?? event?.natalHouse ?? "";
+    if (!date || (transitPlanetFilter && transitPlanet !== transitPlanetFilter) || !natalPlanet || angle === null || angle === undefined || angle === "") return;
     const numericAngle = Number(angle);
     const angleLabel = Number.isFinite(numericAngle) ? numericAngle : angle;
     rawItems.push({
       date,
-      key: `${natalPlanet}-${transitPlanet}-${angleLabel}`,
+      key: `${natalPlanet}-${transitPlanet}-${angleLabel}-${natalHouse}`,
       label: `ネイタル${planetLabel(natalPlanet)} × 現行${planetLabel(transitPlanet)} ${angleLabel}°`,
       title: event?.title || "",
+      category: event?.category || event?.title || "",
+      applicableGenres: annualAspectApplicableGenres(event),
       description: event?.description || "",
+      genreDescriptions: annualAspectGenreDescriptions(event),
+      genreScoreImpacts: annualAspectGenreScores(event),
+      genreScoreComponents: annualAspectGenreScoreComponents(event),
+      genreImportanceScores: annualAspectGenreImportanceScores(event),
       advisedTask: event?.advised_task || event?.advisedTask || "",
     });
   });
@@ -520,16 +623,23 @@ function transitAspectItemsFromForecast(forecast, transitPlanetName, annualKeys,
       const transitPlanet = String(event?.t_planet || event?.transit_planet || "").trim().toUpperCase();
       const natalPlanet = String(event?.n_planet || event?.natal_planet || "").trim().toUpperCase();
       const angle = event?.aspect_angle ?? event?.angle ?? event?.exact_angle;
-      if (transitPlanet !== transitPlanetFilter || !natalPlanet || angle === null || angle === undefined || angle === "") return;
+      const natalHouse = event?.natal_house ?? event?.natalHouse ?? "";
+      if ((transitPlanetFilter && transitPlanet !== transitPlanetFilter) || !natalPlanet || angle === null || angle === undefined || angle === "") return;
       const numericAngle = Number(angle);
       const angleLabel = Number.isFinite(numericAngle) ? numericAngle : angle;
       const label = `ネイタル${planetLabel(natalPlanet)} × 現行${planetLabel(transitPlanet)} ${angleLabel}°`;
       rawItems.push({
         date,
-        key: `${natalPlanet}-${transitPlanet}-${angleLabel}`,
+        key: `${natalPlanet}-${transitPlanet}-${angleLabel}-${natalHouse}`,
         label,
         title: event?.title || "",
+        category: event?.category || event?.title || "",
+        applicableGenres: annualAspectApplicableGenres(event),
         description: event?.description || "",
+        genreDescriptions: annualAspectGenreDescriptions(event),
+        genreScoreImpacts: annualAspectGenreScores(event),
+        genreScoreComponents: annualAspectGenreScoreComponents(event),
+        genreImportanceScores: annualAspectGenreImportanceScores(event),
         advisedTask: event?.advised_task || event?.advisedTask || "",
       });
     });
@@ -560,7 +670,32 @@ function transitAspectItemsFromForecast(forecast, transitPlanetName, annualKeys,
       ) {
         previous.endDate = date;
         if (!previous.title && item.title) previous.title = item.title;
+        if (!previous.category && item.category) previous.category = item.category;
+        previous.applicableGenres = [...new Set([
+          ...previous.applicableGenres,
+          ...item.applicableGenres,
+        ])];
         if (!previous.description && item.description) previous.description = item.description;
+        Object.keys(previous.genreDescriptions).forEach((genre) => {
+          if (!previous.genreDescriptions[genre] && item.genreDescriptions[genre]) {
+            previous.genreDescriptions[genre] = item.genreDescriptions[genre];
+          }
+          if (previous.genreScoreImpacts[genre] === null && item.genreScoreImpacts[genre] !== null) {
+            previous.genreScoreImpacts[genre] = item.genreScoreImpacts[genre];
+          }
+          ["positive", "negative"].forEach((component) => {
+            const previousValue = previous.genreScoreComponents[genre][component];
+            const itemValue = item.genreScoreComponents[genre][component];
+            if (itemValue !== null && (previousValue === null || itemValue > previousValue)) {
+              previous.genreScoreComponents[genre][component] = itemValue;
+            }
+          });
+          const previousImportance = previous.genreImportanceScores[genre];
+          const itemImportance = item.genreImportanceScores[genre];
+          if (itemImportance !== null && (previousImportance === null || itemImportance > previousImportance)) {
+            previous.genreImportanceScores[genre] = itemImportance;
+          }
+        });
         if (!previous.advisedTask && item.advisedTask) previous.advisedTask = item.advisedTask;
         return;
       }
@@ -568,7 +703,15 @@ function transitAspectItemsFromForecast(forecast, transitPlanetName, annualKeys,
         key: item.key,
         label: item.label,
         title: item.title,
+        category: item.category,
+        applicableGenres: [...item.applicableGenres],
         description: item.description,
+        genreDescriptions: { ...item.genreDescriptions },
+        genreScoreImpacts: { ...item.genreScoreImpacts },
+        genreScoreComponents: Object.fromEntries(
+          Object.entries(item.genreScoreComponents).map(([genre, components]) => [genre, { ...components }])
+        ),
+        genreImportanceScores: { ...item.genreImportanceScores },
         advisedTask: item.advisedTask,
         startDate: date,
         endDate: date,
@@ -640,6 +783,47 @@ function demoForecast() {
     reading_date: currentTokyoDate(),
     yearly_data,
   };
+}
+
+function categorizedAnnualAspectItemsFromForecast(forecast) {
+  const items = transitAspectItemsFromForecast(
+    forecast,
+    "",
+    [],
+    ["all_aspects", "allAspects", "events"],
+  );
+  const categories = { love: [], work: [], money: [] };
+  items.forEach((item) => {
+    const itemCategories = Array.isArray(item.applicableGenres)
+      ? item.applicableGenres
+      : annualAspectApplicableGenres(item);
+    Object.keys(categories).forEach((category) => {
+      const scoreComponents = item.genreScoreComponents?.[category] || {};
+      const positiveImpact = scoreComponents.positive;
+      const negativeImpact = scoreComponents.negative;
+      const strongestImpact = Math.max(
+        Number.isFinite(positiveImpact) ? positiveImpact : -Infinity,
+        Number.isFinite(negativeImpact) ? negativeImpact : -Infinity,
+      );
+      if (
+        itemCategories.includes(category)
+        && Number.isFinite(strongestImpact)
+        && strongestImpact >= ANNUAL_GENRE_ASPECT_MIN_COMPONENT_SCORE
+      ) {
+        categories[category].push({
+          ...item,
+          description: item.genreDescriptions?.[category] || "",
+          positiveImpact,
+          negativeImpact,
+        });
+      }
+    });
+  });
+  Object.keys(categories).forEach((category) => {
+    categories[category] = categories[category]
+      .sort((a, b) => a.startDate.localeCompare(b.startDate) || a.key.localeCompare(b.key));
+  });
+  return categories;
 }
 
 function normalizedPlanet(value) {
@@ -6616,6 +6800,64 @@ function monthlyItems(items, year, index) {
   return items.filter((item) => itemOverlapsMonth(item, year, index));
 }
 
+function annualTransitHouseTransitionItemsFromForecast(forecast) {
+  const transitions = Array.isArray(forecast?.annual_transit_house_transitions)
+    ? forecast.annual_transit_house_transitions
+    : Array.isArray(forecast?.annualTransitHouseTransitions)
+      ? forecast.annualTransitHouseTransitions
+      : [];
+  return transitions.map((transition) => {
+    const changes = Array.isArray(transition?.changes) ? transition.changes : [];
+    const changeLabels = changes.map((change) => {
+      const type = String(change?.type || "").toUpperCase();
+      if (type === "SIGN_INGRESS") return `${zodiacSignLabel(change?.value)}へ移動`;
+      if (type === "SOLAR_HOUSE_INGRESS") return `ソーラー${change?.value || "-"}ハウスへ移動`;
+      if (type === "NATAL_HOUSE_INGRESS") return `ネイタル${change?.value || "-"}ハウスへ移動`;
+      return String(change?.value || "");
+    }).filter(Boolean);
+    const planet = String(transition?.planet || "").trim().toUpperCase();
+    const date = formatThemeDate(transition?.date);
+    const description = String(transition?.description || "").trim();
+    return {
+      color: PLANET_COLORS[planet] || "#c3c6d7",
+      startRaw: transition?.date || "",
+      label: `${date}: ${planetLabel(planet)} ${changeLabels.join(" / ")}`.trim(),
+      body: !description || description === "-" ? "準備中" : description,
+    };
+  });
+}
+
+function annualHouseActivationItemsFromForecast(forecast) {
+  const events = Array.isArray(forecast?.annual_house_activation_events)
+    ? forecast.annual_house_activation_events
+    : Array.isArray(forecast?.annualHouseActivationEvents)
+      ? forecast.annualHouseActivationEvents
+      : [];
+  return events.map((event) => {
+    const planets = Array.isArray(event?.planets) ? event.planets : [];
+    const labels = planets.map((planet) => planetLabel(planet)).join("・");
+    const houseType = String(event?.house_type || "natal").toLowerCase() === "solar" ? "ソーラー" : "ネイタル";
+    const angle = event?.aspect_angle === null || event?.aspect_angle === undefined
+      ? ""
+      : ` ${event.aspect_angle}°`;
+    let summary = `${labels}が${houseType}${event?.house || "-"}ハウスを強調`;
+    if (event?.activation_type === "TRANSIT_TO_TRANSIT") {
+      summary = `現行${labels}${angle} / ${houseType}${event?.house || "-"}ハウスを強調`;
+    } else if (event?.activation_type === "TRANSIT_TO_NATAL") {
+      summary = `現行${labels}${angle} × ネイタル${planetLabel(event?.natal_target)} / ネイタル${event?.house || "-"}ハウスを刺激`;
+    } else if (event?.activation_type === "HOUSE_CLUSTER") {
+      summary = `${labels}が${houseType}${event?.house || "-"}ハウスに集中`;
+    }
+    const description = String(event?.description || "").trim();
+    return {
+      color: PLANET_COLORS[planets[0]] || "#d3bcf9",
+      startRaw: event?.date || "",
+      label: `${formatThemeDate(event?.date)}: ${summary}`,
+      body: !description || description === "-" ? "準備中" : description,
+    };
+  });
+}
+
 const YEARLY_MONTHLY_SCORE_SCALE = 2.5;
 
 function yearlyMonthlyPercentile(values, percentile) {
@@ -7232,22 +7474,39 @@ function OraclePanel({ stats, forecast }) {
   const [openTransitAspectKeys, setOpenTransitAspectKeys] = useState(() => new Set());
   const themeItems = themeItemsFromForecast(forecast);
   const lessonItems = lessonItemsFromForecast(forecast);
+  const yearFlowItems = [
+    ...annualTransitHouseTransitionItemsFromForecast(forecast),
+    ...annualHouseActivationItemsFromForecast(forecast),
+  ].sort((a, b) => a.startRaw.localeCompare(b.startRaw) || a.label.localeCompare(b.label));
   const summaryColumns = summaryItemsFromForecast(forecast);
-  const jupiterAspectItems = jupiterAspectItemsFromForecast(forecast);
-  const saturnAspectItems = saturnAspectItemsFromForecast(forecast);
+  const categorizedAspectItems = categorizedAnnualAspectItemsFromForecast(forecast);
+  const activeCategoryAspectItems = {
+    test1: categorizedAspectItems.love,
+    test2: categorizedAspectItems.work,
+    money: categorizedAspectItems.money,
+  }[analysisMode] || [];
   const analysisTitle = {
     theme: "幸運拡大",
     themeSupplement: "補足",
     lesson: "成長課題",
+    lessonSupplement: "補足",
     summary: "総括",
-    test1: "test1",
-    test2: "test2",
+    yearFlow: "今年の流れ",
+    test1: "恋愛",
+    test2: "仕事",
+    money: "お金",
   }[analysisMode] || "総括";
   const isThemeSectionActive = analysisMode === "theme" || analysisMode === "themeSupplement";
+  const isLessonSectionActive = analysisMode === "lesson" || analysisMode === "lessonSupplement";
   const fallbackThemeItems = [
     { color: "#e9c349", label: "THEME 01", body: "作成中" },
     { color: "#d3bcf9", label: "THEME 02", body: "作成中" },
     { color: "#ffb4ab", label: "THEME 03", body: "作成中" },
+  ];
+  const fallbackYearFlowItems = [
+    { color: "#e9c349", label: "FLOW 01", body: "準備中" },
+    { color: "#d3bcf9", label: "FLOW 02", body: "準備中" },
+    { color: "#ffb4ab", label: "FLOW 03", body: "準備中" },
   ];
   const fallbackSummaryColumns = {
     environment: [{ color: "#e9c349", label: "1/1-12/31", startRaw: "2026-01-01", endRaw: "2026-12-31", title: "現実的変化", body: "作成中" }],
@@ -7286,6 +7545,7 @@ function OraclePanel({ stats, forecast }) {
             </h2>
           </div>
           <div className="flex w-full items-start overflow-x-auto rounded-full border border-white/10 bg-white/[0.04] p-1 font-mono text-[7px] font-bold text-mist [scrollbar-width:none] sm:w-auto sm:shrink-0 sm:text-[10px]">
+            <div className="flex shrink-0 flex-col">
             {[["summary", "総括"]].map(([value, label]) => (
               <button
                 key={value}
@@ -7299,6 +7559,17 @@ function OraclePanel({ stats, forecast }) {
                 {label}
               </button>
             ))}
+              <button
+                type="button"
+                onClick={() => setAnalysisMode("yearFlow")}
+                className={cx(
+                  "ml-2 rounded-full px-2 py-1 text-left text-[6px] transition sm:ml-3 sm:text-[8px]",
+                  analysisMode === "yearFlow" ? "bg-white/15 text-gold" : "text-mist/70 hover:bg-white/10 hover:text-starlight"
+                )}
+              >
+                今年の流れ
+              </button>
+            </div>
             <div className="flex shrink-0 flex-col border-l border-white/10 pl-1">
               <button
                 type="button"
@@ -7321,10 +7592,32 @@ function OraclePanel({ stats, forecast }) {
                 補足
               </button>
             </div>
-            {[ 
-              ["lesson", "成長課題"],
-              ["test1", "test1"],
-              ["test2", "test2"],
+            <div className="flex shrink-0 flex-col border-l border-white/10 pl-1">
+              <button
+                type="button"
+                onClick={() => setAnalysisMode("lesson")}
+                className={cx(
+                  "rounded-full px-2 py-1.5 text-left transition sm:px-3",
+                  isLessonSectionActive ? "bg-gold text-[#241a00]" : "hover:bg-white/10 hover:text-starlight"
+                )}
+              >
+                成長課題
+              </button>
+              <button
+                type="button"
+                onClick={() => setAnalysisMode("lessonSupplement")}
+                className={cx(
+                  "ml-2 rounded-full px-2 py-1 text-left text-[6px] transition sm:ml-3 sm:text-[8px]",
+                  analysisMode === "lessonSupplement" ? "bg-white/15 text-gold" : "text-mist/70 hover:bg-white/10 hover:text-starlight"
+                )}
+              >
+                補足
+              </button>
+            </div>
+            {[
+              ["test1", "恋愛"],
+              ["test2", "仕事"],
+              ["money", "お金"],
             ].map(([value, label]) => (
               <button
                 key={value}
@@ -7369,6 +7662,20 @@ function OraclePanel({ stats, forecast }) {
             ))}
           </div>
         ) : null}
+        {analysisMode === "yearFlow" ? (
+          <div className="mt-6 grid min-h-0 flex-1 gap-6 overflow-y-auto pr-2 [scrollbar-color:#e9c349_rgba(255,255,255,0.08)] [scrollbar-width:thin] sm:mt-8 sm:gap-8">
+            {(yearFlowItems.length ? yearFlowItems : fallbackYearFlowItems).map((item) => (
+              <article key={`year-flow-${item.label}`} className="relative pl-8">
+                <span className="absolute left-0 top-0.5 h-3 w-3 rounded-full shadow-[0_0_18px_currentColor]" style={{ color: item.color, backgroundColor: item.color }} />
+                <span className="absolute left-[5px] top-4 h-full w-px bg-white/15" />
+                <p className="font-mono text-xs font-bold uppercase tracking-[0.12em]" style={{ color: item.color }}>
+                  {item.label}
+                </p>
+                <p className="mt-3 whitespace-pre-line text-sm leading-7 text-mist sm:text-base sm:leading-8">{item.body}</p>
+              </article>
+            ))}
+          </div>
+        ) : null}
         {analysisMode === "summary" ? (
           <div className="mt-3 grid min-h-0 flex-1 gap-2 overflow-y-auto [scrollbar-color:#e9c349_rgba(255,255,255,0.08)] [scrollbar-width:thin] sm:mt-6 sm:gap-5 sm:pr-1 lg:gap-6">
             <div className="grid grid-cols-2 gap-1 pl-3 font-mono text-[10px] font-bold uppercase tracking-[0.05em] text-gold sm:gap-5 sm:pl-6 sm:text-xs sm:tracking-[0.1em] lg:gap-6">
@@ -7400,56 +7707,19 @@ function OraclePanel({ stats, forecast }) {
             </div>
           </div>
         ) : null}
-        {analysisMode === "themeSupplement" || analysisMode === "test1" ? (
-          <div className="mt-6 flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto pr-2 [scrollbar-color:#e9c349_rgba(255,255,255,0.08)] [scrollbar-width:thin] sm:mt-8">
-            {jupiterAspectItems.length ? (
-              jupiterAspectItems.map((item) => {
-                const itemKey = `jupiter-${item.key}-${item.startDate}`;
-                const isOpen = openTransitAspectKeys.has(itemKey);
-                return (
-                <article key={`${item.key}-${item.startDate}`} className="shrink-0 overflow-hidden rounded-2xl border border-white/10 bg-white/[0.022]">
-                  <button
-                    type="button"
-                    className="flex w-full items-start justify-between gap-3 px-3 py-3 text-left sm:gap-4 sm:px-4"
-                    aria-expanded={isOpen}
-                    onClick={() => toggleTransitAspect(itemKey)}
-                  >
-                      <div className="min-w-0">
-                        <p className="font-mono text-[10px] font-bold uppercase tracking-[0.12em] text-gold">
-                          {formatShortPeriod(item.startDate, item.endDate)}
-                        </p>
-                        <p className="mt-2 text-xs font-semibold leading-5 text-mist sm:text-base sm:leading-6">{item.label}</p>
-                      </div>
-                      <span className={cx(
-                        "mt-1 shrink-0 font-mono text-xs font-bold text-gold transition",
-                        isOpen && "rotate-90"
-                      )}>›</span>
-                  </button>
-                  {isOpen ? (
-                    <div className="border-t border-white/10 px-3 pb-4 pt-3 sm:px-4">
-                      <p className="whitespace-pre-line text-[11px] leading-6 text-mist sm:text-sm sm:leading-7">
-                        {item.description || "解釈文がありません。"}
-                      </p>
-                    </div>
-                  ) : null}
-                </article>
-                );
-              })
-            ) : (
-              <div className="flex min-h-0 flex-1 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.035] p-6 font-mono text-xs font-bold uppercase tracking-[0.18em] text-mist">
-                該当なし
-              </div>
-            )}
+        {["themeSupplement", "lessonSupplement"].includes(analysisMode) ? (
+          <div className="mt-6 flex min-h-0 flex-1 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.035] p-6 font-mono text-xs font-bold tracking-[0.18em] text-mist sm:mt-8">
+            準備中
           </div>
         ) : null}
-        {analysisMode === "test2" ? (
+        {["test1", "test2", "money"].includes(analysisMode) ? (
           <div className="mt-6 flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto pr-2 [scrollbar-color:#e9c349_rgba(255,255,255,0.08)] [scrollbar-width:thin] sm:mt-8">
-            {saturnAspectItems.length ? (
-              saturnAspectItems.map((item) => {
-                const itemKey = `saturn-${item.key}-${item.startDate}`;
+            {activeCategoryAspectItems.length ? (
+              activeCategoryAspectItems.map((item) => {
+                const itemKey = `${analysisMode}-${item.key}-${item.startDate}`;
                 const isOpen = openTransitAspectKeys.has(itemKey);
                 return (
-                <article key={`${item.key}-${item.startDate}`} className="shrink-0 overflow-hidden rounded-2xl border border-white/10 bg-white/[0.022]">
+                <article key={`${analysisMode}-${item.key}-${item.startDate}`} className="shrink-0 overflow-hidden rounded-2xl border border-white/10 bg-white/[0.022]">
                   <button
                     type="button"
                     className="flex w-full items-start justify-between gap-3 px-3 py-3 text-left sm:gap-4 sm:px-4"
@@ -7479,7 +7749,7 @@ function OraclePanel({ stats, forecast }) {
               })
             ) : (
               <div className="flex min-h-0 flex-1 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.035] p-6 font-mono text-xs font-bold uppercase tracking-[0.18em] text-mist">
-                該当なし
+                該当するアスペクトはありません
               </div>
             )}
           </div>
@@ -7502,8 +7772,16 @@ function AnnualChart({
   const selectedSeries = SCORE_KEYS.find((item) => item.key === selectedSeriesKey) || SCORE_KEYS[0];
   const selectedMonth = clamp(selectedMonthIndex, 0, data.length - 1);
   const selectedDay = data[selectedMonth] || data[0];
+  const selectedScore = scoreFor(selectedDay, selectedSeries.key);
+  const selectedScoreRange = selectedDay?.scoreRanges?.[selectedSeries.key] || {};
+  const selectedHighScore = Number.isFinite(Number(selectedScoreRange.high))
+    ? Number(selectedScoreRange.high)
+    : selectedScore;
+  const selectedLowScore = Number.isFinite(Number(selectedScoreRange.low))
+    ? Number(selectedScoreRange.low)
+    : selectedScore;
   const tooltipX = chartX(selectedMonth, data.length);
-  const tooltipY = chartY(scoreFor(selectedDay, selectedSeries.key));
+  const tooltipY = chartY(selectedScore);
   const selectedPoints = data.map((day, index) => ({ x: chartX(index, data.length), y: chartY(scoreFor(day, selectedSeries.key)) }));
   const selectedRangeUpper = data.map((day, index) => ({
     x: chartX(index, data.length),
@@ -7598,7 +7876,7 @@ function AnnualChart({
         ))}
         <line x1={tooltipX} x2={tooltipX} y1={CHART.top} y2={CHART.height - CHART.bottom} stroke={selectedSeries.color} strokeDasharray="4 5" opacity="0.55" />
         <circle cx={tooltipX} cy={tooltipY} r="6" fill={selectedSeries.color} />
-        <foreignObject x={clamp(tooltipX + 12, CHART.left, CHART.width - 170)} y={clamp(tooltipY - 62, 20, CHART.height - 130)} width="150" height="96">
+        <foreignObject x={clamp(tooltipX + 12, CHART.left, CHART.width - 190)} y={clamp(tooltipY - 78, 20, CHART.height - 154)} width="170" height="132">
           <div
             className="rounded-lg bg-[#1a1c1c]/80 p-3 backdrop-blur"
             style={{
@@ -7608,7 +7886,11 @@ function AnnualChart({
           >
             <p className="font-mono text-[10px] font-bold uppercase tracking-[0.12em]" style={{ color: selectedSeries.color }}>{MONTH_LABELS[selectedMonth]}</p>
             <p className="mt-1 font-serif text-xl font-semibold text-starlight">{selectedSeries.label}</p>
-            <p className="font-serif text-2xl text-starlight">{formatScore(scoreFor(selectedDay, selectedSeries.key))}</p>
+            <p className="font-serif text-2xl text-starlight">{formatScore(selectedScore)}</p>
+            <div className="mt-2 grid grid-cols-2 gap-2 border-t border-white/10 pt-2 font-mono text-[10px] font-bold text-mist">
+              <span>上振れ <strong className="text-starlight">{formatScore(selectedHighScore)}</strong></span>
+              <span>下振れ <strong className="text-starlight">{formatScore(selectedLowScore)}</strong></span>
+            </div>
           </div>
         </foreignObject>
         {MONTH_LABELS.map((month, index) => (
@@ -8322,7 +8604,9 @@ function ForecastDetailPage() {
   }, [forceRefresh]);
   const storedDashboard = readingPayload?.dashboard_data || readingPayload?.dashboardData || {};
   const needsDeferredWidgets = readingStorageHydrated && !forceRefresh && storedDashboard?.deferred_widgets_pending === true;
-  const needsInitialForecast = readingStorageHydrated && !forceRefresh && !forecast;
+  const needsInitialForecast = readingStorageHydrated
+    && !forceRefresh
+    && (!forecast || !hasAnnualAspectGenreDescriptions(forecast));
   useEffect(() => {
     if (!needsDeferredWidgets && !needsInitialForecast) {
       return () => {};

@@ -123,7 +123,14 @@ def clear_monthly_peak_caches() -> None:
 
 
 def _normalise(value: Any) -> str:
-    return str(value or "").strip().upper()
+    # Numeric zero is a valid aspect angle.  ``value or ""`` used to turn
+    # 0-degree conjunction events into an empty wildcard value, preventing
+    # their explicit "0" rules from matching.
+    if value is None:
+        return ""
+    if isinstance(value, float) and value.is_integer():
+        return str(int(value))
+    return str(value).strip().upper()
 
 
 def _rule_index_value(value: Any) -> str:
@@ -234,6 +241,26 @@ def monthly_peak_rule_matches(rule: dict[str, Any], event: dict[str, Any]) -> bo
     if orb_max >= 0 and event_orb not in (None, "") and _as_float(event_orb) > orb_max:
         return False
     return True
+
+
+def matching_monthly_peak_categories(
+    event: dict[str, Any],
+    *,
+    categories: Iterable[str] = ("love", "work", "money"),
+) -> tuple[str, ...]:
+    """Return active category labels whose peak rules match one exact event."""
+    allowed = tuple(dict.fromkeys(str(value).strip().lower() for value in categories))
+    allowed_set = set(allowed)
+    rule_index = _default_monthly_peak_rule_index(
+        _file_signature(DATABASE_DIR / RULES_FILENAME)
+    )
+    matched = {
+        str(rule.get("Category") or "").strip().lower()
+        for rule in _candidate_monthly_peak_rules(event, rule_index)
+        if str(rule.get("Category") or "").strip().lower() in allowed_set
+        and monthly_peak_rule_matches(rule, event)
+    }
+    return tuple(category for category in allowed if category in matched)
 
 
 def _monthly_peak_rule_orb_matches(rule: dict[str, Any], event: dict[str, Any]) -> bool:
@@ -385,9 +412,29 @@ def aggregate_daily_peak_categories(
                 scoring_rule.get("Caution_Multiplier") if scoring_rule else 1,
                 1,
             )
-            has_score_impact = event.get("score_impact") not in (None, "")
+            has_genre_score_schema = isinstance(event.get("genre_score_impacts"), dict)
+            genre_scores = event.get("genre_score_impacts")
+            genre_score = (
+                genre_scores.get(category)
+                if isinstance(genre_scores, dict)
+                else None
+            )
+            if genre_score not in (None, "", "-"):
+                selected_score_impact = genre_score
+                score_impact_source = "genre"
+            elif has_genre_score_schema:
+                # A present schema with a blank value means "not assessed yet".
+                # Do not silently reinterpret the generic score as category-specific.
+                selected_score_impact = None
+                score_impact_source = "rule_weight"
+            else:
+                selected_score_impact = event.get("score_impact")
+                score_impact_source = "generic"
+            has_score_impact = selected_score_impact not in (None, "", "-")
+            applied_score_impact: float | None = None
             if _normalise(event.get("factor_type")) == "TRANSIT_TO_NATAL" and has_score_impact:
-                score_impact = max(-100.0, min(100.0, _as_float(event.get("score_impact"))))
+                score_impact = max(-100.0, min(100.0, _as_float(selected_score_impact)))
+                applied_score_impact = score_impact
                 yearly_weight = max(0.0, _as_float(event.get("yearly_weight"), 1.0))
                 category_weight = max(abs(activation_weight), abs(caution_weight))
                 signed_contribution = (
@@ -419,6 +466,8 @@ def aggregate_daily_peak_categories(
                 "narrative_priority": _as_int(rule.get("Narrative_Priority"), 1),
                 "activation": round(activation, 2),
                 "caution": round(caution, 2),
+                "score_impact": applied_score_impact,
+                "score_impact_source": score_impact_source if applied_score_impact is not None else "rule_weight",
                 "title": rule.get("Monthly_Title"),
                 "summary": rule.get("Monthly_Summary"),
                 "description": rule.get("Monthly_Description"),

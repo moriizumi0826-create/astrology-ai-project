@@ -18,11 +18,32 @@ except ModuleNotFoundError:
 
 
 FORECAST_YEAR = 2026
+ASPECT_GENRE_DESCRIPTION_SCHEMA_VERSION = 2
+ASPECT_GENRE_APPLICABILITY_SCHEMA_VERSION = 1
+ASPECT_GENRE_SCORE_SCHEMA_VERSION = 3
+ANNUAL_TRANSIT_HOUSE_TRANSITION_SCHEMA_VERSION = 1
+ASPECT_GENRE_KEYS = ("love", "work", "money")
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
 DATABASE_DIR = PROJECT_ROOT / "database"
 MAIN_TREND_PLANETS = ("JUPITER", "SATURN", "URANUS", "NEPTUNE", "PLUTO")
 LOCAL_VIBE_PLANETS = ("SUN", "MERCURY", "VENUS", "MARS")
 FORECAST_PLANETS = (*MAIN_TREND_PLANETS, *LOCAL_VIBE_PLANETS)
+ANNUAL_TRANSITION_PLANETS = (
+    "SUN",
+    "MERCURY",
+    "VENUS",
+    "MARS",
+    "JUPITER",
+    "SATURN",
+    "URANUS",
+    "NEPTUNE",
+    "PLUTO",
+)
+ANNUAL_TRANSITION_TYPE_ORDER = (
+    "SIGN_INGRESS",
+    "SOLAR_HOUSE_INGRESS",
+    "NATAL_HOUSE_INGRESS",
+)
 SIGNS = (
     "ARIES",
     "TAURUS",
@@ -96,6 +117,8 @@ def _yearly_csv_paths() -> list[Path]:
         DATABASE_DIR / "M_Short_Term_House_Interpretation.csv",
         DATABASE_DIR / "M_Yearly_Summary_Interpretation.csv",
         DATABASE_DIR / "M_Aspect_Interpretation_Yearly.csv",
+        DATABASE_DIR / "M_Annual_Transit_House_Transitions.csv",
+        DATABASE_DIR / "M_Annual_House_Activation_Rules.csv",
     ]
     paths.extend(
         DATABASE_DIR / filename
@@ -134,7 +157,10 @@ def _clear_yearly_master_caches() -> None:
     _short_term_house_rows.cache_clear()
     _yearly_summary_rows.cache_clear()
     _aspect_yearly_rows.cache_clear()
+    _annual_transition_rows.cache_clear()
+    _annual_activation_rules.cache_clear()
     _cached_aspect_interpretation.cache_clear()
+    _aspect_genre_applicability.cache_clear()
     _aspect_master_index.cache_clear()
     _cached_yearly_forecast.cache_clear()
     monthly_peak_service.clear_monthly_peak_caches()
@@ -210,6 +236,57 @@ def _aspect_yearly_rows() -> dict[str, dict[str, Any]]:
         for row in _read_csv_dicts(path)
         if row.get("Aspect_Logic_ID")
     }
+
+
+def _transition_value(value: Any) -> str:
+    text = str(value or "").strip()
+    return text.upper()
+
+
+def _transition_text(row: dict[str, Any], column: str) -> str:
+    value = row.get(column)
+    if value is None or pd.isna(value):
+        return "-"
+    text = str(value).strip()
+    return text if text and text != "-" else "-"
+
+
+@lru_cache(maxsize=1)
+def _annual_transition_rows() -> dict[tuple[str, str, str], dict[str, Any]]:
+    path = DATABASE_DIR / "M_Annual_Transit_House_Transitions.csv"
+    if not path.exists():
+        return {}
+    rows: dict[tuple[str, str, str], dict[str, Any]] = {}
+    for source_row, row in enumerate(_read_csv_dicts(path), start=2):
+        row = {**row, "_csv_row": source_row}
+        planet = reading_service._normalize_planet(row.get("Planet"))
+        transition_type = _transition_value(row.get("Transition_Type"))
+        value = _transition_value(row.get("Transition_Value"))
+        if planet in ANNUAL_TRANSITION_PLANETS and transition_type and value:
+            rows[(planet, transition_type, value)] = row
+    return rows
+
+
+@lru_cache(maxsize=1)
+def _annual_activation_rules() -> tuple[dict[str, Any], ...]:
+    path = DATABASE_DIR / "M_Annual_House_Activation_Rules.csv"
+    if not path.exists():
+        return ()
+    rules: list[dict[str, Any]] = []
+    for source_row, row in enumerate(_read_csv_dicts(path), start=2):
+        if not reading_service._normalize_bool_flag(row.get("Enabled")):
+            continue
+        rules.append({
+            **row,
+            "_csv_row": source_row,
+            "Scope": _transition_value(row.get("Scope")),
+            "Transit_Planet_A": _transition_value(row.get("Transit_Planet_A")),
+            "Transit_Planet_B": _transition_value(row.get("Transit_Planet_B")),
+            "Natal_Target": _transition_value(row.get("Natal_Target")),
+            "Aspect_Angle": _transition_value(row.get("Aspect_Angle")),
+            "House_Type": _transition_value(row.get("House_Type")),
+        })
+    return tuple(rules)
 
 
 def _calendar_row(day: date, planet: str) -> dict[str, Any]:
@@ -486,6 +563,7 @@ def _peak_event(
     orb: float | None = None,
     score_impact: float | None = None,
     yearly_weight: float | None = None,
+    genre_score_impacts: dict[str, float | None] | None = None,
 ) -> dict[str, Any]:
     event = {
         "id": event_id,
@@ -503,7 +581,78 @@ def _peak_event(
     if score_impact is not None:
         event["score_impact"] = score_impact
         event["yearly_weight"] = yearly_weight if yearly_weight is not None else 1.0
+    if genre_score_impacts is not None:
+        event["genre_score_impacts"] = genre_score_impacts
     return event
+
+
+def _category_genres(category: Any) -> tuple[str, ...]:
+    values = {
+        str(value).strip().lower()
+        for value in str(category or "").split(",")
+    }
+    return tuple(genre for genre in ASPECT_GENRE_KEYS if genre in values)
+
+
+def _aspect_genre_importance_scores(
+    genre_scores: dict[str, dict[str, float | None]],
+) -> dict[str, float | None]:
+    """Expose the stronger independent component without extra ranking weights."""
+    return {
+        genre: (
+            max(float(value) for value in components.values() if value is not None)
+            if any(value is not None for value in components.values())
+            else None
+        )
+        for genre, components in genre_scores.items()
+    }
+
+
+@lru_cache(maxsize=20000)
+def _aspect_genre_applicability(
+    source_category: str,
+    transit_planet: str,
+    natal_planet: str,
+    aspect_angle: int,
+    natal_house: int,
+) -> dict[str, Any]:
+    """Resolve genre membership for one planet/planet/angle/house key.
+
+    The interpretation Category preserves house-led relevance.  Monthly peak
+    rules add planet-role relevance, but are evaluated independently of the
+    event's current orb and in both transit states so a missing daily score is
+    never mistaken for non-applicability.
+    """
+    category_genres = set(_category_genres(source_category))
+    planet_rule_genres: set[str] = set()
+    for transit_state in ("direct", "retrograde"):
+        rule_event = _peak_event(
+            "GENRE_APPLICABILITY",
+            factor_type="transit_to_natal",
+            transit_planet=transit_planet,
+            natal_target=natal_planet,
+            target_role=_peak_target_roles(natal_planet),
+            house_system="natal",
+            target_house=natal_house,
+            aspect_angle=aspect_angle,
+            aspect_class=_peak_aspect_class(aspect_angle),
+            transit_state=transit_state,
+            orb=0.0,
+        )
+        planet_rule_genres.update(
+            monthly_peak_service.matching_monthly_peak_categories(rule_event)
+        )
+
+    genres = category_genres | planet_rule_genres
+    return {
+        "genres": [genre for genre in ASPECT_GENRE_KEYS if genre in genres],
+        "category_genres": [
+            genre for genre in ASPECT_GENRE_KEYS if genre in category_genres
+        ],
+        "planet_rule_genres": [
+            genre for genre in ASPECT_GENRE_KEYS if genre in planet_rule_genres
+        ],
+    }
 
 
 def _event_from_interpretation(
@@ -522,19 +671,58 @@ def _event_from_interpretation(
         return {}
 
     priority = reading_service._safe_number(yearly_row, "Priority") or reading_service._safe_number(interpretation, "Priority", 1)
+    source_category = reading_service._safe_text(interpretation, "Category", "General")
+    genre_descriptions = reading_service.get_aspect_genre_descriptions(
+        transit_planet,
+        natal_point["planet"],
+        exact_angle,
+        natal_point["house"],
+    )
+    genre_score_impacts = reading_service.get_aspect_genre_score_impacts(
+        transit_planet,
+        natal_point["planet"],
+        exact_angle,
+        natal_point["house"],
+    )
+    genre_score_components = reading_service.get_aspect_genre_score_components(
+        transit_planet,
+        natal_point["planet"],
+        exact_angle,
+        natal_point["house"],
+    )
+    genre_applicability = _aspect_genre_applicability(
+        source_category,
+        transit_planet,
+        natal_point["planet"],
+        exact_angle,
+        natal_point["house"],
+    )
+    yearly_weight = reading_service._normalize_float(yearly_row.get("Yearly_Weight"))
+    if yearly_weight is None:
+        yearly_weight = 1.0
+    genre_importance_scores = _aspect_genre_importance_scores(
+        genre_score_components,
+    )
 
     return {
         "id": reading_service._safe_text(interpretation, "Aspect_Logic_ID")
         or f"{transit_planet}_{natal_point['planet']}_{exact_angle}",
         "title": reading_service._safe_text(interpretation, "Category", "Transit Aspect"),
         "description": _yearly_text(interpretation, "Text_Description"),
+        "genre_descriptions": genre_descriptions,
+        "genre_score_impacts": genre_score_impacts,
+        "genre_score_components": genre_score_components,
+        "genre_importance_scores": genre_importance_scores,
+        "genre_applicability": genre_applicability,
         "advised_task": _yearly_text(interpretation, "Advised_Task"),
         "priority": priority,
-        "category": reading_service._safe_text(interpretation, "Category", "General"),
+        "category": source_category,
         "layer": _event_layer(transit_planet),
         "duration_type": reading_service._safe_text(yearly_row, "Duration_Type", "LONG"),
+        "yearly_weight": yearly_weight,
         "t_planet": transit_planet,
         "n_planet": natal_point["planet"],
+        "natal_house": natal_point["house"],
         "aspect_angle": exact_angle,
         "orb": orb,
         "orb_status": orb_status,
@@ -694,6 +882,7 @@ def _build_day_forecast(
                     orb=orb,
                     score_impact=reading_service._safe_number(interpretation, "Score_Impact"),
                     yearly_weight=yearly_weight if yearly_weight is not None else 1.0,
+                    genre_score_impacts=event.get("genre_score_impacts", {}),
                 ))
                 events.append(event)
                 if saturn_export_item is not None:
@@ -750,7 +939,18 @@ def _build_day_forecast(
                 "aspect_angle": event.get("aspect_angle"),
                 "orb_status": event.get("orb_status"),
                 "title": event.get("title"),
+                "category": event.get("category"),
                 "description": event.get("description"),
+                "genre_descriptions": event.get("genre_descriptions", {}),
+                "genre_score_impacts": event.get("genre_score_impacts", {}),
+                "genre_score_components": event.get("genre_score_components", {}),
+                "genre_importance_scores": event.get("genre_importance_scores", {}),
+                "genre_applicability": event.get("genre_applicability", {}),
+                "priority": event.get("priority"),
+                "duration_type": event.get("duration_type"),
+                "yearly_weight": event.get("yearly_weight"),
+                "orb": event.get("orb"),
+                "natal_house": event.get("natal_house"),
                 "advised_task": event.get("advised_task"),
                 "source": event.get("source"),
             }
@@ -768,7 +968,17 @@ def _build_day_forecast(
             "orb_status": event.get("orb_status"),
             "transit_longitude": event.get("transit_longitude"),
             "title": event.get("title"),
+            "category": event.get("category"),
             "description": event.get("description"),
+            "genre_descriptions": event.get("genre_descriptions", {}),
+            "genre_score_impacts": event.get("genre_score_impacts", {}),
+            "genre_score_components": event.get("genre_score_components", {}),
+            "genre_importance_scores": event.get("genre_importance_scores", {}),
+            "genre_applicability": event.get("genre_applicability", {}),
+            "priority": event.get("priority"),
+            "duration_type": event.get("duration_type"),
+            "yearly_weight": event.get("yearly_weight"),
+            "natal_house": event.get("natal_house"),
             "advised_task": event.get("advised_task"),
             "source": event.get("source"),
         }
@@ -811,6 +1021,331 @@ def build_yearly_summary(yearly_data: list[dict[str, Any]]) -> str:
     return f"2026年は後半に向けて{trend_labels[trend_key]}が{direction}"
 
 
+def build_annual_transit_house_transitions(
+    *,
+    year: int,
+    birth_input: BirthInput,
+    house_cusps: list[float],
+    natal_sun_sign: str,
+) -> list[dict[str, Any]]:
+    """Build chronological sign/solar-house/natal-house transition events."""
+    if not house_cusps:
+        return []
+
+    master_rows = _annual_transition_rows()
+    previous: dict[str, tuple[str, int, int]] = {}
+    transitions: list[dict[str, Any]] = []
+    current = date(year, 1, 1)
+    end = date(year, 12, 31)
+
+    while current <= end:
+        states: dict[str, tuple[str, int, int]] = {}
+        for planet in ANNUAL_TRANSITION_PLANETS:
+            longitude, _is_retrograde, calendar_row = _calendar_transit_state(current, planet)
+            sign = _transition_value(calendar_row.get("Sign_ID")) or _sign_id_from_longitude(longitude)
+            natal_house = get_house(longitude, house_cusps)
+            solar_house = _solar_house(sign, natal_sun_sign)
+            state = (sign, solar_house, natal_house)
+            states[planet] = state
+            prior = previous.get(planet)
+            if prior is None:
+                continue
+
+            changes: list[dict[str, Any]] = []
+            if sign != prior[0]:
+                changes.append({"type": "SIGN_INGRESS", "value": sign, "previous_value": prior[0]})
+            if solar_house != prior[1]:
+                changes.append({"type": "SOLAR_HOUSE_INGRESS", "value": str(solar_house), "previous_value": str(prior[1])})
+            if natal_house != prior[2]:
+                changes.append({"type": "NATAL_HOUSE_INGRESS", "value": str(natal_house), "previous_value": str(prior[2])})
+            if not changes:
+                continue
+
+            titles: list[str] = []
+            descriptions: list[str] = []
+            sources: list[dict[str, Any]] = []
+            for change in changes:
+                master_row = master_rows.get((planet, change["type"], change["value"]), {})
+                title = _transition_text(master_row, "Title")
+                description = _transition_text(master_row, "Text_Description")
+                if title != "-":
+                    titles.append(title)
+                if description != "-":
+                    descriptions.append(description)
+                if master_row:
+                    sources.append({
+                        "csv": "M_Annual_Transit_House_Transitions.csv",
+                        "row": master_row.get("_csv_row"),
+                    })
+
+            transition_types = [change["type"] for change in changes]
+            transitions.append({
+                "date": current.isoformat(),
+                "planet": planet,
+                "planet_label": reading_service.PLANET_LABELS.get(planet, planet),
+                "transition_type": "+".join(transition_types),
+                "transition_types": transition_types,
+                "changes": changes,
+                "sign": sign,
+                "solar_house": solar_house,
+                "natal_house": natal_house,
+                "title": " / ".join(titles) if titles else "-",
+                "description": "\n".join(descriptions) if descriptions else "-",
+                "source": sources,
+            })
+        previous = states
+        current += timedelta(days=1)
+
+    return transitions
+
+
+OUTER_TRANSIT_PLANETS = {"JUPITER", "SATURN", "URANUS", "NEPTUNE", "PLUTO"}
+PERSONAL_TRANSIT_PLANETS = {"SUN", "MERCURY", "VENUS", "MARS"}
+NATAL_ACTIVATION_TARGETS = {
+    *ANNUAL_TRANSITION_PLANETS,
+    "ASC",
+    "MC",
+}
+
+
+def _activation_token_matches(token: str, actual: str, *, angle_target: bool = False) -> bool:
+    token = _transition_value(token)
+    actual = _transition_value(actual)
+    if token in {"", "ANY"}:
+        return True
+    if token == "OUTER":
+        return actual in OUTER_TRANSIT_PLANETS
+    if token == "PERSONAL":
+        return actual in PERSONAL_TRANSIT_PLANETS
+    if token == "ANGLE":
+        return angle_target and actual in {"ASC", "MC"}
+    return token == actual
+
+
+def _activation_angle_matches(token: str, angle: int) -> bool:
+    token = _transition_value(token)
+    return token in {"", "ANY"} or token == str(angle)
+
+
+def _activation_rule_matches(
+    scope: str,
+    *,
+    planet_a: str,
+    planet_b: str = "",
+    natal_target: str = "",
+    angle: int | None = None,
+    house_type: str = "",
+) -> list[dict[str, Any]]:
+    matches: list[dict[str, Any]] = []
+    for rule in _annual_activation_rules():
+        if rule.get("Scope") != scope:
+            continue
+        if house_type and rule.get("House_Type") not in {"", "ANY", house_type}:
+            continue
+        if angle is not None and not _activation_angle_matches(rule.get("Aspect_Angle", ""), angle):
+            continue
+        if scope == "TRANSIT_TO_TRANSIT":
+            direct = (
+                _activation_token_matches(rule.get("Transit_Planet_A", ""), planet_a)
+                and _activation_token_matches(rule.get("Transit_Planet_B", ""), planet_b)
+            )
+            reverse = (
+                _activation_token_matches(rule.get("Transit_Planet_A", ""), planet_b)
+                and _activation_token_matches(rule.get("Transit_Planet_B", ""), planet_a)
+            )
+            if not (direct or reverse):
+                continue
+        elif scope == "TRANSIT_TO_NATAL":
+            if not _activation_token_matches(rule.get("Transit_Planet_A", ""), planet_a):
+                continue
+            if not _activation_token_matches(
+                rule.get("Natal_Target", ""),
+                natal_target,
+                angle_target=natal_target in {"ASC", "MC"},
+            ):
+                continue
+        matches.append(rule)
+    return sorted(matches, key=lambda rule: int(float(rule.get("Priority") or 99)))
+
+
+def _activation_event_from_rule(
+    rule: dict[str, Any],
+    *,
+    day: date,
+    planets: list[str],
+    natal_target: str = "",
+    aspect_angle: int | None = None,
+    orb: float | None = None,
+    house_type: str,
+    house: int,
+    state: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    title = _transition_text(rule, "Title")
+    description = _transition_text(rule, "Text_Description")
+    return {
+        "date": day.isoformat(),
+        "activation_type": rule.get("Scope", ""),
+        "activation_mode": _transition_value(rule.get("Activation_Mode")),
+        "text_key": _transition_value(rule.get("Text_Key")),
+        "planets": planets,
+        "natal_target": natal_target or None,
+        "aspect_angle": aspect_angle,
+        "orb": round(float(orb), 2) if orb is not None else None,
+        "house_type": house_type.lower(),
+        "house": house,
+        "priority": int(float(rule.get("Priority") or 99)),
+        "title": title,
+        "description": description,
+        "state": state or {},
+        "source": {
+            "csv": "M_Annual_House_Activation_Rules.csv",
+            "row": rule.get("_csv_row"),
+        },
+    }
+
+
+def build_annual_house_activation_events(
+    *,
+    year: int,
+    birth_input: BirthInput,
+    natal_points: list[dict[str, Any]],
+    house_cusps: list[float],
+    natal_sun_sign: str,
+) -> list[dict[str, Any]]:
+    """Build non-duplicated house emphasis events from the extension rules."""
+    if not house_cusps:
+        return []
+
+    events: list[dict[str, Any]] = []
+    previous_active: set[tuple[Any, ...]] = set()
+    current = date(year, 1, 1)
+    end = date(year, 12, 31)
+
+    while current <= end:
+        states: dict[str, dict[str, Any]] = {}
+        for planet in ANNUAL_TRANSITION_PLANETS:
+            longitude, retrograde, calendar_row = _calendar_transit_state(current, planet)
+            sign = _transition_value(calendar_row.get("Sign_ID")) or _sign_id_from_longitude(longitude)
+            states[planet] = {
+                "longitude": longitude,
+                "retrograde": retrograde,
+                "sign": sign,
+                "solar_house": _solar_house(sign, natal_sun_sign),
+                "natal_house": get_house(longitude, house_cusps),
+            }
+
+        active: set[tuple[Any, ...]] = set()
+        for index, planet_a in enumerate(ANNUAL_TRANSITION_PLANETS):
+            for planet_b in ANNUAL_TRANSITION_PLANETS[index + 1:]:
+                state_a = states[planet_a]
+                state_b = states[planet_b]
+                angle_diff = get_angle_diff(state_a["longitude"], state_b["longitude"])
+                _, exact_angle, orb = get_aspect(angle_diff)
+                if exact_angle is None:
+                    continue
+                for house_type, house_key in (("NATAL", "natal_house"), ("SOLAR", "solar_house")):
+                    if state_a[house_key] != state_b[house_key]:
+                        continue
+                    rules = _activation_rule_matches(
+                        "TRANSIT_TO_TRANSIT",
+                        planet_a=planet_a,
+                        planet_b=planet_b,
+                        angle=exact_angle,
+                        house_type=house_type,
+                    )
+                    if not rules:
+                        continue
+                    rule = rules[0]
+                    key = ("PAIR", planet_a, planet_b, exact_angle, house_type, state_a[house_key])
+                    active.add(key)
+                    if key not in previous_active:
+                        events.append(_activation_event_from_rule(
+                            rule,
+                            day=current,
+                            planets=[planet_a, planet_b],
+                            aspect_angle=exact_angle,
+                            orb=orb,
+                            house_type=house_type,
+                            house=state_a[house_key],
+                            state={"signs": [state_a["sign"], state_b["sign"]]},
+                        ))
+
+        for house_type, house_key in (("NATAL", "natal_house"), ("SOLAR", "solar_house")):
+            grouped: dict[int, list[str]] = {}
+            for planet, state in states.items():
+                grouped.setdefault(state[house_key], []).append(planet)
+            for house, planets in grouped.items():
+                if len(planets) < 3:
+                    continue
+                rules = _activation_rule_matches(
+                    "HOUSE_CLUSTER",
+                    planet_a="ANY",
+                    house_type=house_type,
+                )
+                if not rules:
+                    continue
+                rule = rules[0]
+                planets = sorted(planets, key=ANNUAL_TRANSITION_PLANETS.index)
+                key = ("CLUSTER", tuple(planets), house_type, house)
+                active.add(key)
+                if key not in previous_active:
+                    events.append(_activation_event_from_rule(
+                        rule,
+                        day=current,
+                        planets=planets,
+                        house_type=house_type,
+                        house=house,
+                        state={"signs": [states[planet]["sign"] for planet in planets]},
+                    ))
+
+        for planet, state in states.items():
+            for natal_point in natal_points:
+                target = str(natal_point.get("planet") or "").upper()
+                if target not in NATAL_ACTIVATION_TARGETS:
+                    continue
+                angle_diff = get_angle_diff(state["longitude"], natal_point["longitude"])
+                _, exact_angle, orb = get_aspect(angle_diff)
+                if exact_angle is None:
+                    continue
+                rules = _activation_rule_matches(
+                    "TRANSIT_TO_NATAL",
+                    planet_a=planet,
+                    natal_target=target,
+                    angle=exact_angle,
+                    house_type="NATAL",
+                )
+                if not rules:
+                    continue
+                rule = rules[0]
+                house = int(natal_point.get("house") or 0)
+                if not house:
+                    continue
+                key = ("NATAL", planet, target, exact_angle, house)
+                active.add(key)
+                if key not in previous_active:
+                    events.append(_activation_event_from_rule(
+                        rule,
+                        day=current,
+                        planets=[planet],
+                        natal_target=target,
+                        aspect_angle=exact_angle,
+                        orb=orb,
+                        house_type="NATAL",
+                        house=house,
+                        state={"sign": state["sign"]},
+                    ))
+        previous_active = active
+        current += timedelta(days=1)
+
+    return sorted(
+        events,
+        key=lambda event: (
+            event["date"],
+            event["priority"],
+            event["activation_type"],
+            tuple(event["planets"]),
+        ),
+    )
 def build_annual_themes(
     *,
     year: int,
@@ -1135,6 +1670,19 @@ def _generate_yearly_forecast_uncached(
         house_cusps=house_cusps,
         natal_sun_sign=natal_sun_sign,
     )
+    annual_transit_house_transitions = build_annual_transit_house_transitions(
+        year=year,
+        birth_input=birth_input,
+        house_cusps=house_cusps,
+        natal_sun_sign=natal_sun_sign,
+    )
+    annual_house_activation_events = build_annual_house_activation_events(
+        year=year,
+        birth_input=birth_input,
+        natal_points=natal_points,
+        house_cusps=house_cusps,
+        natal_sun_sign=natal_sun_sign,
+    )
     annual_summaries = build_annual_summaries(
         year=year,
         birth_input=birth_input,
@@ -1159,6 +1707,10 @@ def _generate_yearly_forecast_uncached(
 
     return {
         "summary": build_yearly_summary(yearly_data),
+        "aspect_genre_description_schema": ASPECT_GENRE_DESCRIPTION_SCHEMA_VERSION,
+        "aspect_genre_applicability_schema": ASPECT_GENRE_APPLICABILITY_SCHEMA_VERSION,
+        "aspect_genre_score_schema": ASPECT_GENRE_SCORE_SCHEMA_VERSION,
+        "annual_transit_house_transition_schema": ANNUAL_TRANSIT_HOUSE_TRANSITION_SCHEMA_VERSION,
         "yearly_data": yearly_data,
         "monthly_peak_periods": monthly_peak_periods,
         "natal_points": natal_points,
@@ -1166,6 +1718,8 @@ def _generate_yearly_forecast_uncached(
         "annual_themes": annual_themes,
         "annual_lessons": annual_lessons,
         "annual_summary_columns": annual_summary_columns,
+        "annual_transit_house_transitions": annual_transit_house_transitions,
+        "annual_house_activation_events": annual_house_activation_events,
         "annual_summaries": annual_summaries,
         "annual_jupiter_aspects": annual_jupiter_aspects,
         "annual_saturn_aspects": annual_saturn_aspects,
