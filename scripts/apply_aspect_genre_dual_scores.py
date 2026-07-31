@@ -13,7 +13,6 @@ from collections import Counter
 from pathlib import Path
 from typing import Any
 
-from backend.app.services import yearly_forecast_service
 from scripts.apply_aspect_genre_score_pilot import (
     HOUSE_MULTIPLIERS,
     PILOT_BASE_SCORES,
@@ -158,6 +157,24 @@ def _insert_dual_columns(fieldnames: list[str]) -> list[str]:
     return output[:insert_at] + dual_columns + output[insert_at:]
 
 
+def _authored_genres(row: dict[str, Any], *, has_dual_columns: bool) -> set[str]:
+    """Treat populated genre-score cells as the authoritative applicability."""
+    if has_dual_columns:
+        return {
+            genre
+            for genre, columns in DUAL_SCORE_COLUMNS.items()
+            if any(
+                str(row.get(column) or "").strip() not in ("", "-")
+                for column in columns.values()
+            )
+        }
+    return {
+        genre
+        for genre, column in LEGACY_SCORE_COLUMNS.items()
+        if str(row.get(column) or "").strip() not in ("", "-")
+    }
+
+
 def apply_dual_scores(*, write: bool) -> dict[str, Any]:
     representative_keys: set[tuple[str, str, int, int]] = set()
     legacy_pilot_cells_cleared = 0
@@ -213,10 +230,12 @@ def apply_dual_scores(*, write: bool) -> dict[str, Any]:
                 raise ValueError(f"Duplicate representative key: {key}")
             representative_keys.add(key)
 
-            applicability = yearly_forecast_service._aspect_genre_applicability(
-                str(row.get("Category") or ""), transit, natal, angle, house
-            )
-            applicable = set(applicability["genres"])
+            applicable = _authored_genres(row, has_dual_columns=has_dual_columns)
+            # A wholly blank representative has not been scored yet. Evaluate
+            # all three genres from the documented common model. Partially
+            # authored representatives keep their existing genre scope.
+            if not applicable:
+                applicable = set(GENRES)
 
             if (transit, natal, angle) in PILOT_BASE_SCORES:
                 for column in LEGACY_SCORE_COLUMNS.values():
@@ -229,7 +248,7 @@ def apply_dual_scores(*, write: bool) -> dict[str, Any]:
             for genre in GENRES:
                 columns = DUAL_SCORE_COLUMNS[genre]
                 if genre not in applicable:
-                    targets = {"positive": "", "negative": ""}
+                    targets = {"positive": "-", "negative": "-"}
                 else:
                     targets = {
                         component: str(value)

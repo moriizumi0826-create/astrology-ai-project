@@ -412,6 +412,7 @@ def aggregate_daily_peak_categories(
                 scoring_rule.get("Caution_Multiplier") if scoring_rule else 1,
                 1,
             )
+            factor_type = _normalise(event.get("factor_type"))
             has_genre_score_schema = isinstance(event.get("genre_score_impacts"), dict)
             genre_scores = event.get("genre_score_impacts")
             genre_score = (
@@ -419,12 +420,22 @@ def aggregate_daily_peak_categories(
                 if isinstance(genre_scores, dict)
                 else None
             )
-            if genre_score not in (None, "", "-"):
+            genre_scored_category = (
+                factor_type == "TRANSIT_TO_NATAL"
+                and category in {"love", "work", "money"}
+                and has_genre_score_schema
+            )
+            suppress_rule_weight = False
+            if genre_scored_category and genre_score not in (None, "", "-"):
                 selected_score_impact = genre_score
                 score_impact_source = "genre"
+            elif genre_scored_category:
+                # Blank dual-score cells mean this aspect is not applicable to
+                # the category. Do not replace that authored decision with rule points.
+                selected_score_impact = None
+                score_impact_source = "genre_not_applicable"
+                suppress_rule_weight = True
             elif has_genre_score_schema:
-                # A present schema with a blank value means "not assessed yet".
-                # Do not silently reinterpret the generic score as category-specific.
                 selected_score_impact = None
                 score_impact_source = "rule_weight"
             else:
@@ -432,7 +443,7 @@ def aggregate_daily_peak_categories(
                 score_impact_source = "generic"
             has_score_impact = selected_score_impact not in (None, "", "-")
             applied_score_impact: float | None = None
-            if _normalise(event.get("factor_type")) == "TRANSIT_TO_NATAL" and has_score_impact:
+            if factor_type == "TRANSIT_TO_NATAL" and has_score_impact:
                 score_impact = max(-100.0, min(100.0, _as_float(selected_score_impact)))
                 applied_score_impact = score_impact
                 yearly_weight = max(0.0, _as_float(event.get("yearly_weight"), 1.0))
@@ -445,6 +456,9 @@ def aggregate_daily_peak_categories(
                 )
                 activation = max(0.0, signed_contribution) * activation_multiplier
                 caution = max(0.0, -signed_contribution) * caution_multiplier
+            elif suppress_rule_weight:
+                activation = 0.0
+                caution = 0.0
             else:
                 activation = exactness * activation_weight * activation_multiplier
                 caution = exactness * caution_weight * caution_multiplier
@@ -452,6 +466,7 @@ def aggregate_daily_peak_categories(
                 "rule_id": rule.get("Rule_ID"),
                 "peak_type": rule.get("Peak_Type"),
                 "factor_type": rule.get("Factor_Type"),
+                "transit_state": event.get("transit_state"),
                 "transit_planet": rule.get("Transit_Planet"),
                 "natal_target": rule.get("Natal_Target"),
                 "target_role": rule.get("Target_Role"),
@@ -467,7 +482,11 @@ def aggregate_daily_peak_categories(
                 "activation": round(activation, 2),
                 "caution": round(caution, 2),
                 "score_impact": applied_score_impact,
-                "score_impact_source": score_impact_source if applied_score_impact is not None else "rule_weight",
+                "score_impact_source": (
+                    score_impact_source
+                    if applied_score_impact is not None or suppress_rule_weight
+                    else "rule_weight"
+                ),
                 "title": rule.get("Monthly_Title"),
                 "summary": rule.get("Monthly_Summary"),
                 "description": rule.get("Monthly_Description"),
@@ -562,6 +581,7 @@ def _period_eligible_factors(day_category: dict[str, Any], period_rule: dict[str
     factors = [
         factor for factor in day_category.get("matched_rules", [])
         if _normalise(factor.get("intensity_hint")).lower() != "background_only"
+        and _normalise(factor.get("transit_state")).lower() != "stay"
     ]
     # The graph keeps the wider matching orb as context.  Periods should only
     # use the close approach of an aspect, otherwise one slow aspect turns an

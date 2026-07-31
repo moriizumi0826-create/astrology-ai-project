@@ -1733,31 +1733,24 @@ def get_aspect_genre_score_impacts(
     angle: int,
     house: int,
 ) -> dict[str, float | None]:
-    global _ASPECT_GENRE_SCORE_IMPACT_LOOKUP
-    _ensure_aspect_master_indexes()
-    if _ASPECT_GENRE_SCORE_IMPACT_LOOKUP is None:
-        with _ASPECT_MASTER_INDEX_LOCK:
-            if _ASPECT_GENRE_SCORE_IMPACT_LOOKUP is None:
-                rows = [
-                    row
-                    for candidates in (_ASPECT_CANDIDATES_BY_KEY or {}).values()
-                    for row in candidates
-                ]
-                _ASPECT_GENRE_SCORE_IMPACT_LOOKUP = (
-                    _build_aspect_genre_score_impact_lookup(rows)
-                )
-
-    key = (
-        _normalize_planet(t_planet),
-        _normalize_planet(n_planet),
-        _normalize_int(angle) or 0,
-        _normalize_int(house) or 1,
+    """Return signed graph impacts from the authored dual-score columns."""
+    components = get_aspect_genre_score_components(
+        t_planet,
+        n_planet,
+        angle,
+        house,
     )
-    scores = (_ASPECT_GENRE_SCORE_IMPACT_LOOKUP or {}).get(key, {})
-    return {
-        genre: scores.get(genre)
-        for genre in ASPECT_GENRE_SCORE_IMPACT_COLUMNS
-    }
+    impacts: dict[str, float | None] = {}
+    for genre in ASPECT_GENRE_DUAL_SCORE_COLUMNS:
+        genre_components = components.get(genre, {})
+        positive = genre_components.get("positive")
+        negative = genre_components.get("negative")
+        impacts[genre] = (
+            None
+            if positive is None and negative is None
+            else float(positive or 0.0) - float(negative or 0.0)
+        )
+    return impacts
 
 
 def get_aspect_genre_score_components(

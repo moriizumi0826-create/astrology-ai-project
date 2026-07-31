@@ -8,8 +8,8 @@ from collections import Counter
 from pathlib import Path
 from typing import Any
 
-from backend.app.services import yearly_forecast_service
 from scripts.apply_aspect_genre_score_pilot import (
+    DUAL_SCORE_COLUMNS,
     HOUSE_MULTIPLIERS,
     PILOT_BASE_SCORES,
     _round_five,
@@ -118,6 +118,20 @@ def _aspect_paths() -> list[Path]:
     )
 
 
+def _authored_genres(row: dict[str, Any]) -> set[str]:
+    if all(column in row for columns in DUAL_SCORE_COLUMNS.values() for column in columns):
+        return {
+            genre
+            for genre, columns in DUAL_SCORE_COLUMNS.items()
+            if any(str(row.get(column) or "").strip() not in ("", "-") for column in columns)
+        }
+    return {
+        genre
+        for genre, column in SCORE_COLUMNS.items()
+        if str(row.get(column) or "").strip() not in ("", "-")
+    }
+
+
 def apply_full_scores(*, write: bool) -> dict[str, Any]:
     representative_keys: set[tuple[str, str, int, int]] = set()
     applicable_cells = Counter()
@@ -149,10 +163,7 @@ def apply_full_scores(*, write: bool) -> dict[str, Any]:
                 raise ValueError(f"Duplicate representative key: {key}")
             representative_keys.add(key)
 
-            applicability = yearly_forecast_service._aspect_genre_applicability(
-                str(row.get("Category") or ""), transit, natal, angle, house
-            )
-            applicable = set(applicability["genres"])
+            applicable = _authored_genres(row)
             is_pilot_key = (transit, natal, angle) in PILOT_BASE_SCORES
             for genre, column in SCORE_COLUMNS.items():
                 current = str(row.get(column) or "").strip()

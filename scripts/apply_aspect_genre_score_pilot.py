@@ -8,9 +8,6 @@ from decimal import Decimal, ROUND_HALF_UP
 from pathlib import Path
 from typing import Any
 
-from backend.app.services import yearly_forecast_service
-
-
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 DATABASE_DIR = PROJECT_ROOT / "database"
 YEARLY_FILENAME = "M_Aspect_Interpretation_Yearly.csv"
@@ -20,6 +17,11 @@ SCORE_COLUMNS = {
     "money": "Money_Score_Impact",
 }
 KEY_COLUMNS = ("T_Planet", "N_Planet", "Aspect_Angle", "N_House")
+DUAL_SCORE_COLUMNS = {
+    "love": ("Love_Positive_Impact", "Love_Negative_Impact"),
+    "work": ("Work_Positive_Impact", "Work_Negative_Impact"),
+    "money": ("Money_Positive_Impact", "Money_Negative_Impact"),
+}
 
 HOUSE_MULTIPLIERS = {
     1: {"love": 0.90, "work": 0.90, "money": 0.80},
@@ -75,6 +77,20 @@ def _aspect_paths() -> list[Path]:
     )
 
 
+def _authored_genres(row: dict[str, Any]) -> set[str]:
+    if all(column in row for columns in DUAL_SCORE_COLUMNS.values() for column in columns):
+        return {
+            genre
+            for genre, columns in DUAL_SCORE_COLUMNS.items()
+            if any(str(row.get(column) or "").strip() not in ("", "-") for column in columns)
+        }
+    return {
+        genre
+        for genre, column in SCORE_COLUMNS.items()
+        if str(row.get(column) or "").strip() not in ("", "-")
+    }
+
+
 def apply_pilot(*, write: bool) -> dict[str, Any]:
     expected_keys = {
         (transit, natal, angle, house)
@@ -117,10 +133,7 @@ def apply_pilot(*, write: bool) -> dict[str, Any]:
                 raise ValueError(f"Duplicate pilot representative key: {key}")
             found_keys.add(key)
 
-            applicability = yearly_forecast_service._aspect_genre_applicability(
-                str(row.get("Category") or ""), transit, natal, angle, house
-            )
-            applicable = set(applicability["genres"])
+            applicable = _authored_genres(row)
             output_scores: dict[str, int | None] = {}
             for genre, column in SCORE_COLUMNS.items():
                 target = (

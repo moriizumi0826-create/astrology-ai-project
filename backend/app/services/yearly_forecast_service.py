@@ -19,8 +19,8 @@ except ModuleNotFoundError:
 
 FORECAST_YEAR = 2026
 ASPECT_GENRE_DESCRIPTION_SCHEMA_VERSION = 2
-ASPECT_GENRE_APPLICABILITY_SCHEMA_VERSION = 1
-ASPECT_GENRE_SCORE_SCHEMA_VERSION = 3
+ASPECT_GENRE_APPLICABILITY_SCHEMA_VERSION = 3
+ASPECT_GENRE_SCORE_SCHEMA_VERSION = 4
 ANNUAL_TRANSIT_HOUSE_TRANSITION_SCHEMA_VERSION = 1
 ASPECT_GENRE_KEYS = ("love", "work", "money")
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
@@ -160,7 +160,6 @@ def _clear_yearly_master_caches() -> None:
     _annual_transition_rows.cache_clear()
     _annual_activation_rules.cache_clear()
     _cached_aspect_interpretation.cache_clear()
-    _aspect_genre_applicability.cache_clear()
     _aspect_master_index.cache_clear()
     _cached_yearly_forecast.cache_clear()
     monthly_peak_service.clear_monthly_peak_caches()
@@ -586,6 +585,28 @@ def _peak_event(
     return event
 
 
+def _house_peak_event(
+    day: date,
+    transit_planet: str,
+    *,
+    house_system: str,
+    target_house: int | str,
+    previous_house: int | str,
+) -> dict[str, Any]:
+    """Build one daily house event, distinguishing ingress from continued stay."""
+    factor_type = f"{house_system}_house"
+    event_label = f"{house_system.upper()}_HOUSE"
+    transit_state = "ingress" if target_house != previous_house else "stay"
+    return _peak_event(
+        f"PEAK_{event_label}_{transit_planet}_{day.isoformat()}",
+        factor_type=factor_type,
+        transit_planet=transit_planet,
+        house_system=house_system,
+        target_house=target_house,
+        transit_state=transit_state,
+    )
+
+
 def _category_genres(category: Any) -> tuple[str, ...]:
     values = {
         str(value).strip().lower()
@@ -608,50 +629,27 @@ def _aspect_genre_importance_scores(
     }
 
 
-@lru_cache(maxsize=20000)
 def _aspect_genre_applicability(
     source_category: str,
-    transit_planet: str,
-    natal_planet: str,
-    aspect_angle: int,
-    natal_house: int,
+    genre_score_components: dict[str, dict[str, float | None]],
 ) -> dict[str, Any]:
-    """Resolve genre membership for one planet/planet/angle/house key.
-
-    The interpretation Category preserves house-led relevance.  Monthly peak
-    rules add planet-role relevance, but are evaluated independently of the
-    event's current orb and in both transit states so a missing daily score is
-    never mistaken for non-applicability.
-    """
+    """Resolve annual genre membership from authored dual-score cells."""
     category_genres = set(_category_genres(source_category))
-    planet_rule_genres: set[str] = set()
-    for transit_state in ("direct", "retrograde"):
-        rule_event = _peak_event(
-            "GENRE_APPLICABILITY",
-            factor_type="transit_to_natal",
-            transit_planet=transit_planet,
-            natal_target=natal_planet,
-            target_role=_peak_target_roles(natal_planet),
-            house_system="natal",
-            target_house=natal_house,
-            aspect_angle=aspect_angle,
-            aspect_class=_peak_aspect_class(aspect_angle),
-            transit_state=transit_state,
-            orb=0.0,
+    score_genres = {
+        genre
+        for genre in ASPECT_GENRE_KEYS
+        if any(
+            value is not None
+            for value in (genre_score_components.get(genre) or {}).values()
         )
-        planet_rule_genres.update(
-            monthly_peak_service.matching_monthly_peak_categories(rule_event)
-        )
-
-    genres = category_genres | planet_rule_genres
+    }
     return {
-        "genres": [genre for genre in ASPECT_GENRE_KEYS if genre in genres],
+        "genres": [genre for genre in ASPECT_GENRE_KEYS if genre in score_genres],
+        "score_genres": [genre for genre in ASPECT_GENRE_KEYS if genre in score_genres],
         "category_genres": [
             genre for genre in ASPECT_GENRE_KEYS if genre in category_genres
         ],
-        "planet_rule_genres": [
-            genre for genre in ASPECT_GENRE_KEYS if genre in planet_rule_genres
-        ],
+        "planet_rule_genres": [],
     }
 
 
@@ -692,10 +690,7 @@ def _event_from_interpretation(
     )
     genre_applicability = _aspect_genre_applicability(
         source_category,
-        transit_planet,
-        natal_point["planet"],
-        exact_angle,
-        natal_point["house"],
+        genre_score_components,
     )
     yearly_weight = reading_service._normalize_float(yearly_row.get("Yearly_Weight"))
     if yearly_weight is None:
@@ -757,23 +752,37 @@ def _build_day_forecast(
         natal_house = get_house(transit_longitude, house_cusps) if len(house_cusps) == 12 else "ANY"
         transit_states[transit_planet] = (transit_longitude, is_retrograde)
 
-        if reading_service._safe_number(calendar_row, "Sign_Ingress_Flag"):
-            peak_events.append(_peak_event(
-                f"PEAK_NATAL_HOUSE_{transit_planet}_{day.isoformat()}",
-                factor_type="natal_house",
-                transit_planet=transit_planet,
+        try:
+            previous_longitude, _, previous_calendar_row = _calendar_transit_state(
+                day - timedelta(days=1),
+                transit_planet,
+            )
+            previous_solar_house = _solar_house(previous_calendar_row["Sign_ID"], natal_sun_sign)
+            previous_natal_house = (
+                get_house(previous_longitude, house_cusps)
+                if len(house_cusps) == 12
+                else "ANY"
+            )
+        except (FileNotFoundError, KeyError):
+            # The earliest supported calendar date has no prior-day master row.
+            previous_solar_house = solar_house
+            previous_natal_house = natal_house
+
+        if natal_house != "ANY":
+            peak_events.append(_house_peak_event(
+                day,
+                transit_planet,
                 house_system="natal",
                 target_house=natal_house,
-                transit_state="ingress",
+                previous_house=previous_natal_house,
             ))
-            peak_events.append(_peak_event(
-                f"PEAK_SOLAR_HOUSE_{transit_planet}_{day.isoformat()}",
-                factor_type="solar_house",
-                transit_planet=transit_planet,
-                house_system="solar",
-                target_house=solar_house,
-                transit_state="ingress",
-            ))
+        peak_events.append(_house_peak_event(
+            day,
+            transit_planet,
+            house_system="solar",
+            target_house=solar_house,
+            previous_house=previous_solar_house,
+        ))
         if is_retrograde:
             peak_events.append(_peak_event(
                 f"PEAK_RETROGRADE_{transit_planet}_{day.isoformat()}",

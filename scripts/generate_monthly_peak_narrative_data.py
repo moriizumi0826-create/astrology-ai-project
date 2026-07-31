@@ -198,13 +198,17 @@ def main() -> None:
         reader = csv.DictReader(handle)
         rows = list(reader)
         source_fields = reader.fieldnames or []
-    if len(rows) != 2888 or len({row["Rule_ID"] for row in rows}) != 2888:
-        raise ValueError("Monthly peak rules must contain 2888 unique Rule_ID values")
+    if len(rows) != 3260 or len({row["Rule_ID"] for row in rows}) != 3260:
+        raise ValueError("Monthly peak rules must contain 3260 unique Rule_ID values")
 
     fields = [field for field in source_fields if field not in NARRATIVE_COLUMNS] + list(NARRATIVE_COLUMNS)
     for row in rows:
         row["Narrative_Key"] = narrative_key(row)
-        row["Narrative_Priority"] = str(narrative_priority(row))
+        row["Narrative_Priority"] = (
+            "0"
+            if row.get("Transit_State") == "stay"
+            else str(narrative_priority(row))
+        )
 
     with RULES_PATH.open("w", encoding="utf-8-sig", newline="") as handle:
         writer = csv.DictWriter(handle, fieldnames=fields)

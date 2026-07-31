@@ -3228,7 +3228,7 @@ function monthNumberFromDate(value) {
   return Number.isFinite(month) && month >= 1 && month <= 12 ? month : 0;
 }
 
-const YEARLY_MONTHLY_SCORE_SCALE = 2.5;
+const YEARLY_MONTHLY_SCORE_SCALE = 1.0;
 
 function yearlyMonthlyPercentile(values, percentile) {
   if (!values.length) return 0;
