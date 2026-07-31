@@ -1810,6 +1810,174 @@ def generate_yearly_forecast(
     )
 
 
+YEARLY_FORECAST_SUMMARY_KEYS = (
+    "summary",
+    "aspect_genre_description_schema",
+    "aspect_genre_applicability_schema",
+    "aspect_genre_score_schema",
+    "annual_transit_house_transition_schema",
+    "natal_points",
+    "natal_house_cusps",
+    "cache",
+)
+
+
+def build_yearly_forecast_summary(forecast: dict[str, Any]) -> dict[str, Any]:
+    """Return only the fields needed to draw the initial annual score charts."""
+    payload = {key: forecast[key] for key in YEARLY_FORECAST_SUMMARY_KEYS if key in forecast}
+    payload["yearly_data"] = [
+        {
+            "date": day.get("date"),
+            "scores": day.get("scores", {}),
+        }
+        for day in forecast.get("yearly_data", [])
+    ]
+    payload["detail_loaded"] = {
+        "annual": False,
+        "months": [],
+        "days": [],
+    }
+    return payload
+
+
+def _date_range_overlaps_month(start_value: Any, end_value: Any, year: int, month: int) -> bool:
+    try:
+        start_date = date.fromisoformat(str(start_value)[:10])
+        end_date = date.fromisoformat(str(end_value or start_value)[:10])
+    except (TypeError, ValueError):
+        return False
+    month_start = date(year, month, 1)
+    month_end = date(year + (month == 12), 1 if month == 12 else month + 1, 1) - timedelta(days=1)
+    return start_date <= month_end and end_date >= month_start
+
+
+def _compact_annual_aspect_periods(yearly_data: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    by_aspect_and_date: dict[tuple[Any, ...], dict[str, dict[str, Any]]] = {}
+    for day in yearly_data:
+        day_date = str(day.get("date") or "")[:10]
+        if not day_date:
+            continue
+        for aspect in day.get("all_aspects", []):
+            key = (
+                aspect.get("t_planet"),
+                aspect.get("n_planet"),
+                aspect.get("aspect_angle"),
+                aspect.get("natal_house"),
+            )
+            existing = by_aspect_and_date.setdefault(key, {}).get(day_date)
+            if existing is None or (not existing.get("description") and aspect.get("description")):
+                by_aspect_and_date[key][day_date] = aspect
+
+    periods: list[dict[str, Any]] = []
+    copied_keys = (
+        "t_planet",
+        "n_planet",
+        "aspect_angle",
+        "natal_house",
+        "title",
+        "category",
+        "description",
+        "genre_descriptions",
+        "genre_score_impacts",
+        "genre_score_components",
+        "genre_importance_scores",
+        "genre_applicability",
+        "advised_task",
+    )
+    for key, items_by_date in by_aspect_and_date.items():
+        current_period: dict[str, Any] | None = None
+        previous_date: date | None = None
+        for day_date in sorted(items_by_date):
+            parsed_date = date.fromisoformat(day_date)
+            aspect = items_by_date[day_date]
+            if current_period is not None and previous_date is not None and parsed_date == previous_date + timedelta(days=1):
+                current_period["end_date"] = day_date
+            else:
+                current_period = {name: aspect.get(name) for name in copied_keys}
+                current_period["key"] = "-".join(str(value) for value in key)
+                current_period["start_date"] = day_date
+                current_period["end_date"] = day_date
+                periods.append(current_period)
+            previous_date = parsed_date
+    return sorted(periods, key=lambda item: (item["start_date"], item["key"]))
+
+
+def build_yearly_forecast_detail(
+    forecast: dict[str, Any],
+    *,
+    scope: str,
+    year: int,
+    day_date: str | None = None,
+    month: int | None = None,
+) -> dict[str, Any]:
+    if scope == "day":
+        if not day_date:
+            raise ValueError("date is required for day detail")
+        day = next(
+            (item for item in forecast.get("yearly_data", []) if str(item.get("date"))[:10] == day_date),
+            None,
+        )
+        if day is None:
+            raise ValueError(f"yearly forecast date is unavailable: {day_date}")
+        return {
+            "detail_scope": "day",
+            "detail_date": day_date,
+            "yearly_data": [day],
+        }
+
+    if scope == "month":
+        if month is None or not 1 <= month <= 12:
+            raise ValueError("month must be between 1 and 12 for month detail")
+        monthly_peak_periods = {
+            genre: [
+                item
+                for item in items
+                if _date_range_overlaps_month(item.get("start_date"), item.get("end_date"), year, month)
+            ]
+            for genre, items in forecast.get("monthly_peak_periods", {}).items()
+        }
+        return {
+            "detail_scope": "month",
+            "detail_month": month,
+            "monthly_peak_periods": monthly_peak_periods,
+            "monthly_sun_themes": [
+                item
+                for item in forecast.get("monthly_sun_themes", [])
+                if _date_range_overlaps_month(item.get("start_date"), item.get("end_date"), year, month)
+            ],
+            "monthly_mars_themes": [
+                item
+                for item in forecast.get("monthly_mars_themes", [])
+                if _date_range_overlaps_month(item.get("start_date"), item.get("end_date"), year, month)
+            ],
+            "annual_sun_aspects": [
+                item for item in forecast.get("annual_sun_aspects", [])
+                if str(item.get("date") or "")[:7] == f"{year}-{month:02d}"
+            ],
+            "annual_mars_aspects": [
+                item for item in forecast.get("annual_mars_aspects", [])
+                if str(item.get("date") or "")[:7] == f"{year}-{month:02d}"
+            ],
+        }
+
+    if scope == "annual":
+        annual_keys = (
+            "annual_themes",
+            "annual_lessons",
+            "annual_summary_columns",
+            "annual_transit_house_transitions",
+            "annual_house_activation_events",
+        )
+        payload = {key: forecast.get(key) for key in annual_keys}
+        payload.update({
+            "detail_scope": "annual",
+            "annual_category_aspects": _compact_annual_aspect_periods(forecast.get("yearly_data", [])),
+        })
+        return payload
+
+    raise ValueError(f"unsupported yearly forecast detail scope: {scope}")
+
+
 def build_yearly_forecast_cache_payload(birth_input: BirthInput, year: int = FORECAST_YEAR) -> dict[str, Any]:
     return {
         "cache_key": f"{birth_input.full_name}:{birth_input.birth_date}:{birth_input.birth_time}:{birth_input.latitude}:{birth_input.longitude}:{year}",

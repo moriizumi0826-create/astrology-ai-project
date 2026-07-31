@@ -3737,6 +3737,16 @@ export function DashboardV2HoroscopePage({ data }) {
   const meta = payload.meta || data?.meta || {};
   const chartData = payload.chart_data || payload.chartData || data?.chart_data || data?.chartData || null;
 
+  if (data?.is_loading) {
+    return (
+      <main className="mx-auto max-w-[1440px] px-5 py-5 md:px-8 lg:px-14">
+        <DashboardV2Card bodyClassName="flex min-h-[220px] items-center justify-center p-8">
+          <p className="font-mono text-sm font-bold tracking-[0.18em] text-[#c7c6cc]">読込中</p>
+        </DashboardV2Card>
+      </main>
+    );
+  }
+
   return (
     <main className="mx-auto max-w-[1440px] px-5 py-5 md:px-8 lg:px-14">
       <section className="mb-5 border-b border-white/10 pb-5">
@@ -3853,6 +3863,13 @@ function DashboardV2({ data = dashboardData, embedded = false, developerMode = f
 }
 
 export function DashboardDailyDetailContentLayer({ data = dashboardData, className = "" }) {
+  if (data?.is_loading) {
+    return (
+      <DashboardV2Card className={className} bodyClassName="flex min-h-[220px] items-center justify-center p-8">
+        <p className="font-mono text-sm font-bold tracking-[0.18em] text-[#c7c6cc]">読込中</p>
+      </DashboardV2Card>
+    );
+  }
   return <DashboardDailyDetailLayerBase data={data} className={className} insightVariant="monthly" />;
 }
 

@@ -15,6 +15,7 @@ from backend.app.main import (
     create_deferred_reading_widgets,
     create_reading,
     create_yearly_forecast,
+    create_yearly_forecast_detail,
     health_check,
     location_search,
     master_version,
@@ -2373,13 +2374,13 @@ class ApiTestCase(unittest.TestCase):
     def test_create_yearly_forecast_success(self):
         fake_forecast = {
             "summary": "2026年は後半に向けて仕事運が上昇します",
-            "yearly_data": [],
+            "yearly_data": [{"date": "2026-01-01", "scores": {"total": 10}, "all_aspects": [{}]}],
         }
 
         with patch(
             "backend.app.services.yearly_forecast_service.generate_yearly_forecast",
             return_value=fake_forecast,
-        ):
+        ), patch("backend.app.main._master_version_payload", return_value={"masterVersion": "test-v1"}):
             payload = ReadingRequest(
                 full_name="Test User",
                 birth_date="1984-08-26",
@@ -2392,7 +2393,39 @@ class ApiTestCase(unittest.TestCase):
             )
             response = create_yearly_forecast(payload)
 
-        self.assertEqual(response, fake_forecast)
+        self.assertEqual(response["yearly_data"], [{"date": "2026-01-01", "scores": {"total": 10}}])
+        self.assertEqual(response["masterVersion"], "test-v1")
+        self.assertNotIn("all_aspects", response["yearly_data"][0])
+
+    def test_create_yearly_forecast_detail_returns_requested_day(self):
+        fake_forecast = {
+            "yearly_data": [{"date": "2026-07-21", "scores": {"total": 10}, "all_aspects": [{"id": 1}]}],
+        }
+        payload = ReadingRequest(
+            full_name="Test User",
+            birth_date="1984-08-26",
+            birth_time="19:20",
+            birth_time_unknown=False,
+            birthplace="Tokyo",
+            latitude=35.6812,
+            longitude=139.7671,
+            timezone_offset=9,
+        )
+
+        with patch(
+            "backend.app.services.yearly_forecast_service.generate_yearly_forecast",
+            return_value=fake_forecast,
+        ):
+            response = create_yearly_forecast_detail(
+                payload,
+                year=2026,
+                scope="day",
+                day_date=date(2026, 7, 21),
+                month=None,
+            )
+
+        self.assertEqual(response["detail_date"], "2026-07-21")
+        self.assertEqual(response["yearly_data"][0]["all_aspects"], [{"id": 1}])
 
     def test_create_reading_validation_error(self):
         with self.assertRaises(ValidationError):

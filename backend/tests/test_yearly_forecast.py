@@ -10,6 +10,8 @@ from backend.app.services import monthly_peak_service, yearly_forecast_service
 from backend.app.services.yearly_forecast_service import (
     _yearly_summary_rows,
     _solar_house,
+    build_yearly_forecast_detail,
+    build_yearly_forecast_summary,
     reload_yearly_master_caches_if_changed,
     generate_yearly_forecast,
 )
@@ -24,6 +26,56 @@ DATABASE_DIR = PROJECT_ROOT / "database"
 
 
 class YearlyForecastTestCase(unittest.TestCase):
+    def test_summary_projection_keeps_scores_and_removes_daily_detail(self):
+        forecast = {
+            "summary": "summary",
+            "yearly_data": [
+                {
+                    "date": "2026-07-21",
+                    "scores": {"total": 12, "work": 5},
+                    "transit_chart": {"transits": [1]},
+                    "all_aspects": [{"id": 1}],
+                }
+            ],
+            "natal_points": [{"planet": "SUN"}],
+            "annual_themes": [{"description": "heavy"}],
+        }
+
+        summary = build_yearly_forecast_summary(forecast)
+
+        self.assertEqual(
+            summary["yearly_data"],
+            [{"date": "2026-07-21", "scores": {"total": 12, "work": 5}}],
+        )
+        self.assertNotIn("annual_themes", summary)
+        self.assertFalse(summary["detail_loaded"]["annual"])
+
+    def test_annual_detail_compacts_consecutive_daily_aspects(self):
+        aspect = {
+            "t_planet": "JUPITER",
+            "n_planet": "VENUS",
+            "aspect_angle": 60,
+            "natal_house": 6,
+            "description": "description",
+            "genre_descriptions": {"love": "love"},
+            "genre_score_components": {"love": {"positive": 35, "negative": 0}},
+            "genre_importance_scores": {"love": 35},
+            "genre_applicability": {"genres": ["love"]},
+        }
+        forecast = {
+            "yearly_data": [
+                {"date": "2026-07-21", "all_aspects": [aspect]},
+                {"date": "2026-07-22", "all_aspects": [aspect]},
+                {"date": "2026-07-24", "all_aspects": [aspect]},
+            ],
+        }
+
+        detail = build_yearly_forecast_detail(forecast, scope="annual", year=2026)
+
+        self.assertEqual(len(detail["annual_category_aspects"]), 2)
+        self.assertEqual(detail["annual_category_aspects"][0]["start_date"], "2026-07-21")
+        self.assertEqual(detail["annual_category_aspects"][0]["end_date"], "2026-07-22")
+
     def test_full_genre_score_keeps_transit_direction_and_house_context(self):
         self.assertEqual(full_genre_score("MARS", "VENUS", 0, 2, "money"), -65)
         self.assertEqual(full_genre_score("VENUS", "MARS", 0, 2, "money"), 55)

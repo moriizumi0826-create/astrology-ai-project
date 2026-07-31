@@ -172,31 +172,63 @@ def create_deferred_reading_widgets(payload: ReadingRequest):
         raise HTTPException(status_code=500, detail=f"Internal server error: {exc}") from exc
 
 
+def _yearly_birth_input(payload: ReadingRequest) -> reading_service.BirthInput:
+    timezone_offset = payload.timezone_offset
+    if timezone_offset is None:
+        if not payload.timezone_name:
+            raise ValueError("timezone information is missing")
+        timezone_offset, _ = geocoding_service.resolve_timezone_offset(
+            timezone_name=payload.timezone_name,
+            birth_date=payload.birth_date.isoformat(),
+            birth_time=payload.birth_time.strftime("%H:%M") if payload.birth_time else None,
+            birth_time_unknown=payload.birth_time_unknown,
+        )
+    return reading_service.BirthInput(
+        full_name=payload.full_name,
+        birth_date=payload.birth_date.isoformat(),
+        birth_time=payload.birth_time.strftime("%H:%M") if payload.birth_time else "",
+        birth_time_unknown=payload.birth_time_unknown,
+        birthplace=payload.birthplace,
+        latitude=payload.latitude,
+        longitude=payload.longitude,
+        timezone_offset=timezone_offset,
+    )
+
+
 @app.post("/api/yearly-forecast")
 def create_yearly_forecast(payload: ReadingRequest, year: int = Query(default=2026, ge=2015, le=2028)):
     try:
-        timezone_offset = payload.timezone_offset
-        if timezone_offset is None:
-            if not payload.timezone_name:
-                raise ValueError("timezone information is missing")
-            timezone_offset, _ = geocoding_service.resolve_timezone_offset(
-                timezone_name=payload.timezone_name,
-                birth_date=payload.birth_date.isoformat(),
-                birth_time=payload.birth_time.strftime("%H:%M") if payload.birth_time else None,
-                birth_time_unknown=payload.birth_time_unknown,
-            )
+        forecast = yearly_forecast_service.generate_yearly_forecast(_yearly_birth_input(payload), year)
+        result = yearly_forecast_service.build_yearly_forecast_summary(forecast)
+        version_payload = _master_version_payload()
+        result["masterVersion"] = version_payload["masterVersion"]
+        result["master_version"] = version_payload["masterVersion"]
+        return result
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Internal server error: {exc}") from exc
 
-        birth_input = reading_service.BirthInput(
-            full_name=payload.full_name,
-            birth_date=payload.birth_date.isoformat(),
-            birth_time=payload.birth_time.strftime("%H:%M") if payload.birth_time else "",
-            birth_time_unknown=payload.birth_time_unknown,
-            birthplace=payload.birthplace,
-            latitude=payload.latitude,
-            longitude=payload.longitude,
-            timezone_offset=timezone_offset,
+
+@app.post("/api/yearly-forecast/detail")
+def create_yearly_forecast_detail(
+    payload: ReadingRequest,
+    year: int = Query(default=2026, ge=2015, le=2028),
+    scope: str = Query(pattern="^(day|month|annual)$"),
+    day_date: date | None = Query(default=None, alias="date"),
+    month: int | None = Query(default=None, ge=1, le=12),
+):
+    try:
+        forecast = yearly_forecast_service.generate_yearly_forecast(_yearly_birth_input(payload), year)
+        return yearly_forecast_service.build_yearly_forecast_detail(
+            forecast,
+            scope=scope,
+            year=year,
+            day_date=day_date.isoformat() if day_date else None,
+            month=month,
         )
-        return yearly_forecast_service.generate_yearly_forecast(birth_input, year)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except FileNotFoundError as exc:

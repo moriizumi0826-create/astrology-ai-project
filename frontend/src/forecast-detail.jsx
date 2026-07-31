@@ -786,12 +786,35 @@ function demoForecast() {
 }
 
 function categorizedAnnualAspectItemsFromForecast(forecast) {
-  const items = transitAspectItemsFromForecast(
-    forecast,
-    "",
-    [],
-    ["all_aspects", "allAspects", "events"],
-  );
+  const compactPeriods = forecast?.annual_category_aspects || forecast?.annualCategoryAspects;
+  const items = Array.isArray(compactPeriods)
+    ? compactPeriods.map((event) => {
+      const transitPlanet = String(event?.t_planet || event?.transit_planet || "").trim().toUpperCase();
+      const natalPlanet = String(event?.n_planet || event?.natal_planet || "").trim().toUpperCase();
+      const angle = event?.aspect_angle ?? event?.angle ?? event?.exact_angle;
+      const natalHouse = event?.natal_house ?? event?.natalHouse ?? "";
+      return {
+        key: event?.key || `${natalPlanet}-${transitPlanet}-${angle}-${natalHouse}`,
+        label: `ネイタル${planetLabel(natalPlanet)} × 現行${planetLabel(transitPlanet)} ${angle}°`,
+        title: event?.title || "",
+        category: event?.category || event?.title || "",
+        applicableGenres: annualAspectApplicableGenres(event),
+        description: event?.description || "",
+        genreDescriptions: annualAspectGenreDescriptions(event),
+        genreScoreImpacts: annualAspectGenreScores(event),
+        genreScoreComponents: annualAspectGenreScoreComponents(event),
+        genreImportanceScores: annualAspectGenreImportanceScores(event),
+        advisedTask: event?.advised_task || event?.advisedTask || "",
+        startDate: dateKey(event?.start_date || event?.startDate),
+        endDate: dateKey(event?.end_date || event?.endDate),
+      };
+    })
+    : transitAspectItemsFromForecast(
+      forecast,
+      "",
+      [],
+      ["all_aspects", "allAspects", "events"],
+    );
   const categories = { love: [], work: [], money: [] };
   items.forEach((item) => {
     const itemCategories = Array.isArray(item.applicableGenres)
@@ -824,6 +847,90 @@ function categorizedAnnualAspectItemsFromForecast(forecast) {
       .sort((a, b) => a.startDate.localeCompare(b.startDate) || a.key.localeCompare(b.key));
   });
   return categories;
+}
+
+function mergeUniqueForecastItems(existing, incoming, keyBuilder) {
+  const merged = new Map();
+  [...(Array.isArray(existing) ? existing : []), ...(Array.isArray(incoming) ? incoming : [])]
+    .forEach((item, index) => merged.set(keyBuilder(item, index), item));
+  return Array.from(merged.values());
+}
+
+function mergeYearlyForecastDetail(forecast, detail) {
+  const current = forecast || {};
+  const scope = detail?.detail_scope || detail?.detailScope;
+  const detailLoaded = current.detail_loaded || current.detailLoaded || { annual: false, months: [], days: [] };
+  if (scope === "day") {
+    const incomingDay = Array.isArray(detail?.yearly_data) ? detail.yearly_data[0] : null;
+    if (!incomingDay) return current;
+    const incomingDate = dateKey(incomingDay.date);
+    return {
+      ...current,
+      yearly_data: (current.yearly_data || []).map((day) => (
+        dateKey(day?.date) === incomingDate ? { ...day, ...incomingDay } : day
+      )),
+      detail_loaded: {
+        ...detailLoaded,
+        days: [...new Set([...(detailLoaded.days || []), incomingDate])],
+      },
+    };
+  }
+  if (scope === "month") {
+    const detailMonth = Number(detail?.detail_month || detail?.detailMonth);
+    const currentPeaks = current.monthly_peak_periods || current.monthlyPeakPeriods || {};
+    const incomingPeaks = detail.monthly_peak_periods || detail.monthlyPeakPeriods || {};
+    const mergedPeaks = {};
+    new Set([...Object.keys(currentPeaks), ...Object.keys(incomingPeaks)]).forEach((genre) => {
+      mergedPeaks[genre] = mergeUniqueForecastItems(
+        currentPeaks[genre],
+        incomingPeaks[genre],
+        (item) => `${item?.start_date}-${item?.end_date}-${item?.peak_date}-${item?.title}`,
+      );
+    });
+    const mergePeriodItems = (key) => mergeUniqueForecastItems(
+      current[key],
+      detail[key],
+      (item) => `${item?.id || ""}-${item?.start_date || item?.date}-${item?.end_date || ""}-${item?.t_planet || ""}-${item?.n_planet || ""}-${item?.aspect_angle ?? ""}`,
+    );
+    return {
+      ...current,
+      monthly_peak_periods: mergedPeaks,
+      monthly_sun_themes: mergePeriodItems("monthly_sun_themes"),
+      monthly_mars_themes: mergePeriodItems("monthly_mars_themes"),
+      annual_sun_aspects: mergePeriodItems("annual_sun_aspects"),
+      annual_mars_aspects: mergePeriodItems("annual_mars_aspects"),
+      detail_loaded: {
+        ...detailLoaded,
+        months: [...new Set([...(detailLoaded.months || []), detailMonth])].filter(Number.isFinite),
+      },
+    };
+  }
+  if (scope === "annual") {
+    return {
+      ...current,
+      ...detail,
+      detail_loaded: { ...detailLoaded, annual: true },
+    };
+  }
+  return current;
+}
+
+function yearlyDayDetailLoaded(forecast, value) {
+  const targetDate = dateKey(value);
+  const day = (forecast?.yearly_data || []).find((item) => dateKey(item?.date) === targetDate);
+  return Boolean(day && Array.isArray(day.all_aspects) && day.transit_chart);
+}
+
+function yearlyMonthDetailLoaded(forecast, month) {
+  const detailLoaded = forecast?.detail_loaded || forecast?.detailLoaded;
+  if (!detailLoaded) return Boolean(forecast?.monthly_peak_periods || forecast?.monthlyPeakPeriods);
+  return (detailLoaded.months || []).map(Number).includes(Number(month));
+}
+
+function yearlyAnnualDetailLoaded(forecast) {
+  const detailLoaded = forecast?.detail_loaded || forecast?.detailLoaded;
+  if (!detailLoaded) return Boolean(forecast?.annual_themes || forecast?.annualThemes);
+  return detailLoaded.annual === true;
 }
 
 function normalizedPlanet(value) {
@@ -7014,6 +7121,17 @@ function GlassPanel({ children, className = "", variant = "default" }) {
   );
 }
 
+function ForecastLoadingPanel({ label = "読込中" }) {
+  return (
+    <GlassPanel className="flex min-h-[180px] items-center justify-center p-6 text-center">
+      <div className="inline-flex items-center gap-3 font-mono text-xs font-bold tracking-[0.18em] text-mist">
+        <RefreshCw size={16} className="animate-spin text-gold" />
+        <span>{label}</span>
+      </div>
+    </GlassPanel>
+  );
+}
+
 function ForecastGalaxyBackground({ children, className = "", innerClassName = "" }) {
   return (
     <section
@@ -7060,15 +7178,18 @@ function UnifiedForecastView({
   onOpenYearDialog,
   activeUnifiedView,
   setActiveUnifiedView,
+  detailLoadingKeys,
+  onRequestDayDetail,
 }) {
   const monthlyTransitDays = useMemo(
     () => dailyDataForMonth(forecast, activeYear, selectedMonthlyMonthIndex),
     [forecast, activeYear, selectedMonthlyMonthIndex]
   );
   const [selectedUnifiedMonthlyDayIndex, setSelectedUnifiedMonthlyDayIndex] = useState(() => realtimeDayIndex(monthlyTransitDays));
+  const monthlyTransitDateRange = `${dateKey(monthlyTransitDays[0]?.date)}:${dateKey(monthlyTransitDays[monthlyTransitDays.length - 1]?.date)}:${monthlyTransitDays.length}`;
   useEffect(() => {
     setSelectedUnifiedMonthlyDayIndex(realtimeDayIndex(monthlyTransitDays));
-  }, [monthlyTransitDays]);
+  }, [monthlyTransitDateRange]);
   const unifiedMonthlyDayIndex = clamp(selectedUnifiedMonthlyDayIndex, 0, Math.max(0, monthlyTransitDays.length - 1));
   const mapConfig = activeUnifiedView === "monthly"
     ? {
@@ -7083,6 +7204,22 @@ function UnifiedForecastView({
       selectedDayIndex: annualTransitDayIndex,
       onSelectDayIndex: setSelectedAnnualDayIndex,
     };
+  const mapDate = dateKey(mapConfig.day?.date);
+  const mapDayPending = Boolean(mapDate && (
+    detailLoadingKeys.has(`day:${mapDate}`) || !yearlyDayDetailLoaded(forecast, mapDate)
+  ));
+  const monthlyDetailPending = activeUnifiedView === "monthly" && (
+    detailLoadingKeys.has(`month:${selectedMonthlyMonthIndex + 1}`)
+    || !yearlyMonthDetailLoaded(forecast, selectedMonthlyMonthIndex + 1)
+  );
+  const annualDetailPending = activeUnifiedView === "annual" && (
+    detailLoadingKeys.has("annual") || !yearlyAnnualDetailLoaded(forecast)
+  );
+  useEffect(() => {
+    if (mapDate && forecast?.yearly_data?.length && !yearlyDayDetailLoaded(forecast, mapDate)) {
+      onRequestDayDetail(mapDate);
+    }
+  }, [forecast, mapDate, onRequestDayDetail]);
 
   return (
     <ForecastGalaxyBackground>
@@ -7114,7 +7251,9 @@ function UnifiedForecastView({
         <DashboardDailyDetailContentLayer data={dailyDetailData} />
       </div>
       <div className={cx(activeUnifiedView === "monthly" ? "block" : "hidden")}>
-        <Matrix
+        {monthlyDetailPending ? (
+          <ForecastLoadingPanel label="月別詳細を読込中" />
+        ) : <Matrix
           data={data}
           selectedSeriesKey={selectedSeriesKey}
           setSelectedSeriesKey={setSelectedSeriesKey}
@@ -7126,20 +7265,26 @@ function UnifiedForecastView({
           variant="lead"
           selectedDayIndex={unifiedMonthlyDayIndex}
           setSelectedDayIndex={setSelectedUnifiedMonthlyDayIndex}
-        />
+        />}
       </div>
       {activeUnifiedView === "annual" ? (
-        <OraclePanel stats={stats} forecast={forecast} />
+        annualDetailPending
+          ? <ForecastLoadingPanel label="年間詳細を読込中" />
+          : <OraclePanel stats={stats} forecast={forecast} />
       ) : null}
-      <TransitNatalSunMap
-        day={mapConfig.day}
-        forecast={forecast}
-        availableDays={mapConfig.availableDays}
-        selectedDayIndex={mapConfig.selectedDayIndex}
-        onSelectDayIndex={mapConfig.onSelectDayIndex}
-      />
+      {mapDayPending ? (
+        <ForecastLoadingPanel label={`${formatShortDate(mapDate)}の天体・アスペクトを読込中`} />
+      ) : (
+        <TransitNatalSunMap
+          day={mapConfig.day}
+          forecast={forecast}
+          availableDays={mapConfig.availableDays}
+          selectedDayIndex={mapConfig.selectedDayIndex}
+          onSelectDayIndex={mapConfig.onSelectDayIndex}
+        />
+      )}
       <div className={cx(activeUnifiedView === "monthly" ? "block" : "hidden")}>
-        <Matrix
+        {!monthlyDetailPending ? <Matrix
           data={data}
           selectedSeriesKey={selectedSeriesKey}
           setSelectedSeriesKey={setSelectedSeriesKey}
@@ -7151,7 +7296,7 @@ function UnifiedForecastView({
           variant="rest"
           selectedDayIndex={unifiedMonthlyDayIndex}
           setSelectedDayIndex={setSelectedUnifiedMonthlyDayIndex}
-        />
+        /> : null}
       </div>
       {activeUnifiedView === "annual" ? (
         <div className="grid gap-4 sm:gap-7">
@@ -8566,6 +8711,9 @@ function ForecastDetailPage() {
   const [yearCalculationError, setYearCalculationError] = useState("");
   const [deferredContentLoading, setDeferredContentLoading] = useState(false);
   const [deferredContentError, setDeferredContentError] = useState("");
+  const [forecastDetailLoadingKeys, setForecastDetailLoadingKeys] = useState(() => new Set());
+  const [forecastDetailError, setForecastDetailError] = useState("");
+  const forecastDetailRequestsRef = React.useRef(new Set());
   const [latestUpdateError, setLatestUpdateError] = useState("");
   const [refreshingLatest, setRefreshingLatest] = useState(false);
   const [versionState, setVersionState] = useState({
@@ -8781,14 +8929,61 @@ function ForecastDetailPage() {
   const [selectedMonthlyMonthIndex, setSelectedMonthlyMonthIndex] = useState(workdayMonthIndex);
   const [activeView, setActiveView] = useState("unified");
   const [activeUnifiedView, setActiveUnifiedView] = useState("daily");
+  const requestForecastDetail = React.useCallback(async (scope, options = {}) => {
+    const detailKey = scope === "day"
+      ? `day:${dateKey(options.date)}`
+      : scope === "month"
+        ? `month:${Number(options.month)}`
+        : "annual";
+    if (forecastDetailRequestsRef.current.has(detailKey)) return;
+    const formPayload = getQueryReadingForm() || getStoredReadingForm();
+    if (!formPayload) {
+      setForecastDetailError("保存済みの出生情報がないため、詳細データを取得できません。");
+      return;
+    }
+    const params = new URLSearchParams({ year: String(activeYear), scope });
+    if (scope === "day") params.set("date", dateKey(options.date));
+    if (scope === "month") params.set("month", String(Number(options.month)));
+    forecastDetailRequestsRef.current.add(detailKey);
+    setForecastDetailLoadingKeys((current) => new Set([...current, detailKey]));
+    setForecastDetailError("");
+    try {
+      const detail = await postJson(`/api/yearly-forecast/detail?${params.toString()}`, formPayload);
+      setForecast((current) => mergeYearlyForecastDetail(current, detail));
+    } catch (error) {
+      setForecastDetailError(readableErrorMessage(error, "年間予測の詳細取得に失敗しました。"));
+    } finally {
+      forecastDetailRequestsRef.current.delete(detailKey);
+      setForecastDetailLoadingKeys((current) => {
+        const next = new Set(current);
+        next.delete(detailKey);
+        return next;
+      });
+    }
+  }, [activeYear]);
+  const requestForecastDayDetail = React.useCallback((value) => {
+    requestForecastDetail("day", { date: value });
+  }, [requestForecastDetail]);
+  useEffect(() => {
+    if (!forecast || activeUnifiedView !== "monthly") return;
+    const month = selectedMonthlyMonthIndex + 1;
+    if (!yearlyMonthDetailLoaded(forecast, month)) {
+      requestForecastDetail("month", { month });
+    }
+  }, [activeUnifiedView, forecast, requestForecastDetail, selectedMonthlyMonthIndex]);
+  useEffect(() => {
+    if (!forecast || activeUnifiedView !== "annual" || yearlyAnnualDetailLoaded(forecast)) return;
+    requestForecastDetail("annual");
+  }, [activeUnifiedView, forecast, requestForecastDetail]);
   const annualTransitDays = useMemo(
     () => dailyDataForYear(forecast, activeYear),
     [forecast, activeYear]
   );
   const [selectedAnnualDayIndex, setSelectedAnnualDayIndex] = useState(() => realtimeDayIndex(annualTransitDays));
+  const annualTransitDateRange = `${dateKey(annualTransitDays[0]?.date)}:${dateKey(annualTransitDays[annualTransitDays.length - 1]?.date)}:${annualTransitDays.length}`;
   useEffect(() => {
     setSelectedAnnualDayIndex(realtimeDayIndex(annualTransitDays));
-  }, [annualTransitDays]);
+  }, [annualTransitDateRange]);
   const annualTransitDayIndex = clamp(selectedAnnualDayIndex, 0, Math.max(0, annualTransitDays.length - 1));
   const dailyDetailData = useMemo(() => {
     const storedPayload = readingPayload || {};
@@ -8796,6 +8991,7 @@ function ForecastDetailPage() {
     const hasStoredDashboard = Boolean(storedPayload.dashboard_data || storedPayload.dashboardData);
     return {
       ...sourceDashboard,
+      is_loading: !readingStorageHydrated || (needsDeferredWidgets && deferredContentLoading),
       readings: storedPayload.readings || sourceDashboard.readings || [],
       meta: storedPayload.meta || sourceDashboard.meta || {},
       chart_data: storedPayload.chart_data || storedPayload.chartData || sourceDashboard.chart_data || {},
@@ -8811,7 +9007,7 @@ function ForecastDetailPage() {
             )
           : "",
     };
-  }, [forecast, readingPayload]);
+  }, [deferredContentLoading, forecast, needsDeferredWidgets, readingPayload, readingStorageHydrated]);
   const handleRefreshLatest = async () => {
     if (!versionState.isOutdated || refreshingLatest) {
       return;
@@ -8935,6 +9131,11 @@ function ForecastDetailPage() {
             {deferredContentError}
           </div>
         ) : null}
+        {forecastDetailError ? (
+          <div className="rounded-2xl border border-[#ffb4ab]/30 bg-[#3a1d1d]/45 px-4 py-3 text-xs leading-6 text-[#ffb4ab] sm:text-sm">
+            {forecastDetailError}
+          </div>
+        ) : null}
         {deferredContentLoading ? (
           <GlassPanel className="p-4 text-center font-mono text-xs font-bold uppercase tracking-[0.18em] text-mist">
             年間予測と追加ウィジェットを読み込み中...
@@ -8964,6 +9165,8 @@ function ForecastDetailPage() {
             onOpenYearDialog={() => setYearDialogOpen(true)}
             activeUnifiedView={activeUnifiedView}
             setActiveUnifiedView={setActiveUnifiedView}
+            detailLoadingKeys={forecastDetailLoadingKeys}
+            onRequestDayDetail={requestForecastDayDetail}
           />
         ) : null}
         {activeView === "horoscope" ? (
