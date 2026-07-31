@@ -1759,7 +1759,7 @@ class ApiTestCase(unittest.TestCase):
         )
         self.assertEqual(len(dashboard["countdown_groups"]["legacy_short"]), 3)
         self.assertEqual(len(dashboard["countdown_groups"]["legacy_long"]), 3)
-        self.assertEqual(len(dashboard["pressure_countdown_items"]), 5)
+        self.assertEqual(len(dashboard["pressure_countdown_items"]), 6)
         self.assertEqual(dashboard["pressure_countdown_items"], dashboard["countdown_groups"]["pressure"])
         self.assertTrue(
             all(item["countdown_mode"] == "departure" for item in dashboard["pressure_countdown_items"])
@@ -1777,6 +1777,7 @@ class ApiTestCase(unittest.TestCase):
                 ("TRANSIT_MOON", "NATAL_SUN", 180),
                 ("TRANSIT_MERCURY", "NATAL_MOON", 90),
                 ("TRANSIT_MOON", "NATAL_MOON", 90),
+                ("TRANSIT_VENUS", "NATAL_MOON", 90),
                 ("TRANSIT_SATURN", "NATAL_MOON", 90),
                 ("TRANSIT_URANUS", "NATAL_MOON", 90),
             ],
@@ -1842,18 +1843,43 @@ class ApiTestCase(unittest.TestCase):
             [],
         )
 
+    def test_pressure_load_summary_separates_short_and_long_comments(self):
+        summary = reading_service._pressure_load_group_summary([
+            {"target": {"T_Planet": "TRANSIT_MOON"}, "pressure_score": -50},
+            {"target": {"T_Planet": "TRANSIT_MERCURY"}, "pressure_score": -40},
+            {"target": {"T_Planet": "TRANSIT_SATURN"}, "pressure_score": -25},
+        ])
+
+        self.assertEqual(summary["groups"]["short"]["loadScore"], 90)
+        self.assertEqual(summary["groups"]["short"]["level"], "high")
+        self.assertEqual(summary["groups"]["long"]["loadScore"], 25)
+        self.assertEqual(summary["groups"]["long"]["level"], "moderate")
+        self.assertIn("短期側に集中", summary["overallComment"])
+
     def test_pressure_countdown_uses_stricter_neptune_threshold(self):
+        self.assertFalse(reading_service._is_pressure_countdown_target({
+            "T_Planet": "TRANSIT_MERCURY",
+            "N_Planet": "NATAL_MOON",
+            "Aspect_Angle": 90,
+            "Pressure_Score": -21,
+        }))
+        self.assertTrue(reading_service._is_pressure_countdown_target({
+            "T_Planet": "TRANSIT_MERCURY",
+            "N_Planet": "NATAL_MOON",
+            "Aspect_Angle": 90,
+            "Pressure_Score": -22,
+        }))
         self.assertFalse(reading_service._is_pressure_countdown_target({
             "T_Planet": "TRANSIT_NEPTUNE",
             "N_Planet": "NATAL_MOON",
             "Aspect_Angle": 120,
-            "Pressure_Score": -29,
+            "Pressure_Score": -27,
         }))
         self.assertTrue(reading_service._is_pressure_countdown_target({
             "T_Planet": "TRANSIT_NEPTUNE",
             "N_Planet": "NATAL_MOON",
             "Aspect_Angle": 90,
-            "Pressure_Score": -30,
+            "Pressure_Score": -28,
         }))
         self.assertTrue(reading_service._is_pressure_countdown_target({
             "T_Planet": "TRANSIT_SATURN",

@@ -184,8 +184,8 @@ PRESSURE_COUNTDOWN_TRANSIT_PLANETS = {
     "MOON", "SUN", "MERCURY", "VENUS", "MARS",
     "SATURN", "URANUS", "NEPTUNE", "PLUTO",
 }
-PRESSURE_COUNTDOWN_SCORE_THRESHOLD = -25
-PRESSURE_COUNTDOWN_PLANET_THRESHOLDS = {"NEPTUNE": -30}
+PRESSURE_COUNTDOWN_SCORE_THRESHOLD = -22
+PRESSURE_COUNTDOWN_PLANET_THRESHOLDS = {"NEPTUNE": -28}
 PERSONAL_READING_TRANSIT_PLANETS = {"MOON", "MERCURY", "VENUS", "MARS"}
 COUNTDOWN_PRIORITY_BANDS = {
     "high": {"label": "高", "min": 8, "max": None},
@@ -3040,6 +3040,61 @@ def _pressure_load_summary(items: list[dict[str, Any]]) -> dict[str, Any]:
     }
 
 
+def _pressure_load_group_summary(items: list[dict[str, Any]]) -> dict[str, Any]:
+    """Return separate short/long pressure comments without changing the legacy total."""
+    groups = {
+        "short": {"label": "短期", "planets": COUNTDOWN_SHORT_PLANETS},
+        "long": {"label": "中長期", "planets": COUNTDOWN_LONG_PLANETS},
+    }
+    result: dict[str, Any] = {}
+    for key, group in groups.items():
+        group_items = []
+        for item in items:
+            target = item.get("target") if isinstance(item.get("target"), dict) else item
+            if _normalize_planet(target.get("T_Planet")) in group["planets"]:
+                group_items.append(item)
+        scores = []
+        for item in group_items:
+            target = item.get("target") if isinstance(item.get("target"), dict) else item
+            score = item.get("pressure_score", item.get("pressureScore"))
+            if score is None:
+                score = target.get("Pressure_Score")
+            scores.append(abs(_normalize_float(score) or 0))
+        load_score = round(sum(scores))
+        if load_score >= 80:
+            level = "high"
+            comment = f"{group['label']}の負荷が重なっています。予定を詰め込みすぎず、回復の余白を確保してください。"
+        elif load_score > 0:
+            level = "moderate"
+            comment = f"{group['label']}に軽〜中程度の負荷があります。優先順位を絞って進めてください。"
+        else:
+            level = "low"
+            comment = f"{group['label']}の強い負荷は目立ちません。通常のペースで問題ありません。"
+        result[key] = {
+            "label": group["label"],
+            "loadScore": load_score,
+            "itemCount": len(group_items),
+            "level": level,
+            "comment": comment,
+        }
+
+    short_level = result["short"]["level"]
+    long_level = result["long"]["level"]
+    if short_level == "high" and long_level == "high":
+        overall_comment = "短期と中長期の両方で高い負荷が重なっています。新しい予定を増やさず、まず回復を優先してください。"
+    elif short_level == "high":
+        overall_comment = "高い負荷は短期側に集中しています。目の前の予定を小分けにして、短い休息を挟んでください。"
+    elif long_level == "high":
+        overall_comment = "高い負荷は中長期側に集中しています。先を急いで結論を出さず、長期の課題を分割して扱ってください。"
+    elif short_level == "low" and long_level == "low":
+        overall_comment = "短期・中長期ともに強い負荷はあまりありません。通常のペースで整えていけます。"
+    elif short_level == "moderate" and long_level == "moderate":
+        overall_comment = "短期と中長期の両方に負荷があります。無理を一つに絞り、余白を残して進めてください。"
+    else:
+        overall_comment = "負荷は一方に偏っています。短期と中長期のどちらに余力が必要かを確認して調整してください。"
+    return {"groups": result, "overallComment": overall_comment}
+
+
 def _birth_input_cache_key(birth_input: BirthInput) -> tuple[Any, ...]:
     return (
         birth_input.birth_date,
@@ -4655,6 +4710,7 @@ def build_dashboard_data_from_interpretations(
     _attach_pressure_timeline_advise(pressure_countdown_candidates, timeline_advise_lookup)
     pressure_countdown_items = _select_pressure_countdown_items(pressure_countdown_candidates, pressure_score_lookup)
     pressure_load_summary = _pressure_load_summary(pressure_countdown_items)
+    pressure_load_summary.update(_pressure_load_group_summary(pressure_countdown_items))
     short_countdown_group = [*short_countdown_items, *short_negative_countdown_items]
     long_countdown_group = [*long_countdown_all_items, *long_negative_countdown_items]
     long_countdown_priority_groups = _countdown_priority_band_groups(long_countdown_group)

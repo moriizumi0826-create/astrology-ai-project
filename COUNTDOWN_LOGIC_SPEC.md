@@ -32,11 +32,14 @@
 - `Aspect_Angle`: アスペクト角度
 - `Orb_Status`: `Applying` または `Separating`
 - `Score_Impact`: ポジティブ、ネガティブの判定に使う
+- `Pressure_Score`: 「負荷が抜けるまで」で精神的な圧迫・混乱・焦燥・消耗を選別する
 - `Priority`: 同一候補内の優先度
 - `Countdown_ID`: `M_Countdown_Master.Trigger_ID` と対応する
 - `Countdown_Label`: Master未ヒット時などの補助ラベル
 
 `Score_Impact` は必ず明示するのが望ましいです。空欄の場合、バックエンドがフォールバック計算で補いますが、CSV上の意図と実行時の候補がズレる原因になります。
+
+`Pressure_Score` は日別パフォーマンスの強さや `Score_Impact` の代替ではありません。同じ `T_Planet / N_Planet / Aspect_Angle` の代表行に保持し、ハウス、エレメント、逆行状態をまたいで共通利用します。
 
 ### M_Countdown_Master
 
@@ -122,6 +125,19 @@ Orb_Status in Applying, Separating
 ポジティブ候補は、スコアと優先度で多めに抽出してから実際の日数をscanします。表示時は `days_remaining > 0` の候補を優先し、次に `exact` の0日、最後にピーク通過済みの0日を使います。これにより、未来候補があるのに `turning_away / 0日` ばかりで埋まる状態を避けます。
 
 ネガティブ候補は departure モードで計算し、`scan_status == "departing"` のものだけを表示します。
+
+### 「負荷が抜けるまで」の追加選別
+
+「負荷が抜けるまで」は、デイリーパフォーマンスに出る負荷アスペクトを網羅する場所ではありません。自分のメンタルへ重く影響しやすい、精神的な圧迫・混乱・焦燥・消耗が継続するアスペクトだけを表示します。
+
+表示対象は `Pressure_Score` で追加選別します。
+
+```text
+通常: Pressure_Score <= -22
+Transit Neptune: Pressure_Score <= -28
+```
+
+木星はこの精神的負荷カウントダウンの対象外です。`Score_Impact` の絶対値が大きいことだけを理由に `Pressure_Score` を下げたり、表示対象へ追加したりしません。
 
 ## arrival モード
 

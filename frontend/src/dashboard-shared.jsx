@@ -1664,6 +1664,8 @@ function PressureCountdownList({
   const summaryHeadline = String(summary?.headline || "").trim();
   const summaryGuidance = String(summary?.restGuidance || summary?.rest_guidance || "").trim();
   const summaryScore = Number(summary?.loadScore ?? summary?.load_score);
+  const groupSummaries = summary?.groups && typeof summary.groups === "object" ? summary.groups : {};
+  const overallComment = String(summary?.overallComment || summary?.overall_comment || "").trim();
   const summaryBlock = summaryHeadline ? (
     <article className="rounded-lg border border-[#e9c349]/25 bg-[#e9c349]/10 p-3">
       <div className="flex items-start justify-between gap-3">
@@ -1685,6 +1687,29 @@ function PressureCountdownList({
         <p className="mt-2 text-[11px] font-bold leading-5 text-[#c7c6cc]">
           {summaryGuidance}
         </p>
+      ) : null}
+      {overallComment ? (
+        <p className="mt-2 border-l border-[#e9c349]/40 pl-2 text-[11px] font-bold leading-5 text-[#f3e5ae]">
+          {overallComment}
+        </p>
+      ) : null}
+      {Object.keys(groupSummaries).length ? (
+        <div className="mt-3 grid gap-2 sm:grid-cols-2">
+          {["short", "long"].map((key) => {
+            const group = groupSummaries[key];
+            if (!group) return null;
+            const score = Number(group.loadScore ?? group.load_score);
+            return (
+              <div key={key} className="rounded border border-white/10 bg-black/10 p-2">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-[10px] font-black text-[#e9c349]">{group.label || key}</span>
+                  {Number.isFinite(score) ? <span className="font-mono text-[10px] text-[#c7c6cc]">負荷 {score}</span> : null}
+                </div>
+                {group.comment ? <p className="mt-1 text-[10px] font-bold leading-4 text-[#c7c6cc]">{group.comment}</p> : null}
+              </div>
+            );
+          })}
+        </div>
       ) : null}
     </article>
   ) : null;
