@@ -4,6 +4,7 @@ from datetime import date, datetime, time, timezone
 
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
+from starlette.middleware.gzip import GZipMiddleware
 
 from backend.app.schemas import LocationSearchResponse, ReadingRequest, TransitChartRequest
 from backend.app.services import geocoding_service, reading_service, yearly_forecast_service
@@ -12,6 +13,7 @@ from backend.app.settings import settings
 
 app = FastAPI(title="Celestial Atelier API", version="0.1.0")
 
+app.add_middleware(GZipMiddleware, minimum_size=1000)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.api_cors_origins,

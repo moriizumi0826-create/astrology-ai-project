@@ -8,8 +8,10 @@ import pandas as pd
 from fastapi.encoders import jsonable_encoder
 from fastapi import HTTPException
 from pydantic import ValidationError
+from starlette.middleware.gzip import GZipMiddleware
 
 from backend.app.main import (
+    app,
     create_deferred_reading_widgets,
     create_reading,
     create_yearly_forecast,
@@ -49,6 +51,16 @@ class ApiTestCase(unittest.TestCase):
 
     def test_health_check(self):
         self.assertEqual(health_check(), {"status": "ok"})
+
+    def test_large_responses_enable_gzip_middleware(self):
+        gzip_middleware = [
+            middleware
+            for middleware in app.user_middleware
+            if middleware.cls is GZipMiddleware
+        ]
+
+        self.assertEqual(len(gzip_middleware), 1)
+        self.assertEqual(gzip_middleware[0].kwargs["minimum_size"], 1000)
 
     def test_master_version_returns_version_payload(self):
         response = master_version()

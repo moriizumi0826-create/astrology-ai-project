@@ -1714,8 +1714,23 @@ def _generate_yearly_forecast_uncached(
         planet="MARS",
     )
 
+    yearly_summary = build_yearly_summary(yearly_data)
+    # These fields are required while assembling scores and period summaries,
+    # but the frontend uses their compact top-level replacements.  Keeping
+    # them on all 365 days makes the response tens of megabytes larger.
+    internal_daily_keys = {
+        "monthly_peak",
+        "jupiter_aspects",
+        "saturn_aspects",
+        "sun_aspects",
+        "mars_aspects",
+    }
+    for day_forecast in yearly_data:
+        for key in internal_daily_keys:
+            day_forecast.pop(key, None)
+
     return {
-        "summary": build_yearly_summary(yearly_data),
+        "summary": yearly_summary,
         "aspect_genre_description_schema": ASPECT_GENRE_DESCRIPTION_SCHEMA_VERSION,
         "aspect_genre_applicability_schema": ASPECT_GENRE_APPLICABILITY_SCHEMA_VERSION,
         "aspect_genre_score_schema": ASPECT_GENRE_SCORE_SCHEMA_VERSION,

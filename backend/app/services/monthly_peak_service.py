@@ -496,7 +496,10 @@ def aggregate_daily_peak_categories(
             }
             result[category]["activation"] += activation
             result[category]["caution"] += caution
-            result[category]["matched_rules"].append(match)
+            # House-stay rules affect the score every day, but their verbose
+            # match metadata is internal and would bloat the annual response.
+            if _normalise(event.get("transit_state")) != "STAY":
+                result[category]["matched_rules"].append(match)
 
     for category in CATEGORY_KEYS:
         data = result[category]

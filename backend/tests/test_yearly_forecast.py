@@ -833,10 +833,11 @@ class YearlyForecastTestCase(unittest.TestCase):
         self.assertEqual(forecast["aspect_genre_score_schema"], 4)
         first_day = forecast["yearly_data"][0]
         self.assertTrue({"total", "work", "love", "money", "general"}.issubset(first_day["scores"]))
-        self.assertEqual(
-            set(first_day["monthly_peak"]),
-            {"general_health", "work", "love", "money"},
-        )
+        self.assertNotIn("monthly_peak", first_day)
+        self.assertNotIn("jupiter_aspects", first_day)
+        self.assertNotIn("saturn_aspects", first_day)
+        self.assertNotIn("sun_aspects", first_day)
+        self.assertNotIn("mars_aspects", first_day)
         self.assertEqual(
             set(forecast["monthly_peak_periods"]),
             {"general_health", "work", "love", "money"},
