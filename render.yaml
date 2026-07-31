@@ -10,3 +10,5 @@ services:
         value: 3.12.9
       - key: API_CORS_ORIGINS
         value: https://moriizumi0826-create.github.io
+      - key: API_PUBLIC_CORS_ORIGINS
+        value: https://moriizumi0826-create.github.io

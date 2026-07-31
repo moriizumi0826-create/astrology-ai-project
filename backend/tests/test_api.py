@@ -38,11 +38,31 @@ from backend.app.services.yearly_forecast_service import (
     build_yearly_forecast_cache_payload,
 )
 from backend.app.schemas import ReadingMeta, ReadingRequest, ReadingResponse, ReadingSection
+from backend.app.settings import Settings
 from scripts.natal_loader import build_natal_chart_data
 from scripts.transit_loader import load_transit_support_data
 
 
 class ApiTestCase(unittest.TestCase):
+    def test_cors_settings_keep_configured_and_public_origins(self):
+        with patch.dict(
+            "os.environ",
+            {
+                "API_CORS_ORIGINS": "http://localhost:5173,https://example.com",
+                "API_PUBLIC_CORS_ORIGINS": "https://moriizumi0826-create.github.io,https://example.com",
+            },
+        ):
+            configured = Settings()
+
+        self.assertEqual(
+            configured.api_cors_origins,
+            [
+                "http://localhost:5173",
+                "https://example.com",
+                "https://moriizumi0826-create.github.io",
+            ],
+        )
+
     def test_root(self):
         self.assertEqual(
             root(),

@@ -8,6 +8,8 @@ from dotenv import load_dotenv
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 load_dotenv(PROJECT_ROOT / ".env")
 
+DEFAULT_PUBLIC_CORS_ORIGINS = "https://moriizumi0826-create.github.io"
+
 
 @dataclass
 class Settings:
@@ -23,7 +25,14 @@ class Settings:
             "API_CORS_ORIGINS",
             "http://localhost:5173,http://127.0.0.1:5173,http://localhost:5174,http://127.0.0.1:5174",
         )
-        self.api_cors_origins = [item.strip() for item in origins.split(",") if item.strip()]
+        public_origins = os.getenv("API_PUBLIC_CORS_ORIGINS", DEFAULT_PUBLIC_CORS_ORIGINS)
+        self.api_cors_origins = list(
+            dict.fromkeys(
+                item.strip()
+                for item in f"{origins},{public_origins}".split(",")
+                if item.strip()
+            )
+        )
 
 
 settings = Settings()
