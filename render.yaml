@@ -8,3 +8,5 @@ services:
     envVars:
       - key: PYTHON_VERSION
         value: 3.12.9
+      - key: API_CORS_ORIGINS
+        value: https://moriizumi0826-create.github.io
