@@ -186,6 +186,10 @@ PRESSURE_COUNTDOWN_TRANSIT_PLANETS = {
 }
 PRESSURE_COUNTDOWN_SCORE_THRESHOLD = -22
 PRESSURE_COUNTDOWN_PLANET_THRESHOLDS = {"NEPTUNE": -28}
+PRESSURE_LOAD_GROUP_THRESHOLDS = {
+    "short": {"moderate": 60, "high": 160},
+    "long": {"moderate": 160, "high": 400},
+}
 PERSONAL_READING_TRANSIT_PLANETS = {"MOON", "MERCURY", "VENUS", "MARS"}
 COUNTDOWN_PRIORITY_BANDS = {
     "high": {"label": "高", "min": 8, "max": None},
@@ -3034,10 +3038,18 @@ def _pressure_load_summary(items: list[dict[str, Any]]) -> dict[str, Any]:
 
 
 def _pressure_load_group_summary(items: list[dict[str, Any]]) -> dict[str, Any]:
-    """Return separate short/long pressure comments without changing the legacy total."""
+    """Return independently calibrated short/long pressure levels and an overall message."""
     groups = {
-        "short": {"label": "短期", "planets": COUNTDOWN_SHORT_PLANETS},
-        "long": {"label": "中長期", "planets": COUNTDOWN_LONG_PLANETS},
+        "short": {
+            "label": "短期",
+            "planets": COUNTDOWN_SHORT_PLANETS,
+            "thresholds": PRESSURE_LOAD_GROUP_THRESHOLDS["short"],
+        },
+        "long": {
+            "label": "中長期",
+            "planets": COUNTDOWN_LONG_PLANETS,
+            "thresholds": PRESSURE_LOAD_GROUP_THRESHOLDS["long"],
+        },
     }
     result: dict[str, Any] = {}
     for key, group in groups.items():
@@ -3054,10 +3066,10 @@ def _pressure_load_group_summary(items: list[dict[str, Any]]) -> dict[str, Any]:
                 score = target.get("Pressure_Score")
             scores.append(abs(_normalize_float(score) or 0))
         load_score = round(sum(scores))
-        if load_score >= 80:
+        if load_score >= group["thresholds"]["high"]:
             level = "high"
             comment = f"{group['label']}の負荷が重なっています。予定を詰め込みすぎず、回復の余白を確保してください。"
-        elif load_score > 0:
+        elif load_score >= group["thresholds"]["moderate"]:
             level = "moderate"
             comment = f"{group['label']}に軽〜中程度の負荷があります。優先順位を絞って進めてください。"
         else:
@@ -4702,8 +4714,7 @@ def build_dashboard_data_from_interpretations(
     _attach_pressure_timeline_advise(long_negative_countdown_items, timeline_advise_lookup)
     _attach_pressure_timeline_advise(pressure_countdown_candidates, timeline_advise_lookup)
     pressure_countdown_items = _select_pressure_countdown_items(pressure_countdown_candidates, pressure_score_lookup)
-    pressure_load_summary = _pressure_load_summary(pressure_countdown_items)
-    pressure_load_summary.update(_pressure_load_group_summary(pressure_countdown_items))
+    pressure_load_summary = _pressure_load_group_summary(pressure_countdown_items)
     short_countdown_group = [*short_countdown_items, *short_negative_countdown_items]
     long_countdown_group = [*long_countdown_all_items, *long_negative_countdown_items]
     long_countdown_priority_groups = _countdown_priority_band_groups(long_countdown_group)

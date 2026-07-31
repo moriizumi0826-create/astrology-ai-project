@@ -1794,6 +1794,7 @@ class ApiTestCase(unittest.TestCase):
         self.assertEqual(len(dashboard["countdown_groups"]["legacy_long"]), 3)
         self.assertEqual(len(dashboard["pressure_countdown_items"]), 6)
         self.assertEqual(dashboard["pressure_countdown_items"], dashboard["countdown_groups"]["pressure"])
+        self.assertNotIn("loadScore", dashboard["pressure_load_summary"])
         self.assertTrue(
             all(item["countdown_mode"] == "departure" for item in dashboard["pressure_countdown_items"])
         )
@@ -1876,17 +1877,31 @@ class ApiTestCase(unittest.TestCase):
             [],
         )
 
-    def test_pressure_load_summary_separates_short_and_long_comments(self):
-        summary = reading_service._pressure_load_group_summary([
-            {"target": {"T_Planet": "TRANSIT_MOON"}, "pressure_score": -50},
-            {"target": {"T_Planet": "TRANSIT_MERCURY"}, "pressure_score": -40},
-            {"target": {"T_Planet": "TRANSIT_SATURN"}, "pressure_score": -25},
-        ])
+    def test_pressure_load_summary_uses_separate_short_and_long_thresholds(self):
+        cases = [
+            ("short", "TRANSIT_MOON", 59, "low"),
+            ("short", "TRANSIT_MOON", 60, "moderate"),
+            ("short", "TRANSIT_MOON", 159, "moderate"),
+            ("short", "TRANSIT_MOON", 160, "high"),
+            ("long", "TRANSIT_SATURN", 159, "low"),
+            ("long", "TRANSIT_SATURN", 160, "moderate"),
+            ("long", "TRANSIT_SATURN", 399, "moderate"),
+            ("long", "TRANSIT_SATURN", 400, "high"),
+        ]
 
-        self.assertEqual(summary["groups"]["short"]["loadScore"], 90)
-        self.assertEqual(summary["groups"]["short"]["level"], "high")
-        self.assertEqual(summary["groups"]["long"]["loadScore"], 25)
-        self.assertEqual(summary["groups"]["long"]["level"], "moderate")
+        for group, planet, score, expected_level in cases:
+            with self.subTest(group=group, score=score):
+                summary = reading_service._pressure_load_group_summary([
+                    {"target": {"T_Planet": planet}, "pressure_score": -score},
+                ])
+                self.assertEqual(summary["groups"][group]["loadScore"], score)
+                self.assertEqual(summary["groups"][group]["level"], expected_level)
+                self.assertNotIn("loadScore", summary)
+
+        summary = reading_service._pressure_load_group_summary([
+            {"target": {"T_Planet": "TRANSIT_MOON"}, "pressure_score": -160},
+            {"target": {"T_Planet": "TRANSIT_SATURN"}, "pressure_score": -159},
+        ])
         self.assertIn("短期側に集中", summary["overallComment"])
 
     def test_pressure_countdown_uses_stricter_neptune_threshold(self):

@@ -1661,35 +1661,15 @@ function PressureCountdownList({
   differentiateDeparture = false,
 }) {
   const visibleItems = Array.isArray(items) ? items : [];
-  const summaryHeadline = String(summary?.headline || "").trim();
-  const summaryGuidance = String(summary?.restGuidance || summary?.rest_guidance || "").trim();
-  const summaryScore = Number(summary?.loadScore ?? summary?.load_score);
   const groupSummaries = summary?.groups && typeof summary.groups === "object" ? summary.groups : {};
   const overallComment = String(summary?.overallComment || summary?.overall_comment || "").trim();
-  const summaryBlock = summaryHeadline ? (
+  const summaryBlock = overallComment || Object.keys(groupSummaries).length ? (
     <article className="rounded-lg border border-[#e9c349]/25 bg-[#e9c349]/10 p-3">
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <p className="font-mono text-[10px] font-black uppercase tracking-[0.16em] text-[#e9c349]">
-            Pressure Load
-          </p>
-          <h3 className="mt-1 font-notoSerif text-base font-black leading-6 text-[#f3f3f0]">
-            {summaryHeadline}
-          </h3>
-        </div>
-        {Number.isFinite(summaryScore) ? (
-          <p className="shrink-0 font-mono text-lg font-black leading-none text-[#e9c349]">
-            {summaryScore}
-          </p>
-        ) : null}
-      </div>
-      {summaryGuidance ? (
-        <p className="mt-2 text-[11px] font-bold leading-5 text-[#c7c6cc]">
-          {summaryGuidance}
-        </p>
-      ) : null}
+      <p className="font-mono text-[10px] font-black uppercase tracking-[0.16em] text-[#e9c349]">
+        Pressure Load
+      </p>
       {overallComment ? (
-        <p className="mt-2 border-l border-[#e9c349]/40 pl-2 text-[11px] font-bold leading-5 text-[#f3e5ae]">
+        <p className="mt-2 text-[11px] font-bold leading-5 text-[#f3e5ae]">
           {overallComment}
         </p>
       ) : null}
