@@ -159,15 +159,18 @@ function formatIsoDate(value) {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
 }
 
-function dashboardDisplayDate(data = {}) {
-  const date = formatIsoDate(
+function dashboardDataDate(data = {}) {
+  return formatIsoDate(
     data.readingDate ||
       data.reading_date ||
       data.date ||
       data.meta?.reading_date ||
       data.meta?.date
   );
-  return date || currentTokyoDate();
+}
+
+function dashboardDisplayDate(data = {}) {
+  return dashboardDataDate(data) || currentTokyoDate();
 }
 
 function addDaysToIsoDate(value, days) {
@@ -203,7 +206,7 @@ async function postDashboardJson(path, payload) {
   return response.json();
 }
 
-function dashboardDataFromReadingPayload(payload, fallbackData = {}) {
+function dashboardDataFromReadingPayload(payload, fallbackData = {}, requestedDate = "") {
   if (!payload?.dashboard_data) return null;
   const yearlyForecast = payload.yearly_forecast || payload.yearlyForecast || fallbackData.yearly_forecast || fallbackData.yearlyForecast || null;
   return {
@@ -215,10 +218,13 @@ function dashboardDataFromReadingPayload(payload, fallbackData = {}) {
     reading_date:
       payload.dashboard_data.reading_date ||
       payload.dashboard_data.readingDate ||
-      fallbackData.reading_date ||
-      fallbackData.readingDate ||
+      payload.reading_date ||
+      payload.readingDate ||
       payload.meta?.reading_date ||
       payload.meta?.date ||
+      formatIsoDate(requestedDate) ||
+      fallbackData.reading_date ||
+      fallbackData.readingDate ||
       fallbackData.meta?.reading_date ||
       fallbackData.meta?.date,
   };
@@ -931,6 +937,17 @@ function isDepartureCountdown(slide) {
   return mode === "departure" || scanStatus === "departing";
 }
 
+function pressureImpactHasEnded(item, displayDate) {
+  const impactEnd = dateKeyToLocalDate(
+    item?.impact_end_date ||
+      item?.impactEndDate ||
+      item?.scan?.impact_end_date ||
+      item?.scan?.impactEndDate
+  );
+  const activeDate = dateKeyToLocalDate(displayDate);
+  return Boolean(impactEnd && activeDate && impactEnd.getTime() < activeDate.getTime());
+}
+
 function pressureCountdownItems(data, groups, displayDate) {
   const explicitItems = [
     ...(Array.isArray(data?.pressure_countdown_items) ? data.pressure_countdown_items : []),
@@ -944,6 +961,7 @@ function pressureCountdownItems(data, groups, displayDate) {
   ];
   const rawItems = (explicitItems.length ? explicitItems : fallbackItems).filter((item) => {
     if (!item || !isPressureCountdown(item)) return false;
+    if (pressureImpactHasEnded(item, displayDate)) return false;
     const daysUntil = countdownDaysUntil(item, displayDate);
     if (item.countdown_unavailable || item.countdownUnavailable || item.impact_end_is_after || item.impactEndIsAfter) return true;
     return daysUntil !== null && daysUntil >= 0 && daysUntil <= 365;
@@ -3855,7 +3873,7 @@ export function DashboardDailyDetailContentLayer({ data = dashboardData, classNa
 
 function DashboardDailyDetailLayerBase({ data = dashboardData, className = "", insightVariant = "monthly" }) {
   const [activeDailyData, setActiveDailyData] = useState(data);
-  const [selectedDailyDate, setSelectedDailyDate] = useState(() => dashboardDisplayDate(data));
+  const [selectedDailyDate, setSelectedDailyDate] = useState(() => currentTokyoDate());
   const [isDailyDateLoading, setIsDailyDateLoading] = useState(false);
   const [dailyDateError, setDailyDateError] = useState("");
   const [focusedAspect, setFocusedAspect] = useState(null);
@@ -3864,18 +3882,23 @@ function DashboardDailyDetailLayerBase({ data = dashboardData, className = "", i
   const displayDate = selectedDailyDate || dashboardDisplayDate(activeDailyData);
 
   useEffect(() => {
-    const nextDate = dashboardDisplayDate(data);
+    const today = currentTokyoDate();
+    const sourceDate = dashboardDataDate(data);
+    const nextDate = sourceDate === today ? sourceDate : today;
     setActiveDailyData(data);
     setSelectedDailyDate(nextDate);
     setFocusedAspect(null);
-    if (nextDate) {
+    if (nextDate && sourceDate === nextDate) {
       dailyDataCacheRef.current.set(nextDate, data);
+    } else if (nextDate) {
+      dailyDataCacheRef.current.delete(nextDate);
     }
   }, [data]);
 
   useEffect(() => {
     const targetDate = selectedDailyDate || dashboardDisplayDate(activeDailyData);
-    if (!targetDate || hasWeeklyAspectFeed(activeDailyData)) return;
+    const activeDataDate = dashboardDataDate(activeDailyData);
+    if (!targetDate || (activeDataDate === targetDate && hasWeeklyAspectFeed(activeDailyData))) return;
 
     const formPayload = getStoredReadingForm();
     if (!formPayload) return;
@@ -3890,7 +3913,7 @@ function DashboardDailyDetailLayerBase({ data = dashboardData, className = "", i
     })
       .then((payload) => {
         if (dailyDateRequestIdRef.current !== requestId) return;
-        const nextData = dashboardDataFromReadingPayload(payload, data);
+        const nextData = dashboardDataFromReadingPayload(payload, data, targetDate);
         if (nextData) {
           dailyDataCacheRef.current.set(targetDate, nextData);
           setActiveDailyData(nextData);
@@ -3935,7 +3958,7 @@ function DashboardDailyDetailLayerBase({ data = dashboardData, className = "", i
         target_date: nextDate,
       });
       if (dailyDateRequestIdRef.current !== requestId) return;
-      const nextData = dashboardDataFromReadingPayload(payload, data);
+      const nextData = dashboardDataFromReadingPayload(payload, data, nextDate);
       if (nextData) {
         dailyDataCacheRef.current.set(nextDate, nextData);
         setActiveDailyData(nextData);

@@ -4593,6 +4593,7 @@ def build_dashboard_data_from_interpretations(
     daily_star_vibe = get_daily_star_vibe_description(current_dt)
     if not interpretations:
         dashboard_data = {
+            "reading_date": _dashboard_date(current_dt),
             "header": _dashboard_header(),
             "dailyStarVibe": daily_star_vibe,
             "aspectHighlights": {"positive": [], "negative": []},
@@ -4749,6 +4750,7 @@ def build_dashboard_data_from_interpretations(
     )
     aspect_highlights = _top_daily_aspect_highlights(interpretations, current_dt=current_dt)
     dashboard_data = {
+        "reading_date": _dashboard_date(current_dt),
         "header": _dashboard_header(),
         "dailyStarVibe": daily_star_vibe,
         "aspectHighlights": aspect_highlights,

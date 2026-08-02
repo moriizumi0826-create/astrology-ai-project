@@ -540,9 +540,11 @@ class ApiTestCase(unittest.TestCase):
                     "orb_status": "Applying",
                 },
             ],
+            current_dt=datetime(2026, 8, 3, 12, 0),
             retrograde_planets=["MERCURY"],
         )
 
+        self.assertEqual(dashboard_data["reading_date"], "2026-08-03")
         self.assertEqual(len(dashboard_data["aspect_interpretations"]), 3)
         self.assertEqual(dashboard_data["daily_vibe"]["modifier"], -20)
         self.assertTrue(dashboard_data["dailyStarVibe"])
@@ -2171,8 +2173,12 @@ class ApiTestCase(unittest.TestCase):
                 )
 
     def test_dashboard_data_falls_back_to_calm_day_without_aspects(self):
-        dashboard_data = build_dashboard_data_from_aspects(aspects=[])
+        dashboard_data = build_dashboard_data_from_aspects(
+            aspects=[],
+            current_dt=datetime(2026, 8, 3, 12, 0),
+        )
 
+        self.assertEqual(dashboard_data["reading_date"], "2026-08-03")
         self.assertTrue(dashboard_data["dailyStarVibe"])
         self.assertEqual(dashboard_data["aspectHighlights"], {"positive": [], "negative": []})
         self.assertEqual(dashboard_data["aspect_interpretations"], [])
