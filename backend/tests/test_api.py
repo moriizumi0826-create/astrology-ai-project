@@ -1904,7 +1904,7 @@ class ApiTestCase(unittest.TestCase):
             {"target": {"T_Planet": "TRANSIT_MOON"}, "pressure_score": -160},
             {"target": {"T_Planet": "TRANSIT_SATURN"}, "pressure_score": -159},
         ])
-        self.assertIn("短期側に集中", summary["overallComment"])
+        self.assertIn("直近に集中", summary["overallComment"])
 
     def test_pressure_countdown_uses_stricter_neptune_threshold(self):
         self.assertFalse(reading_service._is_pressure_countdown_target({

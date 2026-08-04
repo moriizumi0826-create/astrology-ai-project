@@ -3039,6 +3039,18 @@ def _pressure_load_summary(items: list[dict[str, Any]]) -> dict[str, Any]:
 
 def _pressure_load_group_summary(items: list[dict[str, Any]]) -> dict[str, Any]:
     """Return independently calibrated short/long pressure levels and an overall message."""
+    group_comments = {
+        "short": {
+            "high": "直近で一時的に強いプレッシャーがかかっています。スケジュールを詰め込みすぎず、息抜き時間を意識して取りましょう。",
+            "moderate": "ここ数日はやや忙しさや負担を感じやすい時期です。目の前の優先順位をしぼり、ひとつずつ着実に進めましょう。",
+            "low": "直近で強い突発的な負担は見られません。普段通りのスムーズなペースで過ごせる状態です。",
+        },
+        "long": {
+            "high": "長期的にじっくり向き合う負荷が続いています。無理な長期計画は避け、持続可能なペース配分を心がけましょう。",
+            "moderate": "じわじわと継続する課題やテーマがある時期です。中長期的な目標を見直し、大事なものから落ち着いて取り組みましょう。",
+            "low": "長期的に足を引っ張る大きなテーマはありません。安心して将来の計画やベース作りに取り組める時期です。",
+        },
+    }
     groups = {
         "short": {
             "label": "短期",
@@ -3068,35 +3080,32 @@ def _pressure_load_group_summary(items: list[dict[str, Any]]) -> dict[str, Any]:
         load_score = round(sum(scores))
         if load_score >= group["thresholds"]["high"]:
             level = "high"
-            comment = f"{group['label']}の負荷が重なっています。予定を詰め込みすぎず、回復の余白を確保してください。"
         elif load_score >= group["thresholds"]["moderate"]:
             level = "moderate"
-            comment = f"{group['label']}に軽〜中程度の負荷があります。優先順位を絞って進めてください。"
         else:
             level = "low"
-            comment = f"{group['label']}の強い負荷は目立ちません。通常のペースで問題ありません。"
         result[key] = {
             "label": group["label"],
             "loadScore": load_score,
             "itemCount": len(group_items),
             "level": level,
-            "comment": comment,
+            "comment": group_comments[key][level],
         }
 
     short_level = result["short"]["level"]
     long_level = result["long"]["level"]
     if short_level == "high" and long_level == "high":
-        overall_comment = "短期と中長期の両方で高い負荷が重なっています。新しい予定を増やさず、まず回復を優先してください。"
+        overall_comment = "短期・長期的のどちらも負荷が重なっています。無理に予定を増やさず、まずは休養とエネルギー回復を優先しましょう。"
     elif short_level == "high":
-        overall_comment = "高い負荷は短期側に集中しています。目の前の予定を小分けにして、短い休息を挟んでください。"
+        overall_comment = "プレッシャーの波が直近に集中しています。目の前のタスクを小分けにし、こまめな小休止を挟んで乗り切りましょう。"
     elif long_level == "high":
-        overall_comment = "高い負荷は中長期側に集中しています。先を急いで結論を出さず、長期の課題を分割して扱ってください。"
+        overall_comment = "じっくり向き合うべきテーマに重みがあります。焦って結論を出そうとせず、長引く課題は焦らず少しずつ進めましょう。"
     elif short_level == "low" and long_level == "low":
-        overall_comment = "短期・中長期ともに強い負荷はあまりありません。通常のペースで整えていけます。"
+        overall_comment = "目立った強い負担は重なっていません。心身ともに穏やかなペースで、自分のリズムを整えて進められるタイミングです。"
     elif short_level == "moderate" and long_level == "moderate":
-        overall_comment = "短期と中長期の両方に負荷があります。無理を一つに絞り、余白を残して進めてください。"
+        overall_comment = "短期・長期ともに一定の負荷がかかっています。一度に抱え込まず、日々のスケジュールに十分な余白を作っておきましょう。"
     else:
-        overall_comment = "負荷は一方に偏っています。短期と中長期のどちらに余力が必要かを確認して調整してください。"
+        overall_comment = "一部の領域にやや負担がかかりやすい状態です。疲れを感じる場面を見極め、無理のないペース調整を心がけましょう。"
     return {"groups": result, "overallComment": overall_comment}
 
 
