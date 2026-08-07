@@ -93,6 +93,10 @@ ASPECT_GENRE_SCORE_IMPACT_COLUMNS = {
     "money": "Money_Score_Impact",
 }
 ASPECT_GENRE_DUAL_SCORE_COLUMNS = {
+    "general_health": {
+        "positive": "General_Positive_Impact",
+        "negative": "General_Negative_Impact",
+    },
     "love": {
         "positive": "Love_Positive_Impact",
         "negative": "Love_Negative_Impact",

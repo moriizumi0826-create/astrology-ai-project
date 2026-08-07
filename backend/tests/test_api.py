@@ -390,6 +390,8 @@ class ApiTestCase(unittest.TestCase):
                 "N_Sign_Element": "Earth",
                 "T_Retrograde_Flag": 0,
                 "Orb_Status": "Applying",
+                "General_Positive_Impact": "99",
+                "General_Negative_Impact": "99",
                 "Love_Positive_Impact": "99",
                 "Love_Negative_Impact": "99",
                 "Work_Positive_Impact": "99",
@@ -403,6 +405,8 @@ class ApiTestCase(unittest.TestCase):
                 "N_Sign_Element": "Fire",
                 "T_Retrograde_Flag": 0,
                 "Orb_Status": "Applying",
+                "General_Positive_Impact": "25",
+                "General_Negative_Impact": "55",
                 "Love_Positive_Impact": "15",
                 "Love_Negative_Impact": "65",
                 "Work_Positive_Impact": "0",
@@ -418,6 +422,7 @@ class ApiTestCase(unittest.TestCase):
         self.assertEqual(
             lookup[("VENUS", "MARS", 90, 7)],
             {
+                "general_health": {"positive": 25.0, "negative": 55.0},
                 "love": {"positive": 15.0, "negative": 65.0},
                 "work": {"positive": 0.0, "negative": 50.0},
                 "money": {"positive": None, "negative": None},

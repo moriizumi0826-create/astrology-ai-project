@@ -422,7 +422,7 @@ def aggregate_daily_peak_categories(
             )
             genre_scored_category = (
                 factor_type == "TRANSIT_TO_NATAL"
-                and category in {"love", "work", "money"}
+                and category in {"general_health", "love", "work", "money"}
                 and has_genre_score_schema
             )
             suppress_rule_weight = False

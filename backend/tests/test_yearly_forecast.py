@@ -112,6 +112,7 @@ class YearlyForecastTestCase(unittest.TestCase):
         self.assertEqual(
             get_scores("SUN", "NEPTUNE", 150, 2),
             {
+                "general_health": {"positive": 0.0, "negative": 20.0},
                 "love": {"positive": None, "negative": None},
                 "work": {"positive": 0.0, "negative": 50.0},
                 "money": {"positive": 0.0, "negative": 55.0},
@@ -120,6 +121,7 @@ class YearlyForecastTestCase(unittest.TestCase):
         self.assertEqual(
             get_scores("VENUS", "MARS", 120, 7),
             {
+                "general_health": {"positive": 35.0, "negative": 0.0},
                 "love": {"positive": 80.0, "negative": 0.0},
                 "work": {"positive": 40.0, "negative": 0.0},
                 "money": {"positive": 45.0, "negative": 0.0},
@@ -128,6 +130,7 @@ class YearlyForecastTestCase(unittest.TestCase):
         self.assertEqual(
             get_scores("MARS", "VENUS", 0, 2),
             {
+                "general_health": {"positive": 35.0, "negative": 0.0},
                 "love": {"positive": 50.0, "negative": 0.0},
                 "work": {"positive": 45.0, "negative": 0.0},
                 "money": {"positive": 0.0, "negative": 40.0},
@@ -149,7 +152,10 @@ class YearlyForecastTestCase(unittest.TestCase):
         ) as get_components:
             impacts = get_impacts("VENUS", "MARS", 120, 7)
 
-        self.assertEqual(impacts, {"love": 65.0, "work": -40.0, "money": None})
+        self.assertEqual(
+            impacts,
+            {"general_health": None, "love": 65.0, "work": -40.0, "money": None},
+        )
         get_components.assert_called_once_with("VENUS", "MARS", 120, 7)
 
     def test_yearly_weight_is_transit_duration_only(self):
@@ -649,7 +655,26 @@ class YearlyForecastTestCase(unittest.TestCase):
             [{
                 **base_event,
                 "id": "EVENT_GENERAL_RULE_SCORE",
-                "genre_score_impacts": {"love": None, "work": None, "money": None},
+                "genre_score_impacts": {
+                    "general_health": -70,
+                    "love": None,
+                    "work": None,
+                    "money": None,
+                },
+            }],
+            rules=[general_rule],
+            scoring_rules=[general_scoring_rule],
+        )["general_health"]
+        general_not_applicable = monthly_peak_service.aggregate_daily_peak_categories(
+            [{
+                **base_event,
+                "id": "EVENT_GENERAL_NOT_APPLICABLE",
+                "genre_score_impacts": {
+                    "general_health": None,
+                    "love": None,
+                    "work": None,
+                    "money": None,
+                },
             }],
             rules=[general_rule],
             scoring_rules=[general_scoring_rule],
@@ -671,9 +696,16 @@ class YearlyForecastTestCase(unittest.TestCase):
             non_applicable_genre["matched_rules"][0]["score_impact_source"],
             "genre_not_applicable",
         )
-        self.assertEqual(general["activation"], 5.4)
-        self.assertEqual(general["caution"], 2.4)
-        self.assertEqual(general["matched_rules"][0]["score_impact_source"], "rule_weight")
+        self.assertEqual(general["activation"], 0.0)
+        self.assertEqual(general["caution"], 3.53)
+        self.assertEqual(general["matched_rules"][0]["score_impact"], -70.0)
+        self.assertEqual(general["matched_rules"][0]["score_impact_source"], "genre")
+        self.assertEqual(general_not_applicable["activation"], 0.0)
+        self.assertEqual(general_not_applicable["caution"], 0.0)
+        self.assertEqual(
+            general_not_applicable["matched_rules"][0]["score_impact_source"],
+            "genre_not_applicable",
+        )
 
     def test_monthly_peak_periods_respect_constraints_and_keep_caution(self):
         period_rules = [{
@@ -910,8 +942,14 @@ class YearlyForecastTestCase(unittest.TestCase):
         self.assertTrue(first_day["all_aspects"])
         first_aspect = first_day["all_aspects"][0]
         self.assertEqual(set(first_aspect["genre_descriptions"]), {"love", "work", "money"})
-        self.assertEqual(set(first_aspect["genre_score_components"]), {"love", "work", "money"})
-        self.assertEqual(set(first_aspect["genre_importance_scores"]), {"love", "work", "money"})
+        self.assertEqual(
+            set(first_aspect["genre_score_components"]),
+            {"general_health", "love", "work", "money"},
+        )
+        self.assertEqual(
+            set(first_aspect["genre_importance_scores"]),
+            {"general_health", "love", "work", "money"},
+        )
         self.assertTrue(first_aspect["genre_applicability"]["genres"])
         self.assertIn("natal_house", first_aspect)
         self.assertTrue(forecast["annual_summaries"])
