@@ -2,6 +2,18 @@ function monthKey(year, monthIndex) {
   return `${year}-${String(monthIndex + 1).padStart(2, "0")}`;
 }
 
+export function hasMonthlyOverviewSupport(forecast) {
+  const schemaVersion = Number(
+    forecast?.monthly_overview_schema
+    || forecast?.monthlyOverviewSchema
+    || 0,
+  );
+  const overviews = forecast?.monthly_overviews || forecast?.monthlyOverviews;
+  return schemaVersion >= 1 || Boolean(
+    overviews && typeof overviews === "object" && Object.keys(overviews).length,
+  );
+}
+
 export function monthlyOverviewForDay(forecast, year, monthIndex, day) {
   const source = forecast?.monthly_overviews || forecast?.monthlyOverviews || {};
   const monthRows = source[monthKey(year, monthIndex)];

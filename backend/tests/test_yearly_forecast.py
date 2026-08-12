@@ -921,6 +921,7 @@ class YearlyForecastTestCase(unittest.TestCase):
         self.assertEqual(forecast["aspect_genre_description_schema"], 2)
         self.assertEqual(forecast["aspect_genre_applicability_schema"], 3)
         self.assertEqual(forecast["aspect_genre_score_schema"], 4)
+        self.assertEqual(forecast["monthly_overview_schema"], 1)
         first_day = forecast["yearly_data"][0]
         self.assertTrue({"total", "work", "love", "money", "general"}.issubset(first_day["scores"]))
         self.assertNotIn("monthly_peak", first_day)

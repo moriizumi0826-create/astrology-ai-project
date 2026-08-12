@@ -1,7 +1,20 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { monthlyOverviewForDate, monthlyOverviewForDay } from "../src/monthly-overview.mjs";
+import {
+  hasMonthlyOverviewSupport,
+  monthlyOverviewForDate,
+  monthlyOverviewForDay,
+} from "../src/monthly-overview.mjs";
+
+
+test("detects forecasts generated with monthly overview support", () => {
+  assert.equal(hasMonthlyOverviewSupport({ monthly_overview_schema: 1 }), true);
+  assert.equal(hasMonthlyOverviewSupport({ monthlyOverviewSchema: 1 }), true);
+  assert.equal(hasMonthlyOverviewSupport({ monthly_overviews: { "2026-08": [] } }), true);
+  assert.equal(hasMonthlyOverviewSupport({ monthly_overviews: {} }), false);
+  assert.equal(hasMonthlyOverviewSupport({ yearly_data: [] }), false);
+});
 
 
 test("selects the overview matching the active month and day", () => {

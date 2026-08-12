@@ -16,7 +16,7 @@ import {
   dashboardData as fallbackDashboardData,
 } from "./dashboard-shared.jsx";
 import { MonthlyOverviewContent } from "./monthly-overview-content.jsx";
-import { monthlyOverviewForDay } from "./monthly-overview.mjs";
+import { hasMonthlyOverviewSupport, monthlyOverviewForDay } from "./monthly-overview.mjs";
 import forecastGalaxyBg from "./assets/daily-detail-galaxy-bg.jpg";
 
 const MONTHS = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"];
@@ -8773,7 +8773,11 @@ function ForecastDetailPage() {
   const needsDeferredWidgets = readingStorageHydrated && !forceRefresh && storedDashboard?.deferred_widgets_pending === true;
   const needsInitialForecast = readingStorageHydrated
     && !forceRefresh
-    && (!forecast || !hasAnnualAspectGenreDescriptions(forecast));
+    && (
+      !forecast
+      || !hasAnnualAspectGenreDescriptions(forecast)
+      || !hasMonthlyOverviewSupport(forecast)
+    );
   useEffect(() => {
     if (!needsDeferredWidgets && !needsInitialForecast) {
       return () => {};
@@ -9015,6 +9019,7 @@ function ForecastDetailPage() {
       meta: storedPayload.meta || sourceDashboard.meta || {},
       chart_data: storedPayload.chart_data || storedPayload.chartData || sourceDashboard.chart_data || {},
       yearly_forecast: forecast || storedPayload.yearly_forecast || storedPayload.yearlyForecast || sourceDashboard.yearly_forecast || null,
+      monthly_overview_loading: !readingStorageHydrated || (needsInitialForecast && !deferredContentError),
       reading_date:
         hasStoredDashboard
           ? (
@@ -9026,7 +9031,15 @@ function ForecastDetailPage() {
             )
           : "",
     };
-  }, [deferredContentLoading, forecast, needsDeferredWidgets, readingPayload, readingStorageHydrated]);
+  }, [
+    deferredContentError,
+    deferredContentLoading,
+    forecast,
+    needsDeferredWidgets,
+    needsInitialForecast,
+    readingPayload,
+    readingStorageHydrated,
+  ]);
   const handleRefreshLatest = async () => {
     if (!versionState.isOutdated || refreshingLatest) {
       return;

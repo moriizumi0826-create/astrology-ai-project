@@ -23,6 +23,7 @@ ASPECT_GENRE_DESCRIPTION_SCHEMA_VERSION = 2
 ASPECT_GENRE_APPLICABILITY_SCHEMA_VERSION = 3
 ASPECT_GENRE_SCORE_SCHEMA_VERSION = 4
 ANNUAL_TRANSIT_HOUSE_TRANSITION_SCHEMA_VERSION = 1
+MONTHLY_OVERVIEW_SCHEMA_VERSION = 1
 ASPECT_GENRE_KEYS = ("love", "work", "money")
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
 DATABASE_DIR = PROJECT_ROOT / "database"
@@ -1900,6 +1901,7 @@ def _generate_yearly_forecast_uncached(
         "aspect_genre_applicability_schema": ASPECT_GENRE_APPLICABILITY_SCHEMA_VERSION,
         "aspect_genre_score_schema": ASPECT_GENRE_SCORE_SCHEMA_VERSION,
         "annual_transit_house_transition_schema": ANNUAL_TRANSIT_HOUSE_TRANSITION_SCHEMA_VERSION,
+        "monthly_overview_schema": MONTHLY_OVERVIEW_SCHEMA_VERSION,
         "yearly_data": yearly_data,
         "monthly_peak_periods": monthly_peak_periods,
         "natal_points": natal_points,

@@ -1817,6 +1817,9 @@ function DashboardV2DailyThemeCard({ data, displayDate = "", onDateShift = () =>
     () => monthlyOverviewForDate(yearlyForecast, activeDisplayDate),
     [yearlyForecast, activeDisplayDate]
   );
+  const isMonthlyOverviewLoading = Boolean(
+    data.monthly_overview_loading || data.monthlyOverviewLoading
+  );
   const focusedAspectKey = focusedAspect?.key || "";
   const focusedAspectToken = focusedAspect?.token || 0;
   useEffect(() => {
@@ -1934,7 +1937,13 @@ function DashboardV2DailyThemeCard({ data, displayDate = "", onDateShift = () =>
         monthlyOverview ? (
           <MonthlyOverviewContent overview={monthlyOverview} />
         ) : (
-          timelineItems([], "この月の運気は準備中です。", "#e9c349")
+          timelineItems(
+            [],
+            isMonthlyOverviewLoading
+              ? "今月の運気を読み込んでいます..."
+              : "この月の運気は準備中です。",
+            "#e9c349"
+          )
         )
       ) : null}
     </DashboardV2Card>
