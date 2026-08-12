@@ -15,6 +15,8 @@ import {
   DashboardV2HoroscopePage,
   dashboardData as fallbackDashboardData,
 } from "./dashboard-shared.jsx";
+import { MonthlyOverviewContent } from "./monthly-overview-content.jsx";
+import { monthlyOverviewForDay } from "./monthly-overview.mjs";
 import forecastGalaxyBg from "./assets/daily-detail-galaxy-bg.jpg";
 
 const MONTHS = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"];
@@ -159,6 +161,10 @@ async function getJson(path) {
     throw new Error(formatApiError(data.detail, `Request failed: ${response.status}`));
   }
   return data;
+}
+
+async function reloadCsvMasters() {
+  return postJson("/api/dev/reload-csv");
 }
 
 function formatApiError(detail, fallback) {
@@ -8392,8 +8398,17 @@ function Matrix({
   const marsThemeItems = monthlyItems(monthlyThemeItemsFromForecast(forecast, "monthly_mars_themes"), activeYear, selectedMonth);
   const sunAspectItems = monthlyItems(sunAspectItemsFromForecast(forecast), activeYear, selectedMonth);
   const marsAspectItems = monthlyItems(marsAspectItemsFromForecast(forecast), activeYear, selectedMonth);
+  const monthlyOverview = useMemo(
+    () => monthlyOverviewForDay(
+      forecast,
+      activeYear,
+      selectedMonth,
+      dailyData[safeSelectedDayIndex] || dailyData[0],
+    ),
+    [forecast, activeYear, selectedMonth, dailyData, safeSelectedDayIndex]
+  );
   const modeTitle = {
-    theme: "今月のテーマ",
+    theme: monthlyOverview ? `${selectedMonth + 1}月の総評` : "今月のテーマ",
     lesson: "今月のアクション",
     test1: "太陽の時期",
     test2: "火星の時期",
@@ -8439,7 +8454,7 @@ function Matrix({
           </div>
           <div className="ml-auto flex w-fit max-w-full shrink-0 rounded-full border border-white/10 bg-white/[0.04] p-1 font-mono text-[7px] font-bold text-mist sm:text-[10px]">
             {[
-              ["theme", "テーマ"],
+              ["theme", "総評"],
               ["lesson", "アクション"],
               ["test1", "太陽時期"],
               ["test2", "火星時期"],
@@ -8460,7 +8475,11 @@ function Matrix({
         </div>
         <div className="mt-3 h-px bg-white/10 sm:mt-5" />
         {analysisMode === "theme" ? (
-          <MonthlyArticleList items={sunThemeItems.length ? sunThemeItems : fallbackItems} />
+          monthlyOverview ? (
+            <MonthlyOverviewContent overview={monthlyOverview} />
+          ) : (
+            <MonthlyArticleList items={sunThemeItems.length ? sunThemeItems : fallbackItems} />
+          )
         ) : null}
         {analysisMode === "lesson" ? (
           <MonthlyArticleList items={marsThemeItems.length ? marsThemeItems : fallbackItems} />

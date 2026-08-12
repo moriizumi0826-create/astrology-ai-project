@@ -6,7 +6,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from backend.app.services.chart_calculator import BirthInput
-from backend.app.services import monthly_peak_service, yearly_forecast_service
+from backend.app.services import monthly_overview_service, monthly_peak_service, yearly_forecast_service
 from backend.app.services.yearly_forecast_service import (
     _yearly_summary_rows,
     _solar_house,
@@ -296,6 +296,12 @@ class YearlyForecastTestCase(unittest.TestCase):
             monthly_peak_service.SCORING_FILENAME,
             monthly_peak_service.PERIOD_FILENAME,
             monthly_peak_service.NARRATIVE_TEMPLATES_FILENAME,
+        }.issubset(filenames))
+        self.assertTrue({
+            monthly_overview_service.EDITORIAL_FILENAME,
+            "M_Monthly_Overview_Event_Paragraphs_2026_08.csv",
+            "M_Monthly_Overview_Aspect_Clusters_2026_08.csv",
+            "M_Personal_Long_Term_Background_2026_08.csv",
         }.issubset(filenames))
 
     def test_yearly_summary_csv_reload_reflects_updated_file(self):
@@ -981,6 +987,24 @@ class YearlyForecastTestCase(unittest.TestCase):
         self.assertEqual(forecast["monthly_mars_themes"][0]["planet"], "MARS")
         self.assertTrue(forecast["monthly_sun_themes"][0]["monthly_summary"])
         self.assertTrue(forecast["monthly_mars_themes"][0]["monthly_interpretation"])
+        self.assertEqual(set(forecast["monthly_overviews"]), {"2026-08"})
+        august_overviews = forecast["monthly_overviews"]["2026-08"]
+        self.assertEqual(len(august_overviews), 31)
+        self.assertEqual(august_overviews[0]["as_of"], "2026-08-01")
+        self.assertEqual(august_overviews[-1]["as_of"], "2026-08-31")
+        self.assertTrue(all(
+            overview["editorial"]["Edition_ID"] == "2026_LEO"
+            for overview in august_overviews
+        ))
+        self.assertTrue(all(len(overview["long_term_backgrounds"]) <= 2 for overview in august_overviews))
+        august_twelfth = august_overviews[11]
+        self.assertTrue(august_twelfth["event_paragraphs"])
+        self.assertTrue(august_twelfth["aspect_clusters"])
+        self.assertTrue(all(
+            "{" not in row["Paragraph_Template"]
+            for overview in august_overviews
+            for row in (*overview["event_paragraphs"], *overview["aspect_clusters"])
+        ))
         self.assertIn("annual_summary", forecast["annual_summaries"][0])
         self.assertIn("annual_interpretation", forecast["annual_summaries"][0])
         self.assertIn("environment_change", forecast["annual_summaries"][0])

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import csv
+from collections import Counter
 from datetime import date, datetime, time as dt_time, timedelta
 from functools import lru_cache
 from pathlib import Path
@@ -8,7 +9,7 @@ from typing import Any
 
 import pandas as pd
 
-from backend.app.services import monthly_peak_service, reading_service
+from backend.app.services import monthly_overview_service, monthly_peak_service, reading_service
 from backend.app.services.chart_calculator import BirthInput, get_angle_diff, get_aspect, get_house
 
 try:
@@ -130,6 +131,10 @@ def _yearly_csv_paths() -> list[Path]:
         )
     )
     paths.extend(sorted(DATABASE_DIR.glob("M_Transit_Calendar_*.csv")))
+    paths.append(DATABASE_DIR / monthly_overview_service.EDITORIAL_FILENAME)
+    paths.extend(sorted(DATABASE_DIR.glob("M_Monthly_Overview_Event_Paragraphs_*.csv")))
+    paths.extend(sorted(DATABASE_DIR.glob("M_Monthly_Overview_Aspect_Clusters_*.csv")))
+    paths.extend(sorted(DATABASE_DIR.glob("M_Personal_Long_Term_Background_*.csv")))
     return paths
 
 
@@ -162,6 +167,7 @@ def _clear_yearly_master_caches() -> None:
     _cached_aspect_interpretation.cache_clear()
     _aspect_master_index.cache_clear()
     _cached_yearly_forecast.cache_clear()
+    monthly_overview_service.clear_monthly_overview_caches()
     monthly_peak_service.clear_monthly_peak_caches()
 
 
@@ -1637,6 +1643,159 @@ def build_annual_summaries(
     return summaries
 
 
+def _available_monthly_overview_ids(year: int) -> tuple[str, ...]:
+    prefix = "M_Monthly_Overview_Event_Paragraphs_"
+    month_ids: list[str] = []
+    for event_path in sorted(DATABASE_DIR.glob(f"{prefix}{year}_*.csv")):
+        month_id = event_path.stem.removeprefix(prefix)
+        aspect_path = DATABASE_DIR / monthly_overview_service.ASPECT_CLUSTERS_FILENAME.format(
+            month_id=month_id
+        )
+        long_term_path = DATABASE_DIR / monthly_overview_service.LONG_TERM_BACKGROUND_FILENAME.format(
+            month_id=month_id
+        )
+        if aspect_path.exists() and long_term_path.exists():
+            month_ids.append(month_id)
+    return tuple(month_ids)
+
+
+def _monthly_overview_events(
+    month_id: str,
+    transitions: list[dict[str, Any]],
+    natal_sun_sign: str,
+) -> tuple[list[dict[str, Any]], dict[str, str]]:
+    month_prefix = month_id.replace("_", "-")
+    events: list[dict[str, Any]] = []
+    calculated_dates: dict[str, str] = {}
+    for transition in transitions:
+        transition_date = str(transition.get("date") or "")
+        planet = reading_service._normalize_planet(transition.get("planet"))
+        if not transition_date.startswith(month_prefix) or planet not in {
+            "SUN", "MERCURY", "VENUS", "MARS", "JUPITER"
+        }:
+            continue
+        sign = _transition_value(transition.get("sign"))
+        for change in transition.get("changes") or []:
+            change_type = _transition_value(change.get("type"))
+            previous_value = _transition_value(change.get("previous_value"))
+            value = _transition_value(change.get("value"))
+            if change_type == "SIGN_INGRESS":
+                events.append({
+                    "Planet": planet,
+                    "Event_Type": "sign_ingress",
+                    "Transit_Sign_From": previous_value,
+                    "Transit_Sign_To": value,
+                    "Solar_House_From": _solar_house(previous_value, natal_sun_sign),
+                    "Solar_House_To": _solar_house(value, natal_sun_sign),
+                    "Natal_House_At_Event": transition.get("natal_house"),
+                })
+            elif change_type == "NATAL_HOUSE_INGRESS":
+                events.append({
+                    "Planet": planet,
+                    "Event_Type": "natal_house_ingress",
+                    "Transit_Sign_From": sign,
+                    "Transit_Sign_To": sign,
+                    "Natal_House_From": previous_value,
+                    "Natal_House_To": value,
+                })
+                date_key = f"{planet}:natal_house_ingress:{value}"
+                existing = calculated_dates.get(date_key)
+                if existing is not None and existing != transition_date:
+                    raise LookupError(
+                        f"Multiple monthly overview dates for {date_key}: "
+                        f"{existing}, {transition_date}"
+                    )
+                calculated_dates[date_key] = transition_date
+    return events, calculated_dates
+
+
+def _monthly_overview_placements(
+    day: date,
+    house_cusps: list[float],
+    natal_sun_sign: str,
+) -> tuple[dict[str, tuple[str, int]], dict[str, tuple[int, int]]]:
+    placements: dict[str, tuple[str, int]] = {}
+    anchor_houses: dict[str, tuple[int, int]] = {}
+    for planet in ANNUAL_TRANSITION_PLANETS:
+        longitude, _is_retrograde, calendar_row = _calendar_transit_state(day, planet)
+        sign = _transition_value(calendar_row.get("Sign_ID")) or _sign_id_from_longitude(longitude)
+        natal_house = get_house(longitude, house_cusps)
+        placements[planet] = (sign, natal_house)
+        anchor_houses[planet] = (_solar_house(sign, natal_sun_sign), natal_house)
+    return placements, anchor_houses
+
+
+def build_monthly_overviews(
+    *,
+    year: int,
+    house_cusps: list[float],
+    natal_sun_sign: str,
+    transitions: list[dict[str, Any]],
+) -> dict[str, list[dict[str, Any]]]:
+    if not house_cusps:
+        return {}
+
+    overviews: dict[str, list[dict[str, Any]]] = {}
+    for month_id in _available_monthly_overview_ids(year):
+        data_month_id = month_id.replace("_", "-")
+        month_number = int(month_id[-2:])
+        month_start = date(year, month_number, 1)
+        next_month = date(year + (month_number == 12), (month_number % 12) + 1, 1)
+        month_days = [
+            month_start + timedelta(days=offset)
+            for offset in range((next_month - month_start).days)
+        ]
+        edition_sign = _transition_value(_calendar_row(month_start, "SUN").get("Sign_ID"))
+        edition_sun_houses = []
+        for day in month_days:
+            longitude, _is_retrograde, calendar_row = _calendar_transit_state(day, "SUN")
+            if _transition_value(calendar_row.get("Sign_ID")) == edition_sign:
+                edition_sun_houses.append(get_house(longitude, house_cusps))
+        if not edition_sun_houses:
+            raise LookupError(f"No SUN house samples for monthly overview {month_id}")
+        house_counts = Counter(edition_sun_houses)
+        editorial_natal_house = max(
+            house_counts,
+            key=lambda house: (house_counts[house], -edition_sun_houses.index(house)),
+        )
+        editorial_solar_house = _solar_house(edition_sign, natal_sun_sign)
+        events, calculated_dates = _monthly_overview_events(
+            month_id,
+            transitions,
+            natal_sun_sign,
+        )
+        cluster_ids = {
+            row["Cluster_ID"]
+            for row in monthly_overview_service.load_monthly_overview_aspect_clusters(
+                month_id,
+                DATABASE_DIR,
+            )
+            if str(row.get("Active_Flag") or "").strip() == "1"
+        }
+
+        daily_overviews: list[dict[str, Any]] = []
+        for day in month_days:
+            placements, anchor_houses = _monthly_overview_placements(
+                day,
+                house_cusps,
+                natal_sun_sign,
+            )
+            daily_overviews.append(monthly_overview_service.compose_monthly_overview(
+                month_id,
+                day,
+                editorial_solar_house,
+                editorial_natal_house,
+                events=events,
+                calculated_event_dates=calculated_dates,
+                matched_cluster_ids=cluster_ids,
+                anchor_houses=anchor_houses,
+                transit_placements=placements,
+                database_dir=DATABASE_DIR,
+            ))
+        overviews[data_month_id] = daily_overviews
+    return overviews
+
+
 def _generate_yearly_forecast_uncached(
     birth_input: BirthInput,
     year: int = FORECAST_YEAR,
@@ -1713,6 +1872,12 @@ def _generate_yearly_forecast_uncached(
         natal_sun_sign=natal_sun_sign,
         planet="MARS",
     )
+    monthly_overviews = build_monthly_overviews(
+        year=year,
+        house_cusps=house_cusps,
+        natal_sun_sign=natal_sun_sign,
+        transitions=annual_transit_house_transitions,
+    )
 
     yearly_summary = build_yearly_summary(yearly_data)
     # These fields are required while assembling scores and period summaries,
@@ -1751,6 +1916,7 @@ def _generate_yearly_forecast_uncached(
         "annual_mars_aspects": annual_mars_aspects,
         "monthly_sun_themes": monthly_sun_themes,
         "monthly_mars_themes": monthly_mars_themes,
+        "monthly_overviews": monthly_overviews,
         "cache": build_yearly_forecast_cache_payload(birth_input, year),
     }
 

@@ -1,6 +1,8 @@
 import React, { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { currentTokyoDate, getStoredReadingForm, getStoredReadingResult, getStoredReadingResultAsync } from "./reading-storage.js";
+import { MonthlyOverviewContent } from "./monthly-overview-content.jsx";
+import { monthlyOverviewForDate } from "./monthly-overview.mjs";
 import {
   CalendarDays,
   ChevronDown,
@@ -1810,6 +1812,11 @@ function DashboardV2DailyThemeCard({ data, displayDate = "", onDateShift = () =>
     [data, countdownGroups, activeDisplayDate]
   );
   const pressureLoadSummary = data.pressure_load_summary || data.pressureLoadSummary || null;
+  const yearlyForecast = data.yearly_forecast || data.yearlyForecast || null;
+  const monthlyOverview = React.useMemo(
+    () => monthlyOverviewForDate(yearlyForecast, activeDisplayDate),
+    [yearlyForecast, activeDisplayDate]
+  );
   const focusedAspectKey = focusedAspect?.key || "";
   const focusedAspectToken = focusedAspect?.token || 0;
   useEffect(() => {
@@ -1818,12 +1825,13 @@ function DashboardV2DailyThemeCard({ data, displayDate = "", onDateShift = () =>
     }
   }, [focusedAspectKey, focusedAspectToken]);
   const analysisTitle = {
-    theme: "今日の洞察",
+    theme: "今日の星の流れ",
     lesson: "今日の追い風",
     summary: "今日の消耗注意",
     test1: "負荷が抜けるまで",
     relief: "追い風が届くまで",
-  }[analysisMode] || "今日の洞察";
+    monthly: "今月の運気",
+  }[analysisMode] || "今日の星の流れ";
   const timelineItems = (items, fallbackBody, color) => (
     <div className="mt-6 grid min-h-0 flex-1 gap-6 overflow-y-auto pr-2 [scrollbar-color:#e9c349_rgba(255,255,255,0.08)] [scrollbar-width:thin] sm:mt-8 sm:gap-8">
       {(items.length ? items : [{ label: activeDisplayDate || "TODAY", description: fallbackBody }]).map((item, index) => (
@@ -1859,7 +1867,7 @@ function DashboardV2DailyThemeCard({ data, displayDate = "", onDateShift = () =>
               type="button"
               onClick={() => onDateShift(-1)}
               disabled={isDateLoading}
-              aria-label="前の日の洞察を表示"
+              aria-label="前の日の星の流れを表示"
               className="inline-flex h-5 w-5 items-center justify-center rounded-full border border-[#e9c349]/45 text-[#e9c349] transition hover:border-[#e9c349] hover:bg-[#e9c349]/10 disabled:cursor-wait disabled:opacity-45"
             >
               <ChevronLeft size={9} />
@@ -1871,27 +1879,28 @@ function DashboardV2DailyThemeCard({ data, displayDate = "", onDateShift = () =>
               type="button"
               onClick={() => onDateShift(1)}
               disabled={isDateLoading}
-              aria-label="次の日の洞察を表示"
+              aria-label="次の日の星の流れを表示"
               className="inline-flex h-5 w-5 items-center justify-center rounded-full border border-[#e9c349]/45 text-[#e9c349] transition hover:border-[#e9c349] hover:bg-[#e9c349]/10 disabled:cursor-wait disabled:opacity-45"
             >
               <ChevronRight size={9} />
             </button>
           </div>
         </div>
-        <div className="flex w-full overflow-x-auto rounded-full border border-white/10 bg-white/[0.04] p-1 font-mono text-[7px] font-bold text-[#909096] [scrollbar-width:none] sm:w-auto sm:shrink-0 sm:text-[10px]">
+        <div className="flex w-full overflow-x-auto rounded-full border border-white/10 bg-white/[0.04] p-0.5 font-mono text-[7px] font-bold text-[#909096] [scrollbar-width:none] sm:w-auto sm:shrink-0 sm:p-1 sm:text-[10px]">
           {[
-            ["theme", "洞察"],
+            ["theme", "星の流れ"],
             ["lesson", "追い風"],
             ["summary", "消耗注意"],
             ["test1", "負荷が抜ける\nまで"],
             ["relief", "追い風が届く\nまで"],
+            ["monthly", "今月の運気"],
           ].map(([value, label]) => (
             <button
               key={value}
               type="button"
               onClick={() => setAnalysisMode(value)}
               className={cx(
-                "shrink-0 rounded-full px-2 py-1.5 transition sm:px-3",
+                "shrink-0 rounded-full px-1 py-1.5 transition sm:px-3",
                 analysisMode === value ? "bg-[#e9c349] text-[#241a00]" : "hover:bg-white/10 hover:text-[#f3f3f0]"
               )}
             >
@@ -1920,6 +1929,13 @@ function DashboardV2DailyThemeCard({ data, displayDate = "", onDateShift = () =>
           aspectFallbackLabel="Support Aspect"
           differentiateDeparture
         />
+      ) : null}
+      {analysisMode === "monthly" ? (
+        monthlyOverview ? (
+          <MonthlyOverviewContent overview={monthlyOverview} />
+        ) : (
+          timelineItems([], "この月の運気は準備中です。", "#e9c349")
+        )
       ) : null}
     </DashboardV2Card>
   );
