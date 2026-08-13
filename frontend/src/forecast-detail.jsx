@@ -15,6 +15,7 @@ import {
   DashboardV2HoroscopePage,
   dashboardData as fallbackDashboardData,
 } from "./dashboard-shared.jsx";
+import { readableErrorMessage } from "./error-message.mjs";
 import { MonthlyOverviewContent } from "./monthly-overview-content.jsx";
 import { hasMonthlyOverviewMonth, monthlyOverviewForDay } from "./monthly-overview.mjs";
 import forecastGalaxyBg from "./assets/daily-detail-galaxy-bg.jpg";
@@ -336,17 +337,6 @@ function forecastWithSelectedYear(forecast, year) {
       year: Number(year),
     },
   };
-}
-
-function readableErrorMessage(error, fallback) {
-  const message = error?.message || error;
-  if (!message) return fallback;
-  if (typeof message === "string") return message;
-  try {
-    return JSON.stringify(message);
-  } catch {
-    return fallback;
-  }
 }
 
 function planetLabel(value) {
