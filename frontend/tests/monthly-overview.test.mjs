@@ -6,6 +6,7 @@ import {
   hasMonthlyOverviewSupport,
   monthlyOverviewForDate,
   monthlyOverviewForDay,
+  sortMonthlyOverviewAdditions,
 } from "../src/monthly-overview.mjs";
 
 
@@ -68,4 +69,23 @@ test("selects the daily-page monthly overview from an ISO date", () => {
   assert.equal(monthlyOverviewForDate(forecast, "2026-08-13").editorial.Title, "current");
   assert.equal(monthlyOverviewForDate(forecast, "2026-07-13"), null);
   assert.equal(monthlyOverviewForDate(forecast, "invalid"), null);
+});
+
+test("sorts event paragraphs and aspect clusters together by their actual dates", () => {
+  const entries = sortMonthlyOverviewAdditions(
+    [
+      { Template_ID: "late-event", Event_Date: "2026-09-23", Section_Order: "30", Priority: "100" },
+      { Template_ID: "same-day-event", Event_Date: "2026-09-12", Section_Order: "40", Priority: "100" },
+      { Template_ID: "missing-date", Section_Order: "10", Priority: "100" },
+    ],
+    [
+      { Template_ID: "opening-cluster", Peak_At: "2026-09-01T07:17:00+09:00", Section_Order: "95", Priority: "80" },
+      { Template_ID: "same-day-cluster", Peak_At: "2026-09-12T14:00:00+09:00", Section_Order: "20", Priority: "100" },
+    ],
+  );
+
+  assert.deepEqual(
+    entries.map(({ row }) => row.Template_ID),
+    ["opening-cluster", "same-day-cluster", "same-day-event", "late-event", "missing-date"],
+  );
 });

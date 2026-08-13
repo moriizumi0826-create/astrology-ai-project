@@ -744,6 +744,7 @@ def select_monthly_overview_aspect_clusters(
     for row in sorted(
         by_selection_group.values(),
         key=lambda item: (
+            _parse_event_date(item["Peak_At"]),
             int(str(item["Section_Order"]).strip()),
             -int(str(item["Priority"]).strip()),
             str(item["Cluster_ID"]).strip(),
@@ -960,6 +961,7 @@ def compose_monthly_overview(
     ]
     event_rows.sort(
         key=lambda row: (
+            _parse_event_date(row["Event_Date"]),
             int(str(row["Section_Order"]).strip()),
             -int(str(row["Priority"]).strip()),
             str(row["Template_ID"]).strip(),

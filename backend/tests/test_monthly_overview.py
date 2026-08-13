@@ -479,6 +479,45 @@ class MonthlyOverviewLoaderTestCase(unittest.TestCase):
         self.assertEqual(len(narratives), len(set(narratives)))
         self.assertTrue(all("{" not in narrative for narrative in narratives))
 
+    def test_composer_sorts_event_paragraphs_by_resolved_date_before_section_order(self):
+        result = monthly_overview_service.compose_monthly_overview(
+            "2026_08",
+            as_of="2026-08-14",
+            solar_house=6,
+            natal_house=11,
+            events=(
+                {
+                    "Planet": "VENUS",
+                    "Event_Type": "sign_ingress",
+                    "Transit_Sign_From": "VIRGO",
+                    "Transit_Sign_To": "LIBRA",
+                    "Solar_House_From": 12,
+                    "Solar_House_To": 1,
+                    "Natal_House_At_Event": 1,
+                },
+                {
+                    "Planet": "SUN",
+                    "Event_Type": "natal_house_ingress",
+                    "Transit_Sign_From": "LEO",
+                    "Transit_Sign_To": "LEO",
+                    "Natal_House_From": 12,
+                    "Natal_House_To": 1,
+                },
+            ),
+            calculated_event_dates={
+                "SUN:natal_house_ingress:1": "2026-08-02",
+            },
+        )
+
+        self.assertEqual(
+            [row["Event_Date"] for row in result["event_paragraphs"]],
+            ["2026-08-02", "2026-08-07"],
+        )
+        self.assertEqual(
+            [row["Section_Order"] for row in result["event_paragraphs"]],
+            ["45", "30"],
+        )
+
     def test_composer_rejects_as_of_outside_requested_month(self):
         with self.assertRaisesRegex(ValueError, "outside 2026-08"):
             monthly_overview_service.compose_monthly_overview(

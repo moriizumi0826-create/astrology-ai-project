@@ -1,4 +1,5 @@
 import React from "react";
+import { sortMonthlyOverviewAdditions } from "./monthly-overview.mjs";
 
 
 const PLANET_LABELS = {
@@ -26,22 +27,21 @@ export function MonthlyOverviewContent({ overview }) {
   const aspectClusters = Array.isArray(overview?.aspect_clusters) ? overview.aspect_clusters : [];
   const backgrounds = Array.isArray(overview?.long_term_backgrounds) ? overview.long_term_backgrounds : [];
   const resonance = overview?.resonance || null;
-  const additions = [
-    ...eventParagraphs.map((row) => ({
-      key: row.Template_ID,
-      order: Number(row.Section_Order) || 0,
-      label: "流れの切り替わり",
-      title: `${PLANET_LABELS[row.Planet] || row.Planet || "星"}の動き`,
-      body: row.Paragraph_Template,
-    })),
-    ...aspectClusters.map((row) => ({
-      key: row.Template_ID,
-      order: Number(row.Section_Order) || 0,
-      label: "複合配置",
-      title: row.Title,
-      body: row.Paragraph_Template,
-    })),
-  ].sort((left, right) => left.order - right.order || String(left.key).localeCompare(String(right.key)));
+  const additions = sortMonthlyOverviewAdditions(eventParagraphs, aspectClusters).map(({ kind, row }) => (
+    kind === "event"
+      ? {
+          key: row.Template_ID,
+          label: "流れの切り替わり",
+          title: `${PLANET_LABELS[row.Planet] || row.Planet || "星"}の動き`,
+          body: row.Paragraph_Template,
+        }
+      : {
+          key: row.Template_ID,
+          label: "複合配置",
+          title: row.Title,
+          body: row.Paragraph_Template,
+        }
+  ));
 
   return (
     <div className="mt-4 min-h-0 flex-1 overflow-y-auto pr-2 [scrollbar-color:#e9c349_rgba(255,255,255,0.08)] [scrollbar-width:thin] sm:mt-6 sm:pr-3">
