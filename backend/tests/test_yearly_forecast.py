@@ -29,6 +29,8 @@ class YearlyForecastTestCase(unittest.TestCase):
     def test_summary_projection_keeps_scores_and_removes_daily_detail(self):
         forecast = {
             "summary": "summary",
+            "monthly_overview_schema": 1,
+            "monthly_overviews": {"2026-08": [{"as_of": "2026-08-01"}]},
             "yearly_data": [
                 {
                     "date": "2026-07-21",
@@ -48,7 +50,23 @@ class YearlyForecastTestCase(unittest.TestCase):
             [{"date": "2026-07-21", "scores": {"total": 12, "work": 5}}],
         )
         self.assertNotIn("annual_themes", summary)
+        self.assertEqual(summary["monthly_overview_schema"], 1)
+        self.assertNotIn("monthly_overviews", summary)
         self.assertFalse(summary["detail_loaded"]["annual"])
+
+    def test_month_detail_includes_only_requested_monthly_overview(self):
+        august = [{"as_of": "2026-08-01", "title": "August"}]
+        forecast = {
+            "monthly_overviews": {
+                "2026-08": august,
+                "2026-09": [{"as_of": "2026-09-01", "title": "September"}],
+            },
+        }
+
+        detail = build_yearly_forecast_detail(forecast, scope="month", year=2026, month=8)
+
+        self.assertEqual(detail["monthly_overviews"], {"2026-08": august})
+        self.assertNotIn("2026-09", detail["monthly_overviews"])
 
     def test_annual_detail_compacts_consecutive_daily_aspects(self):
         aspect = {

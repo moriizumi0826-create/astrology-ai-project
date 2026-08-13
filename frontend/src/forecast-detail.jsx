@@ -16,7 +16,7 @@ import {
   dashboardData as fallbackDashboardData,
 } from "./dashboard-shared.jsx";
 import { MonthlyOverviewContent } from "./monthly-overview-content.jsx";
-import { hasMonthlyOverviewSupport, monthlyOverviewForDay } from "./monthly-overview.mjs";
+import { hasMonthlyOverviewMonth, monthlyOverviewForDay } from "./monthly-overview.mjs";
 import forecastGalaxyBg from "./assets/daily-detail-galaxy-bg.jpg";
 
 const MONTHS = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"];
@@ -898,8 +898,11 @@ function mergeYearlyForecastDetail(forecast, detail) {
       detail[key],
       (item) => `${item?.id || ""}-${item?.start_date || item?.date}-${item?.end_date || ""}-${item?.t_planet || ""}-${item?.n_planet || ""}-${item?.aspect_angle ?? ""}`,
     );
+    const currentMonthlyOverviews = current.monthly_overviews || current.monthlyOverviews || {};
+    const incomingMonthlyOverviews = detail.monthly_overviews || detail.monthlyOverviews || {};
     return {
       ...current,
+      monthly_overviews: { ...currentMonthlyOverviews, ...incomingMonthlyOverviews },
       monthly_peak_periods: mergedPeaks,
       monthly_sun_themes: mergePeriodItems("monthly_sun_themes"),
       monthly_mars_themes: mergePeriodItems("monthly_mars_themes"),
@@ -7186,6 +7189,7 @@ function UnifiedForecastView({
   setActiveUnifiedView,
   detailLoadingKeys,
   onRequestDayDetail,
+  onDailyDisplayDateChange,
 }) {
   const monthlyTransitDays = useMemo(
     () => dailyDataForMonth(forecast, activeYear, selectedMonthlyMonthIndex),
@@ -7254,7 +7258,10 @@ function UnifiedForecastView({
       </div>
 
       <div className={cx(activeUnifiedView === "daily" ? "block" : "hidden")}>
-        <DashboardDailyDetailContentLayer data={dailyDetailData} />
+        <DashboardDailyDetailContentLayer
+          data={dailyDetailData}
+          onDisplayDateChange={onDailyDisplayDateChange}
+        />
       </div>
       <div className={cx(activeUnifiedView === "monthly" ? "block" : "hidden")}>
         {monthlyDetailPending ? (
@@ -8776,7 +8783,6 @@ function ForecastDetailPage() {
     && (
       !forecast
       || !hasAnnualAspectGenreDescriptions(forecast)
-      || !hasMonthlyOverviewSupport(forecast)
     );
   useEffect(() => {
     if (!needsDeferredWidgets && !needsInitialForecast) {
@@ -8952,6 +8958,7 @@ function ForecastDetailPage() {
   const [selectedMonthlyMonthIndex, setSelectedMonthlyMonthIndex] = useState(workdayMonthIndex);
   const [activeView, setActiveView] = useState("unified");
   const [activeUnifiedView, setActiveUnifiedView] = useState("daily");
+  const [dailyOverviewDate, setDailyOverviewDate] = useState(() => currentTokyoDate());
   const requestForecastDetail = React.useCallback(async (scope, options = {}) => {
     const detailKey = scope === "day"
       ? `day:${dateKey(options.date)}`
@@ -8987,6 +8994,21 @@ function ForecastDetailPage() {
   const requestForecastDayDetail = React.useCallback((value) => {
     requestForecastDetail("day", { date: value });
   }, [requestForecastDetail]);
+  const dailyOverviewDateMatch = String(dailyOverviewDate || "").match(/^(\d{4})-(\d{2})/);
+  const dailyOverviewYear = dailyOverviewDateMatch ? Number(dailyOverviewDateMatch[1]) : activeYear;
+  const dailyOverviewMonth = dailyOverviewDateMatch ? Number(dailyOverviewDateMatch[2]) : 0;
+  const dailyMonthlyOverviewPending = Boolean(
+    readingStorageHydrated
+    && forecast
+    && dailyOverviewMonth >= 1
+    && dailyOverviewMonth <= 12
+    && !hasMonthlyOverviewMonth(forecast, dailyOverviewYear, dailyOverviewMonth - 1)
+  );
+  useEffect(() => {
+    if (dailyMonthlyOverviewPending) {
+      requestForecastDetail("month", { month: dailyOverviewMonth });
+    }
+  }, [dailyMonthlyOverviewPending, dailyOverviewMonth, requestForecastDetail]);
   useEffect(() => {
     if (!forecast || activeUnifiedView !== "monthly") return;
     const month = selectedMonthlyMonthIndex + 1;
@@ -9019,7 +9041,11 @@ function ForecastDetailPage() {
       meta: storedPayload.meta || sourceDashboard.meta || {},
       chart_data: storedPayload.chart_data || storedPayload.chartData || sourceDashboard.chart_data || {},
       yearly_forecast: forecast || storedPayload.yearly_forecast || storedPayload.yearlyForecast || sourceDashboard.yearly_forecast || null,
-      monthly_overview_loading: !readingStorageHydrated || (needsInitialForecast && !deferredContentError),
+      monthly_overview_loading: !readingStorageHydrated || (
+        (needsInitialForecast || dailyMonthlyOverviewPending)
+        && !deferredContentError
+        && !forecastDetailError
+      ),
       reading_date:
         hasStoredDashboard
           ? (
@@ -9035,6 +9061,8 @@ function ForecastDetailPage() {
     deferredContentError,
     deferredContentLoading,
     forecast,
+    forecastDetailError,
+    dailyMonthlyOverviewPending,
     needsDeferredWidgets,
     needsInitialForecast,
     readingPayload,
@@ -9199,6 +9227,7 @@ function ForecastDetailPage() {
             setActiveUnifiedView={setActiveUnifiedView}
             detailLoadingKeys={forecastDetailLoadingKeys}
             onRequestDayDetail={requestForecastDayDetail}
+            onDailyDisplayDateChange={setDailyOverviewDate}
           />
         ) : null}
         {activeView === "horoscope" ? (

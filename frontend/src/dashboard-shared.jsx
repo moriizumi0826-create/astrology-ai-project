@@ -3885,7 +3885,7 @@ function DashboardV2({ data = dashboardData, embedded = false, developerMode = f
   );
 }
 
-export function DashboardDailyDetailContentLayer({ data = dashboardData, className = "" }) {
+export function DashboardDailyDetailContentLayer({ data = dashboardData, className = "", onDisplayDateChange = null }) {
   if (data?.is_loading) {
     return (
       <DashboardV2Card className={className} bodyClassName="flex min-h-[220px] items-center justify-center p-8">
@@ -3893,10 +3893,22 @@ export function DashboardDailyDetailContentLayer({ data = dashboardData, classNa
       </DashboardV2Card>
     );
   }
-  return <DashboardDailyDetailLayerBase data={data} className={className} insightVariant="monthly" />;
+  return (
+    <DashboardDailyDetailLayerBase
+      data={data}
+      className={className}
+      insightVariant="monthly"
+      onDisplayDateChange={onDisplayDateChange}
+    />
+  );
 }
 
-function DashboardDailyDetailLayerBase({ data = dashboardData, className = "", insightVariant = "monthly" }) {
+function DashboardDailyDetailLayerBase({
+  data = dashboardData,
+  className = "",
+  insightVariant = "monthly",
+  onDisplayDateChange = null,
+}) {
   const [activeDailyData, setActiveDailyData] = useState(data);
   const [selectedDailyDate, setSelectedDailyDate] = useState(() => currentTokyoDate());
   const [isDailyDateLoading, setIsDailyDateLoading] = useState(false);
@@ -3905,6 +3917,12 @@ function DashboardDailyDetailLayerBase({ data = dashboardData, className = "", i
   const dailyDataCacheRef = React.useRef(new Map());
   const dailyDateRequestIdRef = React.useRef(0);
   const displayDate = selectedDailyDate || dashboardDisplayDate(activeDailyData);
+
+  useEffect(() => {
+    if (displayDate && onDisplayDateChange) {
+      onDisplayDateChange(displayDate);
+    }
+  }, [displayDate, onDisplayDateChange]);
 
   useEffect(() => {
     const today = currentTokyoDate();

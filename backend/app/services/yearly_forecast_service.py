@@ -1980,6 +1980,7 @@ def generate_yearly_forecast(
 
 YEARLY_FORECAST_SUMMARY_KEYS = (
     "summary",
+    "monthly_overview_schema",
     "aspect_genre_description_schema",
     "aspect_genre_applicability_schema",
     "aspect_genre_score_schema",
@@ -2096,6 +2097,7 @@ def build_yearly_forecast_detail(
     if scope == "month":
         if month is None or not 1 <= month <= 12:
             raise ValueError("month must be between 1 and 12 for month detail")
+        month_key = f"{year}-{month:02d}"
         monthly_peak_periods = {
             genre: [
                 item
@@ -2107,6 +2109,9 @@ def build_yearly_forecast_detail(
         return {
             "detail_scope": "month",
             "detail_month": month,
+            "monthly_overviews": {
+                month_key: forecast.get("monthly_overviews", {}).get(month_key, [])
+            },
             "monthly_peak_periods": monthly_peak_periods,
             "monthly_sun_themes": [
                 item

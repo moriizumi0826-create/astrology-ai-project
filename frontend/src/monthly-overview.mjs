@@ -14,6 +14,15 @@ export function hasMonthlyOverviewSupport(forecast) {
   );
 }
 
+export function hasMonthlyOverviewMonth(forecast, year, monthIndex) {
+  const source = forecast?.monthly_overviews || forecast?.monthlyOverviews;
+  return Boolean(
+    source
+    && typeof source === "object"
+    && Object.prototype.hasOwnProperty.call(source, monthKey(year, monthIndex)),
+  );
+}
+
 export function monthlyOverviewForDay(forecast, year, monthIndex, day) {
   const source = forecast?.monthly_overviews || forecast?.monthlyOverviews || {};
   const monthRows = source[monthKey(year, monthIndex)];

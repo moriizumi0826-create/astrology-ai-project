@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  hasMonthlyOverviewMonth,
   hasMonthlyOverviewSupport,
   monthlyOverviewForDate,
   monthlyOverviewForDay,
@@ -14,6 +15,14 @@ test("detects forecasts generated with monthly overview support", () => {
   assert.equal(hasMonthlyOverviewSupport({ monthly_overviews: { "2026-08": [] } }), true);
   assert.equal(hasMonthlyOverviewSupport({ monthly_overviews: {} }), false);
   assert.equal(hasMonthlyOverviewSupport({ yearly_data: [] }), false);
+});
+
+test("distinguishes a loaded empty month from a month not requested yet", () => {
+  const forecast = { monthly_overviews: { "2026-08": [] } };
+
+  assert.equal(hasMonthlyOverviewMonth(forecast, 2026, 7), true);
+  assert.equal(hasMonthlyOverviewMonth(forecast, 2026, 8), false);
+  assert.equal(hasMonthlyOverviewMonth({ monthlyOverviews: { "2026-08": [] } }, 2026, 7), true);
 });
 
 
