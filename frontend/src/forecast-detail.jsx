@@ -8378,16 +8378,19 @@ function Matrix({
   selectedDayIndex: controlledSelectedDayIndex = null,
   setSelectedDayIndex: controlledSetSelectedDayIndex = null,
 }) {
-  const [analysisMode, setAnalysisMode] = useState("theme");
+  const [analysisMode, setAnalysisMode] = useState("overview");
   const [openMonthlyAspectKeys, setOpenMonthlyAspectKeys] = useState(() => new Set());
   const selectedMonth = clamp(selectedMonthIndex, 0, data.length - 1);
   const dailyData = useMemo(() => dailyDataForMonth(forecast, activeYear, selectedMonth), [forecast, activeYear, selectedMonth]);
   const [localSelectedDayIndex, setLocalSelectedDayIndex] = useState(() => realtimeDayIndex(dailyData));
   const selectedDayIndex = controlledSelectedDayIndex ?? localSelectedDayIndex;
   const setSelectedDayIndex = controlledSetSelectedDayIndex ?? setLocalSelectedDayIndex;
+  const dailyDateRange = `${dateKey(dailyData[0]?.date)}:${dateKey(dailyData[dailyData.length - 1]?.date)}:${dailyData.length}`;
   useEffect(() => {
-    setSelectedDayIndex(realtimeDayIndex(dailyData));
-  }, [selectedMonth, dailyData]);
+    if (controlledSelectedDayIndex == null) {
+      setLocalSelectedDayIndex(realtimeDayIndex(dailyData));
+    }
+  }, [controlledSelectedDayIndex, dailyDateRange, selectedMonth]);
   const safeSelectedDayIndex = clamp(selectedDayIndex, 0, dailyData.length - 1);
   const selectedDay = data[selectedMonth] || data[0];
   const selectedSeries = SCORE_KEYS.find((item) => item.key === selectedSeriesKey) || SCORE_KEYS[0];
@@ -8404,12 +8407,15 @@ function Matrix({
     ),
     [forecast, activeYear, selectedMonth, dailyData, safeSelectedDayIndex]
   );
+  const activeAnalysisMode = analysisMode === "overview" && !monthlyOverview ? "theme" : analysisMode;
   const modeTitle = {
-    theme: monthlyOverview ? `${selectedMonth + 1}月の総評` : "今月のテーマ",
+    overview: `${selectedMonth + 1}月の総評`,
+    theme: "今月のテーマ",
     lesson: "今月のアクション",
     test1: "太陽の時期",
     test2: "火星の時期",
-  }[analysisMode] || "今月のテーマ";
+  }[activeAnalysisMode] || "今月のテーマ";
+  const modeKicker = activeAnalysisMode === "overview" ? "Monthly Overview" : "Main Theme";
   const toggleMonthlyAspect = (key) => {
     setOpenMonthlyAspectKeys((current) => {
       const next = new Set(current);
@@ -8443,7 +8449,7 @@ function Matrix({
         <div className="flex items-start justify-between gap-2 sm:items-center sm:gap-3">
           <div className="min-w-0">
             <p className="font-mono text-[8px] font-bold uppercase tracking-[0.18em] text-gold/75 sm:text-[9px]">
-              Main Theme
+              {modeKicker}
             </p>
             <h2 className="mt-1 break-words font-serif text-[17px] font-semibold leading-tight text-starlight sm:text-3xl">
               {modeTitle}
@@ -8451,7 +8457,8 @@ function Matrix({
           </div>
           <div className="ml-auto flex w-fit max-w-full shrink-0 rounded-full border border-white/10 bg-white/[0.04] p-1 font-mono text-[7px] font-bold text-mist sm:text-[10px]">
             {[
-              ["theme", "総評"],
+              ...(monthlyOverview ? [["overview", "総評"]] : []),
+              ["theme", monthlyOverview ? "テーマ" : "総評"],
               ["lesson", "アクション"],
               ["test1", "太陽時期"],
               ["test2", "火星時期"],
@@ -8462,7 +8469,7 @@ function Matrix({
                 onClick={() => setAnalysisMode(value)}
                 className={cx(
                   "rounded-full px-1.5 py-1.5 transition sm:px-3",
-                  analysisMode === value ? "bg-gold text-[#241a00]" : "hover:bg-white/10 hover:text-starlight"
+                  activeAnalysisMode === value ? "bg-gold text-[#241a00]" : "hover:bg-white/10 hover:text-starlight"
                 )}
               >
                 {label}
@@ -8471,20 +8478,19 @@ function Matrix({
           </div>
         </div>
         <div className="mt-3 h-px bg-white/10 sm:mt-5" />
-        {analysisMode === "theme" ? (
-          monthlyOverview ? (
-            <MonthlyOverviewContent overview={monthlyOverview} />
-          ) : (
-            <MonthlyArticleList items={sunThemeItems.length ? sunThemeItems : fallbackItems} />
-          )
+        {activeAnalysisMode === "overview" ? (
+          <MonthlyOverviewContent overview={monthlyOverview} />
         ) : null}
-        {analysisMode === "lesson" ? (
+        {activeAnalysisMode === "theme" ? (
+          <MonthlyArticleList items={sunThemeItems.length ? sunThemeItems : fallbackItems} />
+        ) : null}
+        {activeAnalysisMode === "lesson" ? (
           <MonthlyArticleList items={marsThemeItems.length ? marsThemeItems : fallbackItems} />
         ) : null}
-        {analysisMode === "test1" ? (
+        {activeAnalysisMode === "test1" ? (
           <TransitAspectList items={sunAspectItems} openKeys={openMonthlyAspectKeys} onToggle={toggleMonthlyAspect} prefix="monthly-sun" />
         ) : null}
-        {analysisMode === "test2" ? (
+        {activeAnalysisMode === "test2" ? (
           <TransitAspectList items={marsAspectItems} openKeys={openMonthlyAspectKeys} onToggle={toggleMonthlyAspect} prefix="monthly-mars" />
         ) : null}
       </GlassPanel>

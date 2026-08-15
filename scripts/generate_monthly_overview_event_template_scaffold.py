@@ -1,11 +1,14 @@
 from __future__ import annotations
 
+import argparse
 import csv
+from datetime import date
 from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
-OUTPUT = ROOT / "database" / "M_Monthly_Overview_Event_Paragraphs_2026_08.csv"
+TARGET_PLANETS = ("SUN", "MERCURY", "VENUS", "MARS", "JUPITER")
+SIGN_INGRESS_SECTION_ORDERS = (30, 35, 40, 50, 55)
 
 FIELDNAMES = [
     "Template_ID",
@@ -28,69 +31,88 @@ FIELDNAMES = [
     "Active_Flag",
 ]
 
-SIGN_INGRESSES = [
-    ("VENUS", "VIRGO", "LIBRA", 30),
-    ("MERCURY", "CANCER", "LEO", 35),
-    ("MARS", "GEMINI", "CANCER", 40),
-    ("SUN", "LEO", "VIRGO", 50),
-    ("MERCURY", "LEO", "VIRGO", 55),
-]
-
-PLANET_SIGN_SEGMENTS = {
-    "SUN": ["LEO", "VIRGO"],
-    "MERCURY": ["CANCER", "LEO", "VIRGO"],
-    "VENUS": ["VIRGO", "LIBRA"],
-    "MARS": ["GEMINI", "CANCER"],
-    "JUPITER": ["LEO"],
-}
-
-INITIAL_TEMPLATES = {
-    "2026_08_SIGN_VENUS_VIRGO_LIBRA_S01_S02_N07": (
-        "金星が{event_date}に天秤座へ移ると、対人関係やお金、自分の価値をめぐる空気が和らぎます。"
-        "無理に盛り上がるというより、気の合う人との穏やかな交流や身近な楽しみが、今月の流れを支える息抜きになりやすいでしょう。"
-    ),
-    "2026_08_SIGN_MERCURY_CANCER_LEO_S11_S12_N05": (
-        "{event_date}に水星が獅子座へ移ると、外へ答えを出すことより、考えやアイデアを内側で温める時間が増えていきます。"
-        "創作や興味の芽を急いで形にせず、下書きや試作として育てることに向く切り替わりです。"
-    ),
-    "2026_08_SIGN_MARS_GEMINI_CANCER_S10_S11_N04": (
-        "{event_date}に火星が蟹座へ移ると、仕事や公的な役割へ集中していた力が、友人、所属先、今後の計画へ移り始めます。"
-        "人との活動が増える一方で、家庭や私生活まで消耗させないよう、自分が安心して戻れる場所を守ることが重要になります。"
-    ),
-    "2026_08_SIGN_SUN_LEO_VIRGO_S12_S01_N06": (
-        "大きな切り替わりは{event_date}です。太陽が乙女座へ移ることで、水面下の準備期間から、自分の意思で生活を組み直す新しい周期へ入ります。"
-        "急にすべてが好転するというより、仕事や日課、心身の扱いを自分の基準へ戻しながら、少しずつ主導権を取り戻す時です。"
-    ),
-    "2026_08_SIGN_MERCURY_LEO_VIRGO_S12_S01_N06": (
-        "{event_date}に水星も乙女座へ移ると、曖昧だった考えを整理し、予定や仕事、生活の手順を現実的に組み立てやすくなります。"
-        "頭の中にあるものを一つずつ言葉や予定表へ移すことで、再始動の感覚がはっきりしてくるでしょう。"
-    ),
-    "2026_08_NATAL_SUN_LEO_N05_N06": (
-        "{event_date}頃からは、内側で育ててきた興味や創造性を、生活習慣や仕事の整理へ落とし込む段階に入ります。"
-        "未処理の作業や日々の負担を静かに整えることが、月後半の再始動を支える準備になります。"
-    ),
-}
-
 
 def previous_house(house: int) -> int:
     return 12 if house == 1 else house - 1
 
 
-def make_sign_ingress_rows() -> list[dict[str, object]]:
+def _month_id(year: int, month: int) -> str:
+    return f"{year:04d}-{month:02d}"
+
+
+def _calendar_rows(year: int, database_dir: Path) -> list[dict[str, str]]:
+    path = database_dir / f"M_Transit_Calendar_{year}.csv"
+    with path.open("r", encoding="utf-8-sig", newline="") as handle:
+        return list(csv.DictReader(handle))
+
+
+def _month_conditions(
+    year: int,
+    month: int,
+    database_dir: Path,
+) -> tuple[list[tuple[str, str, str, int]], dict[str, list[str]]]:
+    target_month = _month_id(year, month)
+    previous_sign: dict[str, str] = {}
+    ingresses: list[tuple[date, int, str, str, str]] = []
+    segments = {planet: [] for planet in TARGET_PLANETS}
+
+    for source_order, row in enumerate(_calendar_rows(year, database_dir)):
+        planet = str(row.get("Planet") or "").strip().upper()
+        if planet not in TARGET_PLANETS:
+            continue
+        row_date = date.fromisoformat(str(row["Date"]).strip()[:10])
+        sign = str(row.get("Sign_ID") or "").strip().upper()
+        if row_date.strftime("%Y-%m") == target_month:
+            if sign and sign not in segments[planet]:
+                segments[planet].append(sign)
+            if str(row.get("Sign_Ingress_Flag") or "").strip() == "1":
+                sign_from = previous_sign.get(planet)
+                if not sign_from:
+                    raise ValueError(
+                        f"Cannot resolve the prior sign for {planet} on {row_date}"
+                    )
+                ingresses.append((row_date, source_order, planet, sign_from, sign))
+        if sign:
+            previous_sign[planet] = sign
+
+    ingresses.sort(key=lambda item: (item[0], item[1]))
+    if len(ingresses) > len(SIGN_INGRESS_SECTION_ORDERS):
+        raise ValueError(
+            "More sign ingresses were found than the monthly overview schema supports: "
+            f"{len(ingresses)}"
+        )
+
+    ingress_conditions = [
+        (planet, sign_from, sign_to, SIGN_INGRESS_SECTION_ORDERS[index])
+        for index, (_event_date, _order, planet, sign_from, sign_to) in enumerate(
+            ingresses
+        )
+    ]
+    if any(not signs for signs in segments.values()):
+        missing = [planet for planet, signs in segments.items() if not signs]
+        raise ValueError(f"Missing transit calendar segments for: {missing}")
+    return ingress_conditions, segments
+
+
+def _make_sign_ingress_rows(
+    year: int,
+    month: int,
+    ingresses: list[tuple[str, str, str, int]],
+) -> list[dict[str, object]]:
     rows: list[dict[str, object]] = []
-    for planet, sign_from, sign_to, section_order in SIGN_INGRESSES:
+    id_month = f"{year:04d}_{month:02d}"
+    month_id = _month_id(year, month)
+    for planet, sign_from, sign_to, section_order in ingresses:
         for solar_to in range(1, 13):
             solar_from = previous_house(solar_to)
             for natal_house in range(1, 13):
-                template_id = (
-                    f"2026_08_SIGN_{planet}_{sign_from}_{sign_to}_"
-                    f"S{solar_from:02d}_S{solar_to:02d}_N{natal_house:02d}"
-                )
-                paragraph = INITIAL_TEMPLATES.get(template_id, "")
                 rows.append(
                     {
-                        "Template_ID": template_id,
-                        "Month_ID": "2026-08",
+                        "Template_ID": (
+                            f"{id_month}_SIGN_{planet}_{sign_from}_{sign_to}_"
+                            f"S{solar_from:02d}_S{solar_to:02d}_N{natal_house:02d}"
+                        ),
+                        "Month_ID": month_id,
                         "Section_Order": section_order,
                         "Planet": planet,
                         "Event_Type": "sign_ingress",
@@ -104,29 +126,33 @@ def make_sign_ingress_rows() -> list[dict[str, object]]:
                         "Date_Source": "transit_calendar",
                         "Date_Key": f"{planet}:sign_ingress:{sign_to}",
                         "Date_Precision": "exact_day",
-                        "Paragraph_Template": paragraph,
+                        "Paragraph_Template": "",
                         "Priority": 100,
-                        "Active_Flag": 1 if paragraph else 0,
+                        "Active_Flag": 0,
                     }
                 )
     return rows
 
 
-def make_natal_ingress_rows() -> list[dict[str, object]]:
+def _make_natal_ingress_rows(
+    year: int,
+    month: int,
+    segments: dict[str, list[str]],
+) -> list[dict[str, object]]:
     rows: list[dict[str, object]] = []
-    for planet, signs in PLANET_SIGN_SEGMENTS.items():
-        for sign in signs:
+    id_month = f"{year:04d}_{month:02d}"
+    month_id = _month_id(year, month)
+    for planet in TARGET_PLANETS:
+        for sign in segments[planet]:
             for natal_to in range(1, 13):
                 natal_from = previous_house(natal_to)
-                template_id = (
-                    f"2026_08_NATAL_{planet}_{sign}_"
-                    f"N{natal_from:02d}_N{natal_to:02d}"
-                )
-                paragraph = INITIAL_TEMPLATES.get(template_id, "")
                 rows.append(
                     {
-                        "Template_ID": template_id,
-                        "Month_ID": "2026-08",
+                        "Template_ID": (
+                            f"{id_month}_NATAL_{planet}_{sign}_"
+                            f"N{natal_from:02d}_N{natal_to:02d}"
+                        ),
+                        "Month_ID": month_id,
                         "Section_Order": 45,
                         "Planet": planet,
                         "Event_Type": "natal_house_ingress",
@@ -140,22 +166,57 @@ def make_natal_ingress_rows() -> list[dict[str, object]]:
                         "Date_Source": "natal_house_calculation",
                         "Date_Key": f"{planet}:natal_house_ingress:{natal_to}",
                         "Date_Precision": "local_day_or_approximate",
-                        "Paragraph_Template": paragraph,
+                        "Paragraph_Template": "",
                         "Priority": 80,
-                        "Active_Flag": 1 if paragraph else 0,
+                        "Active_Flag": 0,
                     }
                 )
     return rows
 
 
-def main() -> None:
-    rows = make_sign_ingress_rows() + make_natal_ingress_rows()
-    with OUTPUT.open("w", encoding="utf-8-sig", newline="") as handle:
+def build_rows(
+    year: int,
+    month: int,
+    database_dir: Path | None = None,
+) -> list[dict[str, object]]:
+    source_dir = (database_dir or ROOT / "database").resolve()
+    ingresses, segments = _month_conditions(year, month, source_dir)
+    return _make_sign_ingress_rows(year, month, ingresses) + _make_natal_ingress_rows(
+        year,
+        month,
+        segments,
+    )
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(
+        description="Generate an inactive monthly overview event-paragraph scaffold."
+    )
+    parser.add_argument("year", type=int)
+    parser.add_argument("month", type=int, choices=range(1, 13))
+    parser.add_argument("--database-dir", type=Path, default=ROOT / "database")
+    parser.add_argument("--output", type=Path)
+    parser.add_argument("--force", action="store_true")
+    args = parser.parse_args()
+
+    output = args.output or (
+        args.database_dir
+        / f"M_Monthly_Overview_Event_Paragraphs_{args.year:04d}_{args.month:02d}.csv"
+    )
+    output = output.resolve()
+    if output.exists() and not args.force:
+        print(f"Refusing to overwrite existing file without --force: {output}")
+        return 1
+
+    rows = build_rows(args.year, args.month, args.database_dir)
+    output.parent.mkdir(parents=True, exist_ok=True)
+    with output.open("w", encoding="utf-8-sig", newline="") as handle:
         writer = csv.DictWriter(handle, fieldnames=FIELDNAMES, lineterminator="\r\n")
         writer.writeheader()
         writer.writerows(rows)
-    print(f"wrote {len(rows)} rows to {OUTPUT}")
+    print(f"wrote {len(rows)} inactive rows to {output}")
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

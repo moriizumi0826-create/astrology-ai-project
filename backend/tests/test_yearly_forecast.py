@@ -320,6 +320,9 @@ class YearlyForecastTestCase(unittest.TestCase):
             "M_Monthly_Overview_Event_Paragraphs_2026_08.csv",
             "M_Monthly_Overview_Aspect_Clusters_2026_08.csv",
             "M_Personal_Long_Term_Background_2026_08.csv",
+            "M_Monthly_Overview_Event_Paragraphs_2026_09.csv",
+            "M_Monthly_Overview_Aspect_Clusters_2026_09.csv",
+            "M_Personal_Long_Term_Background_2026_09.csv",
         }.issubset(filenames))
 
     def test_yearly_summary_csv_reload_reflects_updated_file(self):
@@ -1006,7 +1009,10 @@ class YearlyForecastTestCase(unittest.TestCase):
         self.assertEqual(forecast["monthly_mars_themes"][0]["planet"], "MARS")
         self.assertTrue(forecast["monthly_sun_themes"][0]["monthly_summary"])
         self.assertTrue(forecast["monthly_mars_themes"][0]["monthly_interpretation"])
-        self.assertEqual(set(forecast["monthly_overviews"]), {"2026-08"})
+        self.assertEqual(
+            set(forecast["monthly_overviews"]),
+            {"2026-08", "2026-09"},
+        )
         august_overviews = forecast["monthly_overviews"]["2026-08"]
         self.assertEqual(len(august_overviews), 31)
         self.assertEqual(august_overviews[0]["as_of"], "2026-08-01")
@@ -1018,6 +1024,18 @@ class YearlyForecastTestCase(unittest.TestCase):
         self.assertTrue(all(len(overview["long_term_backgrounds"]) <= 2 for overview in august_overviews))
         august_twelfth = august_overviews[11]
         self.assertTrue(august_twelfth["event_paragraphs"])
+        september_overviews = forecast["monthly_overviews"]["2026-09"]
+        self.assertEqual(len(september_overviews), 30)
+        self.assertEqual(september_overviews[0]["as_of"], "2026-09-01")
+        self.assertEqual(september_overviews[-1]["as_of"], "2026-09-30")
+        self.assertTrue(all(
+            overview["editorial"]["Edition_ID"] == "2026_VIRGO"
+            for overview in september_overviews
+        ))
+        self.assertTrue(all(
+            len(overview["long_term_backgrounds"]) <= 2
+            for overview in september_overviews
+        ))
         self.assertTrue(august_twelfth["aspect_clusters"])
         self.assertTrue(all(
             "{" not in row["Paragraph_Template"]
