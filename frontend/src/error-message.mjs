@@ -1,5 +1,5 @@
 const RECALCULATION_GUIDANCE =
-  "通信に失敗しました。前のページに戻り、出生データを読み込み直して再計算してください。";
+  "通信に失敗しました。接続を確認して、このページでもう一度お試しください。";
 
 const NETWORK_ERROR_PATTERN = /failed to fetch|networkerror|network request failed|load failed|api通信に失敗/i;
 

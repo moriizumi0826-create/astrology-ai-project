@@ -9076,15 +9076,14 @@ function ForecastDetailPage() {
 
     setRefreshingLatest(true);
     setLatestUpdateError("");
+    setDeferredContentError("");
     try {
-      const [nextReading, nextForecastPayload] = await Promise.all([
-        postJson("/api/readings", formPayload).catch((error) => {
-          throw new Error(`ホロスコープの再計算に失敗しました: ${readableErrorMessage(error, "API通信に失敗しました")}`);
-        }),
-        postJson(`/api/yearly-forecast?year=${activeYear}`, formPayload).catch((error) => {
-          throw new Error(`年次予測の再計算に失敗しました: ${readableErrorMessage(error, "API通信に失敗しました")}`);
-        }),
-      ]);
+      const nextReading = await postJson("/api/readings?defer_widgets=true", formPayload).catch((error) => {
+        throw new Error(`ホロスコープの再計算に失敗しました: ${readableErrorMessage(error, "API通信に失敗しました")}`);
+      });
+      const nextForecastPayload = await postJson(`/api/yearly-forecast?year=${activeYear}`, formPayload).catch((error) => {
+        throw new Error(`年次予測の再計算に失敗しました: ${readableErrorMessage(error, "API通信に失敗しました")}`);
+      });
       const selectedYearForecast = forecastWithSelectedYear(nextForecastPayload, activeYear);
       const masterVersion = versionFromPayload(nextReading) || versionFromPayload(nextForecastPayload);
       if (!masterVersion) {
