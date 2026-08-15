@@ -8458,7 +8458,7 @@ function Matrix({
           <div className="ml-auto flex w-fit max-w-full shrink-0 rounded-full border border-white/10 bg-white/[0.04] p-1 font-mono text-[7px] font-bold text-mist sm:text-[10px]">
             {[
               ...(monthlyOverview ? [["overview", "総評"]] : []),
-              ["theme", monthlyOverview ? "テーマ" : "総評"],
+              ["theme", "テーマ"],
               ["lesson", "アクション"],
               ["test1", "太陽時期"],
               ["test2", "火星時期"],
