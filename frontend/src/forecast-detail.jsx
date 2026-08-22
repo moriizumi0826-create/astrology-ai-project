@@ -7520,7 +7520,7 @@ function Header({
     <header className="fixed left-0 top-0 z-40 w-full border-b border-slate-200/90 bg-[#f8fafc]/95 backdrop-blur-xl">
       <div className="flex w-full max-w-none flex-wrap items-center justify-between gap-2 px-3 py-2 sm:gap-6 sm:px-8 sm:py-6 lg:mx-auto lg:max-w-[1760px]">
         <div className="flex min-w-0 flex-1 items-center gap-2 sm:flex-none sm:gap-8">
-          <a href="/" className="max-w-[66px] font-serif text-[11px] font-bold leading-[0.98] text-[#0A192F] sm:max-w-none sm:text-4xl sm:leading-none">The Celestial Atelier</a>
+          <a href="./index.html" className="max-w-[66px] font-serif text-[11px] font-bold leading-[0.98] text-[#0A192F] sm:max-w-none sm:text-4xl sm:leading-none">The Celestial Atelier</a>
           <span className="hidden h-10 w-px bg-slate-200 md:block" />
           <div className="relative flex min-w-0 flex-1 items-center gap-1 sm:flex-none sm:gap-1.5">
             <h1 className="hidden truncate font-serif font-semibold tracking-[0.04em] text-[#0A192F] sm:block sm:text-2xl md:text-3xl">
@@ -9236,7 +9236,7 @@ function ForecastDetailPage() {
       <footer className="border-t border-slate-200/90 bg-[#f8fafc]/95 px-4 py-8 text-[#0A192F] sm:px-8 sm:py-10">
         <div className="mx-auto flex max-w-[1540px] flex-col gap-4 text-[#0A192F]/70 md:flex-row md:items-center md:justify-between">
           <p className="font-serif text-2xl font-semibold text-[#0A192F]">The Celestial Atelier</p>
-          <a href="/" className="font-mono text-xs uppercase tracking-[0.18em] text-[#0A192F]/70 hover:text-[#D4AF37]">Back to Entry</a>
+          <a href="./index.html" className="font-mono text-xs uppercase tracking-[0.18em] text-[#0A192F]/70 hover:text-[#D4AF37]">Back to Entry</a>
         </div>
       </footer>
       <YearCalculationDialog
