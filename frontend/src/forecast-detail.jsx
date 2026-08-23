@@ -1,6 +1,6 @@
 ﻿import React, { useEffect, useMemo, useState } from "react";
 import { createRoot } from "react-dom/client";
-import { Activity, BriefcaseBusiness, CalendarDays, CircleDot, Eye, EyeOff, HandHeart, LockKeyhole, Maximize2, Menu, Minimize2, Minus, Move, Pause, Play, Plus, RefreshCw, Shield, SlidersHorizontal, Sparkles, WalletCards } from "lucide-react";
+import { Activity, BriefcaseBusiness, CalendarDays, CircleDot, HandHeart, LockKeyhole, Maximize2, Menu, Minimize2, Minus, Move, Pause, Play, Plus, RefreshCw, Shield, SlidersHorizontal, Sparkles, WalletCards } from "lucide-react";
 import * as THREE from "three";
 import {
   currentTokyoDate,
@@ -3975,12 +3975,10 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
       setOrbitTextPlaneTransform(mesh, item.longitude, item.radius, 0.11);
       if (item.label === "ネイタル天体") {
         mesh.userData.tooltip = "ネイタル天体";
-        mesh.userData.toggleNatalLayer = true;
         hoverTargets.push(mesh);
         natalLayerLabels.push({ mesh, brightOpacity: item.opacity, dimOpacity: 0.34 });
       } else if (item.label === "現行天体") {
         mesh.userData.tooltip = "現行天体";
-        mesh.userData.toggleTransitLayer = true;
         hoverTargets.push(mesh);
         transitLayerLabels.push({ mesh, brightOpacity: item.opacity, dimOpacity: 0.34 });
       }
@@ -4458,17 +4456,7 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
         pointer.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
         raycaster.setFromCamera(pointer, camera);
         const hit = raycaster.intersectObjects(hoverTargets, false)
-          .find((item) => item?.object?.userData?.natalPlanet || item?.object?.userData?.transitPlanet || item?.object?.userData?.toggleNatalLayer || item?.object?.userData?.toggleTransitLayer);
-        if (hit?.object?.userData?.toggleTransitLayer) {
-          setTransitLayerActive((value) => !value);
-          dragging = false;
-          return;
-        }
-        if (hit?.object?.userData?.toggleNatalLayer) {
-          setNatalLayerActive((value) => !value);
-          dragging = false;
-          return;
-        }
+          .find((item) => item?.object?.userData?.natalPlanet || item?.object?.userData?.transitPlanet);
         if (hit?.object?.userData?.natalPlanet) {
           const natalPlanet = hit.object.userData.natalPlanet;
           const currentFocus = aspectLineFocusRef.current;
@@ -6299,11 +6287,11 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
               )}
               aria-expanded={isMapControlsMenuOpen}
               aria-controls="map-layer-controls-menu"
-              aria-label={isMapControlsMenuOpen ? "表示メニューを閉じる" : "表示メニューを開く"}
-              title="表示"
+              aria-label={isMapControlsMenuOpen ? "チャートメニューを閉じる" : "チャートメニューを開く"}
+              title="チャート"
             >
               <SlidersHorizontal size={15} />
-              表示
+              チャート
             </button>
             <div
               id="map-layer-controls-menu"
@@ -6363,20 +6351,7 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
               ) : (
                 <>
                   <div className="flex items-center justify-between gap-2">
-                    <button
-                      type="button"
-                      onClick={() => setTransitLayerActive((value) => !value)}
-                      className={cx(
-                        "pointer-events-auto inline-flex items-center gap-1.5 font-mono text-[8px] font-bold uppercase tracking-[0.16em] transition focus:outline-none focus:ring-2 focus:ring-gold/35",
-                        transitLayerActive ? "text-gold/80" : "text-mist/45 hover:text-gold/80"
-                      )}
-                      aria-pressed={transitLayerActive}
-                      aria-label={transitLayerActive ? "現行天体を暗くする" : "現行天体を明るくする"}
-                      title={transitLayerActive ? "現行天体を暗くする" : "現行天体を明るくする"}
-                    >
-                      {transitLayerActive ? <Eye size={13} /> : <EyeOff size={13} />}
-                      現行天体
-                    </button>
+                    <span className={cx("font-mono text-[8px] font-bold uppercase tracking-[0.16em]", transitLayerActive ? "text-gold/80" : "text-mist/45")}>現行天体</span>
                     <button
                       type="button"
                       onClick={() => setIsTransitTableCollapsed(true)}
@@ -6456,20 +6431,7 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
               ) : (
                 <>
                   <div className="flex items-center justify-between gap-2">
-                    <button
-                      type="button"
-                      onClick={() => setNatalLayerActive((value) => !value)}
-                      className={cx(
-                        "pointer-events-auto inline-flex items-center gap-1.5 font-mono text-[8px] font-bold uppercase tracking-[0.16em] transition focus:outline-none focus:ring-2 focus:ring-gold/35",
-                        natalLayerActive ? "text-gold" : "text-mist/55 hover:text-gold/80"
-                      )}
-                      aria-pressed={natalLayerActive}
-                      aria-label={natalLayerActive ? "ネイタル天体を暗くする" : "ネイタル天体を明るくする"}
-                      title={natalLayerActive ? "ネイタル天体を暗くする" : "ネイタル天体を明るくする"}
-                    >
-                      {natalLayerActive ? <Eye size={13} /> : <EyeOff size={13} />}
-                      ネイタル天体
-                    </button>
+                    <span className={cx("font-mono text-[8px] font-bold uppercase tracking-[0.16em]", natalLayerActive ? "text-gold" : "text-mist/55")}>ネイタル天体</span>
                     <button
                       type="button"
                       onClick={() => setIsNatalTableCollapsed(true)}
@@ -6772,7 +6734,7 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
         <section className="-mx-3 grid gap-3 rounded-2xl border border-white/10 bg-[#121414]/76 p-2 shadow-[0_18px_42px_rgba(0,0,0,0.28)] backdrop-blur-md sm:hidden">
           <div className="grid grid-cols-2 gap-1 rounded-xl border border-white/10 bg-white/[0.035] p-1 font-mono text-[8px] font-bold text-mist">
             {[
-              ["display", "天体表示"],
+              ["display", "チャート"],
               ["aspect", "アスペクト表示"],
             ].map(([value, label]) => (
               <button
@@ -6794,7 +6756,7 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
               <div className="grid grid-cols-2 gap-1 rounded-xl border border-white/10 bg-white/[0.025] p-1 font-mono text-[9px] font-bold">
                 {[
                   ["transit", "現行天体"],
-                  ["natal", "ネイタル天体"],
+                  ["natal", "ネイタル"],
                 ].map(([value, label]) => (
                   <button
                     key={value}
@@ -6812,15 +6774,7 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
               </div>
               {mobilePlanetTableTab === "transit" ? (
                 <div className="rounded-xl border border-white/10 bg-white/[0.025] p-1.5">
-                  <button
-                    type="button"
-                    onClick={() => setTransitLayerActive((value) => !value)}
-                    className={cx("mb-2 inline-flex items-center gap-1.5 font-mono text-[9px] font-bold", transitLayerActive ? "text-gold/80" : "text-mist/45")}
-                    aria-pressed={transitLayerActive}
-                  >
-                    {transitLayerActive ? <Eye size={13} /> : <EyeOff size={13} />}
-                    現行天体
-                  </button>
+                  <div className={cx("mb-2 font-mono text-[9px] font-bold", transitLayerActive ? "text-gold/80" : "text-mist/45")}>現行天体</div>
                   <div className="mb-1 grid grid-cols-[0.5rem_2.45rem_2.7rem_1.45rem_2.45rem] items-center gap-1 px-1 font-mono text-[8px] font-bold text-mist/45">
                     <span />
                     <span>天体</span>
@@ -6849,15 +6803,7 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
                 </div>
               ) : (
                 <div className="rounded-xl border border-white/10 bg-white/[0.025] p-1.5">
-                  <button
-                    type="button"
-                    onClick={() => setNatalLayerActive((value) => !value)}
-                    className={cx("mb-2 inline-flex items-center gap-1.5 font-mono text-[9px] font-bold", natalLayerActive ? "text-gold" : "text-mist/55")}
-                    aria-pressed={natalLayerActive}
-                  >
-                    {natalLayerActive ? <Eye size={13} /> : <EyeOff size={13} />}
-                    ネイタル天体
-                  </button>
+                  <div className={cx("mb-2 font-mono text-[9px] font-bold", natalLayerActive ? "text-gold" : "text-mist/55")}>ネイタル</div>
                   <div className="mb-1 grid grid-cols-[0.5rem_2.45rem_2.7rem_1.45rem_2.45rem] items-center gap-1 px-1 font-mono text-[8px] font-bold text-mist/45">
                     <span />
                     <span>天体</span>
