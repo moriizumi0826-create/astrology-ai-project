@@ -56,17 +56,33 @@ class YearlyForecastTestCase(unittest.TestCase):
 
     def test_month_detail_includes_only_requested_monthly_overview(self):
         august = [{"as_of": "2026-08-01", "title": "August"}]
+        aspect = {
+            "t_planet": "JUPITER",
+            "n_planet": "VENUS",
+            "aspect_angle": 60,
+            "natal_house": 6,
+            "description": "August aspect",
+            "genre_score_components": {"general_health": {"positive": 70, "negative": 0}},
+            "genre_applicability": {"genres": []},
+        }
         forecast = {
             "monthly_overviews": {
                 "2026-08": august,
                 "2026-09": [{"as_of": "2026-09-01", "title": "September"}],
             },
+            "yearly_data": [
+                {"date": "2026-08-10", "all_aspects": [aspect]},
+                {"date": "2026-09-10", "all_aspects": [aspect]},
+            ],
         }
 
         detail = build_yearly_forecast_detail(forecast, scope="month", year=2026, month=8)
 
         self.assertEqual(detail["monthly_overviews"], {"2026-08": august})
         self.assertNotIn("2026-09", detail["monthly_overviews"])
+        self.assertEqual(len(detail["annual_category_aspects"]), 1)
+        self.assertEqual(detail["annual_category_aspects"][0]["start_date"], "2026-08-10")
+        self.assertEqual(detail["annual_category_aspects"][0]["end_date"], "2026-08-10")
 
     def test_annual_detail_compacts_consecutive_daily_aspects(self):
         aspect = {
