@@ -70,6 +70,7 @@ MASTER_CSV_FILES = {
     "daily_star_vibe": "M_Daily_Star_Vibe.csv",
     "daily_performance_action_advice": "M_Daily_Performance_Action_Advice.csv",
     "countdown": "M_Countdown_Master.csv",
+    "celestial_event_interpretation": "M_Celestial_Event_Interpretations.csv",
     "transit_calendar": "M_Transit_Calendar_2026.csv",
     "retrograde_calendar": "M_Retrograde_Calendar.generated.csv",
 }
@@ -177,9 +178,55 @@ CELESTIAL_SIGN_LABELS = (
     "牡羊座", "牡牛座", "双子座", "蟹座", "獅子座", "乙女座",
     "天秤座", "蠍座", "射手座", "山羊座", "水瓶座", "魚座",
 )
+CELESTIAL_SIGN_IDS = (
+    "ARIES", "TAURUS", "GEMINI", "CANCER", "LEO", "VIRGO",
+    "LIBRA", "SCORPIO", "SAGITTARIUS", "CAPRICORN", "AQUARIUS", "PISCES",
+)
 CELESTIAL_EVENT_PLANET_PRIORITY = {
     "SUN": 10, "MOON": 4, "MERCURY": 6, "VENUS": 7, "MARS": 8,
     "JUPITER": 9, "SATURN": 10, "URANUS": 10, "NEPTUNE": 10, "PLUTO": 10,
+}
+CELESTIAL_PLANET_THEMES = {
+    "SUN": "自己表現や自信",
+    "MOON": "感情や安心感",
+    "MERCURY": "考え方やコミュニケーション",
+    "VENUS": "愛情や人間関係",
+    "MARS": "行動力や決断",
+    "JUPITER": "成長や幸運",
+    "SATURN": "責任や長期的な土台",
+    "URANUS": "変化や自由",
+    "NEPTUNE": "理想や感性",
+    "PLUTO": "深い変化や再生",
+    "ASC": "自分らしさや外見的な印象",
+    "MC": "仕事や社会的な方向性",
+}
+CELESTIAL_SIGN_THEMES = {
+    "牡羊座": "行動力や新しい始まり",
+    "牡牛座": "安定や五感の充実",
+    "双子座": "情報交換や学び",
+    "蟹座": "家族や安心できる居場所",
+    "獅子座": "自己表現や創造性",
+    "乙女座": "整理や実務的な改善",
+    "天秤座": "調和や対話",
+    "蠍座": "深い結びつきや変化",
+    "射手座": "探求や視野の広がり",
+    "山羊座": "責任や具体的な成果",
+    "水瓶座": "独自性や未来への刷新",
+    "魚座": "共感や癒やし",
+}
+CELESTIAL_HOUSE_THEMES = {
+    1: "自分らしさや新しいスタート",
+    2: "お金や才能、持っているもの",
+    3: "学びや身近な人とのやり取り",
+    4: "家や居場所、家族とのつながり",
+    5: "恋愛や創作、楽しみ",
+    6: "仕事の習慣や健康管理",
+    7: "恋愛やパートナーシップ",
+    8: "深い関係や共有するお金",
+    9: "専門的な学びや遠方との縁",
+    10: "仕事や社会的な立場",
+    11: "友人関係や未来の計画",
+    12: "心の整理や休息",
 }
 
 COUNTDOWN_SHORT_PLANETS = {"MOON", "SUN", "MERCURY", "VENUS", "MARS"}
@@ -3743,6 +3790,132 @@ def _celestial_aspect_category(category: Any, transit_planet: Any, natal_planet:
     return ",".join(ordered) or "General"
 
 
+def _celestial_theme(planet: Any) -> str:
+    return CELESTIAL_PLANET_THEMES.get(_normalize_planet(planet), "その天体が示すテーマ")
+
+
+def _celestial_domain(category: Any) -> str:
+    domains = {
+        "LOVE": "愛情や人間関係",
+        "MONEY": "お金や豊かさ",
+        "WORK": "仕事や役割",
+    }
+    values = [
+        domains.get(value.strip().upper())
+        for value in str(category or "").split(",")
+        if domains.get(value.strip().upper())
+    ]
+    if not values:
+        return "その天体のテーマ"
+    return "や".join(dict.fromkeys(values))
+
+
+def _celestial_event_meaning(
+    event_type: str,
+    *,
+    planet: Any = None,
+    sign: Any = None,
+    house: Any = None,
+    natal_planet: Any = None,
+    aspect_angle: Any = None,
+    category: Any = None,
+    is_retrograde: bool = False,
+) -> str:
+    interpretation_df = MASTER_DATAFRAMES.get("celestial_event_interpretation", pd.DataFrame())
+    if interpretation_df.empty:
+        return ""
+
+    normalized_event_type = str(event_type or "").strip().lower()
+    normalized_planet = _normalize_planet(planet)
+    normalized_natal_planet = _normalize_planet(natal_planet)
+    normalized_sign = str(sign or "").strip()
+    normalized_house = _normalize_int(house)
+    normalized_angle = _normalize_int(aspect_angle)
+    normalized_category = {
+        value.strip().upper()
+        for value in str(category or "").split(",")
+        if value.strip()
+    }
+    candidates: list[tuple[int, int, int, dict[str, Any]]] = []
+    for row_index, raw_row in enumerate(interpretation_df.to_dict("records")):
+        row = {str(key): value for key, value in raw_row.items()}
+        def cell_text(key: str) -> str:
+            value = row.get(key)
+            return "" if value is None or pd.isna(value) else str(value).strip()
+
+        if cell_text("Event_Type").lower() != normalized_event_type:
+            continue
+        if (cell_text("Active_Flag") or "1").upper() not in {"1", "TRUE", "Y", "YES"}:
+            continue
+
+        match_planet = _normalize_planet(row.get("Planet")) if cell_text("Planet") else ""
+        match_natal_planet = _normalize_planet(row.get("Natal_Planet")) if cell_text("Natal_Planet") else ""
+        match_sign = cell_text("Sign")
+        match_house = _normalize_int(row.get("House")) if cell_text("House") else None
+        match_angle = _normalize_int(row.get("Aspect_Angle")) if cell_text("Aspect_Angle") else None
+        match_categories = {
+            value.strip().upper()
+            for value in cell_text("Category").split(",")
+            if value.strip()
+        }
+        if match_planet and match_planet != normalized_planet:
+            continue
+        if match_natal_planet and match_natal_planet != normalized_natal_planet:
+            continue
+        if match_sign and match_sign != normalized_sign:
+            continue
+        if match_house is not None and match_house != normalized_house:
+            continue
+        if match_angle is not None and match_angle != normalized_angle:
+            continue
+        if match_categories and not match_categories.intersection(normalized_category):
+            continue
+
+        specificity = sum(bool(value) for value in (match_planet, match_natal_planet, match_sign, match_house is not None, match_angle is not None, match_categories))
+        priority = _normalize_int(row.get("Priority")) or 0
+        candidates.append((specificity, priority, -row_index, row))
+
+    if not candidates:
+        return ""
+    selected_row = max(candidates, key=lambda value: value[:3])[3]
+    template = selected_row.get("Description")
+    if template is None or pd.isna(template) or not str(template).strip():
+        template = selected_row.get("Description_Template")
+    if template is None or pd.isna(template) or not str(template).strip():
+        return ""
+
+    variables = {
+        "event_type": normalized_event_type,
+        "planet": _planet_label(planet),
+        "planet_theme": _celestial_theme(planet),
+        "sign": normalized_sign,
+        "sign_theme": CELESTIAL_SIGN_THEMES.get(normalized_sign, "新しい方向性"),
+        "house": normalized_house or "",
+        "house_theme": CELESTIAL_HOUSE_THEMES.get(normalized_house, "この分野"),
+        "natal_planet": _planet_label(natal_planet),
+        "natal_theme": _celestial_theme(natal_planet),
+        "angle": normalized_angle if normalized_angle is not None else "",
+        "category": str(category or "General"),
+        "domain": _celestial_domain(category),
+    }
+    try:
+        return str(template).format_map(variables).strip()
+    except (KeyError, ValueError):
+        LOGGER.warning("Invalid celestial event interpretation template for %s", normalized_event_type)
+        return str(template).strip()
+
+
+def _celestial_solar_house(transit_sign: Any, natal_sun_sign: Any) -> int | None:
+    transit_sign_id = _normalize_sign(transit_sign)
+    natal_sun_sign_id = _normalize_sign(natal_sun_sign)
+    try:
+        transit_index = CELESTIAL_SIGN_IDS.index(transit_sign_id)
+        natal_sun_index = CELESTIAL_SIGN_IDS.index(natal_sun_sign_id)
+    except ValueError:
+        return None
+    return ((transit_index - natal_sun_index) % 12) + 1
+
+
 def _build_celestial_event_calendar(
     birth_input: BirthInput | None,
     current_dt: datetime | date | None,
@@ -3768,6 +3941,14 @@ def _build_celestial_event_calendar(
         for row in chart_rows.get("houses", [])
         if len(row) >= 2 and _normalize_float(row[1]) is not None
     ]
+    natal_sun_sign = "ARIES"
+    for chart_planet in chart_rows.get("planets", []):
+        if len(chart_planet) < 2 or _normalize_planet(chart_planet[0]) != "SUN":
+            continue
+        sun_longitude = _normalize_float(chart_planet[1])
+        if sun_longitude is not None:
+            natal_sun_sign = CELESTIAL_SIGN_IDS[int(sun_longitude // 30) % 12]
+        break
 
     for planet, planet_samples in samples.items():
         planet_label = _planet_label(planet)
@@ -3781,12 +3962,18 @@ def _build_celestial_event_calendar(
                 direction = 1 if right_unwrapped > left_unwrapped else -1
                 sign_index = int((sign_target / 30 + (0 if direction > 0 else -1)) % 12)
                 sign_label = CELESTIAL_SIGN_LABELS[sign_index]
+                solar_house = _celestial_solar_house(CELESTIAL_SIGN_IDS[sign_index], natal_sun_sign) or 1
+                solar_category = _celestial_house_category(solar_house)
                 events.append(_celestial_event_item(
                     event_type="sign_ingress", event_dt=event_dt, start_dt=start_dt,
                     title=f"{planet_label}が{sign_label}へ移動",
-                    note=f"{planet_label}のテーマが{sign_label}の領域へ切り替わります。",
+                    note=_celestial_event_meaning(
+                        "solar_house_ingress", planet=planet, house=solar_house,
+                    ),
                     priority=70 + planet_priority, planet=planet, transit_planet=planet,
-                    sign=sign_label, direction="direct" if direction > 0 else "retrograde",
+                    sign=sign_label, solar_house=solar_house, category=solar_category,
+                    genres=_celestial_event_genres(solar_category),
+                    direction="direct" if direction > 0 else "retrograde",
                 ))
 
             for house, cusp in house_cusps:
@@ -3797,7 +3984,9 @@ def _build_celestial_event_calendar(
                     events.append(_celestial_event_item(
                         event_type="natal_house_ingress", event_dt=event_dt, start_dt=start_dt,
                         title=f"{planet_label}がネイタル第{entered_house}ハウスへ移動",
-                        note=f"{planet_label}が個人天体図の第{entered_house}ハウスへ入り、焦点が切り替わります。",
+                        note=_celestial_event_meaning(
+                            "natal_house_ingress", planet=planet, house=entered_house,
+                        ),
                         priority=60 + planet_priority, planet=planet, transit_planet=planet, house=entered_house,
                         category=category, genres=_celestial_event_genres(category),
                     ))
@@ -3824,10 +4013,12 @@ def _build_celestial_event_calendar(
                             natal["planet"],
                         )
                         classification = "caution" if angle == 90 else "major"
-                        note = (
-                            "負荷や摩擦が高まりやすい時期です。結果を断定せず、調整余地を確保してください。"
-                            if angle == 90 else
-                            f"トランジット{planet_label}とネイタル{natal_label}の主要アスペクトが正確になります。"
+                        note = _celestial_event_meaning(
+                            "transit_natal_aspect",
+                            planet=planet,
+                            natal_planet=natal["planet"],
+                            aspect_angle=angle,
+                            category=category,
                         )
                         events.append(_celestial_event_item(
                             event_type="transit_natal_aspect", event_dt=event_dt, start_dt=start_dt,
@@ -3856,11 +4047,20 @@ def _build_celestial_event_calendar(
                 left_dt, right_dt, left_value, target_unwrapped, timezone_offset
             )
             is_new = target == 0
+            lunation_planet = "SUN" if is_new else "MOON"
+            lunation_longitude, _lunation_speed = _calc_transit_planet_motion(
+                lunation_planet, event_dt, timezone_offset
+            )
+            lunation_sign = CELESTIAL_SIGN_LABELS[int(lunation_longitude // 30) % 12]
             events.append(_celestial_event_item(
                 event_type="new_moon" if is_new else "full_moon", event_dt=event_dt, start_dt=start_dt,
                 title="新月" if is_new else "満月",
-                note="新しいサイクルの始まりです。意図を定めるタイミングです。" if is_new else "サイクルの到達点です。成果と手放すものを確認するタイミングです。",
-                priority=98 if is_new else 96, planet="MOON", transit_planet="MOON", classification="major",
+                note=_celestial_event_meaning(
+                    "new_moon" if is_new else "full_moon",
+                    planet=lunation_planet, sign=lunation_sign,
+                ),
+                priority=98 if is_new else 96, planet="MOON", transit_planet="MOON",
+                sign=lunation_sign, classification="major",
             ))
 
     for row in _dashboard_retrograde_calendar(start_dt):
@@ -3874,12 +4074,17 @@ def _build_celestial_event_calendar(
         is_retrograde = row.get("event_type") == "RETROGRADE_START"
         planet = _normalize_planet(row.get("planet"))
         planet_label = row.get("planet_label") or _planet_label(planet)
+        event_sign = _safe_text(row, "sign_label")
         events.append(_celestial_event_item(
             event_type="retrograde_start" if is_retrograde else "direct_start",
             event_dt=event_dt, start_dt=start_dt,
             title=f"{planet_label}{'逆行開始' if is_retrograde else '順行復帰'}",
-            note=f"{planet_label}が{'逆行を開始します。見直しと再調整の期間に入ります。' if is_retrograde else '順行へ戻り、停滞していたテーマが動き始めます。'}",
+            note=_celestial_event_meaning(
+                "retrograde_start" if is_retrograde else "direct_start",
+                planet=planet, sign=event_sign,
+            ),
             priority=94 if is_retrograde else 92, planet=planet, transit_planet=planet,
+            sign=event_sign,
             classification="caution" if is_retrograde else "major",
         ))
 
@@ -5039,6 +5244,14 @@ def _generate_readings(
         birth_input=birth_input,
         include_deferred_widgets=include_deferred_widgets,
     )
+    dashboard_data["natal_points"] = _build_natal_aspect_points(birth_input)
+    dashboard_data["natal_house_cusps"] = [
+        longitude
+        for row in chart_rows["houses"]
+        if len(row) > 1
+        for longitude in [_normalize_float(row[1])]
+        if longitude is not None
+    ]
 
     with TemporaryDirectory(prefix="chart_run_") as tmp:
         temp_dir = Path(tmp)

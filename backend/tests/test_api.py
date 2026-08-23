@@ -1490,6 +1490,25 @@ class ApiTestCase(unittest.TestCase):
         self.assertEqual(reading_service._celestial_house_category(11), "Love")
         self.assertEqual(reading_service._celestial_house_category(12), "General")
 
+    def test_celestial_event_meaning_is_personal_and_concise(self):
+        venus_seventh = reading_service._celestial_event_meaning(
+            "natal_house_ingress", planet="VENUS", house=7,
+        )
+        self.assertIn("愛情や恋愛、パートナーシップ", venus_seventh)
+        self.assertIn("うれしい動き", venus_seventh)
+        self.assertNotIn("焦点が切り替わります", venus_seventh)
+
+        aspect = reading_service._celestial_event_meaning(
+            "transit_natal_aspect",
+            planet="VENUS",
+            natal_planet="SUN",
+            aspect_angle=0,
+            category="Love",
+        )
+        self.assertIn("愛情や人間関係", aspect)
+        self.assertIn("自己表現や自信", aspect)
+        self.assertNotIn("正確になります", aspect)
+
     @unittest.skipIf(reading_service.swe is None, "swisseph is not installed")
     def test_celestial_event_calendar_excludes_transit_moon_squares(self):
         birth_input = BirthInput(

@@ -871,6 +871,75 @@ function dateKeyToLocalDate(value) {
   return Number.isNaN(date.getTime()) ? null : date;
 }
 
+function calendarDateKey(date) {
+  if (!(date instanceof Date) || Number.isNaN(date.getTime())) return "";
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+}
+
+function calendarMonthStart(value) {
+  const date = value instanceof Date ? value : dateKeyToLocalDate(value);
+  return date ? new Date(date.getFullYear(), date.getMonth(), 1) : new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+}
+
+function calendarMonthCells(month) {
+  const monthStart = calendarMonthStart(month);
+  const firstWeekday = monthStart.getDay();
+  const daysInMonth = new Date(monthStart.getFullYear(), monthStart.getMonth() + 1, 0).getDate();
+  const cellCount = Math.ceil((firstWeekday + daysInMonth) / 7) * 7;
+  return Array.from({ length: cellCount }, (_, index) => {
+    const date = new Date(monthStart.getFullYear(), monthStart.getMonth(), index - firstWeekday + 1);
+    return {
+      date,
+      dateKey: calendarDateKey(date),
+      isCurrentMonth: date.getMonth() === monthStart.getMonth(),
+    };
+  });
+}
+
+function shiftCalendarMonth(month, offset) {
+  const start = calendarMonthStart(month);
+  return new Date(start.getFullYear(), start.getMonth() + offset, 1);
+}
+
+const CALENDAR_PLANET_LABELS = {
+  SUN: "太陽",
+  MOON: "月",
+  MERCURY: "水星",
+  VENUS: "金星",
+  MARS: "火星",
+  JUPITER: "木星",
+  SATURN: "土星",
+  URANUS: "天王星",
+  NEPTUNE: "海王星",
+  PLUTO: "冥王星",
+  ASC: "ASC",
+  MC: "MC",
+};
+
+function calendarPlanetLabel(value) {
+  const normalized = String(value || "").replace(/^TRANSIT_/, "").replace(/^NATAL_/, "").toUpperCase();
+  return CALENDAR_PLANET_LABELS[normalized] || normalized;
+}
+
+function calendarEventShortLabel(item, typeMeta) {
+  const eventType = String(item?.event_type || "");
+  if (eventType === "transit_natal_aspect") {
+    const transit = calendarPlanetLabel(item.transit_planet || item.planet);
+    const natal = calendarPlanetLabel(item.natal_planet);
+    return `${transit}×${natal}`;
+  }
+  if (eventType === "natal_house_ingress") {
+    return `${calendarPlanetLabel(item.transit_planet || item.planet)}→${item.house || "?"}H`;
+  }
+  if (eventType === "sign_ingress") {
+    return `${calendarPlanetLabel(item.transit_planet || item.planet)}→${String(item.sign || "").replace(/座$/, "")}`;
+  }
+  if (eventType === "retrograde_start" || eventType === "direct_start") {
+    return `${calendarPlanetLabel(item.transit_planet || item.planet)}${eventType === "retrograde_start" ? "逆行" : "順行"}`;
+  }
+  return item.title || typeMeta?.label || "Event";
+}
+
 function countdownDaysUntil(slide, baseDateKey = "") {
   const explicitDays = Number(
     slide?.days_remaining ??
@@ -1951,11 +2020,13 @@ function DashboardV2DailyThemeCard({ data, displayDate = "", onDateShift = () =>
 }
 
 function DashboardV2CountdownCard({ data, onSelectAspect = () => {} }) {
+  const displayDate = dashboardDisplayDate(data);
   const [activeEventIndex, setActiveEventIndex] = useState(0);
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
   const [calendarFilter, setCalendarFilter] = useState("all");
   const [personalGenreFilter, setPersonalGenreFilter] = useState("all");
-  const displayDate = dashboardDisplayDate(data);
+  const [calendarMonth, setCalendarMonth] = useState(() => calendarMonthStart(displayDate));
+  const [selectedCalendarDate, setSelectedCalendarDate] = useState("");
   const calendarItems = React.useMemo(() => {
     const rawItems = (Array.isArray(data.celestial_event_calendar) ? data.celestial_event_calendar : []).filter((item) => {
       if (!item) return false;
@@ -2005,11 +2076,20 @@ function DashboardV2CountdownCard({ data, onSelectAspect = () => {} }) {
   useEffect(() => {
     if (!isCalendarOpen) return undefined;
     const handleKeyDown = (event) => {
-      if (event.key === "Escape") setIsCalendarOpen(false);
+      if (event.key !== "Escape") return;
+      if (selectedCalendarDate) {
+        setSelectedCalendarDate("");
+      } else {
+        setIsCalendarOpen(false);
+      }
     };
     document.addEventListener("keydown", handleKeyDown);
     return () => document.removeEventListener("keydown", handleKeyDown);
-  }, [isCalendarOpen]);
+  }, [isCalendarOpen, selectedCalendarDate]);
+  useEffect(() => {
+    setCalendarMonth(calendarMonthStart(displayDate));
+    setSelectedCalendarDate("");
+  }, [displayDate]);
   const goToEvent = (direction) => {
     if (eventCount <= 1) return;
     setActiveEventIndex((index) => (index + direction + eventCount) % eventCount);
@@ -2049,14 +2129,44 @@ function DashboardV2CountdownCard({ data, onSelectAspect = () => {} }) {
     groupsByDate[dateKey].push(item);
     return groupsByDate;
   }, {});
-  const formatEventDateHeading = (value) => {
-    const date = dateKeyToLocalDate(value);
-    if (!date) return value;
-    return `${date.getMonth() + 1}月${date.getDate()}日（${["日", "月", "火", "水", "木", "金", "土"][date.getDay()]}）`;
-  };
+  const calendarCells = calendarMonthCells(calendarMonth);
+  const calendarMonthLabel = `${calendarMonth.getFullYear()}年${calendarMonth.getMonth() + 1}月`;
+  const calendarWeekdays = ["日", "月", "火", "水", "木", "金", "土"];
+  const selectedCalendarItems = selectedCalendarDate ? (calendarGroups[selectedCalendarDate] || []) : [];
+  const selectedCalendarDateObject = dateKeyToLocalDate(selectedCalendarDate);
   const formatEventTime = (value) => {
     const match = String(value || "").match(/T(\d{2}):(\d{2})/);
     return match ? `${match[1]}:${match[2]}` : "--:--";
+  };
+  const calendarEventTone = (item) => {
+    const genres = Array.isArray(item.genres) && item.genres.length
+      ? item.genres.map((genre) => String(genre).toLowerCase())
+      : [String(item.genre || "general").toLowerCase()];
+    if (genres.includes("love")) return "border-[#f472b6]/80 bg-[#f472b6]/5 text-[#f9a8d4]";
+    if (genres.includes("money")) return "border-[#4ade80]/80 bg-[#4ade80]/5 text-[#86efac]";
+    if (genres.includes("work")) return "border-[#60a5fa]/80 bg-[#60a5fa]/5 text-[#93c5fd]";
+    if (item.classification === "caution") return "border-[#ff5c68]/80 bg-[#ff5c68]/5 text-[#ff9aa3]";
+    if (celestialEventTypeMeta[item.event_type]?.group === "personal") return "border-[#a78bfa]/80 bg-[#a78bfa]/5 text-[#c4b5fd]";
+    return "border-[#e9c349]/80 bg-[#e9c349]/5 text-[#f5d76e]";
+  };
+  const calendarFilterTabTone = (value, active) => {
+    if (active) {
+      if (value === "personal") return "border-[#a78bfa] bg-[#a78bfa] text-[#1d1630]";
+      return "border-[#e9c349] bg-[#e9c349] text-[#241a00]";
+    }
+    if (value === "personal") return "border-[#a78bfa]/25 bg-[#a78bfa]/5 text-[#a78bfa] hover:border-[#a78bfa]/60";
+    if (value === "celestial") return "border-[#e9c349]/25 bg-[#e9c349]/5 text-[#e9c349] hover:border-[#e9c349]/60";
+    return "border-white/10 bg-white/[0.04] text-[#909096] hover:border-white/25 hover:text-[#f3f3f0]";
+  };
+  const calendarGenreTabTone = (value, active) => {
+    const tones = {
+      love: ["border-[#f472b6] bg-[#f472b6] text-[#321327]", "border-[#f472b6]/30 bg-[#f472b6]/5 text-[#f9a8d4] hover:border-[#f472b6]/70"],
+      money: ["border-[#4ade80] bg-[#4ade80] text-[#0d2816]", "border-[#4ade80]/30 bg-[#4ade80]/5 text-[#86efac] hover:border-[#4ade80]/70"],
+      work: ["border-[#60a5fa] bg-[#60a5fa] text-[#0b203b]", "border-[#60a5fa]/30 bg-[#60a5fa]/5 text-[#93c5fd] hover:border-[#60a5fa]/70"],
+      general: ["border-[#c7c6cc] bg-[#c7c6cc] text-[#202124]", "border-white/15 bg-white/[0.025] text-[#909096] hover:border-white/30"],
+      all: ["border-[#e9c349] bg-[#e9c349] text-[#241a00]", "border-white/10 bg-white/[0.025] text-[#77787d] hover:border-white/25"],
+    };
+    return (tones[value] || tones.all)[active ? 0 : 1];
   };
   return (
     <>
@@ -2146,7 +2256,10 @@ function DashboardV2CountdownCard({ data, onSelectAspect = () => {} }) {
         className="fixed inset-0 z-[90] flex items-center justify-center bg-[#050607]/80 px-3 py-5 backdrop-blur-md sm:px-6"
         role="presentation"
         onMouseDown={(event) => {
-          if (event.target === event.currentTarget) setIsCalendarOpen(false);
+          if (event.target === event.currentTarget) {
+            setSelectedCalendarDate("");
+            setIsCalendarOpen(false);
+          }
         }}
       >
         <section
@@ -2164,7 +2277,10 @@ function DashboardV2CountdownCard({ data, onSelectAspect = () => {} }) {
               </div>
               <button
                 type="button"
-                onClick={() => setIsCalendarOpen(false)}
+                onClick={() => {
+                  setSelectedCalendarDate("");
+                  setIsCalendarOpen(false);
+                }}
                 className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-white/10 text-[#c7c6cc] transition hover:border-[#e9c349]/60 hover:text-[#e9c349]"
                 aria-label="天体イベントカレンダーを閉じる"
               >
@@ -2181,12 +2297,10 @@ function DashboardV2CountdownCard({ data, onSelectAspect = () => {} }) {
                   key={value}
                   type="button"
                   onClick={() => setCalendarFilter(value)}
-                  className={cx(
-                    "rounded-full border px-3 py-1.5 text-[10px] font-black transition",
-                    calendarFilter === value
-                      ? "border-[#e9c349] bg-[#e9c349] text-[#241a00]"
-                      : "border-white/10 bg-white/[0.04] text-[#909096] hover:border-white/25 hover:text-[#f3f3f0]"
-                  )}
+                    className={cx(
+                      "rounded-full border px-3 py-1.5 text-[10px] font-black transition",
+                      calendarFilterTabTone(value, calendarFilter === value)
+                    )}
                 >
                   {label}
                 </button>
@@ -2208,9 +2322,7 @@ function DashboardV2CountdownCard({ data, onSelectAspect = () => {} }) {
                     onClick={() => setPersonalGenreFilter(value)}
                     className={cx(
                       "rounded-full border px-2.5 py-1 text-[9px] font-black transition",
-                      personalGenreFilter === value
-                        ? "border-[#38bdf8]/70 bg-[#38bdf8]/15 text-[#7dd3fc]"
-                        : "border-white/10 bg-white/[0.025] text-[#77787d] hover:border-white/20 hover:text-[#c7c6cc]"
+                      calendarGenreTabTone(value, personalGenreFilter === value)
                     )}
                   >
                     {label}
@@ -2219,51 +2331,166 @@ function DashboardV2CountdownCard({ data, onSelectAspect = () => {} }) {
               </div>
             ) : null}
           </header>
-          <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4 [scrollbar-color:#e9c34933_transparent] sm:px-6">
-            {Object.keys(calendarGroups).length ? (
-              <div className="grid gap-5">
-                {Object.entries(calendarGroups).map(([dateKey, items]) => (
-                  <section key={dateKey} className="grid gap-2 sm:grid-cols-[132px_1fr] sm:gap-4">
-                    <div className="sm:sticky sm:top-0 sm:self-start">
-                      <p className="font-mono text-xs font-black text-[#e9c349]">{formatEventDateHeading(dateKey)}</p>
-                      <p className="mt-1 font-mono text-[9px] text-[#6f7075]">{items.length} EVENTS</p>
-                    </div>
-                    <div className="grid gap-2">
-                      {items.map((item) => {
-                        const typeMeta = celestialEventTypeMeta[item.event_type] || { label: item.event_type || "Event" };
-                        const isCaution = item.classification === "caution";
-                        return (
-                          <article
-                            key={item.event_id}
-                            className={cx(
-                              "grid gap-2 rounded-2xl border bg-white/[0.035] px-3 py-3 sm:grid-cols-[54px_1fr] sm:px-4",
-                              isCaution ? "border-[#ff5c68]/22" : "border-white/10"
-                            )}
-                          >
-                            <p className={cx("font-mono text-xs font-black", isCaution ? "text-[#ff8b94]" : "text-[#e9c349]")}>{formatEventTime(item.event_datetime)}</p>
-                            <div className="min-w-0">
-                              <div className="flex flex-wrap items-center gap-2">
-                                <h3 className="font-notoSerif text-sm font-black text-[#f3f3f0]">{item.title}</h3>
-                                <span className={cx(
-                                  "rounded-full border px-2 py-0.5 font-mono text-[8px] font-black",
-                                  isCaution
-                                    ? "border-[#ff5c68]/30 bg-[#ff5c68]/10 text-[#ff9aa3]"
-                                    : "border-[#38bdf8]/25 bg-[#38bdf8]/10 text-[#7dd3fc]"
-                                )}>{typeMeta.label}</span>
-                              </div>
-                              <p className="mt-1 text-[10px] leading-5 text-[#909096]">{item.note}</p>
-                            </div>
-                          </article>
-                        );
-                      })}
-                    </div>
-                  </section>
+          <div className="min-h-0 flex-1 overflow-y-auto px-3 py-4 [scrollbar-color:#e9c34933_transparent] sm:px-6">
+            <div className="mb-3 flex items-center justify-between gap-3 rounded-2xl border border-white/[0.08] bg-white/[0.025] px-3 py-2.5">
+              <button
+                type="button"
+                onClick={() => {
+                  setCalendarMonth((month) => shiftCalendarMonth(month, -1));
+                  setSelectedCalendarDate("");
+                }}
+                className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-white/10 text-[#c7c6cc] transition hover:border-[#e9c349]/60 hover:text-[#e9c349]"
+                aria-label="前月を表示"
+              >
+                <ChevronLeft size={17} />
+              </button>
+              <div className="text-center">
+                <p className="font-notoSerif text-lg font-black text-[#f3f3f0]">{calendarMonthLabel}</p>
+                <p className="mt-0.5 font-mono text-[8px] font-black tracking-[0.16em] text-[#6f7075]">現在日から30日以内</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setCalendarMonth((month) => shiftCalendarMonth(month, 1));
+                  setSelectedCalendarDate("");
+                }}
+                className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-white/10 text-[#c7c6cc] transition hover:border-[#e9c349]/60 hover:text-[#e9c349]"
+                aria-label="次月を表示"
+              >
+                <ChevronRight size={17} />
+              </button>
+            </div>
+            <div className="overflow-hidden rounded-2xl border border-white/[0.08] bg-[#0e1010]">
+              <div className="grid grid-cols-7 border-b border-white/10 bg-white/[0.04]">
+                {calendarWeekdays.map((weekday, index) => (
+                  <div
+                    key={weekday}
+                    className={cx(
+                      "py-2 text-center font-mono text-[9px] font-black",
+                      index === 0 ? "text-[#ff8b94]" : index === 6 ? "text-[#93c5fd]" : "text-[#909096]"
+                    )}
+                  >
+                    {weekday}
+                  </div>
                 ))}
               </div>
-            ) : (
-              <div className="flex min-h-[220px] items-center justify-center rounded-2xl border border-dashed border-white/10 text-sm text-[#909096]">該当するイベントはありません。</div>
-            )}
+              <div className="grid grid-cols-7">
+                {calendarCells.map((cell) => {
+                  const items = calendarGroups[cell.dateKey] || [];
+                  const daysFromDisplay = countdownDaysUntil({ event_date: cell.dateKey }, displayDate);
+                  const isBeyondHorizon = Number.isFinite(daysFromDisplay) && daysFromDisplay > 30;
+                  const isToday = cell.dateKey === displayDate;
+                  const canOpen = items.length > 0 && !isBeyondHorizon;
+                  const visibleItems = items.slice(0, 2);
+                  const hiddenItemCount = Math.max(0, items.length - visibleItems.length);
+                  return (
+                    <button
+                      key={cell.dateKey}
+                      type="button"
+                      disabled={!canOpen}
+                      onClick={() => setSelectedCalendarDate(cell.dateKey)}
+                      aria-label={`${cell.date.getMonth() + 1}月${cell.date.getDate()}日${items.length ? `、イベント${items.length}件` : ""}`}
+                      className={cx(
+                        "relative min-h-[66px] border-b border-r border-white/[0.08] p-1.5 pt-7 text-left align-top transition last:border-r-0 sm:min-h-[78px] sm:p-2 sm:pt-7",
+                        cell.isCurrentMonth ? "bg-transparent" : "bg-black/10",
+                        isToday ? "ring-1 ring-inset ring-[#e9c349]/80" : "",
+                        canOpen ? "cursor-pointer hover:bg-white/[0.08]" : "cursor-default",
+                        isBeyondHorizon ? "bg-black/45 opacity-45" : "",
+                        !cell.isCurrentMonth ? "text-[#55565c]" : "text-[#c7c6cc]"
+                      )}
+                    >
+                      <span className={cx(
+                        "absolute left-1/2 top-1.5 flex h-5 min-w-5 w-fit -translate-x-1/2 items-center justify-center rounded-full px-1 font-mono text-[10px] font-black",
+                        isToday ? "bg-[#e9c349] text-[#241a00]" : "text-current"
+                      )}>
+                        {cell.date.getDate()}
+                      </span>
+                      <div className="grid gap-1">
+                        {visibleItems.map((item) => {
+                          const typeMeta = celestialEventTypeMeta[item.event_type] || { label: item.event_type || "Event" };
+                          return (
+                            <span
+                              key={item.event_id}
+                              title={item.title}
+                              className={cx(
+                                "block truncate border-l-2 px-1.5 py-0.5 font-mono text-[9px] font-bold leading-4",
+                                calendarEventTone(item)
+                              )}
+                            >
+                              {calendarEventShortLabel(item, typeMeta)}
+                            </span>
+                          );
+                        })}
+                        {hiddenItemCount > 0 ? (
+                          <span className="px-1 font-mono text-[8px] font-black text-[#909096]">+{hiddenItemCount}件</span>
+                        ) : null}
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
           </div>
+          {selectedCalendarDate && selectedCalendarItems.length ? (
+            <div
+              className="fixed inset-0 z-[110] flex items-center justify-center bg-[#050607]/70 px-3 py-5 backdrop-blur-sm sm:px-6"
+              role="presentation"
+              onMouseDown={(event) => {
+                if (event.target === event.currentTarget) setSelectedCalendarDate("");
+              }}
+            >
+              <section
+                className="flex max-h-[82vh] w-full max-w-xl flex-col overflow-hidden rounded-3xl border border-[#e9c349]/30 bg-[#151717] shadow-[0_30px_100px_rgba(0,0,0,0.75)]"
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="selected-celestial-event-title"
+              >
+                <header className="flex items-start justify-between gap-4 border-b border-white/10 px-4 py-4 sm:px-5">
+                  <div>
+                    <p className="font-mono text-[9px] font-black uppercase tracking-[0.22em] text-[#e9c349]">Daily Events</p>
+                    <h3 id="selected-celestial-event-title" className="mt-1 font-notoSerif text-lg font-black text-[#f3f3f0]">
+                      {selectedCalendarDateObject ? `${selectedCalendarDateObject.getMonth() + 1}月${selectedCalendarDateObject.getDate()}日` : selectedCalendarDate}
+                    </h3>
+                    <p className="mt-1 text-[10px] text-[#909096]">この日の天体イベント {selectedCalendarItems.length}件</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedCalendarDate("")}
+                    className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-white/10 text-[#c7c6cc] transition hover:border-[#e9c349]/60 hover:text-[#e9c349]"
+                    aria-label="イベント詳細を閉じる"
+                  >
+                    <X size={17} />
+                  </button>
+                </header>
+                <div className="min-h-0 overflow-y-auto px-4 py-4 sm:px-5">
+                  <div className="grid gap-3">
+                    {selectedCalendarItems.map((item) => {
+                      const typeMeta = celestialEventTypeMeta[item.event_type] || { label: item.event_type || "Event" };
+                      const genres = Array.isArray(item.genres) && item.genres.length
+                        ? item.genres
+                        : [item.genre || "general"];
+                      const genreLabels = { love: "恋愛・対人", money: "金運", work: "仕事", general: "全般" };
+                      return (
+                        <article key={item.event_id} className="rounded-2xl border border-white/10 bg-white/[0.035] px-3 py-3 sm:px-4">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <p className="font-mono text-xs font-black text-[#e9c349]">{formatEventTime(item.event_datetime)}</p>
+                            <span className={cx("rounded-full border px-2 py-0.5 font-mono text-[8px] font-black", calendarEventTone(item))}>{typeMeta.label}</span>
+                            {genres.map((genre) => (
+                              <span key={genre} className="rounded-full border border-white/10 px-2 py-0.5 font-mono text-[8px] font-black text-[#909096]">
+                                {genreLabels[String(genre).toLowerCase()] || genre}
+                              </span>
+                            ))}
+                          </div>
+                          <h4 className="mt-2 font-notoSerif text-base font-black text-[#f3f3f0]">{item.title || typeMeta.label}</h4>
+                          <p className="mt-2 text-[11px] leading-6 text-[#c7c6cc]">{item.note || "この天体イベントが、あなたのテーマに変化をもたらしやすい時期です。"}</p>
+                        </article>
+                      );
+                    })}
+                  </div>
+                </div>
+              </section>
+            </div>
+          ) : null}
         </section>
       </div>,
       document.body
@@ -3725,7 +3952,7 @@ function splitStoredReportSections(content) {
   return sections.filter((section) => section.title || section.body);
 }
 
-export function DashboardV2HoroscopePage({ data }) {
+export function DashboardV2HoroscopePage({ data, belowMetaContent = null }) {
   const [storedPayload, setStoredPayload] = useState(() => {
     if (typeof window === "undefined") return null;
     try {
@@ -3801,11 +4028,13 @@ export function DashboardV2HoroscopePage({ data }) {
         </DashboardV2Card>
       ) : null}
 
+      {belowMetaContent}
+
       {readings.length ? (
         <div className="grid gap-5">
           {readings.map((item, itemIndex) => {
             const sections = splitStoredReportSections(item.content);
-            const title = item.type === "full_report" ? "フルリポート" : item.title || item.type || "リポート";
+            const title = item.type === "full_report" ? "簡易リポート" : item.title || item.type || "リポート";
             return (
               <DashboardV2Card key={`${item.type || "reading"}-${itemIndex}`} bodyClassName="p-0">
                 <details className="group" open={itemIndex === 0}>
