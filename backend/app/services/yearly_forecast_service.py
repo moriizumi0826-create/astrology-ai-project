@@ -20,11 +20,15 @@ except ModuleNotFoundError:
 
 FORECAST_YEAR = 2026
 ASPECT_GENRE_DESCRIPTION_SCHEMA_VERSION = 2
-ASPECT_GENRE_APPLICABILITY_SCHEMA_VERSION = 3
+ASPECT_GENRE_APPLICABILITY_SCHEMA_VERSION = 4
 ASPECT_GENRE_SCORE_SCHEMA_VERSION = 4
 ANNUAL_TRANSIT_HOUSE_TRANSITION_SCHEMA_VERSION = 1
 MONTHLY_OVERVIEW_SCHEMA_VERSION = 1
-ASPECT_GENRE_KEYS = ("love", "work", "money")
+ASPECT_GENRE_KEYS = ("general_health", "love", "work", "money")
+ASPECT_STANDARD_GENRE_KEYS = ("love", "work", "money")
+ANNUAL_GENERAL_MIN_COMPONENT_SCORE = 65.0
+ANNUAL_GENERAL_OTHER_GENRE_MAX_SCORE = 55.0
+ANNUAL_GENERAL_MIN_DOMINANCE_MARGIN = 15.0
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
 DATABASE_DIR = PROJECT_ROOT / "database"
 MAIN_TREND_PLANETS = ("JUPITER", "SATURN", "URANUS", "NEPTUNE", "PLUTO")
@@ -645,7 +649,50 @@ def _category_genres(category: Any) -> tuple[str, ...]:
         str(value).strip().lower()
         for value in str(category or "").split(",")
     }
+    if "general" in values:
+        values.add("general_health")
     return tuple(genre for genre in ASPECT_GENRE_KEYS if genre in values)
+
+
+def _genre_component_strength(
+    components: dict[str, float | None] | None,
+) -> float | None:
+    values = [
+        float(value)
+        for value in (components or {}).values()
+        if value is not None
+    ]
+    return max(values) if values else None
+
+
+def _general_aspect_is_applicable(
+    source_category: str,
+    genre_score_components: dict[str, dict[str, float | None]],
+) -> bool:
+    if str(source_category or "").strip().lower() != "general":
+        return False
+
+    general_strength = _genre_component_strength(
+        genre_score_components.get("general_health")
+    )
+    if (
+        general_strength is None
+        or general_strength < ANNUAL_GENERAL_MIN_COMPONENT_SCORE
+    ):
+        return False
+
+    other_strength = max(
+        (
+            _genre_component_strength(genre_score_components.get(genre)) or 0.0
+            for genre in ASPECT_STANDARD_GENRE_KEYS
+        ),
+        default=0.0,
+    )
+    return (
+        other_strength < ANNUAL_GENERAL_OTHER_GENRE_MAX_SCORE
+        and general_strength - other_strength
+        >= ANNUAL_GENERAL_MIN_DOMINANCE_MARGIN
+    )
 
 
 def _aspect_genre_importance_scores(
@@ -670,12 +717,14 @@ def _aspect_genre_applicability(
     category_genres = set(_category_genres(source_category))
     score_genres = {
         genre
-        for genre in ASPECT_GENRE_KEYS
+        for genre in ASPECT_STANDARD_GENRE_KEYS
         if any(
             value is not None
             for value in (genre_score_components.get(genre) or {}).values()
         )
     }
+    if _general_aspect_is_applicable(source_category, genre_score_components):
+        score_genres.add("general_health")
     return {
         "genres": [genre for genre in ASPECT_GENRE_KEYS if genre in score_genres],
         "score_genres": [genre for genre in ASPECT_GENRE_KEYS if genre in score_genres],
