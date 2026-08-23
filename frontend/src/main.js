@@ -14,6 +14,10 @@ function resolveApiBaseUrl() {
 }
 
 const API_BASE_URL = resolveApiBaseUrl();
+const IS_TEST_VERSION = /(?:^|\/)index-v2\.html$/.test(window.location.pathname);
+const FORECAST_DETAIL_PATH = IS_TEST_VERSION
+  ? "./forecast-detail-v2.html"
+  : "./forecast-detail.html";
 
 const form = document.querySelector("#reading-form");
 const birthDateInput = form.querySelector('input[name="birth_date"]');
@@ -449,7 +453,7 @@ form.addEventListener("submit", async (event) => {
     const data = await postJson("/api/readings?defer_widgets=true", payload);
     await storeReadingResult(data);
     persistFormData(collectFormSnapshot());
-    window.location.href = "./forecast-detail.html";
+    window.location.href = FORECAST_DETAIL_PATH;
   } catch (error) {
     if (error instanceof TypeError) {
       setError("Backend API に接続できませんでした。backend が http://127.0.0.1:8000 で起動しているか確認してください。");

@@ -428,7 +428,33 @@ def build_transit_chart(
             "retrograde": float(result[0][3]) < 0,
         })
 
-    house_cusps, _ascmc = swe.houses(jd, birth_input.latitude, birth_input.longitude, b"P")
+    house_cusps, ascmc = swe.houses(jd, birth_input.latitude, birth_input.longitude, b"P")
+    node_result = swe.calc_ut(jd, swe.TRUE_NODE, swe.FLG_SPEED)
+    north_node_longitude = float(node_result[0][0]) % 360
+    node_retrograde = float(node_result[0][3]) < 0
+    transits.extend([
+        {
+            "planet": "NORTH_NODE",
+            "longitude": round(north_node_longitude, 4),
+            "retrograde": node_retrograde,
+        },
+        {
+            "planet": "SOUTH_NODE",
+            "longitude": round((north_node_longitude + 180) % 360, 4),
+            "retrograde": node_retrograde,
+        },
+        {
+            "planet": "ASC",
+            "longitude": round(float(ascmc[0]) % 360, 4),
+            "retrograde": False,
+        },
+        {
+            "planet": "MC",
+            "longitude": round(float(ascmc[1]) % 360, 4),
+            "retrograde": False,
+        },
+    ])
+
     return {
         "date": target_date.isoformat(),
         "time": target_time.strftime("%H:%M"),
