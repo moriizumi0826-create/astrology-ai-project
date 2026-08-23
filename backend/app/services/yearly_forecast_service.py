@@ -2173,6 +2173,11 @@ def build_yearly_forecast_detail(
         if month is None or not 1 <= month <= 12:
             raise ValueError("month must be between 1 and 12 for month detail")
         month_key = f"{year}-{month:02d}"
+        month_yearly_data = [
+            item
+            for item in forecast.get("yearly_data", [])
+            if str(item.get("date") or "")[:7] == month_key
+        ]
         monthly_peak_periods = {
             genre: [
                 item
@@ -2188,6 +2193,7 @@ def build_yearly_forecast_detail(
                 month_key: forecast.get("monthly_overviews", {}).get(month_key, [])
             },
             "monthly_peak_periods": monthly_peak_periods,
+            "annual_category_aspects": _compact_annual_aspect_periods(month_yearly_data),
             "monthly_sun_themes": [
                 item
                 for item in forecast.get("monthly_sun_themes", [])
