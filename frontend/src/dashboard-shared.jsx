@@ -4000,7 +4000,7 @@ export function DashboardV2HoroscopePage({ data, belowMetaContent = null }) {
   return (
     <main className="mx-auto max-w-[1440px] px-5 py-5 md:px-8 lg:px-14">
       <section className="mb-5 border-b border-white/10 pb-5">
-        <p className="font-mono text-[10px] font-black uppercase tracking-[0.3em] text-[#e9c349]">The Reading</p>
+        <p className="font-mono text-[10px] font-black uppercase tracking-[0.3em] text-[#e9c349]">Horoscope</p>
         <h1 className="mt-2 font-notoSerif text-3xl font-semibold leading-tight text-[#f3f3f0] md:text-5xl">
           Curated Results
         </h1>

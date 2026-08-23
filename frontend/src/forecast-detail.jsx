@@ -3106,8 +3106,8 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
   const [transitPlaybackStepDays, setTransitPlaybackStepDays] = useState(1);
   const [transitPlaybackRange, setTransitPlaybackRange] = useState("month");
   const [isPlaybackPanelOpen, setIsPlaybackPanelOpen] = useState(false);
-  const [natalLayerActive, setNatalLayerActive] = useState(false);
-  const [transitLayerActive, setTransitLayerActive] = useState(true);
+  const natalLayerActive = true;
+  const transitLayerActive = true;
   const [isTransitTableCollapsed, setIsTransitTableCollapsed] = useState(false);
   const [isNatalTableCollapsed, setIsNatalTableCollapsed] = useState(false);
   const [mobilePlanetTableTab, setMobilePlanetTableTab] = useState("transit");
@@ -3145,8 +3145,8 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
   const [isTransitCalendarOpen, setIsTransitCalendarOpen] = useState(false);
   const selectedMapPlanetDisplayMode = MAP_PLANET_DISPLAY_MODE_OPTIONS.find((option) => option.key === mapPlanetDisplayMode)
     || MAP_PLANET_DISPLAY_MODE_OPTIONS[2];
-  const showNatalMapLayer = !IS_TEST_VERSION || mapPlanetDisplayMode !== "transit";
-  const showTransitMapLayer = !IS_TEST_VERSION || mapPlanetDisplayMode !== "natal";
+  const showNatalMapLayer = mapPlanetDisplayMode !== "transit";
+  const showTransitMapLayer = mapPlanetDisplayMode !== "natal";
   const [transitCalendarMonth, setTransitCalendarMonth] = useState(() => monthKey(day?.date));
   const displayedTransitDateTime = isTransitPlaybackActive && transitPlaybackCursor
     ? transitPlaybackCursor
@@ -3742,9 +3742,7 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
     const natalHouseLabelRadiusBase = isMobileMapCanvas ? 2.26 : 2.58;
     const transitHouseLabelRadiusBase = isMobileMapCanvas ? 3.28 : 3.72;
     const natalOrbitRadiusValue = isMobileMapCanvas ? 1.76 : 2.05;
-    const natalPlanetRadiusValue = IS_TEST_VERSION
-      ? natalHouseLabelRadiusBase
-      : natalOrbitRadiusValue;
+    const natalPlanetRadiusValue = natalHouseLabelRadiusBase;
     const transitPlanetRadiusValue = isMobileMapCanvas ? 3.42 : 3.88;
     const mapRadii = {
       natalOrbitRadius: natalOrbitRadiusValue,
@@ -4823,10 +4821,10 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
     const state = sceneStateRef.current;
     if (!state?.group || !state.baseMapRadii) return;
 
-    const natalOnly = IS_TEST_VERSION && mapPlanetDisplayMode === "natal";
-    const transitOnly = IS_TEST_VERSION && mapPlanetDisplayMode === "transit";
-    const showNatal = !IS_TEST_VERSION || !transitOnly;
-    const showTransit = !IS_TEST_VERSION || !natalOnly;
+    const natalOnly = mapPlanetDisplayMode === "natal";
+    const transitOnly = mapPlanetDisplayMode === "transit";
+    const showNatal = !transitOnly;
+    const showTransit = !natalOnly;
     const base = state.baseMapRadii;
     const expandedPlanetRadius = (base.natalHouseInnerRadius + base.transitOrbitRadius) / 2;
     const targetRadii = {
@@ -5372,8 +5370,6 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
     setMapOffset(nextOffset);
     setIsRotationPaused(false);
     setIsFlatMapView(false);
-    setNatalLayerActive(false);
-    setTransitLayerActive(true);
     setSelectedNatalPlanet("SUN");
     setIsTransitPlaybackActive(false);
     setIsTransitPlaybackPreloading(false);
@@ -5438,13 +5434,10 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
   };
   const selectMapPlanetDisplayMode = (mode) => {
     if (!MAP_PLANET_DISPLAY_MODE_OPTIONS.some((option) => option.key === mode)) return;
-    if (mode === "natal") setNatalLayerActive(true);
-    if (mode === "transit") setTransitLayerActive(true);
     setMapPlanetDisplayMode(mode);
     setIsMapPlanetDisplayPanelOpen(false);
   };
   const MapPlanetDisplaySelector = ({ compact = false } = {}) => {
-    if (!IS_TEST_VERSION) return null;
     return (
       <div className={cx("relative z-[120] rounded-xl border border-white/10 bg-[#121414]/78 shadow-[0_10px_26px_rgba(0,0,0,0.24)] backdrop-blur-md", compact ? "w-max p-1" : "p-1.5")}>
         <button
@@ -7892,7 +7885,6 @@ function RetrogradeCalendarPanel({
 }
 
 function Header({
-  activeYear,
   activeView,
   setActiveView,
   forecast = null,
@@ -7937,31 +7929,12 @@ function Header({
         || String(a.planet_label || a.planetLabel || a.planet || "").localeCompare(String(b.planet_label || b.planetLabel || b.planet || ""), "ja");
     });
   }, [retrogradeCalendar, retrogradeCalendarSort]);
-  const forecastLabel = {
-    unified: "星の見通し",
-    horoscope: "Horoscope",
-  }[activeView] || "星の見通し";
-  const headerTitle = activeView === "horoscope" ? forecastLabel : `${activeYear}年 ${forecastLabel}`;
   return (
     <header className="fixed left-0 top-0 z-40 w-full border-b border-slate-200/90 bg-[#f8fafc]/95 backdrop-blur-xl">
       <div className="flex w-full max-w-none flex-wrap items-center justify-between gap-2 px-3 py-2 sm:gap-6 sm:px-8 sm:py-6 lg:mx-auto lg:max-w-[1760px]">
         <div className="flex min-w-0 flex-1 items-center gap-2 sm:flex-none sm:gap-8">
           <a href={ENTRY_PAGE_PATH} className="max-w-[66px] font-serif text-[11px] font-bold leading-[0.98] text-[#0A192F] sm:max-w-none sm:text-4xl sm:leading-none">{APP_BRAND}</a>
-          <span className="hidden h-10 w-px bg-slate-200 md:block" />
           <div className="relative flex min-w-0 flex-1 items-center gap-1 sm:flex-none sm:gap-1.5">
-            <h1 className="hidden truncate font-serif font-semibold tracking-[0.04em] text-[#0A192F] sm:block sm:text-2xl md:text-3xl">
-              {headerTitle}
-            </h1>
-            <h1 className="flex min-w-0 items-baseline gap-1 font-serif text-[13px] font-semibold tracking-[0] text-[#0A192F] sm:hidden">
-              {activeView === "horoscope" ? (
-                <span className="truncate">{forecastLabel}</span>
-              ) : (
-                <>
-                  <span className="shrink-0 font-mono text-[10px] font-black text-[#0A192F]/70">{activeYear}年</span>
-                  <span className="truncate">{forecastLabel}</span>
-                </>
-              )}
-            </h1>
             <button
               type="button"
               onClick={() => setIsMobileUnifiedMenuOpen((value) => !value)}
@@ -9683,7 +9656,6 @@ function ForecastDetailPage() {
   return (
     <div className="relative min-h-screen overflow-x-hidden text-starlight">
       <Header
-        activeYear={activeYear}
         activeView={activeView}
         setActiveView={setActiveView}
         forecast={forecast}
@@ -9755,7 +9727,7 @@ function ForecastDetailPage() {
             <div className="-mx-5 -my-5 md:-mx-8 lg:-mx-14">
               <DashboardV2HoroscopePage
                 data={dailyDetailData}
-                belowMetaContent={IS_TEST_VERSION ? <Horoscope3DMap data={dailyDetailData} /> : null}
+                belowMetaContent={<Horoscope3DMap data={dailyDetailData} />}
               />
             </div>
           </ForecastGalaxyBackground>
