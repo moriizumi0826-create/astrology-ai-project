@@ -1,6 +1,6 @@
 ﻿import React, { useEffect, useMemo, useState } from "react";
 import { createRoot } from "react-dom/client";
-import { Activity, BriefcaseBusiness, CalendarDays, CircleDot, Eye, EyeOff, HandHeart, Maximize2, Menu, Minimize2, Minus, Move, Pause, Play, Plus, RefreshCw, Shield, SlidersHorizontal, Sparkles, WalletCards } from "lucide-react";
+import { Activity, BriefcaseBusiness, CalendarDays, CircleDot, HandHeart, LockKeyhole, Maximize2, Menu, Minimize2, Minus, Move, Pause, Play, Plus, RefreshCw, Shield, SlidersHorizontal, Sparkles, WalletCards } from "lucide-react";
 import * as THREE from "three";
 import {
   currentTokyoDate,
@@ -19,6 +19,19 @@ import { readableErrorMessage } from "./error-message.mjs";
 import { MonthlyOverviewContent } from "./monthly-overview-content.jsx";
 import { hasMonthlyOverviewMonth, monthlyOverviewForDay } from "./monthly-overview.mjs";
 import forecastGalaxyBg from "./assets/daily-detail-galaxy-bg.jpg";
+
+const IS_TEST_VERSION = /(?:^|\/)forecast-detail-v2\.html$/.test(window.location.pathname);
+const APP_BRAND = IS_TEST_VERSION
+  ? "The Celestial Atelier テストversion"
+  : "The Celestial Atelier";
+const ENTRY_PAGE_PATH = IS_TEST_VERSION ? "./index-v2.html" : "./index.html";
+const IS_FREE_VERSION = IS_TEST_VERSION;
+const CAN_ACCESS_PREMIUM = !IS_FREE_VERSION;
+const MAP_PLANET_DISPLAY_MODE_OPTIONS = [
+  { key: "natal", label: "ネイタル天体を表示" },
+  { key: "transit", label: "現行天体を表示" },
+  { key: "both", label: "両方表示" },
+];
 
 const MONTHS = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"];
 const MONTH_LABELS = Array.from({ length: 12 }, (_, index) => `${index + 1}月`);
@@ -44,6 +57,8 @@ const PLANET_LABELS = {
   PLUTO: "冥王星",
   ASC: "ASC",
   MC: "MC",
+  NORTH_NODE: "☊",
+  SOUTH_NODE: "☋",
 };
 const PLANET_SYMBOLS = {
   SUN: "☉",
@@ -60,6 +75,8 @@ const PLANET_SYMBOLS = {
   MC: "MC",
 };
 const TRANSIT_PLANET_ORDER = ["SUN", "MOON", "MERCURY", "VENUS", "MARS", "JUPITER", "SATURN", "URANUS", "NEPTUNE", "PLUTO"];
+const TRANSIT_ANGLE_ORDER = ["ASC", "MC"];
+const TRANSIT_MAP_POINT_ORDER = [...TRANSIT_PLANET_ORDER, ...TRANSIT_ANGLE_ORDER];
 const NATAL_POINT_ORDER = ["SUN", "MOON", "MERCURY", "VENUS", "MARS", "JUPITER", "SATURN", "URANUS", "NEPTUNE", "PLUTO", "ASC", "MC"];
 const SENSITIVE_POINT_ORDER = ["ASC", "MC"];
 const ZODIAC_SIGN_NAMES = ["牡羊", "牡牛", "双子", "蟹", "獅子", "乙女", "天秤", "蠍", "射手", "山羊", "水瓶", "魚"];
@@ -77,6 +94,8 @@ const PLANET_COLORS = {
   PLUTO: "#c084fc",
   ASC: "#f2e7c9",
   MC: "#e0d6ff",
+  NORTH_NODE: "#e9c349",
+  SOUTH_NODE: "#a98f6c",
 };
 const LIVE_ASPECT_DEFS = [
   { angle: 0, orb: 8 },
@@ -345,6 +364,48 @@ function planetLabel(value) {
   return PLANET_LABELS[key] || value || "";
 }
 
+function nodeTableRole(value) {
+  const raw = String(value || "").trim();
+  const key = raw.toUpperCase().replace(/[ -]/g, "_");
+  if (key === "NODE" || key === "TRUE_NODE" || key === "NORTH_NODE" || key === "DRAGON_HEAD" || raw.includes("ドラゴンヘッド")) {
+    return "NORTH_NODE";
+  }
+  if (key === "SOUTH_NODE" || key === "DRAGON_TAIL" || raw.includes("ドラゴンテール")) {
+    return "SOUTH_NODE";
+  }
+  return "";
+}
+
+function nodeTableItems(sourceItems = []) {
+  const byRole = new Map();
+  (Array.isArray(sourceItems) ? sourceItems : []).forEach((item) => {
+    const role = nodeTableRole(item?.planet || item?.name || item?.label);
+    const longitude = normalizeLongitude(item?.longitude);
+    if (!role || longitude === null || byRole.has(role)) return;
+    byRole.set(role, {
+      ...item,
+      planet: role,
+      label: planetLabel(role),
+      color: PLANET_COLORS[role],
+      longitude,
+    });
+  });
+
+  const northNode = byRole.get("NORTH_NODE");
+  if (northNode && !byRole.has("SOUTH_NODE")) {
+    byRole.set("SOUTH_NODE", {
+      ...northNode,
+      planet: "SOUTH_NODE",
+      label: planetLabel("SOUTH_NODE"),
+      color: PLANET_COLORS.SOUTH_NODE,
+      longitude: normalizeLongitude(northNode.longitude + 180),
+      estimated: true,
+    });
+  }
+
+  return ["NORTH_NODE", "SOUTH_NODE"].map((role) => byRole.get(role)).filter(Boolean);
+}
+
 function dateKey(value) {
   const match = String(value || "").match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})/);
   if (!match) return "";
@@ -427,6 +488,7 @@ const ASPECT_LINE_SCOPE_OPTIONS = [
   { key: "natalNatal", label: "ネイタル天体同士", shortLabel: "ネイタル×ネイタル", title: "ネイタル天体×ネイタル天体" },
 ];
 const ASPECT_DISPLAY_MODE_OPTIONS = [
+  { key: "none", label: "アスペクト表示なし", description: "アスペクト線を表示しない" },
   { key: "transitNatal", label: "出生図との関係", description: "ネイタル×現行" },
   { key: "transitTransit", label: "現行天体同士", description: "現行×現行" },
   { key: "natalNatal", label: "ネイタル同士", description: "ネイタル×ネイタル" },
@@ -1566,6 +1628,7 @@ function playbackAspectCacheForChart(chart, natalPoints = [], includeCompound = 
 }
 
 function playbackAspectSourceForFrame(frame, mode) {
+  if (mode === "none") return [];
   const cache = frame?.aspectCache;
   if (!cache) return [];
   if (isCompoundAspectMode(mode)) return cache.compoundLineAspects || [];
@@ -1583,6 +1646,7 @@ function aspectMatchesFocus(aspect, focus) {
 }
 
 function filterAspectLinesForControls(aspects, { focus, selections, mode }) {
+  if (mode === "none") return [];
   const isCompoundMode = isCompoundAspectMode(mode);
   const renderableAspects = isCompoundMode
     ? aspects.filter((aspect) => COMPOUND_ASPECT_ANGLES.includes(normalizeAspectAngle(aspect.angle)))
@@ -1848,6 +1912,7 @@ function interpolatedTransitChart(fromFrame, toFrame, progress, dateValue, timeV
 }
 
 function playbackHasCheckedAspectTargets(state) {
+  if (state?.aspectLineMode === "none") return false;
   return Boolean(
     (state?.aspectLineMode || "transitNatal") !== "custom"
     ||
@@ -1875,6 +1940,13 @@ function playbackAspectControlsKey(state, frame) {
 
 function syncPlaybackAspectLines(state, frame, force = false) {
   if (!state?.aspectGroup || !frame) return;
+  const mode = state.aspectLineMode || "transitNatal";
+  if (mode === "none") {
+    state.playbackAspectControlsKey = "";
+    renderAspectLines(state, [], false, state.transitLayerActive);
+    applyLiveAspectHighlights(state, []);
+    return;
+  }
   const hasCheckedAspectTargets = playbackHasCheckedAspectTargets(state);
   if (!hasCheckedAspectTargets && !state.aspectLineFocus && (state.aspectLineMode || "transitNatal") === "custom") {
     state.playbackAspectControlsKey = "";
@@ -1885,7 +1957,6 @@ function syncPlaybackAspectLines(state, frame, force = false) {
   const controlsKey = playbackAspectControlsKey(state, frame);
   if (!force && state.playbackAspectControlsKey === controlsKey) return;
   state.playbackAspectControlsKey = controlsKey;
-  const mode = state.aspectLineMode || "transitNatal";
   const sourceAspects = playbackAspectSourceForFrame(frame, mode);
   const filteredAspects = filterAspectLinesForControls(sourceAspects, {
     focus: state.aspectLineFocus,
@@ -2910,8 +2981,8 @@ function transitSkyMapData(day, forecast, selectedNatalPlanet = "SUN") {
   transitChartItems.forEach((item) => {
     const planet = normalizedPlanet(item?.planet || item?.name);
     const longitude = normalizeLongitude(item?.longitude);
-    if (!TRANSIT_PLANET_ORDER.includes(planet) || longitude === null || byPlanet.has(planet)) return;
-    preciseTransitCount += 1;
+    if (!TRANSIT_MAP_POINT_ORDER.includes(planet) || longitude === null || byPlanet.has(planet)) return;
+    if (TRANSIT_PLANET_ORDER.includes(planet)) preciseTransitCount += 1;
     byPlanet.set(planet, {
       planet,
       label: planetLabel(planet),
@@ -2934,7 +3005,7 @@ function transitSkyMapData(day, forecast, selectedNatalPlanet = "SUN") {
 
   const natalPoints = collectNatalPoints(forecast);
   const natalHouseCusps = collectNatalHouseCusps(forecast);
-  const transits = TRANSIT_PLANET_ORDER.map((planet) => byPlanet.get(planet));
+  const transits = TRANSIT_MAP_POINT_ORDER.map((planet) => byPlanet.get(planet)).filter(Boolean);
   const transitHouseCusps = collectTransitHouseCusps(day, transits);
   const selectedNatal = natalPoints.find((point) => point.planet === selectedNatalPlanet) || natalPoints[0];
   const natalByPlanet = new Map(natalPoints.map((point) => [point.planet, point]));
@@ -3035,12 +3106,14 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
   const [transitPlaybackStepDays, setTransitPlaybackStepDays] = useState(1);
   const [transitPlaybackRange, setTransitPlaybackRange] = useState("month");
   const [isPlaybackPanelOpen, setIsPlaybackPanelOpen] = useState(false);
-  const [natalLayerActive, setNatalLayerActive] = useState(false);
-  const [transitLayerActive, setTransitLayerActive] = useState(true);
+  const natalLayerActive = true;
+  const transitLayerActive = true;
   const [isTransitTableCollapsed, setIsTransitTableCollapsed] = useState(false);
   const [isNatalTableCollapsed, setIsNatalTableCollapsed] = useState(false);
   const [mobilePlanetTableTab, setMobilePlanetTableTab] = useState("transit");
   const [mobileMapPanelTab, setMobileMapPanelTab] = useState("display");
+  const [mapPlanetDisplayMode, setMapPlanetDisplayMode] = useState("both");
+  const [isMapPlanetDisplayPanelOpen, setIsMapPlanetDisplayPanelOpen] = useState(false);
   const [isMapControlsMenuOpen, setIsMapControlsMenuOpen] = useState(false);
   const [isMapFullscreen, setIsMapFullscreen] = useState(false);
   const [isMapPositionPanelOpen, setIsMapPositionPanelOpen] = useState(false);
@@ -3053,12 +3126,12 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
   const [isAspectPanelOpen, setIsAspectPanelOpen] = useState(false);
   const [isAspectListPanelOpen, setIsAspectListPanelOpen] = useState(false);
   const [aspectLineSelections, setAspectLineSelections] = useState(EMPTY_ASPECT_SELECTIONS);
-  const [aspectLineMode, setAspectLineMode] = useState("transitTransit");
+  const [aspectLineMode, setAspectLineMode] = useState("none");
   const selectedAspectDisplayMode = useMemo(
     () => ASPECT_DISPLAY_MODE_OPTIONS.find((option) => option.key === aspectLineMode) || ASPECT_DISPLAY_MODE_OPTIONS[0],
     [aspectLineMode]
   );
-  const [aspectInterpretationScope, setAspectInterpretationScope] = useState("all");
+  const [aspectInterpretationScope, setAspectInterpretationScope] = useState("none");
   const [compoundAspectListCategory, setCompoundAspectListCategory] = useState("mixed");
   const [tooltipCompositeTab, setTooltipCompositeTab] = useState("compound");
   const [openTooltipAspectKeys, setOpenTooltipAspectKeys] = useState(() => new Set());
@@ -3070,6 +3143,10 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
   const [isMobileAspectListDetached, setIsMobileAspectListDetached] = useState(false);
   const selectedDate = dateKey(day?.date);
   const [isTransitCalendarOpen, setIsTransitCalendarOpen] = useState(false);
+  const selectedMapPlanetDisplayMode = MAP_PLANET_DISPLAY_MODE_OPTIONS.find((option) => option.key === mapPlanetDisplayMode)
+    || MAP_PLANET_DISPLAY_MODE_OPTIONS[2];
+  const showNatalMapLayer = mapPlanetDisplayMode !== "transit";
+  const showTransitMapLayer = mapPlanetDisplayMode !== "natal";
   const [transitCalendarMonth, setTransitCalendarMonth] = useState(() => monthKey(day?.date));
   const displayedTransitDateTime = isTransitPlaybackActive && transitPlaybackCursor
     ? transitPlaybackCursor
@@ -3254,6 +3331,14 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
       : dayWithTransitChart
   ), [day, dayWithTransitChart, playbackTransitChart]);
   const tableSky = useMemo(() => transitSkyMapData(tableDay, forecast, selectedNatalPlanet), [tableDay, forecast, selectedNatalPlanet]);
+  const tableTransitNodeItems = useMemo(
+    () => nodeTableItems(tableDay?.transit_chart?.transits || tableDay?.transitChart?.transits),
+    [tableDay]
+  );
+  const tableNatalNodeItems = useMemo(
+    () => nodeTableItems(forecast?.natal_points || forecast?.natalPoints),
+    [forecast]
+  );
   const aspectLineSky = playbackTransitChart ? tableSky : sky;
   const livePlaybackAspects = useMemo(
     () => (isTransitPlaybackActive && playbackTransitChart
@@ -3304,7 +3389,9 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
   ), [shouldComputeCompoundAspects, compoundAspectSourceAspects, isTransitPlaybackActive]);
   const compoundLineAspects = useMemo(() => compoundAspectLineComponents(compoundAspectGroups), [compoundAspectGroups]);
   const aspectLineDisplaySourceAspects = useMemo(() => (
-    isCompoundAspectMode(aspectLineMode)
+    aspectLineMode === "none"
+      ? []
+      : isCompoundAspectMode(aspectLineMode)
       ? compoundLineAspects
       : aspectLineMode === "custom"
         ? [...aspectLineSourceAspects, ...natalNatalSourceAspects]
@@ -3386,6 +3473,14 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
   const aspectInterpretationItems = aspectInterpretationBuckets.visibleItems;
   const selectAspectLineMode = (mode) => {
     setAspectLineMode(mode);
+    if (mode === "none") {
+      setAspectInterpretationScope("none");
+      setAspectLineFocus(null);
+      setAspectTooltip(null);
+      setSelectedAspectLineHighlightKey("");
+      setIsAspectListPanelOpen(false);
+      return;
+    }
     if (mode === "custom") return;
     if (mode === "compositeTransit") {
       setCompoundAspectListCategory("transitOnly");
@@ -3564,12 +3659,15 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
     const symbolBillboards = [];
     const hoverTargets = [];
     const natalMeshes = new Map();
+    const natalHouseLines = [];
     const natalHouseLabels = [];
+    const mapRings = [];
     const natalLayerLabels = [];
     const natalPlanetSymbols = [];
     const transitLayerObjects = [];
     const transitHouseLabels = [];
     const transitHouseLines = [];
+    const transitZodiacLines = [];
     const transitLayerLabels = [];
     const transitPositions = new Map();
     const transitVisuals = new Map();
@@ -3637,20 +3735,31 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
     scene.add(fillLight);
 
     const isMobileMapCanvas = window.matchMedia?.("(max-width: 639px)").matches ?? window.innerWidth < 640;
+    const natalHouseInnerRadiusBase = isMobileMapCanvas ? 1.46 : 1.72;
+    const natalHouseOuterRadiusBase = isMobileMapCanvas ? 2.92 : 3.28;
+    const transitHouseInnerRadiusBase = isMobileMapCanvas ? 2.92 : 3.28;
+    const transitOrbitRadiusBase = isMobileMapCanvas ? 3.66 : 4.15;
+    const natalHouseLabelRadiusBase = isMobileMapCanvas ? 2.26 : 2.58;
+    const transitHouseLabelRadiusBase = isMobileMapCanvas ? 3.28 : 3.72;
+    const natalOrbitRadiusValue = isMobileMapCanvas ? 1.76 : 2.05;
+    const natalPlanetRadiusValue = natalHouseLabelRadiusBase;
+    const transitPlanetRadiusValue = isMobileMapCanvas ? 3.42 : 3.88;
     const mapRadii = {
-      natalOrbitRadius: isMobileMapCanvas ? 1.76 : 2.05,
-      natalHouseInnerRadius: isMobileMapCanvas ? 1.46 : 1.72,
-      natalHouseOuterRadius: isMobileMapCanvas ? 2.92 : 3.28,
-      natalHouseLabelRadius: isMobileMapCanvas ? 2.26 : 2.58,
-      transitHouseInnerRadius: isMobileMapCanvas ? 2.92 : 3.28,
-      transitOrbitRadius: isMobileMapCanvas ? 3.66 : 4.15,
-      transitHouseLabelRadius: isMobileMapCanvas ? 3.28 : 3.72,
-      transitPlanetRadius: isMobileMapCanvas ? 3.42 : 3.88,
+      natalOrbitRadius: natalOrbitRadiusValue,
+      natalPlanetRadius: natalPlanetRadiusValue,
+      natalHouseInnerRadius: natalHouseInnerRadiusBase,
+      natalHouseOuterRadius: natalHouseOuterRadiusBase,
+      natalHouseLabelRadius: natalHouseLabelRadiusBase,
+      transitHouseInnerRadius: transitHouseInnerRadiusBase,
+      transitOrbitRadius: transitOrbitRadiusBase,
+      transitHouseLabelRadius: transitHouseLabelRadiusBase,
+      transitPlanetRadius: transitPlanetRadiusValue,
       zodiacOuterRadius: isMobileMapCanvas ? 4.16 : 4.72,
       zodiacLabelRadius: isMobileMapCanvas ? 3.92 : 4.45,
     };
     const {
       natalOrbitRadius,
+      natalPlanetRadius,
       natalHouseInnerRadius,
       natalHouseOuterRadius,
       natalHouseLabelRadius,
@@ -3663,16 +3772,19 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
     } = mapRadii;
 
     [
-      { radius: natalOrbitRadius, color: 0xe9c349, opacity: 0.2 },
-      { radius: natalHouseOuterRadius, color: 0xffffff, opacity: 0.08 },
-      { radius: transitOrbitRadius, color: 0x8bd3ff, opacity: 0.18 },
-      { radius: zodiacOuterRadius, color: 0xe9c349, opacity: 0.12 },
+      { role: "natalOrbit", radius: natalOrbitRadius, color: 0xe9c349, opacity: 0.2, visible: true },
+      { role: "natalOuter", radius: natalHouseOuterRadius, color: 0xffffff, opacity: 0.08, visible: true },
+      { role: "transitInner", radius: transitHouseInnerRadius, color: 0x8bd3ff, opacity: 0.14, visible: false },
+      { role: "transitOrbit", radius: transitOrbitRadius, color: 0x8bd3ff, opacity: 0.18, visible: true },
+      { role: "zodiacOuter", radius: zodiacOuterRadius, color: 0xe9c349, opacity: 0.12, visible: true },
     ].forEach((item) => {
       const ring = new THREE.Mesh(
         new THREE.TorusGeometry(item.radius, 0.01, 10, 160),
         new THREE.MeshBasicMaterial({ color: item.color, transparent: true, opacity: item.opacity })
       );
       ring.rotation.x = Math.PI / 2;
+      ring.visible = item.visible;
+      mapRings.push({ mesh: ring, ...item });
       group.add(ring);
     });
 
@@ -3749,89 +3861,92 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
     group.add(earthAtmosphere);
 
     sceneSky.natalHouseCusps.forEach((longitude, index) => {
-      const inner = longitudePosition(longitude, natalHouseInnerRadius, -0.03);
-      const outer = longitudePosition(longitude, natalHouseOuterRadius, -0.03);
-      const line = new THREE.Line(
-        new THREE.BufferGeometry().setFromPoints([inner, outer]),
-        new THREE.LineBasicMaterial({
-          color: 0xe9c349,
-          transparent: true,
-          opacity: index === 0 ? 0.24 : 0.13,
-        })
-      );
-      group.add(line);
+        const inner = longitudePosition(longitude, natalHouseInnerRadius, -0.03);
+        const outer = longitudePosition(longitude, natalHouseOuterRadius, -0.03);
+        const line = new THREE.Line(
+          new THREE.BufferGeometry().setFromPoints([inner, outer]),
+          new THREE.LineBasicMaterial({
+            color: 0xe9c349,
+            transparent: true,
+            opacity: index === 0 ? 0.24 : 0.13,
+          })
+        );
+        natalHouseLines.push({ line, index });
+        group.add(line);
     });
     sceneSky.natalHouseCusps.forEach((longitude, index) => {
-      const nextLongitude = sceneSky.natalHouseCusps[(index + 1) % sceneSky.natalHouseCusps.length];
-      const { mesh, texture } = orbitTextPlane(index + 1, {
-        color: "#f4d66f",
-        font: "800 114px JetBrains Mono, monospace",
-        scaleX: index + 1 >= 10 ? 0.66 : 0.495,
-        scaleY: 0.375,
-        opacity: index === 0 ? 0.86 : 0.68,
-        glowColor: index === 0 ? "rgba(255,224,96,0.95)" : "rgba(233,195,73,0.82)",
-        glowBlur: index === 0 ? 34 : 28,
-      });
-      textures.push(texture);
-      setOrbitTextPlaneTransform(mesh, midpointLongitude(longitude, nextLongitude), natalHouseLabelRadius, 0.07);
-      natalHouseLabels.push({
-        mesh,
-        brightOpacity: index === 0 ? 0.98 : 0.84,
-        dimOpacity: index === 0 ? 0.11 : 0.07,
-      });
-      group.add(mesh);
+        const nextLongitude = sceneSky.natalHouseCusps[(index + 1) % sceneSky.natalHouseCusps.length];
+        const { mesh, texture } = orbitTextPlane(index + 1, {
+          color: "#f4d66f",
+          font: "800 114px JetBrains Mono, monospace",
+          scaleX: index + 1 >= 10 ? 0.66 : 0.495,
+          scaleY: 0.375,
+          opacity: index === 0 ? 0.86 : 0.68,
+          glowColor: index === 0 ? "rgba(255,224,96,0.95)" : "rgba(233,195,73,0.82)",
+          glowBlur: index === 0 ? 34 : 28,
+        });
+        textures.push(texture);
+        setOrbitTextPlaneTransform(mesh, midpointLongitude(longitude, nextLongitude), natalHouseLabelRadius, 0.07);
+        natalHouseLabels.push({
+          mesh,
+          index,
+          brightOpacity: index === 0 ? 0.98 : 0.84,
+          dimOpacity: index === 0 ? 0.11 : 0.07,
+        });
+        group.add(mesh);
     });
     sceneSky.transitHouseCusps.forEach((longitude, index) => {
-      const inner = longitudePosition(longitude, transitHouseInnerRadius, -0.03);
-      const outer = longitudePosition(longitude, transitOrbitRadius, -0.03);
-      const line = new THREE.Line(
-        new THREE.BufferGeometry().setFromPoints([inner, outer]),
-        new THREE.LineBasicMaterial({
-          color: 0x8bd3ff,
-          transparent: true,
-          opacity: index === 0 ? 0.22 : 0.12,
-        })
-      );
-      transitHouseLines.push({
-        line,
-        index,
-        brightOpacity: index === 0 ? 0.22 : 0.12,
-      });
-      group.add(line);
+        const inner = longitudePosition(longitude, transitHouseInnerRadius, -0.03);
+        const outer = longitudePosition(longitude, transitOrbitRadius, -0.03);
+        const line = new THREE.Line(
+          new THREE.BufferGeometry().setFromPoints([inner, outer]),
+          new THREE.LineBasicMaterial({
+            color: 0x8bd3ff,
+            transparent: true,
+            opacity: index === 0 ? 0.22 : 0.12,
+          })
+        );
+        transitHouseLines.push({
+          line,
+          index,
+          brightOpacity: index === 0 ? 0.22 : 0.12,
+        });
+        group.add(line);
     });
     sceneSky.transitHouseCusps.forEach((longitude, index) => {
-      const nextLongitude = sceneSky.transitHouseCusps[(index + 1) % sceneSky.transitHouseCusps.length];
-      const { mesh, texture } = orbitTextPlane(index + 1, {
-        color: index === 0 ? "#bfeaff" : "#d7d6dc",
-        font: "800 126px JetBrains Mono, monospace",
-        scaleX: index + 1 >= 10 ? 0.75 : 0.555,
-        scaleY: 0.42,
-        opacity: index === 0 ? 0.46 : 0.36,
-        glowColor: "rgba(139,211,255,0.26)",
-        glowBlur: 14,
-      });
-      textures.push(texture);
-      setOrbitTextPlaneTransform(mesh, midpointLongitude(longitude, nextLongitude), transitHouseLabelRadius, 0.07);
-      transitHouseLabels.push({
-        mesh,
-        index,
-        brightOpacity: index === 0 ? 0.46 : 0.36,
-      });
-      group.add(mesh);
+        const nextLongitude = sceneSky.transitHouseCusps[(index + 1) % sceneSky.transitHouseCusps.length];
+        const { mesh, texture } = orbitTextPlane(index + 1, {
+          color: index === 0 ? "#bfeaff" : "#d7d6dc",
+          font: "800 126px JetBrains Mono, monospace",
+          scaleX: index + 1 >= 10 ? 0.75 : 0.555,
+          scaleY: 0.42,
+          opacity: index === 0 ? 0.46 : 0.36,
+          glowColor: "rgba(139,211,255,0.26)",
+          glowBlur: 14,
+        });
+        textures.push(texture);
+        setOrbitTextPlaneTransform(mesh, midpointLongitude(longitude, nextLongitude), transitHouseLabelRadius, 0.07);
+        transitHouseLabels.push({
+          mesh,
+          index,
+          brightOpacity: index === 0 ? 0.46 : 0.36,
+        });
+        group.add(mesh);
     });
     for (let index = 0; index < 12; index += 1) {
-      const longitude = index * 30;
-      const inner = longitudePosition(longitude, transitOrbitRadius, -0.03);
-      const outer = longitudePosition(longitude, zodiacOuterRadius, -0.03);
-      const line = new THREE.Line(
-        new THREE.BufferGeometry().setFromPoints([inner, outer]),
-        new THREE.LineBasicMaterial({
-          color: 0x8bd3ff,
-          transparent: true,
-          opacity: index % 3 === 0 ? 0.2 : 0.12,
-        })
-      );
-      group.add(line);
+        const longitude = index * 30;
+        const inner = longitudePosition(longitude, transitOrbitRadius, -0.03);
+        const outer = longitudePosition(longitude, zodiacOuterRadius, -0.03);
+        const line = new THREE.Line(
+          new THREE.BufferGeometry().setFromPoints([inner, outer]),
+          new THREE.LineBasicMaterial({
+            color: 0x8bd3ff,
+            transparent: true,
+            opacity: index % 3 === 0 ? 0.2 : 0.12,
+          })
+        );
+        transitZodiacLines.push(line);
+        group.add(line);
     }
     ZODIAC_SIGNS.forEach((signSymbol, index) => {
       const { mesh, texture } = orbitTextPlane(signSymbol, {
@@ -3869,12 +3984,10 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
       setOrbitTextPlaneTransform(mesh, item.longitude, item.radius, 0.11);
       if (item.label === "ネイタル天体") {
         mesh.userData.tooltip = "ネイタル天体";
-        mesh.userData.toggleNatalLayer = true;
         hoverTargets.push(mesh);
         natalLayerLabels.push({ mesh, brightOpacity: item.opacity, dimOpacity: 0.34 });
       } else if (item.label === "現行天体") {
         mesh.userData.tooltip = "現行天体";
-        mesh.userData.toggleTransitLayer = true;
         hoverTargets.push(mesh);
         transitLayerLabels.push({ mesh, brightOpacity: item.opacity, dimOpacity: 0.34 });
       }
@@ -3882,7 +3995,9 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
     });
 
     sceneSky.natalPoints.forEach((point, index) => {
-      const position = longitudePosition(point.longitude, natalOrbitRadius, 0.42 + (index % 2) * 0.16);
+      const isNatalAngle = TRANSIT_ANGLE_ORDER.includes(point.planet);
+      const baseY = 0.42 + (index % 2) * 0.16;
+      const position = longitudePosition(point.longitude, natalPlanetRadius, baseY);
       const texture = planetTexture(point.planet);
       textures.push(texture);
       const material = new THREE.MeshStandardMaterial({
@@ -3893,33 +4008,40 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
         metalness: 0.06,
         roughness: 0.62,
         transparent: true,
-        opacity: 0.24,
+        opacity: isNatalAngle ? 0 : 0.24,
         depthWrite: false,
       });
       const mesh = new THREE.Mesh(new THREE.SphereGeometry(0.14, 48, 24), material);
       mesh.position.copy(position);
+      mesh.visible = !isNatalAngle;
       mesh.userData.tooltip = `あなたの${planetLabel(point.planet)}`;
       mesh.userData.natalPlanet = point.planet;
       mesh.scale.setScalar(0.86);
-      spinningMeshes.push({ mesh, speed: 0.0025 });
-      hoverTargets.push(mesh);
-      natalMeshes.set(point.planet, { mesh, material, point });
+      if (!isNatalAngle) {
+        spinningMeshes.push({ mesh, speed: 0.0025 });
+        hoverTargets.push(mesh);
+      }
+      const natalMeshEntry = { mesh, material, point, baseY, isAngle: isNatalAngle, hitMesh: null };
+      natalMeshes.set(point.planet, natalMeshEntry);
       group.add(mesh);
 
-      const hitMesh = new THREE.Mesh(
-        new THREE.SphereGeometry(0.3, 32, 16),
-        new THREE.MeshBasicMaterial({
-          transparent: true,
-          opacity: 0,
-          depthTest: false,
-          depthWrite: false,
-        })
-      );
-      hitMesh.position.copy(position);
-      hitMesh.userData.tooltip = `あなたの${planetLabel(point.planet)}`;
-      hitMesh.userData.natalPlanet = point.planet;
-      hoverTargets.push(hitMesh);
-      group.add(hitMesh);
+      if (!isNatalAngle) {
+        const hitMesh = new THREE.Mesh(
+          new THREE.SphereGeometry(0.3, 32, 16),
+          new THREE.MeshBasicMaterial({
+            transparent: true,
+            opacity: 0,
+            depthTest: false,
+            depthWrite: false,
+          })
+        );
+        hitMesh.position.copy(position);
+        hitMesh.userData.tooltip = `あなたの${planetLabel(point.planet)}`;
+        hitMesh.userData.natalPlanet = point.planet;
+        natalMeshEntry.hitMesh = hitMesh;
+        hoverTargets.push(hitMesh);
+        group.add(hitMesh);
+      }
 
       const symbol = PLANET_SYMBOLS[point.planet] || planetLabel(point.planet);
       const symbolTexture = planetSymbolTexture(symbol, point.color);
@@ -3954,6 +4076,7 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
     });
 
     sceneSky.transits.forEach((item, index) => {
+      const isTransitAngle = TRANSIT_ANGLE_ORDER.includes(item.planet);
       const position = longitudePosition(item.longitude, transitPlanetRadius, (index % 2) * 0.18);
       transitPositions.set(item.planet, position.clone());
       const transitVisual = {
@@ -3961,6 +4084,42 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
         baseY: (index % 2) * 0.18,
         objects: [],
       };
+      if (isTransitAngle) {
+        const anchor = new THREE.Object3D();
+        anchor.position.copy(position);
+        transitVisual.objects.push(anchor);
+        group.add(anchor);
+
+        const symbolTexture = planetSymbolTexture(PLANET_SYMBOLS[item.planet] || item.label, item.color);
+        textures.push(symbolTexture);
+        const symbolSprite = new THREE.Sprite(
+          new THREE.SpriteMaterial({
+            map: symbolTexture,
+            transparent: true,
+            opacity: 0.9,
+            depthTest: false,
+            depthWrite: false,
+          })
+        );
+        const symbolScale = 0.48;
+        symbolSprite.scale.set(symbolScale, symbolScale, 1);
+        symbolSprite.renderOrder = 7;
+        symbolSprite.userData.tooltip = item.label;
+        symbolSprite.userData.transitPlanet = item.planet;
+        hoverTargets.push(symbolSprite);
+        symbolBillboards.push({ sprite: symbolSprite, target: anchor, offset: 0, baseScale: symbolScale });
+        transitLayerObjects.push({
+          planet: item.planet,
+          object: symbolSprite,
+          brightOpacity: 0.9,
+          dimOpacity: 0.18,
+          flatBrightOpacity: 1,
+          flatDimOpacity: 0.34,
+        });
+        group.add(symbolSprite);
+        transitVisuals.set(item.planet, transitVisual);
+        return;
+      }
       const radius = {
         SUN: 0.24,
         MOON: 0.15,
@@ -4197,16 +4356,20 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
       hasManualTilt: initialHasManualTilt,
       natalMeshes,
       natalPoints: sceneSky.natalPoints,
+      natalHouseLines,
       natalHouseLabels,
       natalLayerLabels,
       natalPlanetSymbols,
       transitLayerObjects,
       transitHouseLabels,
       transitHouseLines,
+      transitZodiacLines,
       transitLayerLabels,
       transitPositions,
       transitVisuals,
       mapRadii,
+      baseMapRadii: { ...mapRadii },
+      mapRings,
       aspectGroup,
       selectedAspectLineHighlightKey,
       selectedPulseMesh: null,
@@ -4302,17 +4465,7 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
         pointer.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
         raycaster.setFromCamera(pointer, camera);
         const hit = raycaster.intersectObjects(hoverTargets, false)
-          .find((item) => item?.object?.userData?.natalPlanet || item?.object?.userData?.transitPlanet || item?.object?.userData?.toggleNatalLayer || item?.object?.userData?.toggleTransitLayer);
-        if (hit?.object?.userData?.toggleTransitLayer) {
-          setTransitLayerActive((value) => !value);
-          dragging = false;
-          return;
-        }
-        if (hit?.object?.userData?.toggleNatalLayer) {
-          setNatalLayerActive((value) => !value);
-          dragging = false;
-          return;
-        }
+          .find((item) => item?.object?.userData?.natalPlanet || item?.object?.userData?.transitPlanet);
         if (hit?.object?.userData?.natalPlanet) {
           const natalPlanet = hit.object.userData.natalPlanet;
           const currentFocus = aspectLineFocusRef.current;
@@ -4592,6 +4745,7 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
         : shouldHighlight ? 0.78 : natalLayerActive ? 0.58 : 0.045;
       mesh.renderOrder = shouldHighlight ? 3 : 1;
       mesh.scale.setScalar(shouldHighlight ? 1.32 : natalLayerActive ? 0.94 : 0.72);
+      mesh.visible = showNatalMapLayer && !TRANSIT_ANGLE_ORDER.includes(planet);
     });
 
     state.selectedPulseMesh = aspectLineFocus?.type === "natal" ? state.natalMeshes.get(aspectLineFocus.planet)?.mesh || null : null;
@@ -4599,9 +4753,11 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
 
     state.natalHouseLabels.forEach(({ mesh, brightOpacity, dimOpacity }) => {
       mesh.material.opacity = natalLayerActive ? brightOpacity : dimOpacity;
+      mesh.visible = showNatalMapLayer;
     });
     state.natalLayerLabels.forEach(({ mesh, brightOpacity, dimOpacity }) => {
       mesh.material.opacity = natalLayerActive ? brightOpacity : dimOpacity;
+      mesh.visible = showNatalMapLayer;
     });
     state.natalPlanetSymbols.forEach(({ sprite, planet, brightOpacity, dimOpacity, normalTexture, flatTexture }) => {
       const isAspectFocused = focusedNatalPlanets.has(planet);
@@ -4611,10 +4767,11 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
       sprite.material.opacity = isFlatMapView
         ? (shouldHighlight ? 1 : natalLayerActive ? 1 : 0.08)
         : shouldHighlight ? 1 : natalLayerActive ? brightOpacity : Math.min(dimOpacity, 0.08);
+      sprite.visible = showNatalMapLayer;
     });
     state.transitLayerObjects.forEach((entry) => {
       const object = entry.object || entry;
-      object.visible = true;
+      object.visible = showTransitMapLayer;
       const material = object.material;
       if (material) {
         material.transparent = true;
@@ -4632,18 +4789,19 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
     });
     state.transitHouseLabels.forEach(({ mesh, brightOpacity }) => {
       mesh.material.opacity = transitLayerActive ? brightOpacity : 0.07;
-      mesh.visible = true;
+      mesh.visible = showTransitMapLayer;
     });
     state.transitHouseLines.forEach(({ line, brightOpacity }) => {
       line.material.opacity = transitLayerActive ? brightOpacity : 0.045;
-      line.visible = true;
+      line.visible = showTransitMapLayer;
     });
     state.transitLayerLabels.forEach(({ mesh, brightOpacity, dimOpacity }) => {
       mesh.material.opacity = transitLayerActive ? brightOpacity : dimOpacity;
+      mesh.visible = showTransitMapLayer;
     });
 
     const hasCheckedAspectTargets = Boolean(
-      aspectLineMode !== "custom"
+      (aspectLineMode !== "custom" && aspectLineMode !== "none")
       ||
       aspectLineSelections?.transitNatal?.natal?.length
       || aspectLineSelections?.transitNatal?.transit?.length
@@ -4657,7 +4815,150 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
       const playbackFrame = state.playbackSequence.keyframes?.[state.playbackSequence.index];
       syncPlaybackAspectLines(state, playbackFrame, true);
     }
-  }, [sky, natalLayerActive, transitLayerActive, isFlatMapView, aspectLineFocus, selectedAspectLineHighlightKey, focusedNatalPlanets, activeAspectLineAspects, aspectLineSelections, aspectLineMode]);
+  }, [sky, natalLayerActive, transitLayerActive, isFlatMapView, aspectLineFocus, selectedAspectLineHighlightKey, focusedNatalPlanets, activeAspectLineAspects, aspectLineSelections, aspectLineMode, mapPlanetDisplayMode]);
+
+  useEffect(() => {
+    const state = sceneStateRef.current;
+    if (!state?.group || !state.baseMapRadii) return;
+
+    const natalOnly = mapPlanetDisplayMode === "natal";
+    const transitOnly = mapPlanetDisplayMode === "transit";
+    const showNatal = !transitOnly;
+    const showTransit = !natalOnly;
+    const base = state.baseMapRadii;
+    const expandedPlanetRadius = (base.natalHouseInnerRadius + base.transitOrbitRadius) / 2;
+    const targetRadii = {
+      ...base,
+      natalHouseOuterRadius: natalOnly ? base.transitOrbitRadius : base.natalHouseOuterRadius,
+      natalHouseLabelRadius: natalOnly ? expandedPlanetRadius : base.natalHouseLabelRadius,
+      natalPlanetRadius: natalOnly ? expandedPlanetRadius : base.natalPlanetRadius,
+      transitHouseInnerRadius: transitOnly ? base.natalHouseInnerRadius : base.transitHouseInnerRadius,
+      transitHouseLabelRadius: transitOnly ? expandedPlanetRadius : base.transitHouseLabelRadius,
+      transitPlanetRadius: transitOnly ? expandedPlanetRadius : base.transitPlanetRadius,
+    };
+    const applyMapLayout = (radii, revealBothLayers = false) => {
+      state.mapRadii = radii;
+      const layoutShowNatal = revealBothLayers || showNatal;
+      const layoutShowTransit = revealBothLayers || showTransit;
+
+      const updateLine = (line, start, end) => {
+        const position = line?.geometry?.attributes?.position;
+        if (!position || position.count < 2) return;
+        position.setXYZ(0, start.x, start.y, start.z);
+        position.setXYZ(1, end.x, end.y, end.z);
+        position.needsUpdate = true;
+      };
+
+      state.natalHouseLines.forEach(({ line, index }) => {
+        const longitude = sceneSky.natalHouseCusps[index];
+        if (longitude === undefined) return;
+        updateLine(
+          line,
+          longitudePosition(longitude, radii.natalHouseInnerRadius, -0.03),
+          longitudePosition(longitude, radii.natalHouseOuterRadius, -0.03)
+        );
+        line.visible = layoutShowNatal;
+      });
+      state.natalHouseLabels.forEach(({ mesh, index }) => {
+        const longitude = sceneSky.natalHouseCusps[index];
+        const nextLongitude = sceneSky.natalHouseCusps[(index + 1) % sceneSky.natalHouseCusps.length];
+        if (longitude === undefined || nextLongitude === undefined) return;
+        setOrbitTextPlaneTransform(mesh, midpointLongitude(longitude, nextLongitude), radii.natalHouseLabelRadius, 0.07);
+        mesh.visible = layoutShowNatal;
+      });
+
+      state.transitHouseLines.forEach(({ line, index }) => {
+        const longitude = sceneSky.transitHouseCusps[index];
+        if (longitude === undefined) return;
+        updateLine(
+          line,
+          longitudePosition(longitude, radii.transitHouseInnerRadius, -0.03),
+          longitudePosition(longitude, radii.transitOrbitRadius, -0.03)
+        );
+        line.visible = layoutShowTransit;
+      });
+      state.transitHouseLabels.forEach(({ mesh, index }) => {
+        const longitude = sceneSky.transitHouseCusps[index];
+        const nextLongitude = sceneSky.transitHouseCusps[(index + 1) % sceneSky.transitHouseCusps.length];
+        if (longitude === undefined || nextLongitude === undefined) return;
+        setOrbitTextPlaneTransform(mesh, midpointLongitude(longitude, nextLongitude), radii.transitHouseLabelRadius, 0.07);
+        mesh.visible = layoutShowTransit;
+      });
+
+      state.transitZodiacLines.forEach((line) => {
+        line.visible = layoutShowTransit;
+      });
+      state.mapRings.forEach(({ mesh, role, radius }) => {
+        const desiredRadius = role === "natalOuter"
+          ? radii.natalHouseOuterRadius
+          : role === "transitInner" ? radii.transitHouseInnerRadius : radius;
+        mesh.visible = role === "zodiacOuter"
+          || (role === "transitInner" ? revealBothLayers || transitOnly : false)
+          || (role.startsWith("natal") && layoutShowNatal)
+          || (role.startsWith("transit") && role !== "transitInner" && layoutShowTransit);
+        mesh.scale.setScalar(radius ? desiredRadius / radius : 1);
+      });
+
+      state.natalLayerLabels.forEach(({ mesh }) => {
+        setOrbitTextPlaneTransform(mesh, 262, natalOnly ? radii.natalPlanetRadius : base.natalOrbitRadius, 0.11);
+        mesh.visible = layoutShowNatal;
+      });
+      state.transitLayerLabels.forEach(({ mesh }) => {
+        setOrbitTextPlaneTransform(mesh, 262, transitOnly ? radii.transitPlanetRadius : base.transitOrbitRadius, 0.11);
+        mesh.visible = layoutShowTransit;
+      });
+
+      state.natalMeshes.forEach(({ mesh, hitMesh, point, baseY, isAngle }) => {
+        const position = longitudePosition(point.longitude, radii.natalPlanetRadius, baseY);
+        mesh.position.copy(position);
+        if (hitMesh) hitMesh.position.copy(position);
+        mesh.visible = layoutShowNatal && !isAngle;
+        if (hitMesh) hitMesh.visible = layoutShowNatal;
+      });
+      state.natalPlanetSymbols.forEach(({ sprite }) => {
+        sprite.visible = layoutShowNatal;
+      });
+
+      state.transitVisuals.forEach((visual, planet) => {
+        const position = longitudePosition(visual.longitude, radii.transitPlanetRadius, visual.baseY);
+        visual.objects.forEach((object) => {
+          object.position.copy(position);
+          object.visible = layoutShowTransit;
+        });
+        state.transitPositions.set(planet, position.clone());
+      });
+      state.transitLayerObjects.forEach(({ object }) => {
+        object.visible = layoutShowTransit;
+      });
+      state.aspectGroup.children.forEach((line) => {
+        line.visible = showNatal && showTransit && line.userData?.aspectVisible !== false;
+      });
+      updateAspectLinePositions(state);
+    };
+
+    const startRadii = state.mapRadii || base;
+    const duration = 560;
+    const startedAt = performance.now();
+    let animationFrame = 0;
+    const animateLayout = (now) => {
+      const progress = clamp((now - startedAt) / duration, 0, 1);
+      const easedProgress = progress * progress * (3 - 2 * progress);
+      const animatedRadii = Object.keys(base).reduce((result, key) => {
+        const start = Number(startRadii[key] ?? base[key]);
+        const target = Number(targetRadii[key] ?? base[key]);
+        result[key] = start + (target - start) * easedProgress;
+        return result;
+      }, {});
+      applyMapLayout(animatedRadii, progress < 1);
+      if (progress < 1) {
+        animationFrame = window.requestAnimationFrame(animateLayout);
+      } else {
+        applyMapLayout(targetRadii, false);
+      }
+    };
+    animationFrame = window.requestAnimationFrame(animateLayout);
+    return () => window.cancelAnimationFrame(animationFrame);
+  }, [mapPlanetDisplayMode, sceneSky]);
 
   useEffect(() => {
     const state = sceneStateRef.current;
@@ -5060,6 +5361,58 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
     hasManualMapPositionRef.current = false;
     setMapOffset(isFlatMapView ? { x: 0, y: 0 } : defaultMapOffset());
   };
+  const resetMapSettings = () => {
+    const state = sceneStateRef.current;
+    if (state?.playbackSequence) state.playbackSequence.active = false;
+    const nextOffset = defaultMapOffset();
+    hasManualMapPositionRef.current = false;
+    setMapZoom(defaultMapZoom());
+    setMapOffset(nextOffset);
+    setIsRotationPaused(false);
+    setIsFlatMapView(false);
+    setSelectedNatalPlanet("SUN");
+    setIsTransitPlaybackActive(false);
+    setIsTransitPlaybackPreloading(false);
+    setTransitPlaybackPreloadProgress(0);
+    setTransitPlaybackCursor(null);
+    setPlaybackTransitChart(null);
+    setTransitPlaybackStepDays(1);
+    setTransitPlaybackRange("month");
+    setIsTransitTableCollapsed(false);
+    setIsNatalTableCollapsed(false);
+    setMobilePlanetTableTab("transit");
+    setMobileMapPanelTab("display");
+    setMapPlanetDisplayMode("both");
+    setIsMapPlanetDisplayPanelOpen(false);
+    setIsMapControlsMenuOpen(false);
+    setIsMapPositionPanelOpen(false);
+    setIsPlaybackPanelOpen(false);
+    setIsAspectPanelOpen(false);
+    setIsAspectListPanelOpen(false);
+    setIsMobileAspectListDetached(false);
+    setAspectLineMode("none");
+    setAspectLineSelections(EMPTY_ASPECT_SELECTIONS);
+    setAspectInterpretationScope("none");
+    setCompoundAspectListCategory("mixed");
+    setTooltipCompositeTab("compound");
+    setAspectTooltip(null);
+    setAspectLineFocus(null);
+    setSelectedAspectLineHighlightKey("");
+    setOpenTooltipAspectKeys(new Set());
+    setOpenAspectInterpretationKeys(new Set());
+    setAspectTooltipPanelPosition(null);
+    setAspectListPanelPosition({ x: 520, y: 104 });
+    setMobileAspectListPanelPosition({ x: 10, y: 132 });
+    if (!state?.camera || !state?.group) return;
+    state.hasManualTilt = false;
+    state.cameraTiltDegrees = 17;
+    state.camera.position.z = 10.5;
+    state.camera.position.y = cameraYForTiltDegrees(state.cameraTiltDegrees);
+    state.camera.lookAt(0, 0, 0);
+    state.group.rotation.x = 0.18;
+    state.group.rotation.y = 0.22;
+    applyMapOffset(state.group, nextOffset, false);
+  };
   const toggleFlatMapView = () => {
     const state = sceneStateRef.current;
     const nextFlatView = !isFlatMapView;
@@ -5078,6 +5431,69 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
     state.group.rotation.x = nextFlatView ? 0 : 0.18;
     state.group.rotation.y = nextFlatView ? 0 : 0.22;
     applyMapOffset(state.group, nextOffset, nextFlatView);
+  };
+  const selectMapPlanetDisplayMode = (mode) => {
+    if (!MAP_PLANET_DISPLAY_MODE_OPTIONS.some((option) => option.key === mode)) return;
+    setMapPlanetDisplayMode(mode);
+    setIsMapPlanetDisplayPanelOpen(false);
+  };
+  const MapPlanetDisplaySelector = ({ compact = false } = {}) => {
+    return (
+      <div className={cx("relative z-[120] rounded-xl border border-white/10 bg-[#121414]/78 shadow-[0_10px_26px_rgba(0,0,0,0.24)] backdrop-blur-md", compact ? "w-max p-1" : "p-1.5")}>
+        <button
+          type="button"
+          onClick={() => {
+            setIsMapPlanetDisplayPanelOpen((value) => {
+              const next = !value;
+              if (next) {
+                setIsPlaybackPanelOpen(false);
+                setIsAspectPanelOpen(false);
+              }
+              return next;
+            });
+          }}
+          className={cx("inline-flex items-center rounded-lg px-2 font-mono font-bold text-mist transition hover:bg-white/10 hover:text-gold focus:outline-none focus:ring-2 focus:ring-gold/45", compact ? "h-7 text-[8px]" : "h-8 w-max text-[9px] sm:text-[10px]")}
+          aria-expanded={isMapPlanetDisplayPanelOpen}
+          aria-controls={`map-planet-display-options-${compact ? "mobile" : "desktop"}`}
+          aria-label={`表示天体: ${selectedMapPlanetDisplayMode.label}`}
+          title="表示天体を切り替え"
+        >
+          <span>{selectedMapPlanetDisplayMode.label}</span>
+        </button>
+        <div
+          id={`map-planet-display-options-${compact ? "mobile" : "desktop"}`}
+          className={cx(
+            "absolute top-0 z-[110] flex w-max gap-1 rounded-xl border border-white/10 bg-[#121414]/94 p-1.5 font-mono font-bold shadow-[0_18px_42px_rgba(0,0,0,0.42)] backdrop-blur-md transition",
+            compact ? "left-full ml-1" : "right-full mr-1",
+            isMapPlanetDisplayPanelOpen ? "pointer-events-auto translate-x-0 opacity-100" : "pointer-events-none translate-x-1 opacity-0"
+          )}
+          aria-hidden={!isMapPlanetDisplayPanelOpen}
+        >
+          {MAP_PLANET_DISPLAY_MODE_OPTIONS.map((option) => (
+            <button
+              key={option.key}
+              type="button"
+              onPointerDown={(event) => {
+                event.stopPropagation();
+                selectMapPlanetDisplayMode(option.key);
+              }}
+              onPointerUp={(event) => {
+                event.stopPropagation();
+                selectMapPlanetDisplayMode(option.key);
+              }}
+              onClick={() => selectMapPlanetDisplayMode(option.key)}
+              className={cx(
+                "whitespace-nowrap rounded-lg px-2 py-2 text-left text-[9px] transition sm:text-[10px]",
+                mapPlanetDisplayMode === option.key ? "bg-gold/18 text-gold ring-1 ring-gold/35" : "text-mist/75 hover:bg-white/10 hover:text-starlight"
+              )}
+              aria-pressed={mapPlanetDisplayMode === option.key}
+            >
+              {option.label}
+            </button>
+          ))}
+        </div>
+      </div>
+    );
   };
 
   return (
@@ -5154,7 +5570,18 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
                 <span className="font-mono text-[9px] font-bold text-mist/70">計算中</span>
               ) : null}
             </div>
-            <div className="inline-flex w-max items-center gap-1 rounded-xl border border-white/10 bg-[#121414]/72 p-1 shadow-[0_10px_26px_rgba(0,0,0,0.28)] backdrop-blur">
+            <div className="inline-flex w-max items-center gap-1">
+              <button
+                type="button"
+                onClick={resetMapSettings}
+                className="inline-flex h-8 items-center gap-1 rounded-xl border border-white/10 bg-[#121414]/72 px-2 font-mono text-[9px] font-bold text-mist shadow-[0_10px_26px_rgba(0,0,0,0.28)] backdrop-blur transition hover:bg-white/10 hover:text-gold focus:outline-none focus:ring-2 focus:ring-gold/45"
+                aria-label="3Dマップの設定を初期状態に戻す"
+                title="初期設定に戻す"
+              >
+                <RefreshCw size={13} />
+                <span>リセット</span>
+              </button>
+              <div className="inline-flex items-center gap-1 rounded-xl border border-white/10 bg-[#121414]/72 p-1 shadow-[0_10px_26px_rgba(0,0,0,0.28)] backdrop-blur">
               <button type="button" onClick={zoomOutMap} disabled={mapZoom <= minimumMapZoom()} className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-mist transition hover:bg-white/10 hover:text-gold disabled:opacity-35" aria-label="3Dマップを縮小" title="縮小"><Minus size={15} /></button>
               <button type="button" onClick={zoomInMap} disabled={mapZoom >= 1.35} className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-mist transition hover:bg-white/10 hover:text-gold disabled:opacity-35" aria-label="3Dマップを拡大" title="拡大"><Plus size={15} /></button>
               <button type="button" onClick={() => setIsRotationPaused((value) => !value)} className="inline-flex h-8 w-9 items-center justify-center rounded-lg font-mono text-[7px] font-bold leading-[0.95] text-mist transition hover:bg-white/10 hover:text-gold" aria-label={isRotationPaused ? "3Dマップの回転を再開" : "3Dマップの回転を停止"} title={isRotationPaused ? "回転再開" : "回転停止"}>
@@ -5184,7 +5611,9 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
                   </>
                 ) : isTransitPlaybackActive ? <Pause size={14} /> : <Play size={14} />}
               </button>
+              </div>
             </div>
+            <MapPlanetDisplaySelector compact />
           </div>
           <div className="absolute right-2 top-2 z-30 sm:hidden">
             <button type="button" onClick={toggleMapFullscreen} className="inline-flex h-8 w-8 items-center justify-center rounded-xl border border-white/10 bg-[#121414]/72 text-mist shadow-[0_10px_26px_rgba(0,0,0,0.28)] backdrop-blur transition hover:bg-white/10 hover:text-gold" aria-label={isMapFullscreen ? "3Dマップの全画面を閉じる" : "3Dマップを全画面で表示"} title={isMapFullscreen ? "全画面を閉じる" : "全画面"}>{isMapFullscreen ? <Minimize2 size={15} /> : <Maximize2 size={15} />}</button>
@@ -5364,7 +5793,18 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
               </div>
             </div>
           </div>
-          <div className="absolute right-4 top-4 z-30 hidden items-center gap-1.5 rounded-xl border border-white/10 bg-[#121414]/72 p-1 shadow-[0_10px_26px_rgba(0,0,0,0.28)] backdrop-blur sm:flex">
+          <div className="absolute right-4 top-4 z-30 hidden items-center gap-1.5 sm:flex">
+            <button
+              type="button"
+              onClick={resetMapSettings}
+              className="inline-flex h-8 items-center gap-1 rounded-xl border border-white/10 bg-[#121414]/72 px-2 font-mono text-[9px] font-bold text-mist shadow-[0_10px_26px_rgba(0,0,0,0.28)] backdrop-blur transition hover:bg-white/10 hover:text-gold focus:outline-none focus:ring-2 focus:ring-gold/45 sm:text-[10px]"
+              aria-label="3Dマップの設定を初期状態に戻す"
+              title="初期設定に戻す"
+            >
+              <RefreshCw size={14} />
+              <span>リセット</span>
+            </button>
+            <div className="flex items-center gap-1.5 rounded-xl border border-white/10 bg-[#121414]/72 p-1 shadow-[0_10px_26px_rgba(0,0,0,0.28)] backdrop-blur">
             <button
               type="button"
               onClick={zoomOutMap}
@@ -5412,12 +5852,14 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
             >
               {isMapFullscreen ? <Minimize2 size={16} /> : <Maximize2 size={16} />}
             </button>
+            </div>
           </div>
           <div
             className={cx(
               "absolute right-4 top-16 z-30 hidden justify-items-end gap-1.5 sm:grid"
             )}
           >
+            <MapPlanetDisplaySelector />
             <div className="flex items-start gap-1.5">
               <div className="flex items-center gap-1.5 rounded-xl border border-white/10 bg-[#121414]/68 p-1.5 shadow-[0_10px_26px_rgba(0,0,0,0.24)] backdrop-blur">
                 <button
@@ -5437,7 +5879,10 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
                 </button>
                 <button
                   type="button"
-                  onClick={() => setIsPlaybackPanelOpen((value) => !value)}
+                  onClick={() => {
+                    setIsMapPlanetDisplayPanelOpen(false);
+                    setIsPlaybackPanelOpen((value) => !value);
+                  }}
                   className={cx(
                     "inline-flex h-8 items-center gap-1 rounded-lg border px-2 font-mono text-[9px] font-bold transition sm:text-[10px]",
                     isPlaybackPanelOpen
@@ -5507,7 +5952,10 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
               <div className="flex items-center gap-1.5 rounded-xl border border-white/10 bg-[#121414]/68 p-1.5 shadow-[0_10px_26px_rgba(0,0,0,0.24)] backdrop-blur">
                 <button
                   type="button"
-                  onClick={() => setIsAspectPanelOpen((value) => !value)}
+                  onClick={() => {
+                    setIsMapPlanetDisplayPanelOpen(false);
+                    setIsAspectPanelOpen((value) => !value);
+                  }}
                   className={cx(
                     "inline-flex h-8 items-center gap-1 rounded-lg border px-2 font-mono text-[9px] font-bold transition sm:text-[10px]",
                     isAspectPanelOpen
@@ -5843,11 +6291,11 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
               )}
               aria-expanded={isMapControlsMenuOpen}
               aria-controls="map-layer-controls-menu"
-              aria-label={isMapControlsMenuOpen ? "表示メニューを閉じる" : "表示メニューを開く"}
-              title="表示"
+              aria-label={isMapControlsMenuOpen ? "チャートメニューを閉じる" : "チャートメニューを開く"}
+              title="チャート"
             >
               <SlidersHorizontal size={15} />
-              表示
+              チャート
             </button>
             <div
               id="map-layer-controls-menu"
@@ -5907,20 +6355,7 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
               ) : (
                 <>
                   <div className="flex items-center justify-between gap-2">
-                    <button
-                      type="button"
-                      onClick={() => setTransitLayerActive((value) => !value)}
-                      className={cx(
-                        "pointer-events-auto inline-flex items-center gap-1.5 font-mono text-[8px] font-bold uppercase tracking-[0.16em] transition focus:outline-none focus:ring-2 focus:ring-gold/35",
-                        transitLayerActive ? "text-gold/80" : "text-mist/45 hover:text-gold/80"
-                      )}
-                      aria-pressed={transitLayerActive}
-                      aria-label={transitLayerActive ? "現行天体を暗くする" : "現行天体を明るくする"}
-                      title={transitLayerActive ? "現行天体を暗くする" : "現行天体を明るくする"}
-                    >
-                      {transitLayerActive ? <Eye size={13} /> : <EyeOff size={13} />}
-                      現行天体
-                    </button>
+                    <span className={cx("font-mono text-[8px] font-bold uppercase tracking-[0.16em]", transitLayerActive ? "text-gold/80" : "text-mist/45")}>現行天体</span>
                     <button
                       type="button"
                       onClick={() => setIsTransitTableCollapsed(true)}
@@ -5940,7 +6375,7 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
                       transitLayerActive ? "text-mist opacity-100" : "text-mist/25"
                     )}
                   >
-                    {tableSky.transits.map((item) => {
+                    {[...tableSky.transits, ...tableTransitNodeItems].map((item) => {
                       const isFocusedTransitRow = focusedTransitPlanets.has(item.planet);
                       return (
                         <div
@@ -6000,20 +6435,7 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
               ) : (
                 <>
                   <div className="flex items-center justify-between gap-2">
-                    <button
-                      type="button"
-                      onClick={() => setNatalLayerActive((value) => !value)}
-                      className={cx(
-                        "pointer-events-auto inline-flex items-center gap-1.5 font-mono text-[8px] font-bold uppercase tracking-[0.16em] transition focus:outline-none focus:ring-2 focus:ring-gold/35",
-                        natalLayerActive ? "text-gold" : "text-mist/55 hover:text-gold/80"
-                      )}
-                      aria-pressed={natalLayerActive}
-                      aria-label={natalLayerActive ? "ネイタル天体を暗くする" : "ネイタル天体を明るくする"}
-                      title={natalLayerActive ? "ネイタル天体を暗くする" : "ネイタル天体を明るくする"}
-                    >
-                      {natalLayerActive ? <Eye size={13} /> : <EyeOff size={13} />}
-                      ネイタル天体
-                    </button>
+                    <span className={cx("font-mono text-[8px] font-bold uppercase tracking-[0.16em]", natalLayerActive ? "text-gold" : "text-mist/55")}>ネイタル天体</span>
                     <button
                       type="button"
                       onClick={() => setIsNatalTableCollapsed(true)}
@@ -6033,7 +6455,7 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
                       natalLayerActive ? "text-mist" : "text-mist/25"
                     )}
                   >
-                    {sky.natalPoints.map((item) => {
+                    {[...sky.natalPoints, ...tableNatalNodeItems].map((item) => {
                       const shouldHighlightNatalRow = focusedNatalPlanets.has(item.planet);
                       return (
                         <div
@@ -6316,7 +6738,7 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
         <section className="-mx-3 grid gap-3 rounded-2xl border border-white/10 bg-[#121414]/76 p-2 shadow-[0_18px_42px_rgba(0,0,0,0.28)] backdrop-blur-md sm:hidden">
           <div className="grid grid-cols-2 gap-1 rounded-xl border border-white/10 bg-white/[0.035] p-1 font-mono text-[8px] font-bold text-mist">
             {[
-              ["display", "天体表示"],
+              ["display", "チャート"],
               ["aspect", "アスペクト表示"],
             ].map(([value, label]) => (
               <button
@@ -6338,7 +6760,7 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
               <div className="grid grid-cols-2 gap-1 rounded-xl border border-white/10 bg-white/[0.025] p-1 font-mono text-[9px] font-bold">
                 {[
                   ["transit", "現行天体"],
-                  ["natal", "ネイタル天体"],
+                  ["natal", "ネイタル"],
                 ].map(([value, label]) => (
                   <button
                     key={value}
@@ -6356,15 +6778,7 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
               </div>
               {mobilePlanetTableTab === "transit" ? (
                 <div className="rounded-xl border border-white/10 bg-white/[0.025] p-1.5">
-                  <button
-                    type="button"
-                    onClick={() => setTransitLayerActive((value) => !value)}
-                    className={cx("mb-2 inline-flex items-center gap-1.5 font-mono text-[9px] font-bold", transitLayerActive ? "text-gold/80" : "text-mist/45")}
-                    aria-pressed={transitLayerActive}
-                  >
-                    {transitLayerActive ? <Eye size={13} /> : <EyeOff size={13} />}
-                    現行天体
-                  </button>
+                  <div className={cx("mb-2 font-mono text-[9px] font-bold", transitLayerActive ? "text-gold/80" : "text-mist/45")}>現行天体</div>
                   <div className="mb-1 grid grid-cols-[0.5rem_2.45rem_2.7rem_1.45rem_2.45rem] items-center gap-1 px-1 font-mono text-[8px] font-bold text-mist/45">
                     <span />
                     <span>天体</span>
@@ -6373,7 +6787,7 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
                     <span className="text-right">室</span>
                   </div>
                   <div className={cx("grid grid-cols-2 gap-1 font-mono text-[9px] font-bold", transitLayerActive ? "text-mist" : "text-mist/25")}>
-                    {tableSky.transits.map((item) => {
+                    {[...tableSky.transits, ...tableTransitNodeItems].map((item) => {
                       const isFocusedTransitRow = focusedTransitPlanets.has(item.planet);
                       return (
                         <div
@@ -6393,15 +6807,7 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
                 </div>
               ) : (
                 <div className="rounded-xl border border-white/10 bg-white/[0.025] p-1.5">
-                  <button
-                    type="button"
-                    onClick={() => setNatalLayerActive((value) => !value)}
-                    className={cx("mb-2 inline-flex items-center gap-1.5 font-mono text-[9px] font-bold", natalLayerActive ? "text-gold" : "text-mist/55")}
-                    aria-pressed={natalLayerActive}
-                  >
-                    {natalLayerActive ? <Eye size={13} /> : <EyeOff size={13} />}
-                    ネイタル天体
-                  </button>
+                  <div className={cx("mb-2 font-mono text-[9px] font-bold", natalLayerActive ? "text-gold" : "text-mist/55")}>ネイタル</div>
                   <div className="mb-1 grid grid-cols-[0.5rem_2.45rem_2.7rem_1.45rem_2.45rem] items-center gap-1 px-1 font-mono text-[8px] font-bold text-mist/45">
                     <span />
                     <span>天体</span>
@@ -6410,7 +6816,7 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
                     <span className="text-right">室</span>
                   </div>
                   <div className={cx("grid grid-cols-2 gap-1 font-mono text-[9px] font-bold", natalLayerActive ? "text-mist" : "text-mist/25")}>
-                    {sky.natalPoints.map((item) => {
+                    {[...sky.natalPoints, ...tableNatalNodeItems].map((item) => {
                       const shouldHighlightNatalRow = focusedNatalPlanets.has(item.planet);
                       return (
                         <div
@@ -7479,7 +7885,6 @@ function RetrogradeCalendarPanel({
 }
 
 function Header({
-  activeYear,
   activeView,
   setActiveView,
   forecast = null,
@@ -7488,13 +7893,15 @@ function Header({
   versionState,
   onRefreshLatest,
   refreshingLatest,
+  canAccessPremium = true,
+  onPremiumRequired = () => {},
 }) {
   const [isMobileUnifiedMenuOpen, setIsMobileUnifiedMenuOpen] = useState(false);
   const [isRetrogradeCalendarOpen, setIsRetrogradeCalendarOpen] = useState(false);
   const [retrogradeCalendarSort, setRetrogradeCalendarSort] = useState("date");
   const navItems = [
-    ["unified", "星の見通し"],
-    ["horoscope", "Horoscope"],
+    { value: "unified", label: "星の見通し", requiresPremium: true },
+    { value: "horoscope", label: "Horoscope", requiresPremium: false },
   ];
   const retrogradeCalendar = useMemo(() => {
     const storedPayload = getStoredReadingResult() || {};
@@ -7522,31 +7929,12 @@ function Header({
         || String(a.planet_label || a.planetLabel || a.planet || "").localeCompare(String(b.planet_label || b.planetLabel || b.planet || ""), "ja");
     });
   }, [retrogradeCalendar, retrogradeCalendarSort]);
-  const forecastLabel = {
-    unified: "星の見通し",
-    horoscope: "Horoscope",
-  }[activeView] || "星の見通し";
-  const headerTitle = activeView === "horoscope" ? forecastLabel : `${activeYear}年 ${forecastLabel}`;
   return (
     <header className="fixed left-0 top-0 z-40 w-full border-b border-slate-200/90 bg-[#f8fafc]/95 backdrop-blur-xl">
       <div className="flex w-full max-w-none flex-wrap items-center justify-between gap-2 px-3 py-2 sm:gap-6 sm:px-8 sm:py-6 lg:mx-auto lg:max-w-[1760px]">
         <div className="flex min-w-0 flex-1 items-center gap-2 sm:flex-none sm:gap-8">
-          <a href="./index.html" className="max-w-[66px] font-serif text-[11px] font-bold leading-[0.98] text-[#0A192F] sm:max-w-none sm:text-4xl sm:leading-none">The Celestial Atelier</a>
-          <span className="hidden h-10 w-px bg-slate-200 md:block" />
+          <a href={ENTRY_PAGE_PATH} className="max-w-[66px] font-serif text-[11px] font-bold leading-[0.98] text-[#0A192F] sm:max-w-none sm:text-4xl sm:leading-none">{APP_BRAND}</a>
           <div className="relative flex min-w-0 flex-1 items-center gap-1 sm:flex-none sm:gap-1.5">
-            <h1 className="hidden truncate font-serif font-semibold tracking-[0.04em] text-[#0A192F] sm:block sm:text-2xl md:text-3xl">
-              {headerTitle}
-            </h1>
-            <h1 className="flex min-w-0 items-baseline gap-1 font-serif text-[13px] font-semibold tracking-[0] text-[#0A192F] sm:hidden">
-              {activeView === "horoscope" ? (
-                <span className="truncate">{forecastLabel}</span>
-              ) : (
-                <>
-                  <span className="shrink-0 font-mono text-[10px] font-black text-[#0A192F]/70">{activeYear}年</span>
-                  <span className="truncate">{forecastLabel}</span>
-                </>
-              )}
-            </h1>
             <button
               type="button"
               onClick={() => setIsMobileUnifiedMenuOpen((value) => !value)}
@@ -7599,19 +7987,27 @@ function Header({
             isMobileUnifiedMenuOpen ? "flex max-h-20 opacity-100" : "hidden max-h-0 opacity-0"
           )}
         >
-          {navItems.map(([value, label]) => (
+          {navItems.map(({ value, label, requiresPremium }) => (
             <React.Fragment key={value}>
               <button
                 type="button"
                   onClick={() => {
+                    if (requiresPremium && !canAccessPremium) {
+                      onPremiumRequired();
+                      return;
+                    }
                     setActiveView(value);
+                    setIsMobileUnifiedMenuOpen(false);
                   }}
                 className={cx(
                   "pb-2 transition sm:pb-3",
-                  activeView === value ? "border-b-2 border-[#D4AF37] text-[#0A192F]" : "hover:text-[#D4AF37]"
+                  activeView === value ? "border-b-2 border-[#D4AF37] text-[#0A192F]" : "hover:text-[#D4AF37]",
+                  requiresPremium && !canAccessPremium && "text-[#0A192F]/45"
                 )}
+                aria-disabled={requiresPremium && !canAccessPremium}
               >
                 {label}
+                {requiresPremium && !canAccessPremium ? <LockKeyhole size={11} className="ml-1 inline-block align-[-1px]" aria-hidden="true" /> : null}
               </button>
             </React.Fragment>
           ))}
@@ -8735,13 +9131,84 @@ function YearCalculationDialog({
   );
 }
 
+function PremiumAccessDialog({ open, onClose }) {
+  if (!open) return null;
+
+  return (
+    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-[#08111f]/75 px-4 backdrop-blur-sm">
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="premium-access-title"
+        className="w-full max-w-[460px] rounded-2xl border border-[#D4AF37]/40 bg-[#fffdf7] p-6 text-[#0A192F] shadow-[0_24px_90px_rgba(0,0,0,0.42)] sm:p-8"
+      >
+        <div className="flex items-start gap-4">
+          <span className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[#D4AF37]/15 text-[#9d7620]">
+            <LockKeyhole size={20} aria-hidden="true" />
+          </span>
+          <div>
+            <p className="font-mono text-[10px] font-black uppercase tracking-[0.2em] text-[#9d7620]">Premium Reading</p>
+            <h2 id="premium-access-title" className="mt-2 font-serif text-2xl font-semibold sm:text-3xl">星の見通しは有料版限定です</h2>
+            </div>
+          </div>
+        <p className="mt-6 text-sm leading-7 text-[#0A192F]/70">
+          無料版では、生年月日から導いた Horoscope をご覧いただけます。年間・月間の星の見通しは、有料版でご利用いただけます。
+        </p>
+        <button
+          type="button"
+          onClick={onClose}
+          className="mt-7 h-12 w-full rounded-full bg-[#0A192F] font-mono text-xs font-black tracking-[0.16em] text-white transition hover:bg-[#1d3557]"
+        >
+          無料版に戻る
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function Horoscope3DMap({ data }) {
+  const natalPoints = Array.isArray(data?.natal_points)
+    ? data.natal_points
+    : Array.isArray(data?.natalPoints)
+      ? data.natalPoints
+      : [];
+  const natalHouseCusps = Array.isArray(data?.natal_house_cusps)
+    ? data.natal_house_cusps
+    : Array.isArray(data?.natalHouseCusps)
+      ? data.natalHouseCusps
+      : [];
+
+  if (!natalPoints.length) return null;
+
+  const mapDay = {
+    date: dateKey(data?.reading_date) || currentTokyoDate(),
+    all_aspects: [],
+  };
+  const mapForecast = {
+    natal_points: natalPoints,
+    natal_house_cusps: natalHouseCusps,
+  };
+
+  return (
+    <div className="mb-5">
+      <TransitNatalSunMap
+        day={mapDay}
+        forecast={mapForecast}
+        availableDays={[mapDay]}
+        selectedDayIndex={0}
+      />
+    </div>
+  );
+}
+
 function ForecastDetailPage() {
   const forceRefresh = shouldForceRefresh();
-  const [forecast, setForecast] = useState(() => getForecast() || null);
+  const [forecast, setForecast] = useState(() => (CAN_ACCESS_PREMIUM ? getForecast() : null));
   const [readingPayload, setReadingPayload] = useState(() => getStoredReadingResult({ allowStale: true }) || {});
   const [readingStorageHydrated, setReadingStorageHydrated] = useState(forceRefresh);
   const activeYear = forecastYear(forecast);
   const [yearDialogOpen, setYearDialogOpen] = useState(false);
+  const [premiumPromptOpen, setPremiumPromptOpen] = useState(false);
   const [targetYear, setTargetYear] = useState(String(activeYear));
   const [calculatingYear, setCalculatingYear] = useState(false);
   const [yearCalculationError, setYearCalculationError] = useState("");
@@ -8772,7 +9239,7 @@ function ForecastDetailPage() {
         const indexedForecast = payload?.yearly_forecast || payload?.yearlyForecast || null;
         if (active && payload) {
           setReadingPayload(payload);
-          if (indexedForecast) {
+          if (indexedForecast && CAN_ACCESS_PREMIUM) {
             setForecast(indexedForecast);
           }
         }
@@ -8788,7 +9255,8 @@ function ForecastDetailPage() {
   }, [forceRefresh]);
   const storedDashboard = readingPayload?.dashboard_data || readingPayload?.dashboardData || {};
   const needsDeferredWidgets = readingStorageHydrated && !forceRefresh && storedDashboard?.deferred_widgets_pending === true;
-  const needsInitialForecast = readingStorageHydrated
+  const needsInitialForecast = CAN_ACCESS_PREMIUM
+    && readingStorageHydrated
     && !forceRefresh
     && (
       !forecast
@@ -8921,7 +9389,7 @@ function ForecastDetailPage() {
     }
   }, [activeYear, yearDialogOpen]);
   useEffect(() => {
-    if (!forceRefresh) {
+    if (!forceRefresh || !CAN_ACCESS_PREMIUM) {
       return;
     }
     const formPayload = getQueryReadingForm() || getStoredReadingForm();
@@ -8966,10 +9434,14 @@ function ForecastDetailPage() {
   const [selectedSeriesKey, setSelectedSeriesKey] = useState("general");
   const [selectedMonthIndex, setSelectedMonthIndex] = useState(() => realtimeMonthIndex(data));
   const [selectedMonthlyMonthIndex, setSelectedMonthlyMonthIndex] = useState(workdayMonthIndex);
-  const [activeView, setActiveView] = useState("unified");
+  const [activeView, setActiveView] = useState(CAN_ACCESS_PREMIUM ? "unified" : "horoscope");
   const [activeUnifiedView, setActiveUnifiedView] = useState("daily");
   const [dailyOverviewDate, setDailyOverviewDate] = useState(() => currentTokyoDate());
   const requestForecastDetail = React.useCallback(async (scope, options = {}) => {
+    if (!CAN_ACCESS_PREMIUM) {
+      setPremiumPromptOpen(true);
+      return;
+    }
     const detailKey = scope === "day"
       ? `day:${dateKey(options.date)}`
       : scope === "month"
@@ -9050,7 +9522,9 @@ function ForecastDetailPage() {
       readings: storedPayload.readings || sourceDashboard.readings || [],
       meta: storedPayload.meta || sourceDashboard.meta || {},
       chart_data: storedPayload.chart_data || storedPayload.chartData || sourceDashboard.chart_data || {},
-      yearly_forecast: forecast || storedPayload.yearly_forecast || storedPayload.yearlyForecast || sourceDashboard.yearly_forecast || null,
+      yearly_forecast: CAN_ACCESS_PREMIUM
+        ? (forecast || storedPayload.yearly_forecast || storedPayload.yearlyForecast || sourceDashboard.yearly_forecast || null)
+        : null,
       monthly_overview_loading: !readingStorageHydrated || (
         (needsInitialForecast || dailyMonthlyOverviewPending)
         && !deferredContentError
@@ -9079,6 +9553,10 @@ function ForecastDetailPage() {
     readingStorageHydrated,
   ]);
   const handleRefreshLatest = async () => {
+    if (!CAN_ACCESS_PREMIUM) {
+      setPremiumPromptOpen(true);
+      return;
+    }
     if (!versionState.isOutdated || refreshingLatest) {
       return;
     }
@@ -9135,6 +9613,10 @@ function ForecastDetailPage() {
     }
   };
   const handleCalculateYear = async () => {
+    if (!CAN_ACCESS_PREMIUM) {
+      setPremiumPromptOpen(true);
+      return;
+    }
     const normalizedYear = Number(targetYear);
     if (!Number.isInteger(normalizedYear) || normalizedYear < 2015 || normalizedYear > 2028) {
       setYearCalculationError("2015年から2028年の範囲で年を入力してください。");
@@ -9174,7 +9656,6 @@ function ForecastDetailPage() {
   return (
     <div className="relative min-h-screen overflow-x-hidden text-starlight">
       <Header
-        activeYear={activeYear}
         activeView={activeView}
         setActiveView={setActiveView}
         forecast={forecast}
@@ -9183,6 +9664,8 @@ function ForecastDetailPage() {
         versionState={versionState}
         onRefreshLatest={handleRefreshLatest}
         refreshingLatest={refreshingLatest}
+        canAccessPremium={CAN_ACCESS_PREMIUM}
+        onPremiumRequired={() => setPremiumPromptOpen(true)}
       />
       <main className="mx-auto grid max-w-none gap-3 px-0.5 pb-4 pt-[56px] sm:gap-6 sm:px-4 sm:pb-10 sm:pt-36 lg:px-6 lg:pb-20 lg:pt-[136px]">
         {yearCalculationError ? (
@@ -9242,15 +9725,18 @@ function ForecastDetailPage() {
         {activeView === "horoscope" ? (
           <ForecastGalaxyBackground innerClassName="block">
             <div className="-mx-5 -my-5 md:-mx-8 lg:-mx-14">
-              <DashboardV2HoroscopePage data={dailyDetailData} />
+              <DashboardV2HoroscopePage
+                data={dailyDetailData}
+                belowMetaContent={<Horoscope3DMap data={dailyDetailData} />}
+              />
             </div>
           </ForecastGalaxyBackground>
         ) : null}
       </main>
       <footer className="border-t border-slate-200/90 bg-[#f8fafc]/95 px-4 py-8 text-[#0A192F] sm:px-8 sm:py-10">
         <div className="mx-auto flex max-w-[1540px] flex-col gap-4 text-[#0A192F]/70 md:flex-row md:items-center md:justify-between">
-          <p className="font-serif text-2xl font-semibold text-[#0A192F]">The Celestial Atelier</p>
-          <a href="./index.html" className="font-mono text-xs uppercase tracking-[0.18em] text-[#0A192F]/70 hover:text-[#D4AF37]">Back to Entry</a>
+          <p className="font-serif text-2xl font-semibold text-[#0A192F]">{APP_BRAND}</p>
+          <a href={ENTRY_PAGE_PATH} className="font-mono text-xs uppercase tracking-[0.18em] text-[#0A192F]/70 hover:text-[#D4AF37]">Back to Entry</a>
         </div>
       </footer>
       <YearCalculationDialog
@@ -9262,6 +9748,10 @@ function ForecastDetailPage() {
         calculating={calculatingYear}
         error={yearCalculationError}
       />
+      <PremiumAccessDialog
+        open={premiumPromptOpen}
+        onClose={() => setPremiumPromptOpen(false)}
+      />
     </div>
   );
 }
@@ -9271,3 +9761,4 @@ createRoot(document.getElementById("forecast-detail-root")).render(
     <ForecastDetailPage />
   </React.StrictMode>
 );
+
