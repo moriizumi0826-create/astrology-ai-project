@@ -2170,7 +2170,7 @@ function DashboardV2CountdownCard({ data, onSelectAspect = () => {} }) {
   };
   return (
     <>
-    <DashboardV2Card className="h-[185px]" bodyClassName="p-5">
+    <DashboardV2Card className="h-[225px]" bodyClassName="p-5">
       <div
         className="flex h-full w-full flex-col justify-between text-left"
       >
@@ -2243,8 +2243,8 @@ function DashboardV2CountdownCard({ data, onSelectAspect = () => {} }) {
           </div>
         </div>
         <div className="mt-4 h-px bg-[#e9c349]/25" />
-        <p className="mt-2 line-clamp-1 text-[11px] font-bold leading-5 text-[#e2e2e2]">
-          {hasEvent ? (slide.note || "次の天体イベントに備えます。") : "直近30日以内に表示対象のステラーイベントはありません。"}
+        <p className="mt-2 h-[60px] overflow-hidden line-clamp-3 text-[11px] font-bold leading-5 text-[#e2e2e2]">
+          {hasEvent ? (slide.note || "") : "直近30日以内に表示対象のステラーイベントはありません。"}
         </p>
         <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-white/10">
           <div className="h-full rounded-full bg-[#e9c349]" style={{ width: hasEvent ? `${Math.max(8, Math.min(100, 100 - Math.max(0, Number(days) || 0) * 8))}%` : "0%" }} />
