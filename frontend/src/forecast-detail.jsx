@@ -29,6 +29,7 @@ const SCORE_KEYS = [
   { key: "money", label: "お金", color: "#f2c14e" },
 ];
 const ANNUAL_GENRE_ASPECT_MIN_COMPONENT_SCORE = 55;
+const ANNUAL_GENERAL_ASPECT_MIN_COMPONENT_SCORE = 65;
 const CHART = { width: 920, height: 360, left: 34, right: 18, top: 34, bottom: 42 };
 const PLANET_LABELS = {
   SUN: "太陽",
@@ -477,6 +478,12 @@ function annualAspectGenreDescriptions(event) {
     return text === "-" ? "" : text;
   };
   return {
+    general_health: normalize(
+      source.general_health
+      || event?.description
+      || event?.text_description
+      || event?.textDescription
+    ),
     love: normalize(source.love || event?.love_text_description || event?.loveTextDescription),
     work: normalize(source.work || event?.work_text_description || event?.workTextDescription),
     money: normalize(source.money || event?.money_text_description || event?.moneyTextDescription),
@@ -491,6 +498,7 @@ function annualAspectGenreNumbers(event, snakeKey, camelKey) {
     return Number.isFinite(number) ? number : null;
   };
   return {
+    general_health: normalize(source.general_health),
     love: normalize(source.love),
     work: normalize(source.work),
     money: normalize(source.money),
@@ -508,7 +516,7 @@ function annualAspectGenreScoreComponents(event) {
     const number = Number(value);
     return Number.isFinite(number) && number >= 0 ? number : null;
   };
-  return Object.fromEntries(["love", "work", "money"].map((genre) => {
+  return Object.fromEntries(["general_health", "love", "work", "money"].map((genre) => {
     const components = source?.[genre] || {};
     return [genre, {
       positive: normalize(components.positive),
@@ -533,7 +541,7 @@ function annualAspectApplicableGenres(event) {
   return [...new Set(
     values
       .map((value) => String(value || "").trim().toLowerCase())
-      .filter((value) => ["love", "work", "money"].includes(value))
+      .filter((value) => ["general_health", "love", "work", "money"].includes(value))
   )];
 }
 
@@ -811,7 +819,7 @@ function categorizedAnnualAspectItemsFromForecast(forecast) {
       [],
       ["all_aspects", "allAspects", "events"],
     );
-  const categories = { love: [], work: [], money: [] };
+  const categories = { general_health: [], love: [], work: [], money: [] };
   items.forEach((item) => {
     const itemCategories = Array.isArray(item.applicableGenres)
       ? item.applicableGenres
@@ -824,10 +832,13 @@ function categorizedAnnualAspectItemsFromForecast(forecast) {
         Number.isFinite(positiveImpact) ? positiveImpact : -Infinity,
         Number.isFinite(negativeImpact) ? negativeImpact : -Infinity,
       );
+      const minimumScore = category === "general_health"
+        ? ANNUAL_GENERAL_ASPECT_MIN_COMPONENT_SCORE
+        : ANNUAL_GENRE_ASPECT_MIN_COMPONENT_SCORE;
       if (
         itemCategories.includes(category)
         && Number.isFinite(strongestImpact)
-        && strongestImpact >= ANNUAL_GENRE_ASPECT_MIN_COMPONENT_SCORE
+        && strongestImpact >= minimumScore
       ) {
         categories[category].push({
           ...item,
@@ -7629,6 +7640,7 @@ function OraclePanel({ stats, forecast }) {
   const summaryColumns = summaryItemsFromForecast(forecast);
   const categorizedAspectItems = categorizedAnnualAspectItemsFromForecast(forecast);
   const activeCategoryAspectItems = {
+    general: categorizedAspectItems.general_health,
     test1: categorizedAspectItems.love,
     test2: categorizedAspectItems.work,
     money: categorizedAspectItems.money,
@@ -7640,6 +7652,7 @@ function OraclePanel({ stats, forecast }) {
     lessonSupplement: "補足",
     summary: "総括",
     yearFlow: "今年の流れ",
+    general: "全般",
     test1: "恋愛",
     test2: "仕事",
     money: "お金",
@@ -7763,6 +7776,7 @@ function OraclePanel({ stats, forecast }) {
               </button>
             </div>
             {[
+              ["general", "全般"],
               ["test1", "恋愛"],
               ["test2", "仕事"],
               ["money", "お金"],
@@ -7860,7 +7874,7 @@ function OraclePanel({ stats, forecast }) {
             準備中
           </div>
         ) : null}
-        {["test1", "test2", "money"].includes(analysisMode) ? (
+        {["general", "test1", "test2", "money"].includes(analysisMode) ? (
           <div className="mt-6 flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto pr-2 [scrollbar-color:#e9c349_rgba(255,255,255,0.08)] [scrollbar-width:thin] sm:mt-8">
             {activeCategoryAspectItems.length ? (
               activeCategoryAspectItems.map((item) => {
@@ -9257,4 +9271,3 @@ createRoot(document.getElementById("forecast-detail-root")).render(
     <ForecastDetailPage />
   </React.StrictMode>
 );
-

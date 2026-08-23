@@ -276,6 +276,51 @@ class YearlyForecastTestCase(unittest.TestCase):
         self.assertEqual(applicability["genres"], ["work"])
         self.assertEqual(applicability["planet_rule_genres"], [])
 
+    def test_general_aspect_applicability_requires_general_dominance(self):
+        applicable = yearly_forecast_service._aspect_genre_applicability(
+            "General",
+            {
+                "general_health": {"positive": 65.0, "negative": 55.0},
+                "love": {"positive": 45.0, "negative": 0.0},
+                "work": {"positive": None, "negative": None},
+                "money": {"positive": None, "negative": None},
+            },
+        )
+        below_threshold = yearly_forecast_service._aspect_genre_applicability(
+            "General",
+            {
+                "general_health": {"positive": 60.0, "negative": 0.0},
+                "love": {"positive": None, "negative": None},
+                "work": {"positive": None, "negative": None},
+                "money": {"positive": None, "negative": None},
+            },
+        )
+        competing_genre = yearly_forecast_service._aspect_genre_applicability(
+            "General",
+            {
+                "general_health": {"positive": 70.0, "negative": 0.0},
+                "love": {"positive": 55.0, "negative": 0.0},
+                "work": {"positive": None, "negative": None},
+                "money": {"positive": None, "negative": None},
+            },
+        )
+        non_general_category = yearly_forecast_service._aspect_genre_applicability(
+            "Work",
+            {
+                "general_health": {"positive": 75.0, "negative": 0.0},
+                "love": {"positive": None, "negative": None},
+                "work": {"positive": None, "negative": None},
+                "money": {"positive": None, "negative": None},
+            },
+        )
+
+        self.assertEqual(applicable["category_genres"], ["general_health"])
+        self.assertEqual(applicable["score_genres"], ["general_health", "love"])
+        self.assertEqual(applicable["genres"], ["general_health", "love"])
+        self.assertNotIn("general_health", below_threshold["genres"])
+        self.assertNotIn("general_health", competing_genre["genres"])
+        self.assertNotIn("general_health", non_general_category["genres"])
+
     def test_yearly_forecast_reuses_same_input_and_year_result(self):
         payload = BirthInput(
             full_name="Cache Test",
@@ -940,7 +985,7 @@ class YearlyForecastTestCase(unittest.TestCase):
 
         self.assertEqual(len(forecast["yearly_data"]), 365)
         self.assertEqual(forecast["aspect_genre_description_schema"], 2)
-        self.assertEqual(forecast["aspect_genre_applicability_schema"], 3)
+        self.assertEqual(forecast["aspect_genre_applicability_schema"], 4)
         self.assertEqual(forecast["aspect_genre_score_schema"], 4)
         self.assertEqual(forecast["monthly_overview_schema"], 1)
         first_day = forecast["yearly_data"][0]
