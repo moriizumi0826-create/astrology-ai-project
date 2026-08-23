@@ -540,11 +540,12 @@ function annualAspectGenreDescriptions(event) {
     return text === "-" ? "" : text;
   };
   return {
-    general_health: normalize(
-      source.general_health
-      || event?.description
-      || event?.text_description
-      || event?.textDescription
+    general: normalize(
+      source.general
+      || source.general_health
+      || event?.general_text_description
+      || event?.generalHealthTextDescription
+      || event?.description,
     ),
     love: normalize(source.love || event?.love_text_description || event?.loveTextDescription),
     work: normalize(source.work || event?.work_text_description || event?.workTextDescription),
@@ -560,7 +561,7 @@ function annualAspectGenreNumbers(event, snakeKey, camelKey) {
     return Number.isFinite(number) ? number : null;
   };
   return {
-    general_health: normalize(source.general_health),
+    general: normalize(source.general ?? source.general_health),
     love: normalize(source.love),
     work: normalize(source.work),
     money: normalize(source.money),
@@ -578,8 +579,8 @@ function annualAspectGenreScoreComponents(event) {
     const number = Number(value);
     return Number.isFinite(number) && number >= 0 ? number : null;
   };
-  return Object.fromEntries(["general_health", "love", "work", "money"].map((genre) => {
-    const components = source?.[genre] || {};
+  return Object.fromEntries([["general", "general_health"], ["love", "love"], ["work", "work"], ["money", "money"]].map(([genre, sourceGenre]) => {
+    const components = source?.[sourceGenre] || source?.[genre] || {};
     return [genre, {
       positive: normalize(components.positive),
       negative: normalize(components.negative),
@@ -603,7 +604,8 @@ function annualAspectApplicableGenres(event) {
   return [...new Set(
     values
       .map((value) => String(value || "").trim().toLowerCase())
-      .filter((value) => ["general_health", "love", "work", "money"].includes(value))
+      .map((value) => value === "general_health" ? "general" : value)
+      .filter((value) => ["general", "love", "work", "money"].includes(value))
   )];
 }
 
@@ -806,24 +808,6 @@ function saturnAspectItemsFromForecast(forecast) {
   );
 }
 
-function sunAspectItemsFromForecast(forecast) {
-  return transitAspectItemsFromForecast(
-    forecast,
-    "SUN",
-    ["annual_sun_aspects", "annualSunAspects"],
-    ["sun_aspects", "sunAspects", "events"],
-  );
-}
-
-function marsAspectItemsFromForecast(forecast) {
-  return transitAspectItemsFromForecast(
-    forecast,
-    "MARS",
-    ["annual_mars_aspects", "annualMarsAspects"],
-    ["mars_aspects", "marsAspects", "events"],
-  );
-}
-
 function demoForecast() {
   const monthScores = {
     general: [45, 12, 88, 34, -15, 62, 41, 94, 20, -30, 5, 18],
@@ -881,20 +865,27 @@ function categorizedAnnualAspectItemsFromForecast(forecast) {
       [],
       ["all_aspects", "allAspects", "events"],
     );
-  const categories = { general_health: [], love: [], work: [], money: [] };
+  const categories = { general: [], love: [], work: [], money: [] };
   items.forEach((item) => {
     const itemCategories = Array.isArray(item.applicableGenres)
       ? item.applicableGenres
       : annualAspectApplicableGenres(item);
+    const scoreComponentsByCategory = annualAspectGenreScoreComponents(item);
+    if (!itemCategories.includes("general")) {
+      const generalComponents = scoreComponentsByCategory.general || {};
+      if ([generalComponents.positive, generalComponents.negative].some((value) => Number.isFinite(value))) {
+        itemCategories.push("general");
+      }
+    }
     Object.keys(categories).forEach((category) => {
-      const scoreComponents = item.genreScoreComponents?.[category] || {};
+      const scoreComponents = scoreComponentsByCategory[category] || {};
       const positiveImpact = scoreComponents.positive;
       const negativeImpact = scoreComponents.negative;
       const strongestImpact = Math.max(
         Number.isFinite(positiveImpact) ? positiveImpact : -Infinity,
         Number.isFinite(negativeImpact) ? negativeImpact : -Infinity,
       );
-      const minimumScore = category === "general_health"
+      const minimumScore = category === "general"
         ? ANNUAL_GENERAL_ASPECT_MIN_COMPONENT_SCORE
         : ANNUAL_GENRE_ASPECT_MIN_COMPONENT_SCORE;
       if (
@@ -904,7 +895,7 @@ function categorizedAnnualAspectItemsFromForecast(forecast) {
       ) {
         categories[category].push({
           ...item,
-          description: item.genreDescriptions?.[category] || "",
+          description: item.genreDescriptions?.[category] || item.description || "",
           positiveImpact,
           negativeImpact,
         });
@@ -969,6 +960,7 @@ function mergeYearlyForecastDetail(forecast, detail) {
       monthly_peak_periods: mergedPeaks,
       monthly_sun_themes: mergePeriodItems("monthly_sun_themes"),
       monthly_mars_themes: mergePeriodItems("monthly_mars_themes"),
+      annual_category_aspects: mergePeriodItems("annual_category_aspects"),
       annual_sun_aspects: mergePeriodItems("annual_sun_aspects"),
       annual_mars_aspects: mergePeriodItems("annual_mars_aspects"),
       detail_loaded: {
@@ -8036,9 +8028,9 @@ function OraclePanel({ stats, forecast }) {
   const summaryColumns = summaryItemsFromForecast(forecast);
   const categorizedAspectItems = categorizedAnnualAspectItemsFromForecast(forecast);
   const activeCategoryAspectItems = {
-    general: categorizedAspectItems.general_health,
-    test1: categorizedAspectItems.love,
-    test2: categorizedAspectItems.work,
+    general: categorizedAspectItems.general,
+    love: categorizedAspectItems.love,
+    work: categorizedAspectItems.work,
     money: categorizedAspectItems.money,
   }[analysisMode] || [];
   const analysisTitle = {
@@ -8049,8 +8041,8 @@ function OraclePanel({ stats, forecast }) {
     summary: "総括",
     yearFlow: "今年の流れ",
     general: "全般",
-    test1: "恋愛",
-    test2: "仕事",
+    love: "恋愛・対人",
+    work: "仕事",
     money: "お金",
   }[analysisMode] || "総括";
   const isThemeSectionActive = analysisMode === "theme" || analysisMode === "themeSupplement";
@@ -8173,8 +8165,8 @@ function OraclePanel({ stats, forecast }) {
             </div>
             {[
               ["general", "全般"],
-              ["test1", "恋愛"],
-              ["test2", "仕事"],
+              ["love", "恋愛・対人"],
+              ["work", "仕事"],
               ["money", "お金"],
             ].map(([value, label]) => (
               <button
@@ -8270,7 +8262,7 @@ function OraclePanel({ stats, forecast }) {
             準備中
           </div>
         ) : null}
-        {["general", "test1", "test2", "money"].includes(analysisMode) ? (
+        {["general", "love", "work", "money"].includes(analysisMode) ? (
           <div className="mt-6 flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto pr-2 [scrollbar-color:#e9c349_rgba(255,255,255,0.08)] [scrollbar-width:thin] sm:mt-8">
             {activeCategoryAspectItems.length ? (
               activeCategoryAspectItems.map((item) => {
@@ -8806,8 +8798,16 @@ function Matrix({
   const selectedSeries = SCORE_KEYS.find((item) => item.key === selectedSeriesKey) || SCORE_KEYS[0];
   const sunThemeItems = monthlyItems(monthlyThemeItemsFromForecast(forecast, "monthly_sun_themes"), activeYear, selectedMonth);
   const marsThemeItems = monthlyItems(monthlyThemeItemsFromForecast(forecast, "monthly_mars_themes"), activeYear, selectedMonth);
-  const sunAspectItems = monthlyItems(sunAspectItemsFromForecast(forecast), activeYear, selectedMonth);
-  const marsAspectItems = monthlyItems(marsAspectItemsFromForecast(forecast), activeYear, selectedMonth);
+  const categorizedAspectItems = useMemo(
+    () => categorizedAnnualAspectItemsFromForecast(forecast),
+    [forecast],
+  );
+  const monthlyCategoryAspectItems = {
+    general: monthlyItems(categorizedAspectItems.general, activeYear, selectedMonth),
+    love: monthlyItems(categorizedAspectItems.love, activeYear, selectedMonth),
+    work: monthlyItems(categorizedAspectItems.work, activeYear, selectedMonth),
+    money: monthlyItems(categorizedAspectItems.money, activeYear, selectedMonth),
+  };
   const monthlyOverview = useMemo(
     () => monthlyOverviewForDay(
       forecast,
@@ -8822,8 +8822,10 @@ function Matrix({
     overview: `${selectedMonth + 1}月の総評`,
     theme: "今月のテーマ",
     lesson: "今月のアクション",
-    test1: "太陽の時期",
-    test2: "火星の時期",
+    general: "全般",
+    love: "恋愛・対人",
+    work: "仕事",
+    money: "お金",
   }[activeAnalysisMode] || "今月のテーマ";
   const modeKicker = activeAnalysisMode === "overview" ? "Monthly Overview" : "Main Theme";
   const toggleMonthlyAspect = (key) => {
@@ -8870,8 +8872,10 @@ function Matrix({
               ...(monthlyOverview ? [["overview", "総評"]] : []),
               ["theme", "テーマ"],
               ["lesson", "アクション"],
-              ["test1", "太陽時期"],
-              ["test2", "火星時期"],
+              ["general", "全般"],
+              ["love", "恋愛・対人"],
+              ["work", "仕事"],
+              ["money", "お金"],
             ].map(([value, label]) => (
               <button
                 key={value}
@@ -8897,11 +8901,13 @@ function Matrix({
         {activeAnalysisMode === "lesson" ? (
           <MonthlyArticleList items={marsThemeItems.length ? marsThemeItems : fallbackItems} />
         ) : null}
-        {activeAnalysisMode === "test1" ? (
-          <TransitAspectList items={sunAspectItems} openKeys={openMonthlyAspectKeys} onToggle={toggleMonthlyAspect} prefix="monthly-sun" />
-        ) : null}
-        {activeAnalysisMode === "test2" ? (
-          <TransitAspectList items={marsAspectItems} openKeys={openMonthlyAspectKeys} onToggle={toggleMonthlyAspect} prefix="monthly-mars" />
+        {["general", "love", "work", "money"].includes(activeAnalysisMode) ? (
+          <TransitAspectList
+            items={monthlyCategoryAspectItems[activeAnalysisMode] || []}
+            openKeys={openMonthlyAspectKeys}
+            onToggle={toggleMonthlyAspect}
+            prefix={`monthly-${activeAnalysisMode}`}
+          />
         ) : null}
       </GlassPanel>
     </>
