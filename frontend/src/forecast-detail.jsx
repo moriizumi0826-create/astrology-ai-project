@@ -9893,12 +9893,14 @@ function ForecastDetailPage() {
                 data={dailyDetailData}
                 belowMetaContent={(
                   <>
-                    <BirthDataEditor
-                      initialForm={getStoredReadingForm() || getQueryReadingForm() || {}}
-                      meta={dailyDetailData.meta || {}}
-                      onSearchLocations={searchBirthLocations}
-                      onRecalculate={handleBirthDataRecalculate}
-                    />
+                    {IS_TEST_VERSION ? (
+                      <BirthDataEditor
+                        initialForm={getStoredReadingForm() || getQueryReadingForm() || {}}
+                        meta={dailyDetailData.meta || {}}
+                        onSearchLocations={searchBirthLocations}
+                        onRecalculate={handleBirthDataRecalculate}
+                      />
+                    ) : null}
                     <Horoscope3DMap data={dailyDetailData} />
                   </>
                 )}
