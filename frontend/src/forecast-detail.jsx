@@ -4901,7 +4901,7 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
       });
 
       state.transitZodiacLines.forEach((line) => {
-        line.visible = layoutShowTransit;
+        line.visible = true;
       });
       state.zodiacDegreeTickLines.forEach((line) => {
         line.visible = true;
