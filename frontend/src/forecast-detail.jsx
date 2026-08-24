@@ -3133,6 +3133,7 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
   const [aspectListPanelPosition, setAspectListPanelPosition] = useState({ x: 520, y: 104 });
   const [mobileAspectListPanelPosition, setMobileAspectListPanelPosition] = useState({ x: 10, y: 132 });
   const [isMobileAspectListDetached, setIsMobileAspectListDetached] = useState(false);
+  const [isMobileChartPanelDetached, setIsMobileChartPanelDetached] = useState(true);
   const selectedDate = dateKey(day?.date);
   const [isTransitCalendarOpen, setIsTransitCalendarOpen] = useState(false);
   const selectedMapPlanetDisplayMode = MAP_PLANET_DISPLAY_MODE_OPTIONS.find((option) => option.key === mapPlanetDisplayMode)
@@ -5408,6 +5409,7 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
     setIsAspectPanelOpen(false);
     setIsAspectListPanelOpen(false);
     setIsMobileAspectListDetached(false);
+    setIsMobileChartPanelDetached(true);
     setAspectLineMode("none");
     setAspectLineSelections(EMPTY_ASPECT_SELECTIONS);
     setAspectInterpretationScope("none");
@@ -5513,6 +5515,112 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
       </div>
     );
   };
+  const MobileChartDisplayPanel = () => (
+    <>
+      <div className="grid grid-cols-2 gap-1 rounded-xl border border-white/10 bg-white/[0.025] p-1 font-mono text-[9px] font-bold">
+        {[
+          ["transit", "現行天体"],
+          ["natal", "ネイタル"],
+        ].map(([value, label]) => (
+          <button
+            key={value}
+            type="button"
+            onClick={() => setMobilePlanetTableTab(value)}
+            className={cx(
+              "h-8 rounded-lg transition",
+              mobilePlanetTableTab === value ? "bg-gold/18 text-gold ring-1 ring-gold/35" : "text-mist/65 hover:bg-white/10 hover:text-starlight"
+            )}
+            aria-pressed={mobilePlanetTableTab === value}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+      {mobilePlanetTableTab === "transit" ? (
+        <div className="rounded-xl border border-white/10 bg-white/[0.025] p-1.5">
+          <div className="mb-2 flex items-center justify-between gap-2">
+            <span className={cx("font-mono text-[9px] font-bold", transitLayerActive ? "text-gold/80" : "text-mist/45")}>現行天体</span>
+            <button
+              type="button"
+              onClick={() => setIsMobileChartPanelDetached((value) => !value)}
+              onPointerDown={(event) => event.stopPropagation()}
+              className="inline-flex h-6 shrink-0 items-center justify-center whitespace-nowrap rounded-md border border-white/10 bg-white/[0.04] px-1.5 font-mono text-[8px] font-bold text-mist/80 transition hover:border-gold/35 hover:bg-gold/10 hover:text-gold focus:outline-none focus:ring-2 focus:ring-gold/35"
+              aria-label={isMobileChartPanelDetached ? "現行天体チャートをマップ内に表示" : "現行天体チャートを画面外に表示"}
+              title={isMobileChartPanelDetached ? "マップ内に表示" : "画面外表示"}
+            >
+              {isMobileChartPanelDetached ? "マップ内に表示" : "画面外表示"}
+            </button>
+          </div>
+          <div className="mb-1 grid grid-cols-[0.5rem_2.45rem_2.7rem_1.45rem_2.45rem] items-center gap-1 px-1 font-mono text-[8px] font-bold text-mist/45">
+            <span />
+            <span>天体</span>
+            <span>星座</span>
+            <span className="text-right">度数</span>
+            <span className="text-right">室</span>
+          </div>
+          <div className={cx("grid grid-cols-2 gap-1 font-mono text-[9px] font-bold", transitLayerActive ? "text-mist" : "text-mist/25")}>
+            {[...tableSky.transits, ...tableTransitNodeItems].map((item) => {
+              const isFocusedTransitRow = focusedTransitPlanets.has(item.planet);
+              return (
+                <div
+                  key={`mobile-transit-${item.planet}`}
+                  className={cx(
+                    "grid min-w-0 grid-cols-[0.5rem_2.45rem_minmax(0,1fr)] items-center gap-0.5 rounded-md border px-1 py-1.5",
+                    isFocusedTransitRow ? "border-sky-200/45 bg-sky-200/[0.11] text-starlight" : "border-white/10 bg-white/[0.035]"
+                  )}
+                >
+                  <span className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: item.color, opacity: isFocusedTransitRow || transitLayerActive ? 1 : 0.18 }} />
+                  <span className="min-w-0 truncate text-left">{item.label}</span>
+                  <ChartPositionCompact item={item} houseCusps={tableSky.transitHouseCusps} className="min-w-0 text-[8px]" />
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      ) : (
+        <div className="rounded-xl border border-white/10 bg-white/[0.025] p-1.5">
+          <div className="mb-2 flex items-center justify-between gap-2">
+            <span className={cx("font-mono text-[9px] font-bold", natalLayerActive ? "text-gold" : "text-mist/55")}>ネイタル</span>
+            <button
+              type="button"
+              onClick={() => setIsMobileChartPanelDetached((value) => !value)}
+              onPointerDown={(event) => event.stopPropagation()}
+              className="inline-flex h-6 shrink-0 items-center justify-center whitespace-nowrap rounded-md border border-white/10 bg-white/[0.04] px-1.5 font-mono text-[8px] font-bold text-mist/80 transition hover:border-gold/35 hover:bg-gold/10 hover:text-gold focus:outline-none focus:ring-2 focus:ring-gold/35"
+              aria-label={isMobileChartPanelDetached ? "ネイタルチャートをマップ内に表示" : "ネイタルチャートを画面外に表示"}
+              title={isMobileChartPanelDetached ? "マップ内に表示" : "画面外表示"}
+            >
+              {isMobileChartPanelDetached ? "マップ内に表示" : "画面外表示"}
+            </button>
+          </div>
+          <div className="mb-1 grid grid-cols-[0.5rem_2.45rem_2.7rem_1.45rem_2.45rem] items-center gap-1 px-1 font-mono text-[8px] font-bold text-mist/45">
+            <span />
+            <span>天体</span>
+            <span>星座</span>
+            <span className="text-right">度数</span>
+            <span className="text-right">室</span>
+          </div>
+          <div className={cx("grid grid-cols-2 gap-1 font-mono text-[9px] font-bold", natalLayerActive ? "text-mist" : "text-mist/25")}>
+            {[...sky.natalPoints, ...tableNatalNodeItems].map((item) => {
+              const shouldHighlightNatalRow = focusedNatalPlanets.has(item.planet);
+              return (
+                <div
+                  key={`mobile-natal-${item.planet}`}
+                  className={cx(
+                    "grid min-w-0 grid-cols-[0.5rem_2.45rem_minmax(0,1fr)] items-center gap-0.5 rounded-md border px-1 py-1.5",
+                    shouldHighlightNatalRow ? "border-gold/45 bg-gold/[0.12] text-starlight" : "border-white/10 bg-white/[0.035]"
+                  )}
+                >
+                  <span className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: item.color, opacity: shouldHighlightNatalRow || natalLayerActive ? 1 : 0.18 }} />
+                  <span className="min-w-0 truncate text-left">{planetLabel(item.planet)}</span>
+                  <ChartPositionCompact item={item} houseCusps={sky.natalHouseCusps} className="min-w-0 text-[8px]" />
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </>
+  );
 
   return (
     <GlassPanel className="overflow-hidden border-gold/25 p-3 sm:p-5 lg:p-6">
@@ -5636,6 +5744,33 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
           <div className="absolute right-2 top-2 z-30 sm:hidden">
             <button type="button" onClick={toggleMapFullscreen} className="inline-flex h-8 w-8 items-center justify-center rounded-xl border border-white/10 bg-[#121414]/72 text-mist shadow-[0_10px_26px_rgba(0,0,0,0.28)] backdrop-blur transition hover:bg-white/10 hover:text-gold" aria-label={isMapFullscreen ? "3Dマップの全画面を閉じる" : "3Dマップを全画面で表示"} title={isMapFullscreen ? "全画面を閉じる" : "全画面"}>{isMapFullscreen ? <Minimize2 size={15} /> : <Maximize2 size={15} />}</button>
           </div>
+          {!isMobileChartPanelDetached && mobileMapPanelTab === "display" ? (
+            <div
+              className="absolute inset-x-2 bottom-2 z-30 max-h-[calc(100%-3.5rem)] overflow-y-auto rounded-2xl border border-white/10 bg-[#121414]/76 p-2 font-mono text-[9px] font-bold text-mist shadow-[0_18px_42px_rgba(0,0,0,0.28)] backdrop-blur-md sm:hidden"
+              onPointerDown={(event) => event.stopPropagation()}
+            >
+              <div className="mb-2 grid grid-cols-2 gap-1 rounded-xl border border-white/10 bg-white/[0.035] p-1 text-[8px]">
+                {[
+                  ["display", "チャート"],
+                  ["aspect", "アスペクト表示"],
+                ].map(([value, label]) => (
+                  <button
+                    key={`mobile-map-overlay-${value}`}
+                    type="button"
+                    onClick={() => setMobileMapPanelTab(value)}
+                    className={cx(
+                      "h-8 rounded-lg transition",
+                      mobileMapPanelTab === value ? "bg-gold/18 text-gold ring-1 ring-gold/35" : "hover:bg-white/10 hover:text-starlight"
+                    )}
+                    aria-pressed={mobileMapPanelTab === value}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+              <MobileChartDisplayPanel />
+            </div>
+          ) : null}
           <div className="absolute bottom-2 right-2 z-30 sm:hidden">
             <button
               type="button"
@@ -6753,7 +6888,10 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
             </div>
           </div>
         ) : null}
-        <section className="-mx-3 grid gap-3 rounded-2xl border border-white/10 bg-[#121414]/76 p-2 shadow-[0_18px_42px_rgba(0,0,0,0.28)] backdrop-blur-md sm:hidden">
+        <section className={cx(
+          "-mx-3 grid gap-3 rounded-2xl border border-white/10 bg-[#121414]/76 p-2 shadow-[0_18px_42px_rgba(0,0,0,0.28)] backdrop-blur-md sm:hidden",
+          !isMobileChartPanelDetached && mobileMapPanelTab === "display" && "hidden"
+        )}>
           <div className="grid grid-cols-2 gap-1 rounded-xl border border-white/10 bg-white/[0.035] p-1 font-mono text-[8px] font-bold text-mist">
             {[
               ["display", "チャート"],
@@ -6774,86 +6912,7 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
             ))}
           </div>
           {mobileMapPanelTab === "display" ? (
-            <div className="grid gap-2">
-              <div className="grid grid-cols-2 gap-1 rounded-xl border border-white/10 bg-white/[0.025] p-1 font-mono text-[9px] font-bold">
-                {[
-                  ["transit", "現行天体"],
-                  ["natal", "ネイタル"],
-                ].map(([value, label]) => (
-                  <button
-                    key={value}
-                    type="button"
-                    onClick={() => setMobilePlanetTableTab(value)}
-                    className={cx(
-                      "h-8 rounded-lg transition",
-                      mobilePlanetTableTab === value ? "bg-gold/18 text-gold ring-1 ring-gold/35" : "text-mist/65 hover:bg-white/10 hover:text-starlight"
-                    )}
-                    aria-pressed={mobilePlanetTableTab === value}
-                  >
-                    {label}
-                  </button>
-                ))}
-              </div>
-              {mobilePlanetTableTab === "transit" ? (
-                <div className="rounded-xl border border-white/10 bg-white/[0.025] p-1.5">
-                  <div className={cx("mb-2 font-mono text-[9px] font-bold", transitLayerActive ? "text-gold/80" : "text-mist/45")}>現行天体</div>
-                  <div className="mb-1 grid grid-cols-[0.5rem_2.45rem_2.7rem_1.45rem_2.45rem] items-center gap-1 px-1 font-mono text-[8px] font-bold text-mist/45">
-                    <span />
-                    <span>天体</span>
-                    <span>星座</span>
-                    <span className="text-right">度数</span>
-                    <span className="text-right">室</span>
-                  </div>
-                  <div className={cx("grid grid-cols-2 gap-1 font-mono text-[9px] font-bold", transitLayerActive ? "text-mist" : "text-mist/25")}>
-                    {[...tableSky.transits, ...tableTransitNodeItems].map((item) => {
-                      const isFocusedTransitRow = focusedTransitPlanets.has(item.planet);
-                      return (
-                        <div
-                          key={`mobile-transit-${item.planet}`}
-                          className={cx(
-                            "grid min-w-0 grid-cols-[0.5rem_2.45rem_minmax(0,1fr)] items-center gap-0.5 rounded-md border px-1 py-1.5",
-                            isFocusedTransitRow ? "border-sky-200/45 bg-sky-200/[0.11] text-starlight" : "border-white/10 bg-white/[0.035]"
-                          )}
-                        >
-                          <span className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: item.color, opacity: isFocusedTransitRow || transitLayerActive ? 1 : 0.18 }} />
-                          <span className="min-w-0 truncate text-left">{item.label}</span>
-                          <ChartPositionCompact item={item} houseCusps={tableSky.transitHouseCusps} className="min-w-0 text-[8px]" />
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              ) : (
-                <div className="rounded-xl border border-white/10 bg-white/[0.025] p-1.5">
-                  <div className={cx("mb-2 font-mono text-[9px] font-bold", natalLayerActive ? "text-gold" : "text-mist/55")}>ネイタル</div>
-                  <div className="mb-1 grid grid-cols-[0.5rem_2.45rem_2.7rem_1.45rem_2.45rem] items-center gap-1 px-1 font-mono text-[8px] font-bold text-mist/45">
-                    <span />
-                    <span>天体</span>
-                    <span>星座</span>
-                    <span className="text-right">度数</span>
-                    <span className="text-right">室</span>
-                  </div>
-                  <div className={cx("grid grid-cols-2 gap-1 font-mono text-[9px] font-bold", natalLayerActive ? "text-mist" : "text-mist/25")}>
-                    {[...sky.natalPoints, ...tableNatalNodeItems].map((item) => {
-                      const shouldHighlightNatalRow = focusedNatalPlanets.has(item.planet);
-                      return (
-                        <div
-                          key={`mobile-natal-${item.planet}`}
-                          className={cx(
-                            "grid min-w-0 grid-cols-[0.5rem_2.45rem_minmax(0,1fr)] items-center gap-0.5 rounded-md border px-1 py-1.5",
-                            shouldHighlightNatalRow ? "border-gold/45 bg-gold/[0.12] text-starlight" : "border-white/10 bg-white/[0.035]"
-                          )}
-                        >
-                          <span className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: item.color, opacity: shouldHighlightNatalRow || natalLayerActive ? 1 : 0.18 }} />
-                          <span className="min-w-0 truncate text-left">{planetLabel(item.planet)}</span>
-                          <ChartPositionCompact item={item} houseCusps={sky.natalHouseCusps} className="min-w-0 text-[8px]" />
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
-            </div>
+            <div className="grid gap-2"><MobileChartDisplayPanel /></div>
           ) : null}
 
           {mobileMapPanelTab === "aspect" ? (
