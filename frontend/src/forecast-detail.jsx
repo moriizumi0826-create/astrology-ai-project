@@ -1,6 +1,6 @@
 ﻿import React, { useEffect, useMemo, useState } from "react";
 import { createRoot } from "react-dom/client";
-import { Activity, BriefcaseBusiness, CalendarDays, CircleDot, HandHeart, LockKeyhole, Maximize2, Menu, Minimize2, Minus, Move, Pause, Play, Plus, RefreshCw, Shield, SlidersHorizontal, Sparkles, WalletCards } from "lucide-react";
+import { Activity, BriefcaseBusiness, CalendarDays, ChevronDown, CircleDot, HandHeart, LockKeyhole, Maximize2, Menu, Minimize2, Minus, Move, Pause, Play, Plus, RefreshCw, Shield, SlidersHorizontal, Sparkles, WalletCards } from "lucide-react";
 import * as THREE from "three";
 import {
   currentTokyoDate,
@@ -540,11 +540,12 @@ function annualAspectGenreDescriptions(event) {
     return text === "-" ? "" : text;
   };
   return {
-    general_health: normalize(
-      source.general_health
-      || event?.description
-      || event?.text_description
-      || event?.textDescription
+    general: normalize(
+      source.general
+      || source.general_health
+      || event?.general_text_description
+      || event?.generalHealthTextDescription
+      || event?.description,
     ),
     love: normalize(source.love || event?.love_text_description || event?.loveTextDescription),
     work: normalize(source.work || event?.work_text_description || event?.workTextDescription),
@@ -560,7 +561,7 @@ function annualAspectGenreNumbers(event, snakeKey, camelKey) {
     return Number.isFinite(number) ? number : null;
   };
   return {
-    general_health: normalize(source.general_health),
+    general: normalize(source.general ?? source.general_health),
     love: normalize(source.love),
     work: normalize(source.work),
     money: normalize(source.money),
@@ -578,8 +579,8 @@ function annualAspectGenreScoreComponents(event) {
     const number = Number(value);
     return Number.isFinite(number) && number >= 0 ? number : null;
   };
-  return Object.fromEntries(["general_health", "love", "work", "money"].map((genre) => {
-    const components = source?.[genre] || {};
+  return Object.fromEntries([["general", "general_health"], ["love", "love"], ["work", "work"], ["money", "money"]].map(([genre, sourceGenre]) => {
+    const components = source?.[sourceGenre] || source?.[genre] || {};
     return [genre, {
       positive: normalize(components.positive),
       negative: normalize(components.negative),
@@ -603,7 +604,8 @@ function annualAspectApplicableGenres(event) {
   return [...new Set(
     values
       .map((value) => String(value || "").trim().toLowerCase())
-      .filter((value) => ["general_health", "love", "work", "money"].includes(value))
+      .map((value) => value === "general_health" ? "general" : value)
+      .filter((value) => ["general", "love", "work", "money"].includes(value))
   )];
 }
 
@@ -806,24 +808,6 @@ function saturnAspectItemsFromForecast(forecast) {
   );
 }
 
-function sunAspectItemsFromForecast(forecast) {
-  return transitAspectItemsFromForecast(
-    forecast,
-    "SUN",
-    ["annual_sun_aspects", "annualSunAspects"],
-    ["sun_aspects", "sunAspects", "events"],
-  );
-}
-
-function marsAspectItemsFromForecast(forecast) {
-  return transitAspectItemsFromForecast(
-    forecast,
-    "MARS",
-    ["annual_mars_aspects", "annualMarsAspects"],
-    ["mars_aspects", "marsAspects", "events"],
-  );
-}
-
 function demoForecast() {
   const monthScores = {
     general: [45, 12, 88, 34, -15, 62, 41, 94, 20, -30, 5, 18],
@@ -881,20 +865,27 @@ function categorizedAnnualAspectItemsFromForecast(forecast) {
       [],
       ["all_aspects", "allAspects", "events"],
     );
-  const categories = { general_health: [], love: [], work: [], money: [] };
+  const categories = { general: [], love: [], work: [], money: [] };
   items.forEach((item) => {
     const itemCategories = Array.isArray(item.applicableGenres)
       ? item.applicableGenres
       : annualAspectApplicableGenres(item);
+    const scoreComponentsByCategory = annualAspectGenreScoreComponents(item);
+    if (!itemCategories.includes("general")) {
+      const generalComponents = scoreComponentsByCategory.general || {};
+      if ([generalComponents.positive, generalComponents.negative].some((value) => Number.isFinite(value))) {
+        itemCategories.push("general");
+      }
+    }
     Object.keys(categories).forEach((category) => {
-      const scoreComponents = item.genreScoreComponents?.[category] || {};
+      const scoreComponents = scoreComponentsByCategory[category] || {};
       const positiveImpact = scoreComponents.positive;
       const negativeImpact = scoreComponents.negative;
       const strongestImpact = Math.max(
         Number.isFinite(positiveImpact) ? positiveImpact : -Infinity,
         Number.isFinite(negativeImpact) ? negativeImpact : -Infinity,
       );
-      const minimumScore = category === "general_health"
+      const minimumScore = category === "general"
         ? ANNUAL_GENERAL_ASPECT_MIN_COMPONENT_SCORE
         : ANNUAL_GENRE_ASPECT_MIN_COMPONENT_SCORE;
       if (
@@ -904,7 +895,7 @@ function categorizedAnnualAspectItemsFromForecast(forecast) {
       ) {
         categories[category].push({
           ...item,
-          description: item.genreDescriptions?.[category] || "",
+          description: item.genreDescriptions?.[category] || item.description || "",
           positiveImpact,
           negativeImpact,
         });
@@ -3222,16 +3213,19 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
           }}
           disabled={!onSelectDayIndex}
           className={cx(
-            "inline-flex h-7 items-center gap-1 rounded-md border border-transparent bg-transparent font-semibold text-starlight outline-none transition hover:border-white/10 hover:bg-[#121414]/40 focus:border-gold/50 focus:bg-[#121414]/70 focus:ring-2 focus:ring-gold/25 disabled:pointer-events-none disabled:opacity-100",
-            compact ? "w-[82px] px-1 font-mono text-[10px]" : "px-1 text-xs sm:text-sm"
+            "inline-flex h-7 items-center gap-1 rounded-md border font-semibold text-starlight outline-none transition hover:border-gold/35 hover:bg-[#121414]/80 focus:border-gold/50 focus:bg-[#121414]/70 focus:ring-2 focus:ring-gold/25 disabled:pointer-events-none disabled:opacity-100",
+            compact
+              ? "w-[112px] justify-between border-white/10 bg-[#121414]/70 px-2 font-mono text-[10px]"
+              : "border-transparent bg-transparent px-1 text-xs sm:text-sm"
           )}
           aria-expanded={isTransitCalendarOpen}
           aria-controls={calendarId}
           aria-label="現行天体の計算日"
           title="日付を選択"
         >
+          {compact ? <CalendarDays size={12} className="shrink-0 text-mist/75" /> : null}
           <span>{compact ? compactDateLabel(displayedTransitDateTime.date) : displayedTransitDateTime.date}</span>
-          {!compact ? <CalendarDays size={13} className="text-mist/70" /> : null}
+          {compact ? <ChevronDown size={12} className="shrink-0 text-mist/75" /> : <CalendarDays size={13} className="text-mist/70" />}
         </button>
         <div
           id={calendarId}
@@ -3669,6 +3663,7 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
     const transitHouseLabels = [];
     const transitHouseLines = [];
     const transitZodiacLines = [];
+    const zodiacDegreeTickLines = [];
     const transitLayerLabels = [];
     const transitPositions = new Map();
     const transitVisuals = new Map();
@@ -3948,6 +3943,24 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
         );
         transitZodiacLines.push(line);
         group.add(line);
+    }
+    const zodiacBandWidth = zodiacOuterRadius - transitOrbitRadius;
+    const zodiacDegreeTickOuterRadius = transitOrbitRadius - zodiacBandWidth * 0.05;
+    for (let degree = 0; degree < 360; degree += 10) {
+      const isSignBoundary = degree % 30 === 0;
+      const zodiacDegreeTickInnerRadius = transitOrbitRadius - zodiacBandWidth * (isSignBoundary ? 0.34 : 0.23);
+      const inner = longitudePosition(degree, zodiacDegreeTickInnerRadius, -0.031);
+      const outer = longitudePosition(degree, zodiacDegreeTickOuterRadius, -0.031);
+      const line = new THREE.Line(
+        new THREE.BufferGeometry().setFromPoints([inner, outer]),
+        new THREE.LineBasicMaterial({
+          color: 0xe9c349,
+          transparent: true,
+          opacity: isSignBoundary ? 0.5 : 0.34,
+        })
+      );
+      zodiacDegreeTickLines.push(line);
+      group.add(line);
     }
     ZODIAC_SIGNS.forEach((signSymbol, index) => {
       const { mesh, texture } = orbitTextPlane(signSymbol, {
@@ -4365,6 +4378,7 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
       transitHouseLabels,
       transitHouseLines,
       transitZodiacLines,
+      zodiacDegreeTickLines,
       transitLayerLabels,
       transitPositions,
       transitVisuals,
@@ -4889,6 +4903,9 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
       state.transitZodiacLines.forEach((line) => {
         line.visible = layoutShowTransit;
       });
+      state.zodiacDegreeTickLines.forEach((line) => {
+        line.visible = true;
+      });
       state.mapRings.forEach(({ mesh, role, radius }) => {
         const desiredRadius = role === "natalOuter"
           ? radii.natalHouseOuterRadius
@@ -4901,11 +4918,11 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
       });
 
       state.natalLayerLabels.forEach(({ mesh }) => {
-        setOrbitTextPlaneTransform(mesh, 262, natalOnly ? radii.natalPlanetRadius : base.natalOrbitRadius, 0.11);
+        setOrbitTextPlaneTransform(mesh, 262, base.natalOrbitRadius, 0.11);
         mesh.visible = layoutShowNatal;
       });
       state.transitLayerLabels.forEach(({ mesh }) => {
-        setOrbitTextPlaneTransform(mesh, 262, transitOnly ? radii.transitPlanetRadius : base.transitOrbitRadius, 0.11);
+        setOrbitTextPlaneTransform(mesh, 262, base.transitOrbitRadius, 0.11);
         mesh.visible = layoutShowTransit;
       });
 
@@ -8037,7 +8054,7 @@ function OraclePanel({ stats, forecast }) {
   const summaryColumns = summaryItemsFromForecast(forecast);
   const categorizedAspectItems = categorizedAnnualAspectItemsFromForecast(forecast);
   const activeCategoryAspectItems = {
-    general: categorizedAspectItems.general_health,
+    general: categorizedAspectItems.general ?? categorizedAspectItems.general_health,
     love: categorizedAspectItems.love,
     work: categorizedAspectItems.work,
     money: categorizedAspectItems.money,
@@ -8812,7 +8829,7 @@ function Matrix({
     [forecast],
   );
   const monthlyCategoryAspectItems = {
-    general: monthlyItems(categorizedAspectItems.general_health, activeYear, selectedMonth),
+    general: monthlyItems(categorizedAspectItems.general ?? categorizedAspectItems.general_health, activeYear, selectedMonth),
     love: monthlyItems(categorizedAspectItems.love, activeYear, selectedMonth),
     work: monthlyItems(categorizedAspectItems.work, activeYear, selectedMonth),
     money: monthlyItems(categorizedAspectItems.money, activeYear, selectedMonth),
