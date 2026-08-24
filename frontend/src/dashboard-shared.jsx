@@ -3982,7 +3982,8 @@ export function DashboardV2HoroscopePage({ data, belowMetaContent = null }) {
     };
   }, []);
 
-  const payload = storedPayload || data || {};
+  const hasIncomingPayload = data && typeof data === "object" && Object.keys(data).length > 0;
+  const payload = hasIncomingPayload ? data : storedPayload || {};
   const readings = Array.isArray(payload.readings) ? payload.readings : Array.isArray(data?.readings) ? data.readings : [];
   const meta = payload.meta || data?.meta || {};
   const chartData = payload.chart_data || payload.chartData || data?.chart_data || data?.chartData || null;

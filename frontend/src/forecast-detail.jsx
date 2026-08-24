@@ -7,9 +7,11 @@ import {
   getStoredReadingForm,
   getStoredReadingResult,
   getStoredReadingResultAsync,
+  storeReadingForm,
   storedMasterVersion,
   storeReadingResult,
 } from "./reading-storage.js";
+import { BirthDataEditor } from "./birth-data-editor.jsx";
 import {
   DashboardDailyDetailContentLayer,
   DashboardV2HoroscopePage,
@@ -362,6 +364,25 @@ function forecastWithSelectedYear(forecast, year) {
 function planetLabel(value) {
   const key = String(value || "").trim().toUpperCase();
   return PLANET_LABELS[key] || value || "";
+}
+
+function clearQueryReadingForm() {
+  try {
+    const url = new URL(window.location.href);
+    [
+      "full_name",
+      "birth_date",
+      "birth_time",
+      "birthplace",
+      "latitude",
+      "longitude",
+      "timezone_offset",
+      "timezone_name",
+    ].forEach((key) => url.searchParams.delete(key));
+    window.history.replaceState(window.history.state, "", `${url.pathname}${url.search}${url.hash}`);
+  } catch {
+    // Query cleanup is only needed for developer test links.
+  }
 }
 
 function nodeTableRole(value) {
@@ -4673,6 +4694,7 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
       const flatSymbolPlacements = [];
       symbolBillboards.forEach(({ sprite, target, offset, baseScale, avoidOverlap }) => {
         const direction = cameraLocal.clone().sub(target.position).normalize();
+        const outwardDirection = new THREE.Vector3(target.position.x, 0, target.position.z).normalize();
         sprite.position.copy(target.position).add(direction.multiplyScalar(offset));
         const symbolScale = baseScale * (sceneStateRef.current?.isFlatMapView ? 2 : 1);
         sprite.scale.set(symbolScale, symbolScale, 1);
@@ -4684,9 +4706,9 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
           ));
           while (collides() && shiftStep < 5) {
             shiftStep += 1;
-            const directionSign = shiftStep % 2 ? 1 : -1;
             const magnitude = Math.ceil(shiftStep / 2) * 0.18;
-            sprite.position.x = target.position.x + directionSign * magnitude;
+            sprite.position.x = target.position.x + outwardDirection.x * magnitude;
+            sprite.position.z = target.position.z + outwardDirection.z * magnitude;
           }
           flatSymbolPlacements.push(sprite.position.clone());
         }
@@ -9279,10 +9301,17 @@ function Horoscope3DMap({ data }) {
     natal_points: natalPoints,
     natal_house_cusps: natalHouseCusps,
   };
+  const mapIdentity = [
+    data?.meta?.birth_date,
+    data?.meta?.birth_time,
+    data?.meta?.birthplace,
+    ...natalPoints.map((point) => `${point.planet || point.name}:${point.longitude ?? point.degree ?? ""}`),
+  ].filter(Boolean).join("|");
 
   return (
     <div className="mb-5">
       <TransitNatalSunMap
+        key={mapIdentity}
         day={mapDay}
         forecast={mapForecast}
         availableDays={[mapDay]}
@@ -9744,6 +9773,50 @@ function ForecastDetailPage() {
     }
   };
 
+  const searchBirthLocations = React.useCallback((values) => {
+    const params = new URLSearchParams({
+      q: values.q,
+      prefecture: values.prefecture,
+      birth_time_unknown: String(Boolean(values.birth_time_unknown)),
+      limit: "5",
+    });
+    if (values.birth_date) params.set("birth_date", values.birth_date);
+    if (values.birth_time && !values.birth_time_unknown) params.set("birth_time", values.birth_time);
+    return getJson(`/api/location-search?${params.toString()}`);
+  }, []);
+
+  const handleBirthDataRecalculate = React.useCallback(async ({ request, snapshot }) => {
+    setDeferredContentError("");
+    setForecastDetailError("");
+    setLatestUpdateError("");
+
+    const readingRequest = postJson("/api/readings?defer_widgets=true", request);
+    const forecastRequest = CAN_ACCESS_PREMIUM
+      ? postJson(`/api/yearly-forecast?year=${activeYear}`, request)
+      : Promise.resolve(null);
+    const [nextReading, nextForecastPayload] = await Promise.all([readingRequest, forecastRequest]);
+    const nextForecast = nextForecastPayload
+      ? forecastWithSelectedYear(nextForecastPayload, activeYear)
+      : null;
+    const nextPayload = {
+      ...nextReading,
+      ...(nextForecast ? { yearly_forecast: nextForecast } : {}),
+    };
+
+    clearQueryReadingForm();
+    storeReadingForm(snapshot);
+    await storeReadingResult(nextPayload);
+    forecastDetailRequestsRef.current.clear();
+    setReadingPayload(nextPayload);
+    setReadingStorageHydrated(true);
+    setForecast(nextForecast);
+    setDailyOverviewDate(currentTokyoDate());
+    if (nextForecast) {
+      setSelectedMonthIndex(realtimeMonthIndex(monthlyData(nextForecast, false)));
+      setSelectedMonthlyMonthIndex(workdayMonthIndex());
+    }
+  }, [activeYear]);
+
   return (
     <div className="relative min-h-screen overflow-x-hidden text-starlight">
       <Header
@@ -9818,7 +9891,17 @@ function ForecastDetailPage() {
             <div className="-mx-5 -my-5 md:-mx-8 lg:-mx-14">
               <DashboardV2HoroscopePage
                 data={dailyDetailData}
-                belowMetaContent={<Horoscope3DMap data={dailyDetailData} />}
+                belowMetaContent={(
+                  <>
+                    <BirthDataEditor
+                      initialForm={getStoredReadingForm() || getQueryReadingForm() || {}}
+                      meta={dailyDetailData.meta || {}}
+                      onSearchLocations={searchBirthLocations}
+                      onRecalculate={handleBirthDataRecalculate}
+                    />
+                    <Horoscope3DMap data={dailyDetailData} />
+                  </>
+                )}
               />
             </div>
           </ForecastGalaxyBackground>

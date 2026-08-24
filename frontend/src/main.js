@@ -1,4 +1,4 @@
-import { FORM_STORAGE_KEY, storeReadingResult } from "./reading-storage.js";
+import { FORM_STORAGE_KEY, storeReadingForm, storeReadingResult } from "./reading-storage.js";
 
 function resolveApiBaseUrl() {
   const configured = String(__APP_API_BASE_URL__ || "").trim();
@@ -100,11 +100,7 @@ function getPersistedFormData() {
 }
 
 function persistFormData(data) {
-  try {
-    window.localStorage.setItem(FORM_STORAGE_KEY, JSON.stringify(data));
-  } catch {
-    // Ignore storage errors so the form still works normally.
-  }
+  storeReadingForm(data);
 }
 
 function collectFormSnapshot() {

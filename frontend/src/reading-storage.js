@@ -197,6 +197,14 @@ export function getStoredReadingForm() {
   }
 }
 
+export function storeReadingForm(payload) {
+  try {
+    window.localStorage.setItem(FORM_STORAGE_KEY, JSON.stringify(payload));
+  } catch {
+    // Storage failures must not prevent the calculation itself from running.
+  }
+}
+
 export async function storeReadingResult(payload) {
   const savedDate = storedResultDate(payload) || currentTokyoDate();
   const masterVersion = storedMasterVersion(payload);
