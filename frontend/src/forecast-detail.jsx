@@ -1,6 +1,6 @@
 ﻿import React, { useEffect, useMemo, useState } from "react";
 import { createRoot } from "react-dom/client";
-import { Activity, BriefcaseBusiness, CalendarDays, CircleDot, HandHeart, LockKeyhole, Maximize2, Menu, Minimize2, Minus, Move, Pause, Play, Plus, RefreshCw, Shield, SlidersHorizontal, Sparkles, WalletCards } from "lucide-react";
+import { Activity, BriefcaseBusiness, CalendarDays, ChevronDown, CircleDot, HandHeart, LockKeyhole, Maximize2, Menu, Minimize2, Minus, Move, Pause, Play, Plus, RefreshCw, Shield, SlidersHorizontal, Sparkles, WalletCards } from "lucide-react";
 import * as THREE from "three";
 import {
   currentTokyoDate,
@@ -3213,16 +3213,19 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
           }}
           disabled={!onSelectDayIndex}
           className={cx(
-            "inline-flex h-7 items-center gap-1 rounded-md border border-transparent bg-transparent font-semibold text-starlight outline-none transition hover:border-white/10 hover:bg-[#121414]/40 focus:border-gold/50 focus:bg-[#121414]/70 focus:ring-2 focus:ring-gold/25 disabled:pointer-events-none disabled:opacity-100",
-            compact ? "w-[82px] px-1 font-mono text-[10px]" : "px-1 text-xs sm:text-sm"
+            "inline-flex h-7 items-center gap-1 rounded-md border font-semibold text-starlight outline-none transition hover:border-gold/35 hover:bg-[#121414]/80 focus:border-gold/50 focus:bg-[#121414]/70 focus:ring-2 focus:ring-gold/25 disabled:pointer-events-none disabled:opacity-100",
+            compact
+              ? "w-[112px] justify-between border-white/10 bg-[#121414]/70 px-2 font-mono text-[10px]"
+              : "border-transparent bg-transparent px-1 text-xs sm:text-sm"
           )}
           aria-expanded={isTransitCalendarOpen}
           aria-controls={calendarId}
           aria-label="現行天体の計算日"
           title="日付を選択"
         >
+          {compact ? <CalendarDays size={12} className="shrink-0 text-mist/75" /> : null}
           <span>{compact ? compactDateLabel(displayedTransitDateTime.date) : displayedTransitDateTime.date}</span>
-          {!compact ? <CalendarDays size={13} className="text-mist/70" /> : null}
+          {compact ? <ChevronDown size={12} className="shrink-0 text-mist/75" /> : <CalendarDays size={13} className="text-mist/70" />}
         </button>
         <div
           id={calendarId}
@@ -3660,6 +3663,7 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
     const transitHouseLabels = [];
     const transitHouseLines = [];
     const transitZodiacLines = [];
+    const zodiacDegreeTickLines = [];
     const transitLayerLabels = [];
     const transitPositions = new Map();
     const transitVisuals = new Map();
@@ -3939,6 +3943,24 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
         );
         transitZodiacLines.push(line);
         group.add(line);
+    }
+    const zodiacBandWidth = zodiacOuterRadius - transitOrbitRadius;
+    const zodiacDegreeTickOuterRadius = transitOrbitRadius - zodiacBandWidth * 0.05;
+    for (let degree = 0; degree < 360; degree += 10) {
+      const isSignBoundary = degree % 30 === 0;
+      const zodiacDegreeTickInnerRadius = transitOrbitRadius - zodiacBandWidth * (isSignBoundary ? 0.34 : 0.23);
+      const inner = longitudePosition(degree, zodiacDegreeTickInnerRadius, -0.031);
+      const outer = longitudePosition(degree, zodiacDegreeTickOuterRadius, -0.031);
+      const line = new THREE.Line(
+        new THREE.BufferGeometry().setFromPoints([inner, outer]),
+        new THREE.LineBasicMaterial({
+          color: 0xe9c349,
+          transparent: true,
+          opacity: isSignBoundary ? 0.5 : 0.34,
+        })
+      );
+      zodiacDegreeTickLines.push(line);
+      group.add(line);
     }
     ZODIAC_SIGNS.forEach((signSymbol, index) => {
       const { mesh, texture } = orbitTextPlane(signSymbol, {
@@ -4356,6 +4378,7 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
       transitHouseLabels,
       transitHouseLines,
       transitZodiacLines,
+      zodiacDegreeTickLines,
       transitLayerLabels,
       transitPositions,
       transitVisuals,
@@ -4880,6 +4903,9 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
       state.transitZodiacLines.forEach((line) => {
         line.visible = layoutShowTransit;
       });
+      state.zodiacDegreeTickLines.forEach((line) => {
+        line.visible = true;
+      });
       state.mapRings.forEach(({ mesh, role, radius }) => {
         const desiredRadius = role === "natalOuter"
           ? radii.natalHouseOuterRadius
@@ -4892,11 +4918,11 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
       });
 
       state.natalLayerLabels.forEach(({ mesh }) => {
-        setOrbitTextPlaneTransform(mesh, 262, natalOnly ? radii.natalPlanetRadius : base.natalOrbitRadius, 0.11);
+        setOrbitTextPlaneTransform(mesh, 262, base.natalOrbitRadius, 0.11);
         mesh.visible = layoutShowNatal;
       });
       state.transitLayerLabels.forEach(({ mesh }) => {
-        setOrbitTextPlaneTransform(mesh, 262, transitOnly ? radii.transitPlanetRadius : base.transitOrbitRadius, 0.11);
+        setOrbitTextPlaneTransform(mesh, 262, base.transitOrbitRadius, 0.11);
         mesh.visible = layoutShowTransit;
       });
 
