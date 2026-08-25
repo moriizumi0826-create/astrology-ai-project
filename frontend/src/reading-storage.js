@@ -61,6 +61,90 @@ export function storedMasterVersion(payload) {
   ).trim();
 }
 
+function normalizeRequestDate(value) {
+  const match = String(value || "").trim().match(/^(\d{4})[\/-](\d{1,2})[\/-](\d{1,2})$/);
+  if (!match) return "";
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  const parsed = new Date(Date.UTC(year, month - 1, day));
+  if (
+    parsed.getUTCFullYear() !== year
+    || parsed.getUTCMonth() + 1 !== month
+    || parsed.getUTCDate() !== day
+  ) return "";
+  return `${String(year).padStart(4, "0")}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+}
+
+function normalizeRequestTime(value) {
+  const match = String(value || "").trim().match(/^(\d{1,2}):(\d{2})(?::\d{2})?$/);
+  if (!match) return "";
+  const hours = Number(match[1]);
+  const minutes = Number(match[2]);
+  if (hours < 0 || hours > 23 || minutes < 0 || minutes > 59) return "";
+  return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`;
+}
+
+function booleanValue(value) {
+  if (typeof value === "string") {
+    return ["1", "true", "on", "yes"].includes(value.trim().toLowerCase());
+  }
+  return Boolean(value);
+}
+
+function requiredCoordinate(value, label, min, max) {
+  const numeric = String(value ?? "").trim() === "" ? Number.NaN : Number(value);
+  if (!Number.isFinite(numeric) || numeric < min || numeric > max) {
+    throw new Error(`${label}が保存されていません。入力画面から出生地を再検索してください。`);
+  }
+  return numeric;
+}
+
+export function normalizeReadingRequest(payload) {
+  if (!payload || typeof payload !== "object") return payload;
+
+  const fullName = String(payload.full_name || "").trim();
+  if (!fullName) throw new Error("保存済みの氏名がありません。入力画面から再計算してください。");
+
+  const birthDate = normalizeRequestDate(payload.birth_date);
+  if (!birthDate) throw new Error("保存済みの生年月日が正しくありません。入力画面から再計算してください。");
+
+  const birthTimeUnknown = booleanValue(payload.birth_time_unknown);
+  const birthTime = birthTimeUnknown ? null : normalizeRequestTime(payload.birth_time);
+  if (!birthTimeUnknown && !birthTime) {
+    throw new Error("保存済みの出生時刻が正しくありません。入力画面から再計算してください。");
+  }
+
+  const birthplace = String(payload.resolved_birthplace || payload.birthplace || "").trim();
+  if (!birthplace) throw new Error("保存済みの出生地がありません。入力画面から再計算してください。");
+
+  const latitude = requiredCoordinate(payload.latitude, "緯度", -90, 90);
+  const longitude = requiredCoordinate(payload.longitude, "経度", -180, 180);
+  const timezoneName = String(payload.timezone_name || "").trim() || null;
+  const timezoneText = String(payload.timezone_offset ?? "").trim();
+  const timezoneOffset = timezoneText === "" ? null : Number(timezoneText);
+  if (timezoneOffset !== null && (!Number.isFinite(timezoneOffset) || timezoneOffset < -12 || timezoneOffset > 14)) {
+    throw new Error("保存済みのタイムゾーンが正しくありません。入力画面から出生地を再検索してください。");
+  }
+  if (timezoneOffset === null && !timezoneName) {
+    throw new Error("保存済みのタイムゾーンがありません。入力画面から出生地を再検索してください。");
+  }
+
+  const { birth_prefecture: _birthPrefecture, resolved_birthplace: _resolvedBirthplace, ...rest } = payload;
+  return {
+    ...rest,
+    full_name: fullName,
+    birth_date: birthDate,
+    birth_time: birthTime,
+    birth_time_unknown: birthTimeUnknown,
+    birthplace,
+    latitude,
+    longitude,
+    timezone_offset: timezoneOffset,
+    timezone_name: timezoneName,
+  };
+}
+
 function parseStoredResult(raw) {
   if (!raw) {
     return null;
