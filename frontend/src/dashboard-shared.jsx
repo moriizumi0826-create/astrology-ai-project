@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
-import { currentTokyoDate, getStoredReadingForm, getStoredReadingResult, getStoredReadingResultAsync } from "./reading-storage.js";
+import { currentTokyoDate, getStoredReadingForm, getStoredReadingResult, getStoredReadingResultAsync, normalizeReadingRequest } from "./reading-storage.js";
 import { MonthlyOverviewContent } from "./monthly-overview-content.jsx";
 import { monthlyOverviewForDate } from "./monthly-overview.mjs";
 import {
@@ -196,10 +196,11 @@ function resolveDashboardApiBaseUrl() {
 }
 
 async function postDashboardJson(path, payload) {
+  const requestPayload = payload?.birth_date ? normalizeReadingRequest(payload) : payload;
   const response = await fetch(`${resolveDashboardApiBaseUrl()}${path}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
+    body: JSON.stringify(requestPayload),
   });
   if (!response.ok) {
     const errorPayload = await response.json().catch(() => ({}));

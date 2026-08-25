@@ -7,6 +7,7 @@ import {
   getStoredReadingForm,
   getStoredReadingResult,
   getStoredReadingResultAsync,
+  normalizeReadingRequest,
   storedMasterVersion,
   storeReadingResult,
 } from "./reading-storage.js";
@@ -161,7 +162,8 @@ function resolveApiBaseUrl() {
 
 async function postJson(path, payload) {
   const apiBaseUrl = resolveApiBaseUrl();
-  const response = await requestJson(`${apiBaseUrl}${path}`, payload);
+  const requestPayload = payload?.birth_date ? normalizeReadingRequest(payload) : payload;
+  const response = await requestJson(`${apiBaseUrl}${path}`, requestPayload);
   if (!response.ok) {
     const errorPayload = response.data || {};
     throw new Error(formatApiError(errorPayload.detail, `Request failed: ${response.status}`));
