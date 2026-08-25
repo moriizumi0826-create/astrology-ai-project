@@ -3990,7 +3990,7 @@ export function DashboardV2HoroscopePage({ data, belowMetaContent = null }) {
 
   if (data?.is_loading) {
     return (
-      <main className="mx-auto max-w-[1440px] px-5 py-5 md:px-8 lg:px-14">
+      <main className="mx-auto max-w-none px-5 py-5 md:px-8 lg:px-14">
         <DashboardV2Card bodyClassName="flex min-h-[220px] items-center justify-center p-8">
           <p className="font-mono text-sm font-bold tracking-[0.18em] text-[#c7c6cc]">読込中</p>
         </DashboardV2Card>
@@ -3999,7 +3999,7 @@ export function DashboardV2HoroscopePage({ data, belowMetaContent = null }) {
   }
 
   return (
-    <main className="mx-auto max-w-[1440px] px-5 py-5 md:px-8 lg:px-14">
+    <main className="mx-auto max-w-none px-5 py-5 md:px-8 lg:px-14">
       <section className="mb-5 border-b border-white/10 pb-5">
         <p className="font-mono text-[10px] font-black uppercase tracking-[0.3em] text-[#e9c349]">Horoscope</p>
         <h1 className="mt-2 font-notoSerif text-3xl font-semibold leading-tight text-[#f3f3f0] md:text-5xl">

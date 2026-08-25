@@ -3206,7 +3206,7 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
       commitTransitDate(date);
     };
     return (
-      <div className="relative z-[90]">
+      <div className="relative z-[150]">
         <button
           type="button"
           onClick={(event) => {
@@ -3234,7 +3234,7 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
           onClick={(event) => event.stopPropagation()}
           onPointerDown={(event) => event.stopPropagation()}
           className={cx(
-            "absolute left-0 top-full z-[100] mt-1 w-[236px] overflow-hidden rounded-xl border border-white/10 bg-[#121414]/94 p-2 font-mono text-[10px] font-bold text-mist shadow-[0_18px_42px_rgba(0,0,0,0.42)] backdrop-blur-md transition",
+            "absolute left-0 top-full z-[160] mt-1 w-[236px] overflow-hidden rounded-xl border border-white/10 bg-[#121414]/94 p-2 font-mono text-[10px] font-bold text-mist shadow-[0_18px_42px_rgba(0,0,0,0.42)] backdrop-blur-md transition",
             isTransitCalendarOpen ? "pointer-events-auto translate-y-0 opacity-100" : "pointer-events-none -translate-y-1 opacity-0"
           )}
           aria-hidden={!isTransitCalendarOpen}
@@ -5517,7 +5517,7 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
   };
 
   return (
-    <GlassPanel className="overflow-hidden border-gold/25 p-3 sm:p-5 lg:p-6">
+    <GlassPanel className="overflow-hidden border-gold/25 p-0">
       <div className="grid gap-4 lg:items-stretch">
         <div
           ref={frameRef}
@@ -6631,7 +6631,7 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
         {isMobileAspectListDetached && isAspectListPanelOpen ? (
           <div
             id="mobile-aspect-interpretation-panel-detached"
-            className="relative -mx-3 mb-3 flex max-h-[46vh] min-h-[260px] flex-col overflow-hidden rounded-xl border border-white/10 bg-[#121414]/72 p-2 font-mono text-[9px] font-bold text-mist shadow-[0_18px_42px_rgba(0,0,0,0.24)] backdrop-blur-sm sm:hidden"
+            className="relative mx-0 mb-3 flex max-h-[46vh] min-h-[260px] flex-col overflow-hidden rounded-xl border border-white/10 bg-[#121414]/72 p-2 font-mono text-[9px] font-bold text-mist shadow-[0_18px_42px_rgba(0,0,0,0.24)] backdrop-blur-sm sm:hidden"
           >
             <button
               type="button"
@@ -6755,7 +6755,7 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
             </div>
           </div>
         ) : null}
-        <section className="-mx-3 grid gap-3 rounded-2xl border border-white/10 bg-[#121414]/76 p-2 shadow-[0_18px_42px_rgba(0,0,0,0.28)] backdrop-blur-md sm:hidden">
+        <section className="mx-0 grid gap-3 rounded-2xl border border-white/10 bg-[#121414]/76 p-2 shadow-[0_18px_42px_rgba(0,0,0,0.28)] backdrop-blur-md sm:hidden">
           <div className="grid grid-cols-2 gap-1 rounded-xl border border-white/10 bg-white/[0.035] p-1 font-mono text-[8px] font-bold text-mist">
             {[
               ["display", "チャート"],
