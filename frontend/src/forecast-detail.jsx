@@ -4674,6 +4674,7 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
       const flatSymbolPlacements = [];
       symbolBillboards.forEach(({ sprite, target, offset, baseScale, avoidOverlap }) => {
         const direction = cameraLocal.clone().sub(target.position).normalize();
+        const outwardDirection = new THREE.Vector3(target.position.x, 0, target.position.z).normalize();
         sprite.position.copy(target.position).add(direction.multiplyScalar(offset));
         const symbolScale = baseScale * (sceneStateRef.current?.isFlatMapView ? 2 : 1);
         sprite.scale.set(symbolScale, symbolScale, 1);
@@ -4685,9 +4686,9 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
           ));
           while (collides() && shiftStep < 5) {
             shiftStep += 1;
-            const directionSign = shiftStep % 2 ? 1 : -1;
             const magnitude = Math.ceil(shiftStep / 2) * 0.18;
-            sprite.position.x = target.position.x + directionSign * magnitude;
+            sprite.position.x = target.position.x + outwardDirection.x * magnitude;
+            sprite.position.z = target.position.z + outwardDirection.z * magnitude;
           }
           flatSymbolPlacements.push(sprite.position.clone());
         }
