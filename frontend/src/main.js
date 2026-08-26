@@ -344,22 +344,43 @@ function clearError() {
 }
 
 async function postJson(path, payload) {
-  const response = await fetch(`${API_BASE_URL}${path}`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(payload),
-  });
+  const retryDelays = [1500, 3000, 6000, 10000, 15000, 20000];
+  let lastError;
 
-  const contentType = response.headers.get("content-type") || "";
-  const data = contentType.includes("application/json")
-    ? await response.json()
-    : { detail: await response.text() };
-  if (!response.ok) {
-    throw new Error(data.detail || `Request failed: ${path}`);
+  for (let attempt = 0; attempt <= retryDelays.length; attempt += 1) {
+    try {
+      const response = await fetch(`${API_BASE_URL}${path}`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(payload),
+      });
+
+      const contentType = response.headers.get("content-type") || "";
+      const data = contentType.includes("application/json")
+        ? await response.json()
+        : { detail: await response.text() };
+      if (response.ok) {
+        return data;
+      }
+
+      const requestError = new Error(data.detail || `Request failed: ${path}`);
+      if (![502, 503, 504].includes(response.status) || attempt === retryDelays.length) {
+        throw requestError;
+      }
+      lastError = requestError;
+    } catch (error) {
+      if (!(error instanceof TypeError) || attempt === retryDelays.length) {
+        throw error;
+      }
+      lastError = error;
+    }
+
+    await new Promise((resolve) => window.setTimeout(resolve, retryDelays[attempt]));
   }
-  return data;
+
+  throw lastError || new TypeError("Backend API request failed");
 }
 
 function syncBirthTimeState() {
