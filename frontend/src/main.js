@@ -456,7 +456,8 @@ form.addEventListener("submit", async (event) => {
     window.location.href = FORECAST_DETAIL_PATH;
   } catch (error) {
     if (error instanceof TypeError) {
-      setError("Backend API に接続できませんでした。backend が http://127.0.0.1:8000 で起動しているか確認してください。");
+      const endpoint = API_BASE_URL || "現在のサイト";
+      setError(`Backend API（${endpoint}）との通信に失敗しました。時間をおいて再度お試しください。`);
     } else {
       setError(error.message || "Unknown error");
     }
