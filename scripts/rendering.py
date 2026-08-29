@@ -62,6 +62,40 @@ def _pick_all_from_set(text_set: FieldTextSet, *fields: str) -> List[str]:
     return compact_texts(texts, limit=len(texts) or 1)
 
 
+def _keyword_line(words: Any) -> str:
+    """Render the three-word list as a heading-like line."""
+    if not isinstance(words, list):
+        return ""
+    cleaned = [clean_text(word).strip("、。・,，．.") for word in words]
+    cleaned = [word for word in cleaned if word]
+    if not cleaned:
+        return ""
+    return "▶ " + " ".join(cleaned[:3])
+
+
+def _planet_evidence_map(integrated: IntegratedReading) -> Dict[str, Any]:
+    result: Dict[str, Any] = {}
+    for section_name in ("section3", "section4", "section5"):
+        section = getattr(integrated, section_name, {}) or {}
+        for value in section.values():
+            planet = getattr(value, "planet", None)
+            name = getattr(planet, "name_en", "")
+            if name:
+                result[name] = value
+    return result
+
+
+def _legacy_keyword_lines(evidences: List[Any], field_name: str) -> List[str]:
+    lines: List[str] = []
+    for evidence in evidences:
+        if not evidence:
+            continue
+        line = _keyword_line(getattr(evidence.text_set, field_name, []))
+        if line and line not in lines:
+            lines.append(line)
+    return lines
+
+
 def _pick_line_avoiding(used_texts: set[str], candidates: List[str], allow_duplicate: bool = False) -> str:
     fallback = ""
     for line in candidates:
@@ -353,8 +387,23 @@ def _render_planet_section(
     body_lines = body_override if body_override is not None else _pick_from_set(
         evidence.text_set, *body_fields, limit=body_limit
     )
+    body_keyword_types: set[str] = set()
+    if "cautions" in body_fields:
+        caution_line = _keyword_line(getattr(evidence.text_set, "caution_words", []))
+        if caution_line:
+            body_lines = list(body_lines) + [caution_line]
+            body_keyword_types.add("cautions")
     lines.extend(body_lines)
+    keyword_lines: List[str] = []
     notes = _pick_raw_from_set(evidence.text_set, *note_fields, limit=note_limit)
+    if "strengths" in note_fields:
+        strength_line = _keyword_line(getattr(evidence.text_set, "strength_words", []))
+        if strength_line:
+            keyword_lines.append(strength_line)
+    if "cautions" in note_fields and "cautions" not in body_keyword_types:
+        caution_line = _keyword_line(getattr(evidence.text_set, "caution_words", []))
+        if caution_line:
+            keyword_lines.append(caution_line)
     if not is_reduced and evidence.aspect_texts:
         notes.extend(compact_texts([ev.text for ev in evidence.aspect_texts], limit=1))
     if not is_reduced and evidence.node_texts:
@@ -381,8 +430,9 @@ def _render_planet_section(
                 score -= 1.0
             return score
         notes = sorted(notes, key=note_score, reverse=True)
-    if notes:
+    if keyword_lines or notes:
         lines.append("補足:")
+        lines.extend(keyword_lines)
         if any("\n" in n for n in notes):
             selected_notes = notes[:note_limit]
         else:
@@ -957,17 +1007,36 @@ def render_full_reading_v3(ctx: ChartContext, integrated: IntegratedReading) -> 
         if direction_line:
             used_texts.add(direction_line)
             protected_texts.add(direction_line)
+        planet_evidence = _planet_evidence_map(integrated)
+        dominant_evidences: List[Any] = []
+        for strength in getattr(profile, "dominant_planets", []) or []:
+            planet = getattr(strength, "planet", None)
+            name = getattr(planet, "name_en", "")
+            evidence = planet_evidence.get(name)
+            if evidence:
+                dominant_evidences.append(evidence)
+        strength_keyword_lines = _legacy_keyword_lines(dominant_evidences, "strength_words")
+        caution_keyword_lines = _legacy_keyword_lines(
+            [planet_evidence.get("Saturn"), planet_evidence.get("Pluto")],
+            "caution_words",
+        )
+        protected_texts.update(strength_keyword_lines)
+        protected_texts.update(caution_keyword_lines)
         if summary_line:
             sec8_lines.append("■ 人生テーマ")
             sec8_lines.append(summary_line)
             sec8_lines.append("")
-        if strength_line:
+        if strength_line or strength_keyword_lines:
             sec8_lines.append("■ 強み")
-            sec8_lines.append(strength_line)
+            if strength_line:
+                sec8_lines.append(strength_line)
+            sec8_lines.extend(strength_keyword_lines)
             sec8_lines.append("")
-        if conflict_line:
+        if conflict_line or caution_keyword_lines:
             sec8_lines.append("■ 課題")
-            sec8_lines.append(conflict_line)
+            sec8_lines.extend(caution_keyword_lines)
+            if conflict_line:
+                sec8_lines.append(conflict_line)
             sec8_lines.append("")
         if direction_line:
             sec8_lines.append("■ 成熟方向")

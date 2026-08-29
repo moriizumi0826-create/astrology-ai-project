@@ -1,3 +1,4 @@
+import re
 from typing import Any, Dict, List, Optional, Tuple
 
 from fallbacks import (
@@ -87,6 +88,22 @@ def _clean_list(*values: str) -> List[str]:
     return items
 
 
+def _clean_words(*values: str) -> List[str]:
+    """Normalize the legacy three-keyword fields into individual words."""
+    words: List[str] = []
+    for value in values:
+        text = clean_text(value)
+        if not text:
+            continue
+        for word in re.split(r"\s+", text):
+            word = word.strip("、。・,，．.؛；:：")
+            if word and word not in words:
+                words.append(word)
+            if len(words) >= 3:
+                return words
+    return words
+
+
 def _is_similar(left: str, right: str) -> bool:
     l_norm = normalize_for_dup(left)
     r_norm = normalize_for_dup(right)
@@ -126,7 +143,9 @@ def _field_text_set_from_row(row: Optional[Dict[str, Any]], is_node_axis: bool =
         theme=clean_text(get_first(row, "テーマ", "伸ばすテーマ")),
         core=clean_text(get_first(row, "核となる意味")),
         strengths=_clean_list(get_first(row, "長所")),
+        strength_words=_clean_words(get_first(row, "長所_単語")),
         cautions=_clean_list(get_first(row, "注意点")),
+        caution_words=_clean_words(get_first(row, "注意点_単語")),
         relationship=_clean_list(get_first(row, "対人での出方")),
         work=_clean_list(get_first(row, "仕事での出方")),
         growth=_clean_list(get_first(row, "成長のコツ", "伸ばすテーマ" if is_node_axis else "")),
@@ -140,7 +159,9 @@ def _merge_field_text_sets(primary: FieldTextSet, secondary: FieldTextSet) -> Fi
         theme=_merge_values(primary.theme, secondary.theme),
         core=_merge_values(primary.core, secondary.core),
         strengths=_merge_lists(primary.strengths, secondary.strengths),
+        strength_words=_merge_lists(primary.strength_words, secondary.strength_words, limit=3),
         cautions=_merge_lists(primary.cautions, secondary.cautions),
+        caution_words=_merge_lists(primary.caution_words, secondary.caution_words, limit=3),
         relationship=_merge_lists(primary.relationship, secondary.relationship),
         work=_merge_lists(primary.work, secondary.work),
         growth=_merge_lists(primary.growth, secondary.growth),
