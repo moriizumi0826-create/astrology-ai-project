@@ -120,7 +120,9 @@ class FieldTextSet:
     theme: str = ""
     core: str = ""
     strengths: List[str] = field(default_factory=list)
+    strength_words: List[str] = field(default_factory=list)
     cautions: List[str] = field(default_factory=list)
+    caution_words: List[str] = field(default_factory=list)
     relationship: List[str] = field(default_factory=list)
     work: List[str] = field(default_factory=list)
     growth: List[str] = field(default_factory=list)
