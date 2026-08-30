@@ -496,6 +496,7 @@ const ASPECT_DISPLAY_MODE_OPTIONS = [
   { key: "natalNatal", label: "ネイタル同士", description: "ネイタル×ネイタル" },
   { key: "compositeTransit", label: "現行天体", description: "複合アスペクト" },
   { key: "compositeTransitNatal", label: "ネイタル×現行", description: "複合アスペクト" },
+  { key: "compositeNatal", label: "ネイタル", description: "複合アスペクト" },
   { key: "custom", label: "カスタム", description: "表示対象を選択" },
 ];
 const MONTHLY_PEAK_CATEGORIES = [
@@ -1364,12 +1365,13 @@ function compoundGroupCategory(group) {
 }
 
 function isCompoundAspectMode(mode) {
-  return ["composite", "compositeTransit", "compositeTransitNatal"].includes(mode);
+  return ["composite", "compositeTransit", "compositeTransitNatal", "compositeNatal"].includes(mode);
 }
 
 function compoundCategoryForAspectMode(mode) {
   if (mode === "compositeTransit") return "transitOnly";
   if (mode === "compositeTransitNatal") return "mixed";
+  if (mode === "compositeNatal") return "natalOnly";
   return "";
 }
 
@@ -3374,8 +3376,7 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
     ...transitNatalSourceAspects,
     ...transitTransitSourceAspects,
   ], [transitNatalSourceAspects, transitTransitSourceAspects]);
-  const compoundModeCategory = compoundCategoryForAspectMode(aspectLineMode);
-  const activeCompoundAspectListCategory = compoundModeCategory || compoundAspectListCategory;
+  const activeCompoundAspectListCategory = compoundCategoryForAspectMode(aspectLineMode) || compoundAspectListCategory;
   const shouldComputeCompoundAspects = isCompoundAspectMode(aspectLineMode) || aspectInterpretationScope === "composite";
   const compoundAspectSourceAspects = useMemo(() => (
     shouldComputeCompoundAspects
@@ -3486,10 +3487,21 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
     } else if (mode === "compositeTransitNatal") {
       setCompoundAspectListCategory("mixed");
       setAspectInterpretationScope("composite");
+    } else if (mode === "compositeNatal") {
+      setCompoundAspectListCategory("natalOnly");
+      setAspectInterpretationScope("composite");
     } else {
       setAspectInterpretationScope(mode);
     }
     setIsAspectListPanelOpen(true);
+  };
+  const selectCompoundAspectListCategory = (category) => {
+    const mode = ({
+      mixed: "compositeTransitNatal",
+      transitOnly: "compositeTransit",
+      natalOnly: "compositeNatal",
+    })[category];
+    if (mode) selectAspectLineMode(mode);
   };
   const toggleAspectLineSelection = (scope, group, planet) => {
     setAspectLineSelections((current) => {
@@ -5136,6 +5148,7 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
     if (!aspect) return "";
     if (aspect.scope === "composite") {
       if (aspect.category === "transitOnly") return "compositeTransit";
+      if (aspect.category === "natalOnly") return "compositeNatal";
       return "compositeTransitNatal";
     }
     if (aspect.scope === "transitTransit") return "transitTransit";
@@ -5166,6 +5179,9 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
         setAspectInterpretationScope("composite");
       } else if (nextMode === "compositeTransitNatal") {
         setCompoundAspectListCategory("mixed");
+        setAspectInterpretationScope("composite");
+      } else if (nextMode === "compositeNatal") {
+        setCompoundAspectListCategory("natalOnly");
         setAspectInterpretationScope("composite");
       } else {
         setAspectInterpretationScope(nextMode === "natalNatal" ? "all" : nextMode);
@@ -5491,8 +5507,8 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
         <div
           id={`map-planet-display-options-${compact ? "mobile" : "desktop"}`}
           className={cx(
-            "absolute top-0 z-[110] flex w-max gap-1 rounded-xl border border-white/10 bg-[#121414]/94 p-1.5 font-mono font-bold shadow-[0_18px_42px_rgba(0,0,0,0.42)] backdrop-blur-md transition",
-            compact ? "left-full ml-1" : "right-full mr-1",
+            "absolute top-0 z-[110] flex w-max gap-1 rounded-xl border border-white/10 bg-[#121414]/94 font-mono font-bold shadow-[0_18px_42px_rgba(0,0,0,0.42)] backdrop-blur-md transition",
+            compact ? "left-full ml-1 p-1" : "right-full mr-1 p-1.5",
             isMapPlanetDisplayPanelOpen ? "pointer-events-auto translate-x-0 opacity-100" : "pointer-events-none translate-x-1 opacity-0"
           )}
           aria-hidden={!isMapPlanetDisplayPanelOpen}
@@ -5511,7 +5527,8 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
               }}
               onClick={() => selectMapPlanetDisplayMode(option.key)}
               className={cx(
-                "whitespace-nowrap rounded-lg px-2 py-2 text-left text-[9px] transition sm:text-[10px]",
+                "whitespace-nowrap rounded-lg px-2 text-left transition",
+                compact ? "h-7 text-[8px]" : "py-2 text-[9px] sm:text-[10px]",
                 mapPlanetDisplayMode === option.key ? "bg-gold/18 text-gold ring-1 ring-gold/35" : "text-mist/75 hover:bg-white/10 hover:text-starlight"
               )}
               aria-pressed={mapPlanetDisplayMode === option.key}
@@ -5548,22 +5565,18 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
         <div className="rounded-xl border border-white/10 bg-white/[0.025] p-1.5">
           <div className="mb-2 flex items-center justify-between gap-2">
             <span className={cx("font-mono text-[9px] font-bold", transitLayerActive ? "text-gold/80" : "text-mist/45")}>現行天体</span>
-            <button
-              type="button"
-              onClick={() => {
-                if (isMapFullscreen) {
-                  setIsFullscreenMobileChartPanelOpen(false);
-                } else {
-                  setIsMobileChartPanelDetached((value) => !value);
-                }
-              }}
-              onPointerDown={(event) => event.stopPropagation()}
-              className="inline-flex h-6 shrink-0 items-center justify-center whitespace-nowrap rounded-md border border-white/10 bg-white/[0.04] px-1.5 font-mono text-[8px] font-bold text-mist/80 transition hover:border-gold/35 hover:bg-gold/10 hover:text-gold focus:outline-none focus:ring-2 focus:ring-gold/35"
-              aria-label={isMapFullscreen ? "現行天体チャートを最小化" : isMobileChartPanelDetached ? "現行天体チャートをマップ内に表示" : "現行天体チャートを画面外に表示"}
-              title={isMapFullscreen ? "最小化" : isMobileChartPanelDetached ? "マップ内に表示" : "画面外表示"}
-            >
-              {isMapFullscreen ? "最小化" : isMobileChartPanelDetached ? "マップ内に表示" : "画面外表示"}
-            </button>
+            {isMapFullscreen ? (
+              <button
+                type="button"
+                onClick={() => setIsFullscreenMobileChartPanelOpen(false)}
+                onPointerDown={(event) => event.stopPropagation()}
+                className="inline-flex h-6 shrink-0 items-center justify-center whitespace-nowrap rounded-md border border-white/10 bg-white/[0.04] px-1.5 font-mono text-[8px] font-bold text-mist/80 transition hover:border-gold/35 hover:bg-gold/10 hover:text-gold focus:outline-none focus:ring-2 focus:ring-gold/35"
+                aria-label="現行天体チャートを最小化"
+                title="最小化"
+              >
+                最小化
+              </button>
+            ) : null}
           </div>
           <div className="mb-1 grid grid-cols-[0.5rem_2.45rem_2.7rem_1.45rem_2.45rem] items-center gap-1 px-1 font-mono text-[8px] font-bold text-mist/45">
             <span />
@@ -5595,22 +5608,18 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
         <div className="rounded-xl border border-white/10 bg-white/[0.025] p-1.5">
           <div className="mb-2 flex items-center justify-between gap-2">
             <span className={cx("font-mono text-[9px] font-bold", natalLayerActive ? "text-gold" : "text-mist/55")}>ネイタル</span>
-            <button
-              type="button"
-              onClick={() => {
-                if (isMapFullscreen) {
-                  setIsFullscreenMobileChartPanelOpen(false);
-                } else {
-                  setIsMobileChartPanelDetached((value) => !value);
-                }
-              }}
-              onPointerDown={(event) => event.stopPropagation()}
-              className="inline-flex h-6 shrink-0 items-center justify-center whitespace-nowrap rounded-md border border-white/10 bg-white/[0.04] px-1.5 font-mono text-[8px] font-bold text-mist/80 transition hover:border-gold/35 hover:bg-gold/10 hover:text-gold focus:outline-none focus:ring-2 focus:ring-gold/35"
-              aria-label={isMapFullscreen ? "ネイタルチャートを最小化" : isMobileChartPanelDetached ? "ネイタルチャートをマップ内に表示" : "ネイタルチャートを画面外に表示"}
-              title={isMapFullscreen ? "最小化" : isMobileChartPanelDetached ? "マップ内に表示" : "画面外表示"}
-            >
-              {isMapFullscreen ? "最小化" : isMobileChartPanelDetached ? "マップ内に表示" : "画面外表示"}
-            </button>
+            {isMapFullscreen ? (
+              <button
+                type="button"
+                onClick={() => setIsFullscreenMobileChartPanelOpen(false)}
+                onPointerDown={(event) => event.stopPropagation()}
+                className="inline-flex h-6 shrink-0 items-center justify-center whitespace-nowrap rounded-md border border-white/10 bg-white/[0.04] px-1.5 font-mono text-[8px] font-bold text-mist/80 transition hover:border-gold/35 hover:bg-gold/10 hover:text-gold focus:outline-none focus:ring-2 focus:ring-gold/35"
+                aria-label="ネイタルチャートを最小化"
+                title="最小化"
+              >
+                最小化
+              </button>
+            ) : null}
           </div>
           <div className="mb-1 grid grid-cols-[0.5rem_2.45rem_2.7rem_1.45rem_2.45rem] items-center gap-1 px-1 font-mono text-[8px] font-bold text-mist/45">
             <span />
@@ -5911,17 +5920,9 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
             id="mobile-aspect-interpretation-panel"
             className={cx(
               "z-30 flex flex-col overflow-hidden rounded-xl border border-white/10 bg-[#121414]/48 p-2 font-mono text-[9px] font-bold text-mist shadow-[0_18px_42px_rgba(0,0,0,0.24)] backdrop-blur-sm transition-opacity duration-300 sm:hidden",
-              isMobileAspectListDetached ? "hidden" : "absolute",
+              isMobileAspectListDetached ? "hidden" : "absolute inset-x-2 bottom-12 h-[min(380px,calc(100%-6rem))]",
               isAspectListPanelOpen ? "opacity-100" : "pointer-events-none border-transparent opacity-0"
             )}
-            style={isMobileAspectListDetached
-              ? undefined
-              : {
-                left: `${mobileAspectListPanelPosition.x}px`,
-                top: `${mobileAspectListPanelPosition.y}px`,
-                width: "min(330px, calc(100% - 24px))",
-                height: `min(380px, calc(100% - ${mobileAspectListPanelPosition.y + 12}px))`,
-              }}
             aria-hidden={!isAspectListPanelOpen}
           >
             <button
@@ -5935,12 +5936,7 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
               ×
             </button>
             <div
-              className="mb-2 flex touch-none select-none flex-nowrap items-center gap-1.5 rounded-lg border border-white/10 bg-white/[0.055] px-2 py-1.5 pr-7 text-starlight"
-              onPointerDown={isMobileAspectListDetached ? undefined : beginMobileAspectListDrag}
-              onPointerMove={isMobileAspectListDetached ? undefined : moveMobileAspectListPanel}
-              onPointerUp={isMobileAspectListDetached ? undefined : endMobileAspectListDrag}
-              onPointerCancel={isMobileAspectListDetached ? undefined : endMobileAspectListDrag}
-              title={isMobileAspectListDetached ? "画面外表示中" : "ドラッグで移動"}
+              className="mb-2 flex select-none flex-nowrap items-center gap-1.5 rounded-lg border border-white/10 bg-white/[0.055] px-2 py-1.5 pr-7 text-starlight"
             >
               <span className="shrink-0 whitespace-nowrap text-[9px]">アスペクト一覧</span>
               <span className="shrink-0 whitespace-nowrap rounded border border-white/10 bg-white/[0.035] px-1 py-0.5 text-[7px] text-mist/70">
@@ -5955,21 +5951,6 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
                 title={isMobileAspectListDetached ? "マップ内表示" : "画面外表示"}
               >
                 {isMobileAspectListDetached ? "マップ内表示" : "画面外表示"}
-              </button>
-              <button
-                type="button"
-                className={cx(
-                  "inline-flex h-5 w-5 shrink-0 items-center justify-center text-starlight/85 transition hover:text-gold focus:outline-none focus:ring-2 focus:ring-gold/35",
-                  isMobileAspectListDetached ? "opacity-35" : "cursor-move"
-                )}
-                onPointerDown={isMobileAspectListDetached ? undefined : beginMobileAspectListDrag}
-                onPointerMove={isMobileAspectListDetached ? undefined : moveMobileAspectListPanel}
-                onPointerUp={isMobileAspectListDetached ? undefined : endMobileAspectListDrag}
-                onPointerCancel={isMobileAspectListDetached ? undefined : endMobileAspectListDrag}
-                aria-label="アスペクト一覧を移動"
-                title={isMobileAspectListDetached ? "マップ外表示中は固定" : "移動"}
-              >
-                <Move size={11} aria-hidden="true" />
               </button>
             </div>
             <div className="mb-2 flex flex-nowrap gap-1 rounded-lg border border-white/10 bg-white/[0.025] p-1">
@@ -6000,7 +5981,7 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
                   <button
                     key={`mobile-compound-category-${value}`}
                     type="button"
-                    onClick={() => setCompoundAspectListCategory(value)}
+                    onClick={() => selectCompoundAspectListCategory(value)}
                     className={cx(
                       "h-7 rounded-md px-1 text-[7px] transition",
                       compoundAspectListCategory === value
@@ -6458,7 +6439,7 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
                       <button
                         key={`desktop-compound-category-${value}`}
                         type="button"
-                        onClick={() => setCompoundAspectListCategory(value)}
+                        onClick={() => selectCompoundAspectListCategory(value)}
                         className={cx(
                           "h-7 rounded-md px-1 text-[8px] transition sm:text-[9px]",
                           compoundAspectListCategory === value
@@ -6941,7 +6922,7 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
                   <button
                     key={`mobile-detached-compound-category-${value}`}
                     type="button"
-                    onClick={() => setCompoundAspectListCategory(value)}
+                    onClick={() => selectCompoundAspectListCategory(value)}
                     className={cx(
                       "h-7 rounded-md px-1 text-[7px] transition",
                       compoundAspectListCategory === value
