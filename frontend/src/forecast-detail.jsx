@@ -17,6 +17,7 @@ import {
   dashboardData as fallbackDashboardData,
 } from "./dashboard-shared.jsx";
 import { readableErrorMessage } from "./error-message.mjs";
+import { createSingleFlightRequester, retryTransientRequest } from "./request-control.mjs";
 import {
   aspectHasCompoundMembership,
   compoundMembershipColor,
@@ -34,6 +35,7 @@ const APP_BRAND = IS_TEST_VERSION
 const ENTRY_PAGE_PATH = IS_TEST_VERSION ? "./index-v2.html" : "./index.html";
 const IS_FREE_VERSION = IS_TEST_VERSION;
 const CAN_ACCESS_PREMIUM = !IS_FREE_VERSION;
+const runYearlyForecastSingleFlight = createSingleFlightRequester();
 const MAP_PLANET_DISPLAY_MODE_OPTIONS = [
   { key: "natal", label: "ネイタル天体を表示" },
   { key: "transit", label: "現行天体を表示" },
@@ -172,9 +174,25 @@ async function postJson(path, payload) {
   const response = await requestJson(`${apiBaseUrl}${path}`, requestPayload);
   if (!response.ok) {
     const errorPayload = response.data || {};
-    throw new Error(formatApiError(errorPayload.detail, `Request failed: ${response.status}`));
+    const error = new Error(formatApiError(errorPayload.detail, `Request failed: ${response.status}`));
+    error.status = response.status;
+    throw error;
   }
   return response.data;
+}
+
+function requestYearlyForecast(payload, year, { retryTransient = false } = {}) {
+  const normalizedPayload = payload?.birth_date ? normalizeReadingRequest(payload) : payload;
+  const requestKey = `${Number(year)}:${JSON.stringify(normalizedPayload || {})}`;
+  const request = () => runYearlyForecastSingleFlight(
+    requestKey,
+    () => postJson(`/api/yearly-forecast?year=${year}`, normalizedPayload),
+  );
+  return retryTransient ? retryTransientRequest(request) : request();
+}
+
+function postJsonWithTransientRetry(path, payload) {
+  return retryTransientRequest(() => postJson(path, payload));
 }
 
 async function getJson(path) {
@@ -9259,6 +9277,7 @@ function ForecastDetailPage() {
   const [forecastDetailLoadingKeys, setForecastDetailLoadingKeys] = useState(() => new Set());
   const [forecastDetailError, setForecastDetailError] = useState("");
   const forecastDetailRequestsRef = React.useRef(new Set());
+  const latestRefreshInProgressRef = React.useRef(false);
   const [latestUpdateError, setLatestUpdateError] = useState("");
   const [refreshingLatest, setRefreshingLatest] = useState(false);
   const [versionState, setVersionState] = useState({
@@ -9321,14 +9340,14 @@ function ForecastDetailPage() {
       ? postJson("/api/readings/deferred", formPayload)
       : Promise.resolve(null);
     const forecastRequest = needsInitialForecast
-      ? postJson(`/api/yearly-forecast?year=${activeYear}`, formPayload)
+      ? requestYearlyForecast(formPayload, activeYear)
       : Promise.resolve(null);
 
     Promise.allSettled([widgetRequest, forecastRequest])
       .then(async ([widgetResult, forecastResult]) => {
-        if (!active) return;
+        if (!active || latestRefreshInProgressRef.current) return;
         const storedPayload = await getStoredReadingResultAsync({ allowStale: true });
-        if (!active) return;
+        if (!active || latestRefreshInProgressRef.current) return;
         let nextPayload = { ...(storedPayload || readingPayload || {}) };
         let nextForecast = forecast;
         let changed = false;
@@ -9372,7 +9391,7 @@ function ForecastDetailPage() {
         setDeferredContentError(errors.join(" / "));
       })
       .catch((error) => {
-        if (active) {
+        if (active && !latestRefreshInProgressRef.current) {
           setDeferredContentError(readableErrorMessage(error, "追加データの取得に失敗しました。"));
         }
       })
@@ -9442,7 +9461,7 @@ function ForecastDetailPage() {
     setCalculatingYear(true);
     setYearCalculationError("");
     reloadCsvMasters()
-      .then(() => postJson(`/api/yearly-forecast?year=${activeYear}`, formPayload))
+      .then(() => requestYearlyForecast(formPayload, activeYear, { retryTransient: true }))
       .then(async (nextForecast) => {
         if (!active) return;
         const selectedYearForecast = forecastWithSelectedYear(nextForecast, activeYear);
@@ -9609,13 +9628,14 @@ function ForecastDetailPage() {
     }
 
     setRefreshingLatest(true);
+    latestRefreshInProgressRef.current = true;
     setLatestUpdateError("");
     setDeferredContentError("");
     try {
-      const nextReading = await postJson("/api/readings?defer_widgets=true", formPayload).catch((error) => {
+      const nextReading = await postJsonWithTransientRetry("/api/readings?defer_widgets=true", formPayload).catch((error) => {
         throw new Error(`ホロスコープの再計算に失敗しました: ${readableErrorMessage(error, "API通信に失敗しました")}`);
       });
-      const nextForecastPayload = await postJson(`/api/yearly-forecast?year=${activeYear}`, formPayload).catch((error) => {
+      const nextForecastPayload = await requestYearlyForecast(formPayload, activeYear, { retryTransient: true }).catch((error) => {
         throw new Error(`年次予測の再計算に失敗しました: ${readableErrorMessage(error, "API通信に失敗しました")}`);
       });
       const selectedYearForecast = forecastWithSelectedYear(nextForecastPayload, activeYear);
@@ -9651,6 +9671,7 @@ function ForecastDetailPage() {
     } catch (error) {
       setLatestUpdateError(readableErrorMessage(error, "最新版への更新に失敗しました。"));
     } finally {
+      latestRefreshInProgressRef.current = false;
       setRefreshingLatest(false);
     }
   };
@@ -9674,7 +9695,7 @@ function ForecastDetailPage() {
     setCalculatingYear(true);
     setYearCalculationError("");
     try {
-      const nextForecast = await postJson(`/api/yearly-forecast?year=${normalizedYear}`, formPayload);
+      const nextForecast = await requestYearlyForecast(formPayload, normalizedYear, { retryTransient: true });
       const selectedYearForecast = forecastWithSelectedYear(nextForecast, normalizedYear);
       setForecast(selectedYearForecast);
       setSelectedMonthIndex(realtimeMonthIndex(monthlyData(selectedYearForecast, false)));
@@ -9720,7 +9741,7 @@ function ForecastDetailPage() {
             {latestUpdateError}
           </div>
         ) : null}
-        {deferredContentError ? (
+        {!latestUpdateError && deferredContentError ? (
           <div className="rounded-2xl border border-[#ffb4ab]/30 bg-[#3a1d1d]/45 px-4 py-3 text-xs leading-6 text-[#ffb4ab] sm:text-sm">
             {deferredContentError}
           </div>
