@@ -8091,10 +8091,6 @@ function OraclePanel({ stats, forecast }) {
   const [openTransitAspectKeys, setOpenTransitAspectKeys] = useState(() => new Set());
   const themeItems = themeItemsFromForecast(forecast);
   const lessonItems = lessonItemsFromForecast(forecast);
-  const yearFlowItems = [
-    ...annualTransitHouseTransitionItemsFromForecast(forecast),
-    ...annualHouseActivationItemsFromForecast(forecast),
-  ].sort((a, b) => a.startRaw.localeCompare(b.startRaw) || a.label.localeCompare(b.label));
   const summaryColumns = summaryItemsFromForecast(forecast);
   const categorizedAspectItems = categorizedAnnualAspectItemsFromForecast(forecast);
   const activeCategoryAspectItems = {
@@ -8104,12 +8100,11 @@ function OraclePanel({ stats, forecast }) {
     money: categorizedAspectItems.money,
   }[analysisMode] || [];
   const analysisTitle = {
-    theme: "幸運拡大",
+    theme: "拡大と発展",
     themeSupplement: "補足",
     lesson: "成長課題",
     lessonSupplement: "補足",
     summary: "総括",
-    yearFlow: "今年の流れ",
     general: "全般",
     love: "恋愛・対人",
     work: "仕事",
@@ -8121,11 +8116,6 @@ function OraclePanel({ stats, forecast }) {
     { color: "#e9c349", label: "THEME 01", body: "作成中" },
     { color: "#d3bcf9", label: "THEME 02", body: "作成中" },
     { color: "#ffb4ab", label: "THEME 03", body: "作成中" },
-  ];
-  const fallbackYearFlowItems = [
-    { color: "#e9c349", label: "FLOW 01", body: "準備中" },
-    { color: "#d3bcf9", label: "FLOW 02", body: "準備中" },
-    { color: "#ffb4ab", label: "FLOW 03", body: "準備中" },
   ];
   const fallbackSummaryColumns = {
     environment: [{ color: "#e9c349", label: "1/1-12/31", startRaw: "2026-01-01", endRaw: "2026-12-31", title: "現実的変化", body: "作成中" }],
@@ -8178,16 +8168,6 @@ function OraclePanel({ stats, forecast }) {
                 {label}
               </button>
             ))}
-              <button
-                type="button"
-                onClick={() => setAnalysisMode("yearFlow")}
-                className={cx(
-                  "ml-2 rounded-full px-2 py-1 text-left text-[6px] transition sm:ml-3 sm:text-[8px]",
-                  analysisMode === "yearFlow" ? "bg-white/15 text-gold" : "text-mist/70 hover:bg-white/10 hover:text-starlight"
-                )}
-              >
-                今年の流れ
-              </button>
             </div>
             <div className="flex shrink-0 flex-col border-l border-white/10 pl-1">
               <button
@@ -8198,7 +8178,7 @@ function OraclePanel({ stats, forecast }) {
                   isThemeSectionActive ? "bg-gold text-[#241a00]" : "hover:bg-white/10 hover:text-starlight"
                 )}
               >
-                幸運拡大
+                拡大と発展
               </button>
               <button
                 type="button"
@@ -8272,20 +8252,6 @@ function OraclePanel({ stats, forecast }) {
           <div className="mt-6 grid min-h-0 flex-1 gap-6 overflow-y-auto pr-2 [scrollbar-color:#e9c349_rgba(255,255,255,0.08)] [scrollbar-width:thin] sm:mt-8 sm:gap-8">
             {(lessonItems.length ? lessonItems : fallbackThemeItems).map((item) => (
               <article key={`lesson-${item.label}`} className="relative pl-8">
-                <span className="absolute left-0 top-0.5 h-3 w-3 rounded-full shadow-[0_0_18px_currentColor]" style={{ color: item.color, backgroundColor: item.color }} />
-                <span className="absolute left-[5px] top-4 h-full w-px bg-white/15" />
-                <p className="font-mono text-xs font-bold uppercase tracking-[0.12em]" style={{ color: item.color }}>
-                  {item.label}
-                </p>
-                <p className="mt-3 whitespace-pre-line text-sm leading-7 text-mist sm:text-base sm:leading-8">{item.body}</p>
-              </article>
-            ))}
-          </div>
-        ) : null}
-        {analysisMode === "yearFlow" ? (
-          <div className="mt-6 grid min-h-0 flex-1 gap-6 overflow-y-auto pr-2 [scrollbar-color:#e9c349_rgba(255,255,255,0.08)] [scrollbar-width:thin] sm:mt-8 sm:gap-8">
-            {(yearFlowItems.length ? yearFlowItems : fallbackYearFlowItems).map((item) => (
-              <article key={`year-flow-${item.label}`} className="relative pl-8">
                 <span className="absolute left-0 top-0.5 h-3 w-3 rounded-full shadow-[0_0_18px_currentColor]" style={{ color: item.color, backgroundColor: item.color }} />
                 <span className="absolute left-[5px] top-4 h-full w-px bg-white/15" />
                 <p className="font-mono text-xs font-bold uppercase tracking-[0.12em]" style={{ color: item.color }}>
