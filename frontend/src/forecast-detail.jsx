@@ -17,6 +17,12 @@ import {
   dashboardData as fallbackDashboardData,
 } from "./dashboard-shared.jsx";
 import { readableErrorMessage } from "./error-message.mjs";
+import {
+  aspectHasCompoundMembership,
+  compoundMembershipColor,
+  compoundMembershipSignature,
+  mergeAspectLineMemberships,
+} from "./aspect-line-membership.mjs";
 import { MonthlyOverviewContent } from "./monthly-overview-content.jsx";
 import { hasMonthlyOverviewMonth, monthlyOverviewForDay } from "./monthly-overview.mjs";
 import forecastGalaxyBg from "./assets/daily-detail-galaxy-bg.jpg";
@@ -1174,7 +1180,7 @@ function aspectLineHighlightKey(aspect) {
 function aspectMatchesLineHighlight(aspect, highlightKey) {
   if (!aspect || !highlightKey) return false;
   if (highlightKey.startsWith("compound:")) {
-    return aspect.compoundKey === highlightKey.slice("compound:".length);
+    return aspectHasCompoundMembership(aspect, highlightKey.slice("compound:".length));
   }
   return highlightKey === aspectLineHighlightKey(aspect);
 }
@@ -1706,12 +1712,9 @@ function aspectLineRenderSignature(state, aspects = [], showAll, transitLayerAct
   const focus = state?.aspectLineFocus;
   const focusKey = focus?.type && focus?.planet ? `${focus.type}:${focus.planet}` : "";
   const lineKeys = [];
-  const seen = new Set();
-  aspects.forEach((aspect) => {
+  mergeAspectLineMemberships(aspects, aspectMergeKey).forEach((aspect) => {
     const key = aspectMergeKey(aspect);
-    if (seen.has(key)) return;
-    seen.add(key);
-    lineKeys.push(`${key}:${aspectLineColor(aspect.angle, aspect.color)}`);
+    lineKeys.push(`${key}:${aspectLineColor(aspect.angle, aspect.color)}:${compoundMembershipSignature(aspect)}`);
   });
   return [
     showAll ? "all" : "filtered",
@@ -1736,11 +1739,8 @@ function renderAspectLines(state, aspects, showAll, transitLayerActive) {
     child.geometry?.dispose?.();
     child.material?.dispose?.();
   }
-  const renderedLineKeys = new Set();
-  aspects.forEach((aspect) => {
-    const lineKey = aspectMergeKey(aspect);
-    if (renderedLineKeys.has(lineKey)) return;
-    renderedLineKeys.add(lineKey);
+  const mergedAspects = mergeAspectLineMemberships(aspects, aspectMergeKey);
+  mergedAspects.forEach((aspect) => {
     const transitPosition = state.transitPositions.get(aspect.transitPlanet);
     const otherTransitPosition = aspect.scope === "transitTransit" ? state.transitPositions.get(aspect.transitPlanetB) : null;
     const natalEntry = aspect.scope === "transitTransit" ? null : state.natalMeshes.get(aspect.natalPlanet);
@@ -1754,7 +1754,10 @@ function renderAspectLines(state, aspects, showAll, transitLayerActive) {
     if (!startPosition || !endPosition) return;
     const shouldHighlightLine = Boolean(state.aspectLineFocus);
     const lineLayerActive = aspect.scope === "natalNatal" ? state.natalLayerActive : transitLayerActive;
-    const colorValue = aspectLineColor(aspect.angle, aspect.color);
+    const selectedCompoundKey = String(state.selectedAspectLineHighlightKey || "").startsWith("compound:")
+      ? String(state.selectedAspectLineHighlightKey).slice("compound:".length)
+      : "";
+    const colorValue = aspectLineColor(aspect.angle, compoundMembershipColor(aspect, selectedCompoundKey));
     const lineColor = new THREE.Color(colorValue);
     const isLineHighlighted = aspectMatchesLineHighlight(aspect, state.selectedAspectLineHighlightKey);
     const shouldDimUnrelatedLines = String(state.selectedAspectLineHighlightKey || "").startsWith("compound:");
