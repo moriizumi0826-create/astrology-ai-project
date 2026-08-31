@@ -7683,6 +7683,7 @@ function UnifiedForecastView({
     [forecast, activeYear, selectedMonthlyMonthIndex]
   );
   const [selectedUnifiedMonthlyDayIndex, setSelectedUnifiedMonthlyDayIndex] = useState(() => realtimeDayIndex(monthlyTransitDays));
+  const [expandedForecastMapViews, setExpandedForecastMapViews] = useState({ monthly: false, annual: false });
   const monthlyTransitDateRange = `${dateKey(monthlyTransitDays[0]?.date)}:${dateKey(monthlyTransitDays[monthlyTransitDays.length - 1]?.date)}:${monthlyTransitDays.length}`;
   useEffect(() => {
     setSelectedUnifiedMonthlyDayIndex(realtimeDayIndex(monthlyTransitDays));
@@ -7712,11 +7713,22 @@ function UnifiedForecastView({
   const annualDetailPending = activeUnifiedView === "annual" && (
     detailLoadingKeys.has("annual") || !yearlyAnnualDetailLoaded(forecast)
   );
+  const forecastMapIsCollapsible = activeUnifiedView === "monthly" || activeUnifiedView === "annual";
+  const forecastMapIsExpanded = !forecastMapIsCollapsible || Boolean(expandedForecastMapViews[activeUnifiedView]);
+  const forecastMapTitle = activeUnifiedView === "monthly" ? "今月の星の配置" : "年間の星の配置";
+  const forecastMapRegionId = `forecast-${activeUnifiedView}-star-map`;
+  const toggleForecastMap = () => {
+    if (!forecastMapIsCollapsible) return;
+    setExpandedForecastMapViews((current) => ({
+      ...current,
+      [activeUnifiedView]: !current[activeUnifiedView],
+    }));
+  };
   useEffect(() => {
-    if (mapDate && forecast?.yearly_data?.length && !yearlyDayDetailLoaded(forecast, mapDate)) {
+    if (forecastMapIsExpanded && mapDate && forecast?.yearly_data?.length && !yearlyDayDetailLoaded(forecast, mapDate)) {
       onRequestDayDetail(mapDate);
     }
-  }, [forecast, mapDate, onRequestDayDetail]);
+  }, [forecast, forecastMapIsExpanded, mapDate, onRequestDayDetail]);
 
   return (
     <ForecastGalaxyBackground>
@@ -7772,17 +7784,35 @@ function UnifiedForecastView({
           ? <ForecastLoadingPanel label="年間詳細を読込中" />
           : <OraclePanel stats={stats} forecast={forecast} />
       ) : null}
-      {mapDayPending ? (
-        <ForecastLoadingPanel label={`${formatShortDate(mapDate)}の天体・アスペクトを読込中`} />
-      ) : (
-        <TransitNatalSunMap
-          day={mapConfig.day}
-          forecast={forecast}
-          availableDays={mapConfig.availableDays}
-          selectedDayIndex={mapConfig.selectedDayIndex}
-          onSelectDayIndex={mapConfig.onSelectDayIndex}
-        />
-      )}
+      {forecastMapIsCollapsible ? (
+        <button
+          type="button"
+          onClick={toggleForecastMap}
+          className="flex w-full items-center justify-between gap-4 rounded-2xl border border-gold/25 bg-[#1a1c1c]/62 px-4 py-4 text-left shadow-[0_24px_80px_rgba(0,0,0,0.32)] backdrop-blur-xl transition hover:border-gold/45 hover:bg-[#222424]/72 focus:outline-none focus:ring-2 focus:ring-gold/45 sm:px-6 sm:py-5"
+          aria-expanded={forecastMapIsExpanded}
+          aria-controls={forecastMapRegionId}
+        >
+          <span className="font-serif text-xl font-semibold text-starlight sm:text-3xl">{forecastMapTitle}</span>
+          <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-white/10 bg-white/[0.04] text-gold" aria-hidden="true">
+            {forecastMapIsExpanded ? <Minus size={18} /> : <Plus size={18} />}
+          </span>
+        </button>
+      ) : null}
+      {forecastMapIsExpanded ? (
+        <div id={forecastMapRegionId}>
+          {mapDayPending ? (
+            <ForecastLoadingPanel label={`${formatShortDate(mapDate)}の天体・アスペクトを読込中`} />
+          ) : (
+            <TransitNatalSunMap
+              day={mapConfig.day}
+              forecast={forecast}
+              availableDays={mapConfig.availableDays}
+              selectedDayIndex={mapConfig.selectedDayIndex}
+              onSelectDayIndex={mapConfig.onSelectDayIndex}
+            />
+          )}
+        </div>
+      ) : null}
       <div className={cx(activeUnifiedView === "monthly" ? "block" : "hidden")}>
         {!monthlyDetailPending ? <Matrix
           data={data}
@@ -8986,12 +9016,12 @@ function Matrix({
         activeYear={activeYear}
         selectedMonth={selectedMonth}
       />
+      <MonthlyScoreMatrix dailyData={dailyData} selectedSeriesKey={selectedSeriesKey} selectedDayIndex={safeSelectedDayIndex} />
       <MonthlyPeakDetailTable
         forecast={forecast}
         activeYear={activeYear}
         selectedMonth={selectedMonth}
       />
-      <MonthlyScoreMatrix dailyData={dailyData} selectedSeriesKey={selectedSeriesKey} selectedDayIndex={safeSelectedDayIndex} />
     </>
   );
 
