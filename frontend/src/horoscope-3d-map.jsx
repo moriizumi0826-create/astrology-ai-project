@@ -25,6 +25,10 @@ import {
   compoundMembershipSignature,
   mergeAspectLineMemberships,
 } from "./aspect-line-membership.mjs";
+import {
+  buildFreePlaybackDates,
+  FREE_PLAYBACK_WINDOW_DAYS,
+} from "./free-playback-window.mjs";
 
 const MAP_PLANET_DISPLAY_MODE_OPTIONS = [
   { key: "natal", label: "ネイタル天体を表示" },
@@ -360,8 +364,7 @@ const TRANSIT_PLAYBACK_STEP_OPTIONS = [
   { days: 3, label: "3日/秒" },
 ];
 const TRANSIT_PLAYBACK_RANGE_OPTIONS = [
-  { key: "month", label: "1ヶ月", days: 31 },
-  { key: "year", label: "1年間", days: 366 },
+  { key: "month", label: "今日±15日", days: FREE_PLAYBACK_WINDOW_DAYS },
 ];
 const ASPECT_LINE_SCOPE_OPTIONS = [
   { key: "transitNatal", label: "出生図との関係", shortLabel: "ネイタル×現行", title: "ネイタル天体×現行天体" },
@@ -2488,7 +2491,7 @@ function transitSkyMapData(day, forecast, selectedNatalPlanet = "SUN") {
   };
 }
 
-function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayIndex = 0, onSelectDayIndex = null }) {
+function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayIndex = 0, onSelectDayIndex = null, onSelectDate = null }) {
   const mountRef = React.useRef(null);
   const frameRef = React.useRef(null);
   const sceneStateRef = React.useRef(null);
@@ -2569,6 +2572,7 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
   const selectableDateSet = useMemo(() => new Set(selectableDates), [selectableDates]);
   const minSelectableDate = selectableDates[0] || selectedDate || "";
   const maxSelectableDate = selectableDates[selectableDates.length - 1] || selectedDate || "";
+  const hasDirectDateSelection = typeof onSelectDate === "function";
   useEffect(() => {
     if (!isTransitCalendarOpen) {
       setTransitCalendarMonth(monthKey(selectedDate));
@@ -2579,7 +2583,14 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
     setTransitPlaybackCursor(null);
     setPlaybackTransitChart(null);
     const nextDate = dateKey(value);
-    if (!nextDate || !onSelectDayIndex) return;
+    if (!nextDate) return;
+    if (hasDirectDateSelection) {
+      onSelectDate(nextDate);
+      setIsTransitCalendarOpen(false);
+      setTransitCalendarMonth(monthKey(nextDate));
+      return;
+    }
+    if (!onSelectDayIndex) return;
     const nextIndex = selectableDates.indexOf(nextDate);
     if (nextIndex >= 0) {
       onSelectDayIndex(nextIndex);
@@ -2593,6 +2604,7 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
   const canMoveTransitCalendarMonth = (direction) => {
     const nextMonth = addMonthsToMonthKey(transitCalendarMonth || selectedDate, direction);
     if (!nextMonth) return false;
+    if (hasDirectDateSelection) return true;
     if (direction < 0 && minSelectableDate) return nextMonth >= monthKey(minSelectableDate);
     if (direction > 0 && maxSelectableDate) return nextMonth <= monthKey(maxSelectableDate);
     return true;
@@ -2600,8 +2612,10 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
   const moveTransitCalendarMonth = (direction) => {
     const nextMonth = addMonthsToMonthKey(transitCalendarMonth || selectedDate, direction);
     if (!nextMonth) return;
-    if (direction < 0 && minSelectableDate && nextMonth < monthKey(minSelectableDate)) return;
-    if (direction > 0 && maxSelectableDate && nextMonth > monthKey(maxSelectableDate)) return;
+    if (!hasDirectDateSelection) {
+      if (direction < 0 && minSelectableDate && nextMonth < monthKey(minSelectableDate)) return;
+      if (direction > 0 && maxSelectableDate && nextMonth > monthKey(maxSelectableDate)) return;
+    }
     setTransitCalendarMonth(nextMonth);
   };
   const TransitDatePicker = ({ compact = false } = {}) => {
@@ -2610,6 +2624,7 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
     const calendarId = compact ? "mobile-transit-date-calendar" : "desktop-transit-date-calendar";
     const isDateSelectable = (date) => {
       if (!date) return false;
+      if (hasDirectDateSelection) return true;
       if (selectableDateSet.has(date)) return true;
       if (minSelectableDate && date < minSelectableDate) return false;
       if (maxSelectableDate && date > maxSelectableDate) return false;
@@ -2628,7 +2643,7 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
             event.stopPropagation();
             setIsTransitCalendarOpen((value) => !value);
           }}
-          disabled={!onSelectDayIndex}
+          disabled={!hasDirectDateSelection && !onSelectDayIndex}
           className={cx(
             "inline-flex h-7 items-center gap-1 rounded-md border font-semibold text-starlight outline-none transition hover:border-gold/35 hover:bg-[#121414]/80 focus:border-gold/50 focus:bg-[#121414]/70 focus:ring-2 focus:ring-gold/25 disabled:pointer-events-none disabled:opacity-100",
             compact
@@ -4721,19 +4736,20 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
       setTransitPlaybackPreloadProgress(0);
       setTransitChartError("");
       const isMobilePlayback = isMobileViewport();
-      const playbackStartDate = displayedTransitDateTime.date || selectedDate;
-      const startIndex = Math.max(0, selectableDates.indexOf(playbackStartDate));
-      const rangeOption = isMobilePlayback
-        ? TRANSIT_PLAYBACK_RANGE_OPTIONS.find((option) => option.key === "year")
-        : TRANSIT_PLAYBACK_RANGE_OPTIONS.find((option) => option.key === transitPlaybackRange) || TRANSIT_PLAYBACK_RANGE_OPTIONS[0];
-      const remainingDates = (selectableDates.length ? selectableDates.slice(startIndex, startIndex + rangeOption.days) : [playbackStartDate]).filter(Boolean);
+      const rangeOption = TRANSIT_PLAYBACK_RANGE_OPTIONS.find((option) => option.key === transitPlaybackRange)
+        || TRANSIT_PLAYBACK_RANGE_OPTIONS[0];
+      const remainingDates = (selectableDates.length
+        ? selectableDates.slice(0, rangeOption.days)
+        : [selectedDate]
+      ).filter(Boolean);
+      const playbackStartDate = remainingDates[0] || selectedDate;
       const playbackStepDays = isMobilePlayback ? 1 : transitPlaybackStepDays;
       const playbackDates = remainingDates.filter((_, index) => index % playbackStepDays === 0);
       const finalRemainingDate = remainingDates[remainingDates.length - 1];
       if (finalRemainingDate && playbackDates.length === 1 && finalRemainingDate !== playbackDates[0]) {
         playbackDates.push(finalRemainingDate);
       }
-      await preloadTransitChartsForDates(selectedTransitTime, playbackDates, (completed, total) => {
+      await preloadTransitChartsForDates(selectedTransitTime, remainingDates, (completed, total) => {
         setTransitPlaybackPreloadProgress(total ? Math.round((completed / total) * 100) : 100);
       });
       setIsRotationPaused(true);
@@ -5277,6 +5293,13 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
                   </>
                 ) : isTransitPlaybackActive ? <Pause size={14} /> : <Play size={14} />}
               </button>
+              <span
+                className="inline-flex h-7 shrink-0 items-center gap-1 border-l border-white/10 px-1.5 font-mono text-[7px] font-bold text-mist/65"
+                aria-label="連続再生期間は今日の前後15日"
+              >
+                <span>期間</span>
+                <span className="text-cyan-100">今日±15</span>
+              </span>
               </div>
             </div>
             <MapPlanetDisplaySelector compact />
@@ -5533,16 +5556,29 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
                   type="button"
                   onClick={toggleTransitPlayback}
                   className={cx(
-                    "inline-flex h-8 items-center gap-1.5 rounded-lg px-2 font-mono text-[9px] font-bold transition focus:outline-none focus:ring-2 focus:ring-gold/45 disabled:cursor-wait disabled:opacity-70 sm:text-[10px]",
+                    "relative inline-flex h-8 items-center gap-1.5 overflow-hidden rounded-lg px-2 font-mono text-[9px] font-bold transition focus:outline-none focus:ring-2 focus:ring-gold/45 disabled:cursor-wait disabled:opacity-90 sm:text-[10px]",
                     isTransitPlaybackActive ? "bg-gold/15 text-gold" : "text-cyan-200/85 hover:bg-white/10 hover:text-cyan-100"
                   )}
                   aria-pressed={isTransitPlaybackActive}
                   aria-label={isTransitPlaybackActive ? "現行天体の再生を停止" : "現行天体を再生"}
-                  title={isTransitPlaybackActive ? "再生停止" : "再生"}
+                  title={isTransitPlaybackPreloading ? "読込中" : isTransitPlaybackActive ? "再生停止" : "再生"}
                   disabled={isTransitPlaybackPreloading}
                 >
-                  {isTransitPlaybackActive ? <Pause size={14} /> : <Play size={14} />}
-                  <span>{isTransitPlaybackPreloading ? "読込中" : isTransitPlaybackActive ? "停止" : "再生"}</span>
+                  {isTransitPlaybackPreloading ? (
+                    <>
+                      <span
+                        className="absolute inset-y-0 left-0 bg-cyan-300/25 transition-[width] duration-200"
+                        style={{ width: `${Math.max(4, transitPlaybackPreloadProgress)}%` }}
+                        aria-hidden="true"
+                      />
+                      <span className="relative z-10 whitespace-nowrap">読込中</span>
+                    </>
+                  ) : (
+                    <>
+                      {isTransitPlaybackActive ? <Pause size={14} /> : <Play size={14} />}
+                      <span>{isTransitPlaybackActive ? "停止" : "再生"}</span>
+                    </>
+                  )}
                 </button>
                 <button
                   type="button"
@@ -6431,6 +6467,12 @@ function GlassPanel({ children, className = "", variant = "default" }) {
 }
 
 export function Horoscope3DMap({ data }) {
+  const [freePlaybackAnchorDate] = useState(() => currentTokyoDate());
+  const freePlaybackDays = useMemo(
+    () => buildFreePlaybackDates(freePlaybackAnchorDate).map((date) => ({ date, all_aspects: [] })),
+    [freePlaybackAnchorDate]
+  );
+  const [selectedMapDate, setSelectedMapDate] = useState(() => dateKey(data?.reading_date) || freePlaybackAnchorDate);
   const natalPoints = Array.isArray(data?.natal_points)
     ? data.natal_points
     : Array.isArray(data?.natalPoints)
@@ -6445,7 +6487,7 @@ export function Horoscope3DMap({ data }) {
   if (!natalPoints.length) return null;
 
   const mapDay = {
-    date: dateKey(data?.reading_date) || currentTokyoDate(),
+    date: selectedMapDate || freePlaybackAnchorDate,
     all_aspects: [],
   };
   const mapForecast = {
@@ -6465,8 +6507,8 @@ export function Horoscope3DMap({ data }) {
         key={mapIdentity}
         day={mapDay}
         forecast={mapForecast}
-        availableDays={[mapDay]}
-        selectedDayIndex={0}
+        availableDays={freePlaybackDays}
+        onSelectDate={setSelectedMapDate}
       />
     </div>
   );
