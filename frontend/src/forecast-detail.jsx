@@ -19,6 +19,12 @@ import {
 import { readableErrorMessage } from "./error-message.mjs";
 import { createSingleFlightRequester, retryTransientRequest } from "./request-control.mjs";
 import {
+  loadEarthCloudTexture,
+  loadEarthSurfaceTexture,
+  loadPlanetSurfaceTexture,
+  loadSaturnRingTexture,
+} from "./planet-surface-textures.mjs";
+import {
   aspectHasCompoundMembership,
   compoundMembershipColor,
   compoundMembershipSignature,
@@ -2778,18 +2784,17 @@ function solarCoronaRayTexture() {
 }
 
 function planetMaterial(item, textures) {
-  const texture = planetTexture(item.planet);
-  textures.push(texture);
+  const texture = loadPlanetSurfaceTexture(item.planet, textures);
   const baseColor = new THREE.Color(item.color);
+  const isSun = item.planet === "SUN";
   return new THREE.MeshStandardMaterial({
     map: texture,
-    bumpMap: texture,
-    bumpScale: item.planet === "SUN" ? 0.018 : ["MOON", "MERCURY", "MARS", "PLUTO"].includes(item.planet) ? 0.06 : 0.024,
     color: item.estimated ? baseColor.clone().lerp(new THREE.Color("#8f8f98"), 0.22) : 0xffffff,
-    emissive: item.planet === "SUN" ? new THREE.Color("#f05a0a") : baseColor,
-    emissiveIntensity: item.planet === "SUN" ? 2.18 : item.estimated ? 0.03 : 0.07,
-    metalness: ["URANUS", "NEPTUNE"].includes(item.planet) ? 0.08 : 0.02,
-    roughness: item.planet === "SUN" ? 0.36 : ["VENUS", "URANUS", "NEPTUNE"].includes(item.planet) ? 0.56 : 0.84,
+    emissive: isSun ? new THREE.Color(0xffffff) : baseColor,
+    emissiveMap: isSun ? texture : null,
+    emissiveIntensity: isSun ? 1.08 : item.estimated ? 0.006 : 0.015,
+    metalness: 0,
+    roughness: isSun ? 0.54 : ["VENUS", "URANUS", "NEPTUNE"].includes(item.planet) ? 0.72 : 0.88,
   });
 }
 
@@ -3820,21 +3825,17 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
       group.add(ring);
     });
 
-    const earthSurfaceTexture = earthTexture();
-    const earthCloudsTexture = earthCloudTexture();
-    textures.push(earthSurfaceTexture);
-    textures.push(earthCloudsTexture);
+    const earthSurfaceTexture = loadEarthSurfaceTexture(textures);
+    const earthCloudsTexture = loadEarthCloudTexture(textures);
     const earthMesh = new THREE.Mesh(
       new THREE.SphereGeometry(0.38, 96, 54),
       new THREE.MeshStandardMaterial({
         map: earthSurfaceTexture,
-        bumpMap: earthSurfaceTexture,
-        bumpScale: 0.052,
         color: 0xffffff,
-        emissive: new THREE.Color("#0b3d91"),
-        emissiveIntensity: 0.045,
-        metalness: 0.02,
-        roughness: 0.72,
+        emissive: new THREE.Color(0x000000),
+        emissiveIntensity: 0,
+        metalness: 0,
+        roughness: 0.82,
       })
     );
     earthMesh.position.set(0, 0.16, 0);
@@ -3848,12 +3849,11 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
       new THREE.SphereGeometry(0.388, 96, 54),
       new THREE.MeshStandardMaterial({
         map: earthCloudsTexture,
-        alphaMap: earthCloudsTexture,
         color: 0xffffff,
         transparent: true,
-        opacity: 0.52,
+        opacity: 0.7,
         depthWrite: false,
-        roughness: 0.35,
+        roughness: 0.58,
         metalness: 0,
       })
     );
@@ -4048,20 +4048,13 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
       const isNatalAngle = TRANSIT_ANGLE_ORDER.includes(point.planet);
       const baseY = 0.42 + (index % 2) * 0.16;
       const position = longitudePosition(point.longitude, natalPlanetRadius, baseY);
-      const texture = planetTexture(point.planet);
-      textures.push(texture);
-      const material = new THREE.MeshStandardMaterial({
-        map: texture,
-        color: new THREE.Color(point.color).lerp(new THREE.Color("#9ca3af"), 0.35),
-        emissive: new THREE.Color(point.color),
-        emissiveIntensity: 0.08,
-        metalness: 0.06,
-        roughness: 0.62,
-        transparent: true,
-        opacity: isNatalAngle ? 0 : 0.24,
-        depthWrite: false,
-      });
-      const mesh = new THREE.Mesh(new THREE.SphereGeometry(0.14, 48, 24), material);
+      const material = isNatalAngle
+        ? new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: new THREE.Color(point.color) })
+        : planetMaterial({ ...point, estimated: false }, textures);
+      material.transparent = true;
+      material.opacity = isNatalAngle ? 0 : 0.24;
+      material.depthWrite = false;
+      const mesh = new THREE.Mesh(new THREE.SphereGeometry(0.14, 72, 48), material);
       mesh.position.copy(position);
       mesh.visible = !isNatalAngle;
       mesh.userData.tooltip = `あなたの${planetLabel(point.planet)}`;
@@ -4183,7 +4176,7 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
         PLUTO: 0.13,
       }[item.planet] || 0.16;
       const mesh = new THREE.Mesh(
-        new THREE.SphereGeometry(radius, 72, 38),
+        new THREE.SphereGeometry(radius, 96, 64),
         planetMaterial(item, textures)
       );
       mesh.material.transparent = true;
@@ -4358,23 +4351,31 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
       }
 
       if (item.planet === "SATURN") {
-        [1.65, 2.08].forEach((scale, ringIndex) => {
-          const saturnRing = new THREE.Mesh(
-            new THREE.TorusGeometry(radius * scale, ringIndex ? 0.008 : 0.014, 8, 128),
-            new THREE.MeshBasicMaterial({ color: ringIndex ? 0xb99d66 : 0xf1dfb4, transparent: true, opacity: ringIndex ? 0.42 : 0.66 })
-          );
-          saturnRing.position.copy(position);
-          saturnRing.rotation.x = Math.PI / 2.6;
-          saturnRing.rotation.z = 0.45;
-          transitVisual.objects.push(saturnRing);
-          transitLayerObjects.push({
-            planet: item.planet,
-            object: saturnRing,
-            brightOpacity: saturnRing.material.opacity,
-            dimOpacity: 0.08,
-          });
-          group.add(saturnRing);
+        const saturnRingTexture = loadSaturnRingTexture(textures);
+        const saturnRing = new THREE.Mesh(
+          new THREE.RingGeometry(radius * 1.1, radius * 2.32, 192),
+          new THREE.MeshBasicMaterial({
+            map: saturnRingTexture,
+            color: 0xffffff,
+            transparent: true,
+            opacity: 0.92,
+            alphaTest: 0.015,
+            side: THREE.DoubleSide,
+            depthWrite: false,
+          })
+        );
+        saturnRing.position.copy(position);
+        saturnRing.rotation.x = Math.PI / 2.6;
+        saturnRing.rotation.z = 0.45;
+        saturnRing.renderOrder = 1;
+        transitVisual.objects.push(saturnRing);
+        transitLayerObjects.push({
+          planet: item.planet,
+          object: saturnRing,
+          brightOpacity: saturnRing.material.opacity,
+          dimOpacity: 0.08,
         });
+        group.add(saturnRing);
       }
 
       if (item.planet === "URANUS") {
