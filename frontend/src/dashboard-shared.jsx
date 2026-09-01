@@ -2254,7 +2254,7 @@ function DashboardV2CountdownCard({ data, onSelectAspect = () => {} }) {
     </DashboardV2Card>
     {isCalendarOpen && typeof document !== "undefined" ? createPortal(
       <div
-        className="fixed inset-0 z-[90] flex items-center justify-center bg-[#050607]/80 px-3 py-5 backdrop-blur-md sm:px-6"
+        className="fixed inset-0 z-[90] flex items-center justify-center bg-[#050607]/80 px-1.5 py-5 backdrop-blur-md sm:px-3"
         role="presentation"
         onMouseDown={(event) => {
           if (event.target === event.currentTarget) {
@@ -2264,7 +2264,7 @@ function DashboardV2CountdownCard({ data, onSelectAspect = () => {} }) {
         }}
       >
         <section
-          className="flex max-h-[90vh] w-full max-w-5xl flex-col overflow-hidden rounded-[28px] border border-[#e9c349]/25 bg-[#111313] text-[#e2e2e2] shadow-[0_30px_100px_rgba(0,0,0,0.7)]"
+          className="flex max-h-[90vh] w-full max-w-6xl flex-col overflow-hidden rounded-[28px] border border-[#e9c349]/25 bg-[#111313] text-[#e2e2e2] shadow-[0_30px_100px_rgba(0,0,0,0.7)]"
           role="dialog"
           aria-modal="true"
           aria-labelledby="celestial-event-calendar-title"
@@ -2332,7 +2332,7 @@ function DashboardV2CountdownCard({ data, onSelectAspect = () => {} }) {
               </div>
             ) : null}
           </header>
-          <div className="min-h-0 flex-1 overflow-y-auto px-3 py-4 [scrollbar-color:#e9c34933_transparent] sm:px-6">
+          <div className="min-h-0 flex-1 overflow-y-auto px-1.5 py-4 [scrollbar-color:#e9c34933_transparent] sm:px-3">
             <div className="mb-3 flex items-center justify-between gap-3 rounded-2xl border border-white/[0.08] bg-white/[0.025] px-3 py-2.5">
               <button
                 type="button"
@@ -2392,7 +2392,7 @@ function DashboardV2CountdownCard({ data, onSelectAspect = () => {} }) {
                       onClick={() => setSelectedCalendarDate(cell.dateKey)}
                       aria-label={`${cell.date.getMonth() + 1}月${cell.date.getDate()}日${items.length ? `、イベント${items.length}件` : ""}`}
                       className={cx(
-                        "relative min-h-[66px] border-b border-r border-white/[0.08] p-1.5 pt-7 text-left align-top transition last:border-r-0 sm:min-h-[78px] sm:p-2 sm:pt-7",
+                        "relative min-h-[66px] border-b border-r border-white/[0.08] p-0.5 pt-7 text-left align-top transition last:border-r-0 sm:min-h-[78px] sm:p-1 sm:pt-7",
                         cell.isCurrentMonth ? "bg-transparent" : "bg-black/10",
                         isToday ? "ring-1 ring-inset ring-[#e9c349]/80" : "",
                         canOpen ? "cursor-pointer hover:bg-white/[0.08]" : "cursor-default",
@@ -2406,7 +2406,7 @@ function DashboardV2CountdownCard({ data, onSelectAspect = () => {} }) {
                       )}>
                         {cell.date.getDate()}
                       </span>
-                      <div className="grid gap-1">
+                      <div className="grid gap-0.5">
                         {visibleItems.map((item) => {
                           const typeMeta = celestialEventTypeMeta[item.event_type] || { label: item.event_type || "Event" };
                           return (
@@ -2414,7 +2414,7 @@ function DashboardV2CountdownCard({ data, onSelectAspect = () => {} }) {
                               key={item.event_id}
                               title={item.title}
                               className={cx(
-                                "block truncate border-l-2 px-1.5 py-0.5 font-mono text-[9px] font-bold leading-4",
+                                "block truncate border-l-2 px-0.5 py-0.5 font-mono text-[8px] font-bold leading-[13px] sm:px-1 sm:text-[9px] sm:leading-4",
                                 calendarEventTone(item)
                               )}
                             >
@@ -2423,7 +2423,7 @@ function DashboardV2CountdownCard({ data, onSelectAspect = () => {} }) {
                           );
                         })}
                         {hiddenItemCount > 0 ? (
-                          <span className="px-1 font-mono text-[8px] font-black text-[#909096]">+{hiddenItemCount}件</span>
+                          <span className="px-0.5 font-mono text-[7px] font-black text-[#909096] sm:px-1 sm:text-[8px]">+{hiddenItemCount}件</span>
                         ) : null}
                       </div>
                     </button>
