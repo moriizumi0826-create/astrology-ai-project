@@ -6143,16 +6143,29 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
                   type="button"
                   onClick={toggleTransitPlayback}
                   className={cx(
-                    "inline-flex h-8 items-center gap-1.5 rounded-lg px-2 font-mono text-[9px] font-bold transition focus:outline-none focus:ring-2 focus:ring-gold/45 disabled:cursor-wait disabled:opacity-70 sm:text-[10px]",
+                    "relative inline-flex h-8 items-center gap-1.5 overflow-hidden rounded-lg px-2 font-mono text-[9px] font-bold transition focus:outline-none focus:ring-2 focus:ring-gold/45 disabled:cursor-wait disabled:opacity-90 sm:text-[10px]",
                     isTransitPlaybackActive ? "bg-gold/15 text-gold" : "text-cyan-200/85 hover:bg-white/10 hover:text-cyan-100"
                   )}
                   aria-pressed={isTransitPlaybackActive}
                   aria-label={isTransitPlaybackActive ? "現行天体の再生を停止" : "現行天体を再生"}
-                  title={isTransitPlaybackActive ? "再生停止" : "再生"}
+                  title={isTransitPlaybackPreloading ? "読込中" : isTransitPlaybackActive ? "再生停止" : "再生"}
                   disabled={isTransitPlaybackPreloading}
                 >
-                  {isTransitPlaybackActive ? <Pause size={14} /> : <Play size={14} />}
-                  <span>{isTransitPlaybackPreloading ? "読込中" : isTransitPlaybackActive ? "停止" : "再生"}</span>
+                  {isTransitPlaybackPreloading ? (
+                    <>
+                      <span
+                        className="absolute inset-y-0 left-0 bg-cyan-300/25 transition-[width] duration-200"
+                        style={{ width: `${Math.max(4, transitPlaybackPreloadProgress)}%` }}
+                        aria-hidden="true"
+                      />
+                      <span className="relative z-10 whitespace-nowrap">読込中</span>
+                    </>
+                  ) : (
+                    <>
+                      {isTransitPlaybackActive ? <Pause size={14} /> : <Play size={14} />}
+                      <span>{isTransitPlaybackActive ? "停止" : "再生"}</span>
+                    </>
+                  )}
                 </button>
                 <button
                   type="button"
