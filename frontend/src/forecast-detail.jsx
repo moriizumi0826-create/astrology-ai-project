@@ -5941,7 +5941,7 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
           <div
             id="mobile-aspect-interpretation-panel"
             className={cx(
-              "z-30 flex flex-col overflow-hidden rounded-xl border border-white/10 bg-[#121414]/48 p-2 font-mono text-[9px] font-bold text-mist shadow-[0_18px_42px_rgba(0,0,0,0.24)] backdrop-blur-sm transition-opacity duration-300 sm:hidden",
+              "z-[130] flex flex-col overflow-hidden rounded-xl border border-white/10 bg-[#121414]/48 p-2 font-mono text-[9px] font-bold text-mist shadow-[0_18px_42px_rgba(0,0,0,0.24)] backdrop-blur-sm transition-opacity duration-300 sm:hidden",
               isMobileAspectListDetached ? "hidden" : "absolute inset-x-2 bottom-12 h-[min(380px,calc(100%-6rem))]",
               isAspectListPanelOpen ? "opacity-100" : "pointer-events-none border-transparent opacity-0"
             )}
