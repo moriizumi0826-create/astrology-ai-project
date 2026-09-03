@@ -7,7 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.gzip import GZipMiddleware
 
 from backend.app.schemas import LocationSearchResponse, ReadingRequest, TransitChartRequest
-from backend.app.services import geocoding_service, reading_service, yearly_forecast_service
+from backend.app.services import aspect_interpretation_service, geocoding_service, reading_service, yearly_forecast_service
 from backend.app.settings import settings
 
 
@@ -73,6 +73,13 @@ def _master_version_payload() -> dict:
 @app.get("/api/master-version")
 def master_version() -> dict:
     return _master_version_payload()
+
+@app.get("/api/v2/aspect-interpretations")
+def v2_aspect_interpretations() -> dict:
+    data = aspect_interpretation_service.get_v2_aspect_interpretations()
+    timeline_rows = reading_service._build_master_timeline_advise_lookup()
+    transit_natal = {"|".join((str(t), str(n), str(a))): text for (t, n, a), text in timeline_rows.items()}
+    return {"natalNatal": data.get("natalNatal", {}), "transitTransit": data.get("transitTransit", {}), "transitNatal": transit_natal}
 
 
 @app.post("/api/dev/reload-csv")
