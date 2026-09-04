@@ -2861,11 +2861,19 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
         ? [...aspectLineSourceAspects, ...natalNatalSourceAspects]
         : [...aspectLineSourceAspects, ...natalNatalSourceAspects]
   ), [aspectLineMode, aspectLineSourceAspects, compoundLineAspects, natalNatalSourceAspects]);
-  const activeAspectLineAspects = useMemo(() => filterAspectLinesForControls(aspectLineDisplaySourceAspects, {
-    focus: aspectLineFocus,
-    selections: aspectLineSelections,
-    mode: aspectLineMode,
-  }), [aspectLineFocus, aspectLineSelections, aspectLineMode, aspectLineDisplaySourceAspects]);
+  const activeAspectLineAspects = useMemo(() => filterAspectLinesForControls(
+    aspectLineDisplaySourceAspects.map((aspect) => {
+      const scope = aspect.scope || "transitNatal";
+      return {
+        ...aspect,
+        scope,
+        description: scope === "transitNatal"
+          ? aspectSummary(aspectInterpretationLookup, scope, aspect.transitPlanet, aspect.natalPlanet, aspect.angle) || aspect.description
+          : aspect.description,
+      };
+    }),
+    { focus: aspectLineFocus, selections: aspectLineSelections, mode: aspectLineMode }
+  ), [aspectInterpretationLookup, aspectLineFocus, aspectLineSelections, aspectLineMode, aspectLineDisplaySourceAspects]);
   const focusedNatalPlanets = useMemo(() => new Set(
     activeAspectLineAspects.flatMap((aspect) => [aspect.natalPlanet, aspect.natalPlanetB]).filter(Boolean)
   ), [activeAspectLineAspects]);
