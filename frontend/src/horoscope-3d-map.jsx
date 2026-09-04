@@ -2867,9 +2867,13 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
       return {
         ...aspect,
         scope,
-        description: scope === "transitNatal"
-          ? aspectSummary(aspectInterpretationLookup, scope, aspect.transitPlanet, aspect.natalPlanet, aspect.angle) || aspect.description
-          : aspect.description,
+        description: aspectSummary(
+          aspectInterpretationLookup,
+          scope,
+          scope === "natalNatal" ? aspect.natalPlanet : aspect.transitPlanet,
+          scope === "natalNatal" ? aspect.natalPlanetB : scope === "transitTransit" ? aspect.transitPlanetB : aspect.natalPlanet,
+          aspect.angle
+        ) || aspect.description,
       };
     }),
     { focus: aspectLineFocus, selections: aspectLineSelections, mode: aspectLineMode }
