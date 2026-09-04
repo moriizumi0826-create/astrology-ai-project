@@ -2899,6 +2899,7 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
         || (aspectInterpretationScope === "transitTransit" && aspect.scope === "transitTransit")
       ))
       .map((aspect) => {
+        const scope = aspect.scope || "transitNatal";
         const transit = aspectLineSky.transits.find((item) => item.planet === aspect.transitPlanet);
         const transitB = aspectLineSky.transits.find((item) => item.planet === aspect.transitPlanetB);
         const natal = aspectLineSky.natalPoints.find((item) => item.planet === aspect.natalPlanet);
@@ -2914,14 +2915,14 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
             : `tn-${aspect.compoundKey || "single"}-${aspect.transitPlanet}-${aspect.natalPlanet}-${aspect.angle}`,
           liveAngle,
           importance,
-          description: aspect.scope === "transitNatal"
+          description: scope === "transitNatal"
             ? aspectSummary(aspectInterpretationLookup, "transitNatal", aspect.transitPlanet, aspect.natalPlanet, aspect.angle)
               || aspect.description || descriptionLookup.get(descriptionKey) || aspectInterpretationFallback(aspect)
             : aspect.description || descriptionLookup.get(descriptionKey) || aspectInterpretationFallback(aspect),
-          title: aspect.scope === "transitTransit"
+          title: scope === "transitTransit"
             ? `現行${planetLabel(aspect.transitPlanet)} × 現行${planetLabel(aspect.transitPlanetB)}　${aspect.angle}°`
             : `ネイタル${planetLabel(aspect.natalPlanet)} × 現行${planetLabel(aspect.transitPlanet)}　${aspect.angle}°`,
-          scopeLabel: aspect.scope === "transitTransit" ? "現行天体同士" : "出生図との関係",
+          scopeLabel: scope === "transitTransit" ? "現行天体同士" : "出生図との関係",
         };
       })
       .sort((a, b) => (b.importance.score - a.importance.score) || Math.abs(Number(a.orb) || 99) - Math.abs(Number(b.orb) || 99));
