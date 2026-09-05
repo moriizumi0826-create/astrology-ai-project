@@ -6785,7 +6785,7 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
             <div
               ref={aspectTooltipPanelRef}
               className={cx(
-                "absolute z-30 max-h-[360px] overflow-y-auto rounded-2xl border border-gold/25 bg-[#121414]/82 p-3 shadow-[0_22px_54px_rgba(0,0,0,0.48)] backdrop-blur-md [scrollbar-width:none] sm:bg-[#121414]/86 sm:p-4 [&::-webkit-scrollbar]:hidden",
+                "absolute z-[220] max-h-[360px] overflow-y-auto rounded-2xl border border-gold/25 bg-[#121414]/82 p-3 shadow-[0_22px_54px_rgba(0,0,0,0.48)] backdrop-blur-md [scrollbar-width:none] sm:bg-[#121414]/86 sm:p-4 [&::-webkit-scrollbar]:hidden",
                 aspectTooltipPanelPosition
                   ? "w-[min(520px,calc(100%-16px))]"
                   : "inset-x-2 top-[104px] sm:inset-x-auto sm:right-8 sm:top-[42%] sm:w-[min(520px,calc(100%-40px))] sm:-translate-y-1/2 lg:right-12 xl:right-16"
