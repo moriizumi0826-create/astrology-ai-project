@@ -5892,7 +5892,7 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
                   </span>
               <button
                 type="button"
-                    className="inline-flex h-5 w-5 shrink-0 cursor-move items-center justify-center text-starlight/85 transition hover:text-gold focus:outline-none focus:ring-2 focus:ring-gold/35"
+                    className="inline-flex h-6 shrink-0 cursor-move items-center gap-1 rounded-md border border-white/15 bg-white/[0.04] px-1.5 text-[8px] text-starlight/85 transition hover:border-gold/40 hover:bg-gold/10 hover:text-gold focus:outline-none focus:ring-2 focus:ring-gold/35"
                     onPointerDown={beginAspectListDrag}
                     onPointerMove={moveAspectListPanel}
                     onPointerUp={endAspectListDrag}
@@ -5901,6 +5901,7 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
                     title="移動"
                   >
                     <Move size={11} aria-hidden="true" />
+                    <span>移動</span>
                   </button>
                   <span className="ml-auto" />
                 </div>
@@ -6277,7 +6278,10 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
                 onPointerCancel={endAspectTooltipDrag}
                 title="ドラッグで移動"
               >
-                <Move size={11} aria-hidden="true" className="shrink-0 text-gold/85" />
+                <button type="button" className="inline-flex h-6 shrink-0 cursor-move items-center gap-1 rounded-md border border-white/15 bg-white/[0.04] px-1.5 text-[8px] text-starlight/85 transition hover:border-gold/40 hover:bg-gold/10 hover:text-gold focus:outline-none focus:ring-2 focus:ring-gold/35" onPointerDown={beginAspectTooltipDrag} onPointerMove={moveAspectTooltipPanel} onPointerUp={endAspectTooltipDrag} onPointerCancel={endAspectTooltipDrag} aria-label="アスペクト詳細を移動" title="移動">
+                  <Move size={11} aria-hidden="true" />
+                  <span>移動</span>
+                </button>
                 <span className="min-w-0 truncate">
                   {aspectTooltip.type === "transit" ? `現行${planetLabel(aspectTooltip.planet)}` : `ネイタル${planetLabel(aspectTooltip.planet)}`}
                 </span>
