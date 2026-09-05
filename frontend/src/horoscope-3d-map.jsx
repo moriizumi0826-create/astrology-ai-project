@@ -5405,9 +5405,14 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
             id="mobile-aspect-interpretation-panel"
             className={cx(
               "z-[130] flex flex-col overflow-hidden rounded-xl border border-white/10 bg-[#121414]/48 p-2 font-mono text-[9px] font-bold text-mist shadow-[0_18px_42px_rgba(0,0,0,0.24)] backdrop-blur-sm transition-opacity duration-300 sm:hidden",
-              isMobileAspectListDetached ? "hidden" : "absolute inset-x-2 bottom-12 h-[min(380px,calc(100%-6rem))]",
+              isMobileAspectListDetached ? "hidden" : "absolute h-[min(380px,calc(100%-6rem))]",
               isAspectListPanelOpen ? "opacity-100" : "pointer-events-none border-transparent opacity-0"
             )}
+            style={{
+              left: `${mobileAspectListPanelPosition.x}px`,
+              top: `${mobileAspectListPanelPosition.y}px`,
+              width: "min(330px, calc(100% - 24px))",
+            }}
             aria-hidden={!isAspectListPanelOpen}
           >
             <button
@@ -5421,12 +5426,30 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
               ×
             </button>
             <div
-              className="mb-2 flex select-none flex-nowrap items-center gap-1.5 rounded-lg border border-white/10 bg-white/[0.055] px-2 py-1.5 pr-7 text-starlight"
+              className="mb-2 flex cursor-move touch-none select-none flex-nowrap items-center gap-1.5 rounded-lg border border-white/10 bg-white/[0.055] px-2 py-1.5 pr-7 text-starlight"
+              onPointerDown={beginMobileAspectListDrag}
+              onPointerMove={moveMobileAspectListPanel}
+              onPointerUp={endMobileAspectListDrag}
+              onPointerCancel={endMobileAspectListDrag}
+              title="ドラッグで移動"
             >
               <span className="shrink-0 whitespace-nowrap text-[9px]">アスペクト一覧</span>
               <span className="shrink-0 whitespace-nowrap rounded border border-white/10 bg-white/[0.035] px-1 py-0.5 text-[7px] text-mist/70">
                 {displayedTransitDateTime.date} {displayedTransitDateTime.time || selectedTransitTime}
               </span>
+              <button
+                type="button"
+                onPointerDown={beginMobileAspectListDrag}
+                onPointerMove={moveMobileAspectListPanel}
+                onPointerUp={endMobileAspectListDrag}
+                onPointerCancel={endMobileAspectListDrag}
+                className="inline-flex h-5 shrink-0 items-center justify-center gap-0.5 whitespace-nowrap rounded border border-white/15 bg-white/[0.04] px-1 text-[7px] text-starlight/85 transition hover:border-gold/35 hover:bg-gold/10 hover:text-gold focus:outline-none focus:ring-2 focus:ring-gold/35"
+                aria-label="アスペクト一覧を移動"
+                title="移動"
+              >
+                <Move size={10} aria-hidden="true" />
+                <span>移動</span>
+              </button>
               <button
                 type="button"
                 onClick={() => setIsMobileAspectListDetached((value) => !value)}
