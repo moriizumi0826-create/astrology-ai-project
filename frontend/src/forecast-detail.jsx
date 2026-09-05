@@ -6415,7 +6415,6 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
                 >
                   ×
                 </button>
-                <button type="button" className="absolute right-8 top-1 z-20 inline-flex h-5 items-center gap-1 rounded-md border border-white/15 bg-[#121414]/80 px-1.5 text-[8px] text-starlight/85 transition hover:border-gold/40 hover:bg-gold/10 hover:text-gold" onPointerDown={beginAspectListDrag} onPointerMove={moveAspectListPanel} onPointerUp={endAspectListDrag} onPointerCancel={endAspectListDrag} aria-label="アスペクト一覧を移動" title="移動"><Move size={10} aria-hidden="true" /><span>移動</span></button>
                 <div
                   className="mb-2 flex select-none items-center justify-between gap-3 rounded-lg border border-white/10 bg-white/[0.035] px-3 py-2 pr-14 text-starlight"
                   onPointerDown={beginAspectListDrag}
@@ -6428,6 +6427,19 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
                   <span className="truncate rounded border border-white/10 bg-white/[0.035] px-1.5 py-0.5 text-[8px] text-mist/65">
                     {displayedTransitDateTime.date} {displayedTransitDateTime.time || selectedTransitTime}
                   </span>
+                  <button
+                    type="button"
+                    className="inline-flex h-6 shrink-0 cursor-move items-center gap-1 rounded-md border border-white/15 bg-white/[0.04] px-1.5 text-[8px] text-starlight/85 transition hover:border-gold/40 hover:bg-gold/10 hover:text-gold focus:outline-none focus:ring-2 focus:ring-gold/35"
+                    onPointerDown={beginAspectListDrag}
+                    onPointerMove={moveAspectListPanel}
+                    onPointerUp={endAspectListDrag}
+                    onPointerCancel={endAspectListDrag}
+                    aria-label="アスペクト一覧を移動"
+                    title="移動"
+                  >
+                    <Move size={11} aria-hidden="true" />
+                    <span>移動</span>
+                  </button>
                   <span className="ml-auto" />
                 </div>
                 <div className="mb-2 grid grid-cols-4 gap-1 rounded-lg border border-white/10 bg-white/[0.025] p-1">
