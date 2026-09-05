@@ -6258,7 +6258,6 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
               >
                 ×
               </button>
-              <button type="button" className="absolute right-12 top-3 z-20 inline-flex h-6 items-center gap-1 rounded-md border border-white/15 bg-[#121414]/90 px-1.5 text-[8px] text-starlight/85 transition hover:border-gold/40 hover:bg-gold/10 hover:text-gold" onPointerDown={beginAspectTooltipDrag} onPointerMove={moveAspectTooltipPanel} onPointerUp={endAspectTooltipDrag} onPointerCancel={endAspectTooltipDrag} aria-label="アスペクト詳細を移動" title="移動"><Move size={10} aria-hidden="true" /><span>移動</span></button>
               <div
                 className="mb-2 flex touch-none select-none items-center gap-2 rounded-lg border border-white/10 bg-white/[0.055] px-2 py-1.5 pr-8 font-mono text-[9px] font-bold text-starlight"
                 onPointerDown={beginAspectTooltipDrag}
@@ -6267,6 +6266,10 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
                 onPointerCancel={endAspectTooltipDrag}
                 title="ドラッグで移動"
               >
+                <button type="button" className="inline-flex h-6 shrink-0 cursor-move items-center gap-1 rounded-md border border-white/15 bg-white/[0.04] px-1.5 text-[8px] text-starlight/85 transition hover:border-gold/40 hover:bg-gold/10 hover:text-gold focus:outline-none focus:ring-2 focus:ring-gold/35" onPointerDown={beginAspectTooltipDrag} onPointerMove={moveAspectTooltipPanel} onPointerUp={endAspectTooltipDrag} onPointerCancel={endAspectTooltipDrag} aria-label="アスペクト詳細を移動" title="移動">
+                  <Move size={11} aria-hidden="true" />
+                  <span>移動</span>
+                </button>
                 <span className="min-w-0 truncate">
                   {aspectTooltip.type === "transit" ? `現行${planetLabel(aspectTooltip.planet)}` : `ネイタル${planetLabel(aspectTooltip.planet)}`}
                 </span>
