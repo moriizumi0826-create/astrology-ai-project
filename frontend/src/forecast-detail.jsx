@@ -7935,6 +7935,7 @@ function UnifiedForecastView({
 
 function VersionRefreshButton({ versionState, onRefreshLatest, refreshingLatest }) {
   const [isTooltipVisible, setIsTooltipVisible] = useState(false);
+  const [isRefreshConfirmationVisible, setIsRefreshConfirmationVisible] = useState(false);
   const tooltipTimerRef = React.useRef(null);
   const isDataOutdated = Boolean(versionState?.isOutdated);
   const isAppOutdated = Boolean(versionState?.isAppOutdated);
@@ -7950,7 +7951,19 @@ function VersionRefreshButton({ versionState, onRefreshLatest, refreshingLatest 
         ? "更新確認に失敗しました。再読み込み後に再確認してください"
         : isCheckingVersion
           ? "更新状況を確認しています"
-          : "現在表示中の内容は最新版です";
+          : "最新版です";
+  const isRefreshLabelVisible = isRefreshConfirmationVisible || refreshingLatest;
+  const buttonLabel = refreshingLatest
+    ? "最新版を取得しています"
+    : isRefreshConfirmationVisible
+      ? "最新版への更新を開始"
+      : canRefresh
+        ? "更新があります。最新版に更新ボタンを表示"
+        : versionState?.error
+          ? "更新確認に失敗しました"
+          : isCheckingVersion
+            ? "ページの読み込み完了後に更新状況を確認します"
+            : "最新版です";
 
   useEffect(() => {
     return () => {
@@ -7959,6 +7972,12 @@ function VersionRefreshButton({ versionState, onRefreshLatest, refreshingLatest 
       }
     };
   }, []);
+
+  useEffect(() => {
+    if (!canRefresh || refreshingLatest || isCheckingVersion) {
+      setIsRefreshConfirmationVisible(false);
+    }
+  }, [canRefresh, isCheckingVersion, refreshingLatest]);
 
   const showTooltipTemporarily = () => {
     setIsTooltipVisible(true);
@@ -7972,7 +7991,17 @@ function VersionRefreshButton({ versionState, onRefreshLatest, refreshingLatest 
   };
 
   const handleRefreshButtonClick = () => {
-    showTooltipTemporarily();
+    if (isCheckingVersion || refreshingLatest) return;
+    if (!canRefresh) {
+      showTooltipTemporarily();
+      return;
+    }
+    if (!isRefreshConfirmationVisible) {
+      setIsTooltipVisible(false);
+      setIsRefreshConfirmationVisible(true);
+      return;
+    }
+    setIsRefreshConfirmationVisible(false);
     if (isAppOutdated) {
       const refreshUrl = new URL(window.location.href);
       refreshUrl.searchParams.set("_app_refresh", String(Date.now()));
@@ -7995,16 +8024,27 @@ function VersionRefreshButton({ versionState, onRefreshLatest, refreshingLatest 
       <button
         type="button"
         onClick={handleRefreshButtonClick}
+        disabled={isCheckingVersion || refreshingLatest}
         className={cx(
-          "inline-flex h-9 items-center gap-1.5 rounded-full border px-3 font-mono text-[10px] font-black tracking-[0.08em] shadow-sm transition sm:h-10 sm:gap-2 sm:px-4 sm:text-xs",
+          "inline-flex h-9 items-center justify-center rounded-full border px-2.5 font-mono text-[10px] font-black tracking-[0.08em] shadow-sm transition-[background-color,border-color,color,width] duration-300 sm:h-10 sm:px-3 sm:text-xs",
           canRefresh
             ? "border-[#D4AF37]/70 bg-[#D4AF37] text-[#241a00] hover:bg-[#f2d56d]"
-            : "cursor-not-allowed border-slate-200 bg-white text-[#0A192F]/45"
+            : "cursor-not-allowed border-slate-200 bg-slate-100 text-[#0A192F]/35",
+          (isCheckingVersion || refreshingLatest) && "cursor-wait"
         )}
-        aria-disabled={!canRefresh || refreshingLatest}
+        aria-label={buttonLabel}
+        aria-expanded={canRefresh ? isRefreshConfirmationVisible : undefined}
       >
         <RefreshCw size={14} className={cx(refreshingLatest && "animate-spin")} />
-        <span>最新版に更新</span>
+        <span
+          className={cx(
+            "overflow-hidden whitespace-nowrap opacity-0 transition-[max-width,margin,opacity] duration-300",
+            isRefreshLabelVisible ? "ml-1.5 max-w-[8rem] opacity-100 sm:ml-2" : "ml-0 max-w-0"
+          )}
+          aria-hidden={!isRefreshLabelVisible}
+        >
+          {refreshingLatest ? "更新中" : "最新版に更新"}
+        </span>
       </button>
       <div className={cx(
         "pointer-events-none absolute right-0 top-full z-50 mt-2 hidden w-[320px] rounded-lg border border-[#D4AF37]/45 bg-[#fffdf7] px-3 py-2 text-xs leading-5 text-[#0A192F] opacity-0 shadow-[0_12px_28px_rgba(15,23,42,0.18)] transition sm:block",
@@ -9521,44 +9561,6 @@ function ForecastDetailPage() {
     };
   }, [activeYear, forceRefresh, needsDeferredWidgets, needsInitialForecast]);
   useEffect(() => {
-    let active = true;
-    Promise.allSettled([
-      getJson("/api/master-version"),
-      fetchFrontendVersionState(),
-    ])
-      .then(([masterResult, frontendResult]) => {
-        if (!active) return;
-        const masterPayload = masterResult.status === "fulfilled" ? masterResult.value : null;
-        const frontendPayload = frontendResult.status === "fulfilled" ? frontendResult.value : {};
-        const currentMasterVersion = versionFromPayload(masterPayload);
-        const savedMasterVersion = payloadMasterVersion(readingPayload);
-        const error = masterResult.status === "rejected" && frontendResult.status === "rejected"
-          ? "更新確認に失敗しました。再読み込み後に再確認してください。"
-          : "";
-        setVersionState({
-          checking: false,
-          currentMasterVersion,
-          savedMasterVersion,
-          isOutdated: Boolean(currentMasterVersion && currentMasterVersion !== savedMasterVersion),
-          currentAppAsset: frontendPayload.currentAppAsset || "",
-          latestAppAsset: frontendPayload.latestAppAsset || "",
-          isAppOutdated: Boolean(frontendPayload.isAppOutdated),
-          error,
-        });
-      })
-      .catch((error) => {
-        if (!active) return;
-        setVersionState((current) => ({
-          ...current,
-          checking: false,
-          error: readableErrorMessage(error, "更新確認に失敗しました。"),
-        }));
-      });
-    return () => {
-      active = false;
-    };
-  }, [readingPayload]);
-  useEffect(() => {
     if (!yearDialogOpen) {
       setTargetYear(String(activeYear));
       setYearCalculationError("");
@@ -9667,6 +9669,57 @@ function ForecastDetailPage() {
       requestForecastDetail("month", { month: dailyOverviewMonth });
     }
   }, [dailyMonthlyOverviewPending, dailyOverviewMonth, requestForecastDetail]);
+  const initialPageContentSettled = Boolean(
+    readingStorageHydrated
+    && !deferredContentLoading
+    && !calculatingYear
+    && forecastDetailLoadingKeys.size === 0
+    && (!(needsDeferredWidgets || needsInitialForecast) || deferredContentError)
+    && (!dailyMonthlyOverviewPending || forecastDetailError)
+    && (!forceRefresh || forecast || yearCalculationError)
+  );
+  useEffect(() => {
+    if (!initialPageContentSettled) {
+      setVersionState((current) => current.checking ? current : { ...current, checking: true });
+      return () => {};
+    }
+    let active = true;
+    Promise.allSettled([
+      getJson("/api/master-version"),
+      fetchFrontendVersionState(),
+    ])
+      .then(([masterResult, frontendResult]) => {
+        if (!active) return;
+        const masterPayload = masterResult.status === "fulfilled" ? masterResult.value : null;
+        const frontendPayload = frontendResult.status === "fulfilled" ? frontendResult.value : {};
+        const currentMasterVersion = versionFromPayload(masterPayload);
+        const savedMasterVersion = payloadMasterVersion(readingPayload);
+        const error = masterResult.status === "rejected" && frontendResult.status === "rejected"
+          ? "更新確認に失敗しました。再読み込み後に再確認してください。"
+          : "";
+        setVersionState({
+          checking: false,
+          currentMasterVersion,
+          savedMasterVersion,
+          isOutdated: Boolean(currentMasterVersion && currentMasterVersion !== savedMasterVersion),
+          currentAppAsset: frontendPayload.currentAppAsset || "",
+          latestAppAsset: frontendPayload.latestAppAsset || "",
+          isAppOutdated: Boolean(frontendPayload.isAppOutdated),
+          error,
+        });
+      })
+      .catch((error) => {
+        if (!active) return;
+        setVersionState((current) => ({
+          ...current,
+          checking: false,
+          error: readableErrorMessage(error, "更新確認に失敗しました。"),
+        }));
+      });
+    return () => {
+      active = false;
+    };
+  }, [initialPageContentSettled, readingPayload]);
   useEffect(() => {
     if (!forecast || activeUnifiedView !== "monthly") return;
     const month = selectedMonthlyMonthIndex + 1;
