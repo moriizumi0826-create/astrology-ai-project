@@ -1103,6 +1103,22 @@ function liveAspectForAngle(angle) {
   return null;
 }
 
+function aspectInterpretationKey(planet1, planet2, angle) {
+  const normalizedAngle = normalizeAspectAngle(angle);
+  if (normalizedAngle === null) return "";
+  return [planet1, planet2].map((value) => normalizedPlanet(value)).sort().concat(String(normalizedAngle)).join("|");
+}
+
+function aspectSummary(lookup, scope, planet1, planet2, angle) {
+  const normalizedAngle = normalizeAspectAngle(angle);
+  if (normalizedAngle === null) return "";
+  if (scope === "transitNatal") {
+    return lookup?.transitNatal?.[`${normalizedPlanet(planet1)}|${normalizedPlanet(planet2)}|${normalizedAngle}`] || "";
+  }
+  const bucket = scope === "natalNatal" ? lookup?.natalNatal : lookup?.transitTransit;
+  return bucket?.[aspectInterpretationKey(planet1, planet2, normalizedAngle)] || "";
+}
+
 function chartTransitMap(chart) {
   return new Map(
     (Array.isArray(chart?.transits) ? chart.transits : [])
@@ -1111,7 +1127,7 @@ function chartTransitMap(chart) {
   );
 }
 
-function liveAspectsFromChart(chart, natalPoints = []) {
+function liveAspectsFromChart(chart, natalPoints = [], interpretationLookup = null) {
   const transits = Array.isArray(chart?.transits) ? chart.transits : [];
   return transits.flatMap((transit) => {
     const transitPlanet = normalizedPlanet(transit?.planet || transit?.name);
@@ -1131,13 +1147,14 @@ function liveAspectsFromChart(chart, natalPoints = []) {
           angle: aspect.angle,
           orb: aspect.orb,
           color: aspectLineColor(aspect.angle),
+          description: aspectSummary(interpretationLookup, "transitNatal", transitPlanet, natalPlanet, aspect.angle),
         };
       })
       .filter(Boolean);
   });
 }
 
-function transitTransitAspectsFromTransits(transits = []) {
+function transitTransitAspectsFromTransits(transits = [], interpretationLookup = null) {
   const normalizedTransits = transits
     .map((item) => ({
       planet: normalizedPlanet(item?.planet || item?.name),
@@ -1154,15 +1171,16 @@ function transitTransitAspectsFromTransits(transits = []) {
       angle: aspect.angle,
       orb: aspect.orb,
       color: aspectLineColor(aspect.angle),
+      description: aspectSummary(interpretationLookup, "transitTransit", fromTransit.planet, toTransit.planet, aspect.angle),
     };
   }).filter(Boolean));
 }
 
-function liveTransitTransitAspectsFromChart(chart) {
-  return transitTransitAspectsFromTransits(Array.isArray(chart?.transits) ? chart.transits : []);
+function liveTransitTransitAspectsFromChart(chart, interpretationLookup = null) {
+  return transitTransitAspectsFromTransits(Array.isArray(chart?.transits) ? chart.transits : [], interpretationLookup);
 }
 
-function natalNatalAspectsFromPoints(natalPoints = []) {
+function natalNatalAspectsFromPoints(natalPoints = [], interpretationLookup = null) {
   const normalizedNatalPoints = natalPoints
     .map((item) => ({
       planet: normalizedPlanet(item?.planet || item?.name),
@@ -1179,6 +1197,7 @@ function natalNatalAspectsFromPoints(natalPoints = []) {
       angle: aspect.angle,
       orb: aspect.orb,
       color: aspectLineColor(aspect.angle),
+      description: aspectSummary(interpretationLookup, "natalNatal", fromNatal.planet, toNatal.planet, aspect.angle),
     };
   }).filter(Boolean));
 }
@@ -3121,6 +3140,7 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
   const [playbackTransitChart, setPlaybackTransitChart] = useState(null);
   const [transitChartLoading, setTransitChartLoading] = useState(false);
   const [transitChartError, setTransitChartError] = useState("");
+  const [aspectInterpretationLookup, setAspectInterpretationLookup] = useState(null);
   const [isTransitPlaybackActive, setIsTransitPlaybackActive] = useState(false);
   const [isTransitPlaybackPreloading, setIsTransitPlaybackPreloading] = useState(false);
   const [transitPlaybackPreloadProgress, setTransitPlaybackPreloadProgress] = useState(0);
@@ -3164,6 +3184,15 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
   const [isMobileAspectListDetached, setIsMobileAspectListDetached] = useState(false);
   const [isMobileChartPanelDetached, setIsMobileChartPanelDetached] = useState(true);
   const [isFullscreenMobileChartPanelOpen, setIsFullscreenMobileChartPanelOpen] = useState(false);
+  useEffect(() => {
+    let active = true;
+    getJson("/api/v2/aspect-interpretations").then((payload) => {
+      if (active) setAspectInterpretationLookup(payload || {});
+    }).catch(() => {
+      if (active) setAspectInterpretationLookup({});
+    });
+    return () => { active = false; };
+  }, []);
   const selectedDate = dateKey(day?.date);
   const [isTransitCalendarOpen, setIsTransitCalendarOpen] = useState(false);
   const selectedMapPlanetDisplayMode = MAP_PLANET_DISPLAY_MODE_OPTIONS.find((option) => option.key === mapPlanetDisplayMode)
@@ -3368,24 +3397,24 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
   const aspectLineSky = playbackTransitChart ? tableSky : sky;
   const livePlaybackAspects = useMemo(
     () => (isTransitPlaybackActive && playbackTransitChart
-      ? liveAspectsFromChart(playbackTransitChart, tableSky.natalPoints)
+      ? liveAspectsFromChart(playbackTransitChart, tableSky.natalPoints, aspectInterpretationLookup)
       : null),
-    [isTransitPlaybackActive, playbackTransitChart, tableSky.natalPoints]
+    [isTransitPlaybackActive, playbackTransitChart, tableSky.natalPoints, aspectInterpretationLookup]
   );
   const livePlaybackTransitTransitAspects = useMemo(
-    () => (isTransitPlaybackActive && playbackTransitChart ? liveTransitTransitAspectsFromChart(playbackTransitChart) : null),
-    [isTransitPlaybackActive, playbackTransitChart]
+    () => (isTransitPlaybackActive && playbackTransitChart ? liveTransitTransitAspectsFromChart(playbackTransitChart, aspectInterpretationLookup) : null),
+    [isTransitPlaybackActive, playbackTransitChart, aspectInterpretationLookup]
   );
   const currentLiveAspects = useMemo(() => {
     const preciseTransits = aspectLineSky.transits.filter((item) => !item.estimated);
     if (!preciseTransits.length) return [];
-    return liveAspectsFromChart({ transits: preciseTransits }, aspectLineSky.natalPoints);
-  }, [aspectLineSky.natalPoints, aspectLineSky.transits]);
+    return liveAspectsFromChart({ transits: preciseTransits }, aspectLineSky.natalPoints, aspectInterpretationLookup);
+  }, [aspectLineSky.natalPoints, aspectLineSky.transits, aspectInterpretationLookup]);
   const currentTransitTransitAspects = useMemo(() => {
     const preciseTransits = aspectLineSky.transits.filter((item) => !item.estimated);
     if (preciseTransits.length < 2) return [];
-    return transitTransitAspectsFromTransits(preciseTransits);
-  }, [aspectLineSky.transits]);
+    return transitTransitAspectsFromTransits(preciseTransits, aspectInterpretationLookup);
+  }, [aspectLineSky.transits, aspectInterpretationLookup]);
   const transitNatalSourceAspects = useMemo(
     () => livePlaybackAspects || mergeAspectSources(aspectLineSky.allAspects, currentLiveAspects),
     [aspectLineSky.allAspects, currentLiveAspects, livePlaybackAspects]
@@ -3395,8 +3424,8 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
     [currentTransitTransitAspects, livePlaybackTransitTransitAspects]
   );
   const natalNatalSourceAspects = useMemo(
-    () => natalNatalAspectsFromPoints(aspectLineSky.natalPoints),
-    [aspectLineSky.natalPoints]
+    () => natalNatalAspectsFromPoints(aspectLineSky.natalPoints, aspectInterpretationLookup),
+    [aspectLineSky.natalPoints, aspectInterpretationLookup]
   );
   const aspectLineSourceAspects = useMemo(() => [
     ...transitNatalSourceAspects,
@@ -3422,11 +3451,23 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
         ? [...aspectLineSourceAspects, ...natalNatalSourceAspects]
         : [...aspectLineSourceAspects, ...natalNatalSourceAspects]
   ), [aspectLineMode, aspectLineSourceAspects, compoundLineAspects, natalNatalSourceAspects]);
-  const activeAspectLineAspects = useMemo(() => filterAspectLinesForControls(aspectLineDisplaySourceAspects, {
-    focus: aspectLineFocus,
-    selections: aspectLineSelections,
-    mode: aspectLineMode,
-  }), [aspectLineFocus, aspectLineSelections, aspectLineMode, aspectLineDisplaySourceAspects]);
+  const activeAspectLineAspects = useMemo(() => filterAspectLinesForControls(
+    aspectLineDisplaySourceAspects.map((aspect) => {
+      const scope = aspect.scope || "transitNatal";
+      return {
+        ...aspect,
+        scope,
+        description: aspectSummary(
+          aspectInterpretationLookup,
+          scope,
+          scope === "natalNatal" ? aspect.natalPlanet : aspect.transitPlanet,
+          scope === "natalNatal" ? aspect.natalPlanetB : scope === "transitTransit" ? aspect.transitPlanetB : aspect.natalPlanet,
+          aspect.angle
+        ) || aspect.description,
+      };
+    }),
+    { focus: aspectLineFocus, selections: aspectLineSelections, mode: aspectLineMode }
+  ), [aspectInterpretationLookup, aspectLineFocus, aspectLineSelections, aspectLineMode, aspectLineDisplaySourceAspects]);
   const focusedNatalPlanets = useMemo(() => new Set(
     activeAspectLineAspects.flatMap((aspect) => [aspect.natalPlanet, aspect.natalPlanetB]).filter(Boolean)
   ), [activeAspectLineAspects]);
@@ -3475,7 +3516,10 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
             : `tn-${aspect.compoundKey || "single"}-${aspect.transitPlanet}-${aspect.natalPlanet}-${aspect.angle}`,
           liveAngle,
           importance,
-          description: aspect.description || descriptionLookup.get(descriptionKey) || aspectInterpretationFallback(aspect),
+          description: scope === "transitNatal"
+            ? aspectSummary(aspectInterpretationLookup, "transitNatal", aspect.transitPlanet, aspect.natalPlanet, aspect.angle)
+              || aspect.description || descriptionLookup.get(descriptionKey) || aspectInterpretationFallback(aspect)
+            : aspect.description || descriptionLookup.get(descriptionKey) || aspectInterpretationFallback(aspect),
           title: aspect.scope === "transitTransit"
             ? `現行${planetLabel(aspect.transitPlanet)} × 現行${planetLabel(aspect.transitPlanetB)}　${aspect.angle}°`
             : `ネイタル${planetLabel(aspect.natalPlanet)} × 現行${planetLabel(aspect.transitPlanet)}　${aspect.angle}°`,
@@ -3494,7 +3538,7 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
       singleItems,
       visibleItems,
     };
-  }, [aspectInterpretationScope, activeCompoundAspectListCategory, aspectLineSky.allAspects, aspectLineSky.natalPoints, aspectLineSky.transits, aspectLineSourceAspects, compoundAspectGroups, compoundLineAspects]);
+  }, [aspectInterpretationLookup, aspectInterpretationScope, activeCompoundAspectListCategory, aspectLineSky.allAspects, aspectLineSky.natalPoints, aspectLineSky.transits, aspectLineSourceAspects, compoundAspectGroups, compoundLineAspects]);
   const aspectInterpretationItems = aspectInterpretationBuckets.visibleItems;
   const selectAspectLineMode = (mode) => {
     setAspectLineMode(mode);
