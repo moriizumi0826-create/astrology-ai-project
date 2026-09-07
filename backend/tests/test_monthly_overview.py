@@ -7,18 +7,19 @@ class MonthlyOverviewLoaderTestCase(unittest.TestCase):
     def test_monthly_overview_csvs_load_with_expected_rows(self):
         editorial = monthly_overview_service.load_monthly_overview_editorial()
 
-        self.assertEqual(len(editorial), 432)
+        self.assertEqual(len(editorial), 576)
         self.assertEqual(
             {
                 edition_id: sum(row["Edition_ID"] == edition_id for row in editorial)
-                for edition_id in ("2026_CANCER", "2026_LEO", "2026_VIRGO")
+                for edition_id in ("2026_CANCER", "2026_LEO", "2026_VIRGO", "2026_LIBRA")
             },
-            {"2026_CANCER": 144, "2026_LEO": 144, "2026_VIRGO": 144},
+            {"2026_CANCER": 144, "2026_LEO": 144, "2026_VIRGO": 144, "2026_LIBRA": 144},
         )
 
         for month_id, event_count, aspect_count, long_term_count in (
             ("2026_08", 840, 864, 277),
             ("2026_09", 840, 720, 276),
+            ("2026_10", 372, 720, 240),
         ):
             with self.subTest(month_id=month_id):
                 event_paragraphs = (
@@ -69,7 +70,7 @@ class MonthlyOverviewLoaderTestCase(unittest.TestCase):
         long_term = indexes["long_term_by_house"]
 
         self.assertEqual(indexes["month_id"], "2026-08")
-        self.assertEqual(len(editorial), 432)
+        self.assertEqual(len(editorial), 576)
         self.assertEqual(len(events), 840)
         self.assertEqual(len(aspects), 144)
         self.assertEqual(len(long_term), 25)
@@ -106,7 +107,7 @@ class MonthlyOverviewLoaderTestCase(unittest.TestCase):
         long_term = indexes["long_term_by_house"]
 
         self.assertEqual(indexes["month_id"], "2026-09")
-        self.assertEqual(len(editorial), 432)
+        self.assertEqual(len(editorial), 576)
         self.assertEqual(len(events), 840)
         self.assertEqual(len(aspects), 144)
         self.assertEqual(len(long_term), 24)
@@ -134,6 +135,44 @@ class MonthlyOverviewLoaderTestCase(unittest.TestCase):
         self.assertEqual(len(aspects[("2026-09", "1", "1")]), 5)
         self.assertEqual(len(long_term[("2026-09", "background", "1")]), 5)
         self.assertEqual(len(long_term[("2026-09", "resonance", "1")]), 18)
+
+    def test_october_indexes_cover_expected_keys_and_buckets(self):
+        indexes = monthly_overview_service.build_monthly_overview_indexes("2026_10")
+
+        editorial = indexes["editorial_by_house"]
+        events = indexes["event_by_condition"]
+        aspects = indexes["aspect_by_anchor"]
+        long_term = indexes["long_term_by_house"]
+
+        self.assertEqual(indexes["month_id"], "2026-10")
+        self.assertEqual(len(editorial), 576)
+        self.assertEqual(len(events), 372)
+        self.assertEqual(len(aspects), 144)
+        self.assertEqual(len(long_term), 24)
+        self.assertEqual(
+            editorial[("2026_LIBRA", "1", "1")]["Edition_ID"],
+            "2026_LIBRA",
+        )
+
+        event_key = (
+            "2026-10",
+            "SUN",
+            "sign_ingress",
+            "LIBRA",
+            "SCORPIO",
+            "12",
+            "1",
+            "ANY",
+            "ANY",
+            "1",
+        )
+        self.assertEqual(
+            events[event_key]["Template_ID"],
+            "2026_10_SIGN_SUN_LIBRA_SCORPIO_S12_S01_N01",
+        )
+        self.assertEqual(len(aspects[("2026-10", "1", "1")]), 5)
+        self.assertEqual(len(long_term[("2026-10", "background", "1")]), 5)
+        self.assertEqual(len(long_term[("2026-10", "resonance", "1")]), 15)
 
     def test_august_editorial_selector_resolves_edition_and_exact_houses(self):
         selected = monthly_overview_service.select_monthly_overview_editorial(

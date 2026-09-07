@@ -1494,8 +1494,8 @@ class ApiTestCase(unittest.TestCase):
         venus_seventh = reading_service._celestial_event_meaning(
             "natal_house_ingress", planet="VENUS", house=7,
         )
-        self.assertIn("愛情や恋愛、パートナーシップ", venus_seventh)
-        self.assertIn("うれしい動き", venus_seventh)
+        self.assertIn("恋愛や結婚、ビジネスパートナーとの関係", venus_seventh)
+        self.assertIn("最高のご縁", venus_seventh)
         self.assertNotIn("焦点が切り替わります", venus_seventh)
 
         aspect = reading_service._celestial_event_meaning(
@@ -1505,8 +1505,8 @@ class ApiTestCase(unittest.TestCase):
             aspect_angle=0,
             category="Love",
         )
-        self.assertIn("愛情や人間関係", aspect)
-        self.assertIn("自己表現や自信", aspect)
+        self.assertIn("あなたの魅力と人気運", aspect)
+        self.assertIn("対人関係や恋愛", aspect)
         self.assertNotIn("正確になります", aspect)
 
     @unittest.skipIf(reading_service.swe is None, "swisseph is not installed")

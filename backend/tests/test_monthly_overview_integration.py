@@ -116,9 +116,15 @@ class MonthlyOverviewIntegrationTestCase(unittest.TestCase):
             for payload in BIRTH_CASES
         ]
         cls.transit_calendar = monthly_overview_service.load_transit_calendar(2026)
+        cls.october_aspect_templates = {
+            row["Template_ID"]: row
+            for row in monthly_overview_service.load_monthly_overview_aspect_clusters(
+                "2026_10"
+            )
+        }
 
     def test_three_birth_records_preserve_scores_and_select_distinct_editorials(self):
-        house_pairs = {"2026-08": set(), "2026-09": set()}
+        house_pairs = {"2026-08": set(), "2026-09": set(), "2026-10": set()}
         for forecast in self.forecasts:
             self.assertEqual(len(forecast["yearly_data"]), 365)
             self.assertTrue(any(day["all_aspects"] for day in forecast["yearly_data"]))
@@ -127,12 +133,13 @@ class MonthlyOverviewIntegrationTestCase(unittest.TestCase):
             )
             self.assertEqual(
                 set(forecast["monthly_overviews"]),
-                {"2026-08", "2026-09"},
+                {"2026-08", "2026-09", "2026-10"},
             )
 
             for month_id, month, day_count, edition_id in (
                 ("2026-08", 8, 31, "2026_LEO"),
                 ("2026-09", 9, 30, "2026_VIRGO"),
+                ("2026-10", 10, 31, "2026_LIBRA"),
             ):
                 overviews = forecast["monthly_overviews"][month_id]
                 self.assertEqual(len(overviews), day_count)
@@ -161,6 +168,7 @@ class MonthlyOverviewIntegrationTestCase(unittest.TestCase):
 
         self.assertEqual(len(house_pairs["2026-08"]), len(BIRTH_CASES))
         self.assertEqual(len(house_pairs["2026-09"]), len(BIRTH_CASES))
+        self.assertEqual(len(house_pairs["2026-10"]), len(BIRTH_CASES))
 
     def test_sign_ingress_dates_match_calendar_and_daily_transit_boundaries(self):
         expected_ingresses = {
@@ -634,6 +642,108 @@ class MonthlyOverviewIntegrationTestCase(unittest.TestCase):
                         set(EXACT_DATE_PATTERN.findall(resonance["Interpretation"]))
                         <= allowed_long_term_dates
                     )
+
+                narratives = _labeled_narratives(overview)
+                normalized = [_normalized_narrative(text) for _label, text in narratives]
+                self.assertEqual(len(normalized), len(set(normalized)))
+                for label, text in narratives:
+                    self.assertFalse(TOKEN_PATTERN.search(text), label)
+                    self.assertFalse(any(marker in text for marker in MOJIBAKE_MARKERS), label)
+                    self.assertNotIn("頃頃", text, label)
+
+                for (left_label, left_text), (right_label, right_text) in combinations(
+                    narratives,
+                    2,
+                ):
+                    self.assertLess(
+                        _bigram_jaccard(left_text, right_text),
+                        0.5,
+                        f"{overview['as_of']}: {left_label} / {right_label}",
+                    )
+
+    def test_october_composed_narratives_limits_dates_and_order(self):
+        allowed_long_term_dates = {"10月16日", "10月23日"}
+
+        for forecast in self.forecasts:
+            october = forecast["monthly_overviews"]["2026-10"]
+            self.assertEqual(len(october), 31)
+
+            for overview in october:
+                editorial = overview["editorial"]
+                self.assertEqual(editorial["Edition_ID"], "2026_LIBRA")
+                self.assertIn(len(editorial["Title"]), range(14, 29))
+                self.assertIn(len(editorial["Summary"]), range(90, 151))
+                self.assertIn(len(editorial["Interpretation"]), range(500, 901))
+                self.assertIn(len(editorial["Action"]), range(120, 221))
+                self.assertFalse(EXACT_DATE_PATTERN.search(editorial["Summary"]))
+                self.assertFalse(EXACT_DATE_PATTERN.search(editorial["Interpretation"]))
+                self.assertFalse(EXACT_DATE_PATTERN.search(editorial["Action"]))
+
+                event_rows = overview["event_paragraphs"]
+                self.assertEqual(
+                    event_rows,
+                    sorted(
+                        event_rows,
+                        key=lambda row: (
+                            date.fromisoformat(row["Event_Date"]),
+                            int(row["Section_Order"]),
+                            -int(row["Priority"]),
+                            row["Template_ID"],
+                        ),
+                    ),
+                )
+                for row in event_rows:
+                    self.assertIn(len(row["Paragraph_Template"]), range(90, 241))
+                    event_date = date.fromisoformat(row["Event_Date"])
+                    event_label = monthly_overview_service._format_event_date(
+                        event_date,
+                        row["Date_Precision"],
+                    )
+                    self.assertIn(event_label, row["Paragraph_Template"])
+
+                cluster_rows = overview["aspect_clusters"]
+                self.assertEqual(
+                    cluster_rows,
+                    sorted(
+                        cluster_rows,
+                        key=lambda row: (
+                            date.fromisoformat(row["Peak_At"][:10]),
+                            int(row["Section_Order"]),
+                            -int(row["Priority"]),
+                            row["Cluster_ID"],
+                        ),
+                    ),
+                )
+                self.assertEqual(
+                    len({row["Selection_Group"] for row in cluster_rows}),
+                    len(cluster_rows),
+                )
+                for row in cluster_rows:
+                    self.assertIn(len(row["Title"]), range(14, 31))
+                    source_template = self.october_aspect_templates[
+                        row["Template_ID"]
+                    ]["Paragraph_Template"]
+                    self.assertIn(len(source_template), range(120, 261))
+                    primary_label, _secondary_label = (
+                        monthly_overview_service._cluster_date_labels(
+                            row,
+                            "2026_10",
+                        )
+                    )
+                    self.assertIn(primary_label, row["Paragraph_Template"])
+
+                backgrounds = overview["long_term_backgrounds"]
+                self.assertLessEqual(len(backgrounds), 2)
+                self.assertLessEqual(int(overview["resonance"] is not None), 1)
+                priorities = [int(row["Priority"]) for row in backgrounds]
+                self.assertEqual(priorities, sorted(priorities, reverse=True))
+                for row in backgrounds:
+                    self.assertIn(len(row["Title"]), range(12, 29))
+                    self.assertIn(len(row["Interpretation"]), range(220, 421))
+                if overview["resonance"] is not None:
+                    resonance = overview["resonance"]
+                    self.assertIn(len(resonance["Title"]), range(12, 29))
+                    self.assertIn(len(resonance["Interpretation"]), range(220, 421))
 
                 narratives = _labeled_narratives(overview)
                 normalized = [_normalized_narrative(text) for _label, text in narratives]

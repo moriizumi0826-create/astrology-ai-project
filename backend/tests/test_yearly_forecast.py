@@ -866,7 +866,7 @@ class YearlyForecastTestCase(unittest.TestCase):
         self.assertEqual(periods["work"][0]["caution"], 4.0)
         self.assertEqual(periods["work"][0]["tone"], "mixed")
         self.assertEqual(periods["work"][0]["narrative_state"], "mixed")
-        self.assertEqual(periods["work"][0]["title"], "役割と担当範囲に変化と調整が重なる時期")
+        self.assertEqual(periods["work"][0]["title"], "新たな権限や役割を得る反面、調整業務が急増しやすい時期")
         self.assertNotEqual(periods["work"][0]["description"], "Description")
         self.assertEqual(periods["work"][0]["factors"][0]["label"], "MARS MC 120°")
 
@@ -1072,7 +1072,7 @@ class YearlyForecastTestCase(unittest.TestCase):
         self.assertTrue(forecast["monthly_mars_themes"][0]["monthly_interpretation"])
         self.assertEqual(
             set(forecast["monthly_overviews"]),
-            {"2026-08", "2026-09"},
+            {"2026-08", "2026-09", "2026-10"},
         )
         august_overviews = forecast["monthly_overviews"]["2026-08"]
         self.assertEqual(len(august_overviews), 31)
@@ -1097,10 +1097,22 @@ class YearlyForecastTestCase(unittest.TestCase):
             len(overview["long_term_backgrounds"]) <= 2
             for overview in september_overviews
         ))
+        october_overviews = forecast["monthly_overviews"]["2026-10"]
+        self.assertEqual(len(october_overviews), 31)
+        self.assertEqual(october_overviews[0]["as_of"], "2026-10-01")
+        self.assertEqual(october_overviews[-1]["as_of"], "2026-10-31")
+        self.assertTrue(all(
+            overview["editorial"]["Edition_ID"] == "2026_LIBRA"
+            for overview in october_overviews
+        ))
+        self.assertTrue(all(
+            len(overview["long_term_backgrounds"]) <= 2
+            for overview in october_overviews
+        ))
         self.assertTrue(august_twelfth["aspect_clusters"])
         self.assertTrue(all(
             "{" not in row["Paragraph_Template"]
-            for overview in august_overviews
+            for overview in (*august_overviews, *october_overviews)
             for row in (*overview["event_paragraphs"], *overview["aspect_clusters"])
         ))
         self.assertIn("annual_summary", forecast["annual_summaries"][0])
