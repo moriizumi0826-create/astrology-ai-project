@@ -2900,49 +2900,60 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
         detailText: compoundKindDetailText(group.kind),
       }));
     const filteredCompoundItems = compoundItems.filter((item) => item.category === activeCompoundAspectListCategory);
-    const singleSourceAspects = aspectInterpretationScope === "composite" ? compoundLineAspects : aspectLineSourceAspects;
+    const singleSourceAspects = aspectInterpretationScope === "composite"
+      ? compoundLineAspects
+      : aspectInterpretationScope === "natalNatal"
+        ? natalNatalSourceAspects
+        : aspectLineSourceAspects;
     const singleItems = singleSourceAspects
       .filter((aspect) => aspectInterpretationScope === "composite" || isRenderable3DAspectAngle(aspect.angle))
       .filter((aspect) => (
         aspectInterpretationScope === "composite"
-        ||
-        aspectInterpretationScope === "all"
         || (aspectInterpretationScope === "transitNatal" && (aspect.scope || "transitNatal") === "transitNatal")
         || (aspectInterpretationScope === "transitTransit" && aspect.scope === "transitTransit")
+        || (aspectInterpretationScope === "natalNatal" && aspect.scope === "natalNatal")
       ))
       .map((aspect) => {
         const scope = aspect.scope || "transitNatal";
         const transit = aspectLineSky.transits.find((item) => item.planet === aspect.transitPlanet);
         const transitB = aspectLineSky.transits.find((item) => item.planet === aspect.transitPlanetB);
         const natal = aspectLineSky.natalPoints.find((item) => item.planet === aspect.natalPlanet);
-        const liveAngle = aspect.scope === "transitTransit"
+        const natalB = aspectLineSky.natalPoints.find((item) => item.planet === aspect.natalPlanetB);
+        const liveAngle = scope === "transitTransit"
           ? transit && transitB ? circularAngleDistance(transit.longitude, transitB.longitude) : null
-          : transit && natal ? circularAngleDistance(transit.longitude, natal.longitude) : null;
+          : scope === "natalNatal"
+            ? natal && natalB ? circularAngleDistance(natal.longitude, natalB.longitude) : null
+            : transit && natal ? circularAngleDistance(transit.longitude, natal.longitude) : null;
         const importance = aspectImportance(aspect);
         const descriptionKey = `${aspect.transitPlanet}-${aspect.natalPlanet}-${normalizeAspectAngle(aspect.angle)}`;
         return {
           ...aspect,
-          key: aspect.scope === "transitTransit"
+          key: scope === "transitTransit"
             ? `tt-${aspect.compoundKey || "single"}-${aspect.transitPlanet}-${aspect.transitPlanetB}-${aspect.angle}`
-            : `tn-${aspect.compoundKey || "single"}-${aspect.transitPlanet}-${aspect.natalPlanet}-${aspect.angle}`,
+            : scope === "natalNatal"
+              ? `nn-${aspect.compoundKey || "single"}-${aspect.natalPlanet}-${aspect.natalPlanetB}-${aspect.angle}`
+              : `tn-${aspect.compoundKey || "single"}-${aspect.transitPlanet}-${aspect.natalPlanet}-${aspect.angle}`,
           liveAngle,
           importance,
-          description: scope === "transitNatal"
-            ? aspectSummary(aspectInterpretationLookup, "transitNatal", aspect.transitPlanet, aspect.natalPlanet, aspect.angle)
-              || aspect.description || descriptionLookup.get(descriptionKey) || aspectInterpretationFallback(aspect)
-            : aspect.description || descriptionLookup.get(descriptionKey) || aspectInterpretationFallback(aspect),
+          description: aspectSummary(
+            aspectInterpretationLookup,
+            scope,
+            scope === "natalNatal" ? aspect.natalPlanet : aspect.transitPlanet,
+            scope === "natalNatal" ? aspect.natalPlanetB : scope === "transitTransit" ? aspect.transitPlanetB : aspect.natalPlanet,
+            aspect.angle
+          ) || aspect.description || descriptionLookup.get(descriptionKey) || aspectInterpretationFallback(aspect),
           title: scope === "transitTransit"
             ? `現行${planetLabel(aspect.transitPlanet)} × 現行${planetLabel(aspect.transitPlanetB)}　${aspect.angle}°`
-            : `ネイタル${planetLabel(aspect.natalPlanet)} × 現行${planetLabel(aspect.transitPlanet)}　${aspect.angle}°`,
-          scopeLabel: scope === "transitTransit" ? "現行天体同士" : "出生図との関係",
+            : scope === "natalNatal"
+              ? `ネイタル${planetLabel(aspect.natalPlanet)} × ネイタル${planetLabel(aspect.natalPlanetB)}　${aspect.angle}°`
+              : `ネイタル${planetLabel(aspect.natalPlanet)} × 現行${planetLabel(aspect.transitPlanet)}　${aspect.angle}°`,
+          scopeLabel: scope === "transitTransit" ? "現行天体同士" : scope === "natalNatal" ? "ネイタル天体同士" : "出生図との関係",
         };
       })
       .sort((a, b) => (b.importance.score - a.importance.score) || Math.abs(Number(a.orb) || 99) - Math.abs(Number(b.orb) || 99));
     const visibleItems = aspectInterpretationScope === "composite"
       ? filteredCompoundItems
-      : aspectInterpretationScope === "all"
-        ? singleItems
-        : singleItems;
+      : singleItems;
     return {
       compoundItems,
       filteredCompoundItems,
@@ -5463,7 +5474,7 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
             </div>
             <div className="mb-2 flex flex-nowrap gap-1 rounded-lg border border-white/10 bg-white/[0.025] p-1">
               {[
-                ["all", "全て"],
+                ["natalNatal", "ネイタル同士"],
                 ["transitNatal", "出生図との関係"],
                 ["transitTransit", "現行天体同士"],
                 ["composite", "複合アスペクト"],
@@ -5930,7 +5941,7 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
                 </div>
                 <div className="mb-2 grid grid-cols-4 gap-1 rounded-lg border border-white/10 bg-white/[0.025] p-1">
                   {[
-                    ["all", "全て"],
+                    ["natalNatal", "ネイタル同士"],
                     ["transitNatal", "出生図との関係"],
                     ["transitTransit", "現行天体同士"],
                     ["composite", "複合アスペクト"],
@@ -6421,7 +6432,7 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
             </div>
             <div className="mb-2 flex flex-nowrap gap-1 rounded-lg border border-white/10 bg-white/[0.025] p-1">
               {[
-                ["all", "全て"],
+                ["natalNatal", "ネイタル同士"],
                 ["transitNatal", "出生図との関係"],
                 ["transitTransit", "現行天体同士"],
                 ["composite", "複合アスペクト"],
