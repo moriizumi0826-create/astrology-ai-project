@@ -2116,7 +2116,7 @@ function DashboardV2CountdownCard({ data, onSelectAspect = () => {} }) {
       .concat(selectCandidates(calendarItems.filter((item) => {
         const daysUntil = Number(countdownDaysUntil(item, displayDate));
         return isStellarEventCompleted(item, displayDate) && daysUntil >= -3;
-      })));
+      }).slice().reverse()));
   }, [calendarItems, displayDate]);
   const upcomingCandidates = React.useMemo(
     () => candidates.filter((item) => !isStellarEventCompleted(item, displayDate)),
@@ -2317,11 +2317,9 @@ function DashboardV2CountdownCard({ data, onSelectAspect = () => {} }) {
               isCompletedEvent ? "text-[#77787d]" : "text-[#e9c349]"
             )}>
               {isCompletedEvent ? "-" : hasEvent && Number.isFinite(remaining.value) ? (
-                remaining.unit === "日" ? (
-                  <>
-                    <span className="mr-0.5 text-[11px] align-baseline">あと</span>{remaining.value}{remaining.unit}
-                  </>
-                ) : `あと${remaining.value}${remaining.unit}`
+                <>
+                  <span className="mr-0.5 text-[11px] align-baseline">あと</span>{remaining.value}{remaining.unit}
+                </>
               ) : "-"}
             </p>
           </div>
