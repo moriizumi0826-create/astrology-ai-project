@@ -995,6 +995,45 @@ function countdownRemainingValue(slide, baseDateKey = "") {
   };
 }
 
+function stellarEventTokyoClockMinutes() {
+  try {
+    const parts = new Intl.DateTimeFormat("en-US", {
+      timeZone: "Asia/Tokyo",
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+    }).formatToParts(new Date());
+    const hour = Number(parts.find((part) => part.type === "hour")?.value);
+    const minute = Number(parts.find((part) => part.type === "minute")?.value);
+    return Number.isFinite(hour) && Number.isFinite(minute) ? hour * 60 + minute : null;
+  } catch {
+    return null;
+  }
+}
+
+function isStellarEventCompleted(item, baseDateKey = "") {
+  const daysUntil = countdownDaysUntil(item, baseDateKey);
+  if (!Number.isFinite(daysUntil)) return false;
+  const eventDate = formatIsoDate(item?.event_date || item?.eventDate || item?.target_date || item?.targetDate);
+  if (daysUntil < 0) return true;
+  if (eventDate !== currentTokyoDate()) return false;
+  const match = String(item?.event_datetime || item?.eventDatetime || "").match(/T(\d{2}):(\d{2})/);
+  if (!match) return daysUntil === 0;
+  const eventMinutes = Number(match[1]) * 60 + Number(match[2]);
+  const nowMinutes = stellarEventTokyoClockMinutes();
+  return Number.isFinite(nowMinutes) && eventMinutes <= nowMinutes;
+}
+
+function stellarEventDaysAgo(item, baseDateKey = "") {
+  const eventDate = formatIsoDate(item?.event_date || item?.eventDate || item?.target_date || item?.targetDate);
+  const baseDate = formatIsoDate(baseDateKey);
+  if (!eventDate || !baseDate) return 0;
+  const eventMidnight = dateKeyToLocalDate(eventDate);
+  const baseMidnight = dateKeyToLocalDate(baseDate);
+  if (!eventMidnight || !baseMidnight) return 0;
+  return Math.max(0, Math.round((baseMidnight.getTime() - eventMidnight.getTime()) / 86400000));
+}
+
 function isPressureCountdown(slide) {
   if (!slide) return false;
   const mode = String(slide.countdown_mode || slide.countdownMode || "").trim().toLowerCase();
@@ -2070,18 +2109,21 @@ function DashboardV2CountdownCard({ data, onSelectAspect = () => {} }) {
         return true;
       });
     };
-    return selectCandidates(calendarItems.filter((item) => Number(countdownDaysUntil(item, displayDate)) >= 0))
+    return selectCandidates(calendarItems.filter((item) => {
+      const daysUntil = Number(countdownDaysUntil(item, displayDate));
+      return !isStellarEventCompleted(item, displayDate) && daysUntil >= 0;
+    }))
       .concat(selectCandidates(calendarItems.filter((item) => {
         const daysUntil = Number(countdownDaysUntil(item, displayDate));
-        return daysUntil < 0 && daysUntil >= -3;
+        return isStellarEventCompleted(item, displayDate) && daysUntil >= -3;
       })));
   }, [calendarItems, displayDate]);
   const upcomingCandidates = React.useMemo(
-    () => candidates.filter((item) => Number(countdownDaysUntil(item, displayDate)) >= 0),
+    () => candidates.filter((item) => !isStellarEventCompleted(item, displayDate)),
     [candidates, displayDate]
   );
   const completedCandidates = React.useMemo(
-    () => candidates.filter((item) => Number(countdownDaysUntil(item, displayDate)) < 0),
+    () => candidates.filter((item) => isStellarEventCompleted(item, displayDate)),
     [candidates, displayDate]
   );
   const orderedCandidates = React.useMemo(
@@ -2125,6 +2167,8 @@ function DashboardV2CountdownCard({ data, onSelectAspect = () => {} }) {
   const remaining = countdownRemainingValue(slide, displayDate);
   const hasEvent = eventCount > 0;
   const hasLinkedWeeklyAspect = false;
+  const completedDaysAgo = stellarEventDaysAgo(slide, displayDate);
+  const completedLabel = `通過済みイベント（${completedDaysAgo === 0 ? "本日" : `${completedDaysAgo}日前`}）`;
   const title = hasEvent ? (slide.title || "カウントダウン") : "30日以内のイベントはありません";
   const handleSelectEvent = () => {
     if (!hasEvent || !hasLinkedWeeklyAspect) return;
@@ -2265,14 +2309,20 @@ function DashboardV2CountdownCard({ data, onSelectAspect = () => {} }) {
                   {">>Click"}
                 </button>
               ) : (
-                <p className="mt-1 text-xs text-[#c7c6cc]">{isCompletedEvent ? "直近の完了イベント" : "...Coming soon"}</p>
+                <p className="mt-1 text-xs text-[#c7c6cc]">{isCompletedEvent ? completedLabel : "...Coming soon"}</p>
               )}
             </div>
             <p className={cx(
               "font-mono text-xl font-black leading-none",
               isCompletedEvent ? "text-[#77787d]" : "text-[#e9c349]"
             )}>
-              {isCompletedEvent ? "-" : hasEvent && Number.isFinite(remaining.value) ? `あと${remaining.value}${remaining.unit}` : "-"}
+              {isCompletedEvent ? "-" : hasEvent && Number.isFinite(remaining.value) ? (
+                remaining.unit === "日" ? (
+                  <>
+                    <span className="mr-0.5 text-[11px] align-baseline">あと</span>{remaining.value}{remaining.unit}
+                  </>
+                ) : `あと${remaining.value}${remaining.unit}`
+              ) : "-"}
             </p>
           </div>
         </div>
