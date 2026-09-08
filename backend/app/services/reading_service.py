@@ -5,7 +5,7 @@ import sys
 from contextlib import contextmanager
 from contextvars import ContextVar
 from datetime import date, datetime, time as dt_time, timedelta
-from math import ceil, isfinite
+from math import ceil, floor, isfinite
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from threading import Lock
@@ -173,6 +173,7 @@ PLANET_STATION_SPEED_THRESHOLDS = {
 STATIONARY_LOOKAHEAD_DAYS = 3
 MOTION_CHANGE_LOOKAHEAD_DAYS = 800
 CELESTIAL_EVENT_HORIZON_DAYS = 30
+CELESTIAL_EVENT_LOOKBACK_DAYS = 7
 CELESTIAL_EVENT_ASPECT_ANGLES = (0, 90, 180)
 CELESTIAL_SIGN_LABELS = (
     "牡羊座", "牡牛座", "双子座", "蟹座", "獅子座", "乙女座",
@@ -3723,7 +3724,8 @@ def _celestial_event_item(
     classification: str = "neutral",
     **details: Any,
 ) -> dict[str, Any]:
-    hours_remaining = max(0.0, (event_dt - start_dt).total_seconds() / 3600)
+    hours_remaining = (event_dt - start_dt).total_seconds() / 3600
+    days_remaining = ceil(hours_remaining / 24) if hours_remaining >= 0 else floor(hours_remaining / 24)
     return {
         "event_id": "|".join([
             event_type,
@@ -3736,7 +3738,7 @@ def _celestial_event_item(
         "event_datetime": event_dt.isoformat(timespec="seconds"),
         "event_date": event_dt.date().isoformat(),
         "hours_remaining": round(hours_remaining, 2),
-        "days_remaining": int(ceil(hours_remaining / 24)),
+        "days_remaining": int(days_remaining),
         "title": title,
         "note": note,
         "priority": priority,
@@ -3925,9 +3927,10 @@ def _build_celestial_event_calendar(
     if birth_input is None or swe is None or not hasattr(birth_input, "timezone_offset"):
         return []
     start_dt = _celestial_event_start(current_dt)
+    sample_start_dt = start_dt - timedelta(days=CELESTIAL_EVENT_LOOKBACK_DAYS)
     end_dt = start_dt + timedelta(days=max(1, horizon_days))
     timezone_offset = birth_input.timezone_offset
-    samples = _celestial_planet_samples(start_dt, end_dt, timezone_offset)
+    samples = _celestial_planet_samples(sample_start_dt, end_dt, timezone_offset)
     events: list[dict[str, Any]] = []
 
     chart_rows = _chart_rows_for_request(birth_input)
@@ -4032,7 +4035,7 @@ def _build_celestial_event_calendar(
     sun_samples = samples["SUN"]
     moon_samples = samples["MOON"]
     relative_unwrapped = (moon_samples[0][1] - sun_samples[0][1]) % 360
-    relative_samples: list[tuple[datetime, float]] = [(start_dt, relative_unwrapped)]
+    relative_samples: list[tuple[datetime, float]] = [(sample_start_dt, relative_unwrapped)]
     previous_relative = relative_unwrapped
     for index in range(1, min(len(sun_samples), len(moon_samples))):
         relative = (moon_samples[index][1] - sun_samples[index][1]) % 360
@@ -4063,13 +4066,13 @@ def _build_celestial_event_calendar(
                 sign=lunation_sign, classification="major",
             ))
 
-    for row in _dashboard_retrograde_calendar(start_dt):
+    for row in _dashboard_retrograde_calendar(sample_start_dt):
         raw_datetime = row.get("event_datetime_jst") or row.get("event_date")
         try:
             event_dt = datetime.fromisoformat(str(raw_datetime))
         except ValueError:
             continue
-        if not (start_dt <= event_dt <= end_dt):
+        if not (sample_start_dt <= event_dt <= end_dt):
             continue
         is_retrograde = row.get("event_type") == "RETROGRADE_START"
         planet = _normalize_planet(row.get("planet"))

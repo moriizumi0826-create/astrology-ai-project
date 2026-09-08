@@ -2032,7 +2032,7 @@ function DashboardV2CountdownCard({ data, onSelectAspect = () => {} }) {
     const rawItems = (Array.isArray(data.celestial_event_calendar) ? data.celestial_event_calendar : []).filter((item) => {
       if (!item) return false;
       const daysUntil = countdownDaysUntil(item, displayDate);
-      return daysUntil !== null && daysUntil >= 0 && daysUntil <= 30;
+      return daysUntil !== null && daysUntil >= -7 && daysUntil <= 30;
     });
     const seen = new Set();
     return rawItems.filter((item) => {
@@ -2043,34 +2043,53 @@ function DashboardV2CountdownCard({ data, onSelectAspect = () => {} }) {
     });
   }, [data.celestial_event_calendar, displayDate]);
   const candidates = React.useMemo(() => {
-    let hasUpcomingMoonIngress = false;
-    let hasUpcomingLunation = false;
-    const houseIngressPlanets = new Set();
-    return calendarItems.filter((item) => {
-      if (item.event_type === "transit_natal_aspect") {
-        if (isTransitMoonAspect(item) || Number(item.aspect_angle) === 90) return false;
-      }
-      const isMoonIngress = item.event_type === "sign_ingress" && String(item.transit_planet || item.planet || "").toUpperCase() === "MOON";
-      if (isMoonIngress) {
-        if (hasUpcomingMoonIngress) return false;
-        hasUpcomingMoonIngress = true;
+    const selectCandidates = (items) => {
+      let hasMoonIngress = false;
+      let hasLunation = false;
+      const houseIngressPlanets = new Set();
+      return items.filter((item) => {
+        if (item.event_type === "transit_natal_aspect") {
+          if (isTransitMoonAspect(item) || Number(item.aspect_angle) === 90) return false;
+        }
+        const isMoonIngress = item.event_type === "sign_ingress" && String(item.transit_planet || item.planet || "").toUpperCase() === "MOON";
+        if (isMoonIngress) {
+          if (hasMoonIngress) return false;
+          hasMoonIngress = true;
+          return true;
+        }
+        const isLunation = item.event_type === "new_moon" || item.event_type === "full_moon";
+        if (isLunation) {
+          if (hasLunation) return false;
+          hasLunation = true;
+        }
+        if (item.event_type === "natal_house_ingress") {
+          const transitPlanet = String(item.transit_planet || item.planet || "").toUpperCase();
+          if (houseIngressPlanets.has(transitPlanet)) return false;
+          houseIngressPlanets.add(transitPlanet);
+        }
         return true;
-      }
-      const isLunation = item.event_type === "new_moon" || item.event_type === "full_moon";
-      if (isLunation) {
-        if (hasUpcomingLunation) return false;
-        hasUpcomingLunation = true;
-      }
-      if (item.event_type === "natal_house_ingress") {
-        const transitPlanet = String(item.transit_planet || item.planet || "").toUpperCase();
-        if (houseIngressPlanets.has(transitPlanet)) return false;
-        houseIngressPlanets.add(transitPlanet);
-      }
-      return true;
-    });
-  }, [calendarItems]);
-  const eventCount = candidates.length;
-  const candidateKeys = candidates.map((item) => countdownSlideKey(item)).join("|");
+      });
+    };
+    return selectCandidates(calendarItems.filter((item) => Number(countdownDaysUntil(item, displayDate)) >= 0))
+      .concat(selectCandidates(calendarItems.filter((item) => {
+        const daysUntil = Number(countdownDaysUntil(item, displayDate));
+        return daysUntil < 0 && daysUntil >= -3;
+      })));
+  }, [calendarItems, displayDate]);
+  const upcomingCandidates = React.useMemo(
+    () => candidates.filter((item) => Number(countdownDaysUntil(item, displayDate)) >= 0),
+    [candidates, displayDate]
+  );
+  const completedCandidates = React.useMemo(
+    () => candidates.filter((item) => Number(countdownDaysUntil(item, displayDate)) < 0),
+    [candidates, displayDate]
+  );
+  const orderedCandidates = React.useMemo(
+    () => [...upcomingCandidates, ...completedCandidates],
+    [upcomingCandidates, completedCandidates]
+  );
+  const eventCount = orderedCandidates.length;
+  const candidateKeys = orderedCandidates.map((item) => countdownSlideKey(item)).join("|");
   useEffect(() => {
     setActiveEventIndex(0);
   }, [candidateKeys]);
@@ -2096,7 +2115,12 @@ function DashboardV2CountdownCard({ data, onSelectAspect = () => {} }) {
     setActiveEventIndex((index) => (index + direction + eventCount) % eventCount);
   };
   const visibleEventIndex = Math.min(activeEventIndex, Math.max(0, eventCount - 1));
-  const slide = candidates[visibleEventIndex] || {};
+  const isCompletedEvent = completedCandidates.length > 0 && visibleEventIndex >= upcomingCandidates.length;
+  const sectionItems = isCompletedEvent ? completedCandidates : upcomingCandidates;
+  const sectionIndex = isCompletedEvent
+    ? Math.max(0, visibleEventIndex - upcomingCandidates.length)
+    : visibleEventIndex;
+  const slide = sectionItems[sectionIndex] || {};
   const days = countdownDaysUntil(slide, displayDate);
   const remaining = countdownRemainingValue(slide, displayDate);
   const hasEvent = eventCount > 0;
@@ -2171,7 +2195,13 @@ function DashboardV2CountdownCard({ data, onSelectAspect = () => {} }) {
   };
   return (
     <>
-    <DashboardV2Card className="h-[225px]" bodyClassName="p-5">
+    <DashboardV2Card
+      className={cx(
+        "h-[225px]",
+        isCompletedEvent && "border-white/10 bg-[#111313]/75 opacity-70"
+      )}
+      bodyClassName="p-5"
+    >
       <div
         className="flex h-full w-full flex-col justify-between text-left"
       >
@@ -2204,7 +2234,7 @@ function DashboardV2CountdownCard({ data, onSelectAspect = () => {} }) {
                   <ChevronLeft size={15} />
                 </button>
                 <span className="min-w-[34px] text-center font-mono text-[10px] font-black text-[#909096]">
-                  {visibleEventIndex + 1}/{eventCount}
+                  {(sectionIndex + 1)}/{isCompletedEvent ? completedCandidates.length : upcomingCandidates.length}
                 </span>
                 <button
                   type="button"
@@ -2235,20 +2265,29 @@ function DashboardV2CountdownCard({ data, onSelectAspect = () => {} }) {
                   {">>Click"}
                 </button>
               ) : (
-                <p className="mt-1 text-xs text-[#c7c6cc]">...Coming soon</p>
+                <p className="mt-1 text-xs text-[#c7c6cc]">{isCompletedEvent ? "直近の完了イベント" : "...Coming soon"}</p>
               )}
             </div>
-            <p className="font-mono text-xl font-black leading-none text-[#e9c349]">
-              {hasEvent && Number.isFinite(remaining.value) ? `${remaining.value}${remaining.unit}` : "-"}
+            <p className={cx(
+              "font-mono text-xl font-black leading-none",
+              isCompletedEvent ? "text-[#77787d]" : "text-[#e9c349]"
+            )}>
+              {isCompletedEvent ? "-" : hasEvent && Number.isFinite(remaining.value) ? `あと${remaining.value}${remaining.unit}` : "-"}
             </p>
           </div>
         </div>
         <div className="mt-4 h-px bg-[#e9c349]/25" />
         <p className="mt-2 h-[60px] overflow-hidden line-clamp-3 text-[11px] font-bold leading-5 text-[#e2e2e2]">
-          {hasEvent ? (slide.note || "") : "直近30日以内に表示対象のステラーイベントはありません。"}
+          {hasEvent ? (slide.note || "") : "過去3日〜今後30日以内に表示対象のステラーイベントはありません。"}
         </p>
-        <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-white/10">
-          <div className="h-full rounded-full bg-[#e9c349]" style={{ width: hasEvent ? `${Math.max(8, Math.min(100, 100 - Math.max(0, Number(days) || 0) * 8))}%` : "0%" }} />
+        <div className={cx(
+          "mt-3 h-1.5 overflow-hidden rounded-full",
+          isCompletedEvent ? "bg-[#45474c]" : "bg-white/10"
+        )}>
+          <div
+            className={cx("h-full rounded-full", isCompletedEvent ? "bg-[#686a70]" : "bg-[#e9c349]")}
+            style={{ width: hasEvent && !isCompletedEvent ? `${Math.max(8, Math.min(100, 100 - Math.max(0, Number(days) || 0) * 8))}%` : isCompletedEvent ? "100%" : "0%" }}
+          />
         </div>
       </div>
     </DashboardV2Card>
@@ -2274,7 +2313,7 @@ function DashboardV2CountdownCard({ data, onSelectAspect = () => {} }) {
               <div>
                 <p className="font-mono text-[10px] font-black uppercase tracking-[0.28em] text-[#e9c349]">Celestial Event Calendar</p>
                 <h2 id="celestial-event-calendar-title" className="mt-1 font-notoSerif text-xl font-black text-[#f3f3f0] sm:text-2xl">天体イベントカレンダー</h2>
-                <p className="mt-1 text-[11px] text-[#909096]">現在日時から30日以内に発生するイベント / {calendarItems.length}件</p>
+                <p className="mt-1 text-[11px] text-[#909096]">過去7日〜今後30日に発生するイベント / {calendarItems.length}件</p>
               </div>
               <button
                 type="button"
@@ -2347,7 +2386,7 @@ function DashboardV2CountdownCard({ data, onSelectAspect = () => {} }) {
               </button>
               <div className="text-center">
                 <p className="font-notoSerif text-lg font-black text-[#f3f3f0]">{calendarMonthLabel}</p>
-                <p className="mt-0.5 font-mono text-[8px] font-black tracking-[0.16em] text-[#6f7075]">現在日から30日以内</p>
+                <p className="mt-0.5 font-mono text-[8px] font-black tracking-[0.16em] text-[#6f7075]">過去7日〜今後30日</p>
               </div>
               <button
                 type="button"
@@ -2380,8 +2419,10 @@ function DashboardV2CountdownCard({ data, onSelectAspect = () => {} }) {
                   const items = calendarGroups[cell.dateKey] || [];
                   const daysFromDisplay = countdownDaysUntil({ event_date: cell.dateKey }, displayDate);
                   const isBeyondHorizon = Number.isFinite(daysFromDisplay) && daysFromDisplay > 30;
+                  const isBeforeHorizon = Number.isFinite(daysFromDisplay) && daysFromDisplay < -7;
+                  const isPastCalendarDay = Number.isFinite(daysFromDisplay) && daysFromDisplay < 0;
                   const isToday = cell.dateKey === displayDate;
-                  const canOpen = items.length > 0 && !isBeyondHorizon;
+                  const canOpen = items.length > 0 && !isBeyondHorizon && !isBeforeHorizon;
                   const visibleItems = items.slice(0, 2);
                   const hiddenItemCount = Math.max(0, items.length - visibleItems.length);
                   return (
@@ -2396,7 +2437,8 @@ function DashboardV2CountdownCard({ data, onSelectAspect = () => {} }) {
                         cell.isCurrentMonth ? "bg-transparent" : "bg-black/10",
                         isToday ? "ring-1 ring-inset ring-[#e9c349]/80" : "",
                         canOpen ? "cursor-pointer hover:bg-white/[0.08]" : "cursor-default",
-                        isBeyondHorizon ? "bg-black/45 opacity-45" : "",
+                        isBeyondHorizon || isBeforeHorizon ? "bg-black/45 opacity-45" : "",
+                        isPastCalendarDay && !isBeforeHorizon ? "bg-black/30 opacity-70" : "",
                         !cell.isCurrentMonth ? "text-[#55565c]" : "text-[#c7c6cc]"
                       )}
                     >
@@ -2415,6 +2457,7 @@ function DashboardV2CountdownCard({ data, onSelectAspect = () => {} }) {
                               title={item.title}
                               className={cx(
                                 "block truncate border-l-2 px-0.5 py-0.5 font-mono text-[8px] font-bold leading-[13px] sm:px-1 sm:text-[9px] sm:leading-4",
+                                isPastCalendarDay && !isBeforeHorizon ? "opacity-70 grayscale" : "",
                                 calendarEventTone(item)
                               )}
                             >
