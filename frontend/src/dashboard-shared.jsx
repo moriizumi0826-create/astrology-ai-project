@@ -2154,7 +2154,27 @@ function DashboardV2CountdownCard({ data, onSelectAspect = () => {} }) {
   }, [displayDate]);
   const goToEvent = (direction) => {
     if (eventCount <= 1) return;
-    setActiveEventIndex((index) => (index + direction + eventCount) % eventCount);
+    setActiveEventIndex((index) => {
+      const upcomingCount = upcomingCandidates.length;
+      const completedCount = completedCandidates.length;
+      const isCompletedIndex = index >= upcomingCount;
+      if (direction < 0) {
+        if (!isCompletedIndex) {
+          if (index > 0) return index - 1;
+          return completedCount > 0 ? upcomingCount : Math.max(0, upcomingCount - 1);
+        }
+        const completedIndex = index - upcomingCount;
+        if (completedIndex < completedCount - 1) return index + 1;
+        return upcomingCount > 0 ? upcomingCount - 1 : 0;
+      }
+      if (isCompletedIndex) {
+        const completedIndex = index - upcomingCount;
+        if (completedIndex > 0) return index - 1;
+        return upcomingCount > 0 ? 0 : index;
+      }
+      if (index < upcomingCount - 1) return index + 1;
+      return completedCount > 0 ? upcomingCount + completedCount - 1 : 0;
+    });
   };
   const visibleEventIndex = Math.min(activeEventIndex, Math.max(0, eventCount - 1));
   const isCompletedEvent = completedCandidates.length > 0 && visibleEventIndex >= upcomingCandidates.length;
@@ -3332,9 +3352,14 @@ function DashboardV2DailyFlowCard({ data, displayDate = "" }) {
         ) : null}
         <div className="mt-3 border-t border-white/10 pt-2">
           <div className="mb-2 flex items-center justify-between gap-3">
-            <span className="font-sans text-[10px] font-black text-[#c7c6cc]">
-              重要なアスペクト {displayedTimelineAspectBlocks.length} / {allTimelineAspectBlocks.length}
-            </span>
+            <div className="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-1">
+              <span className="font-sans text-[10px] font-black text-[#c7c6cc]">
+                重要なアスペクト {displayedTimelineAspectBlocks.length} / {allTimelineAspectBlocks.length}
+              </span>
+              <span className="text-[8px] font-medium text-[#77787d]">
+                ※バーをクリック／タップすると詳細を確認できます
+              </span>
+            </div>
             {allTimelineAspectBlocks.length > DAILY_TIMELINE_DEFAULT_LIMIT ? (
               <button
                 type="button"
