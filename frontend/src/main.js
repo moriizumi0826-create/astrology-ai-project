@@ -1,4 +1,5 @@
 import { FORM_STORAGE_KEY, storeReadingResult } from "./reading-storage.js";
+import { requestJsonWithTimeout } from "./request-timeout.mjs";
 
 function resolveApiBaseUrl() {
   const configured = String(__APP_API_BASE_URL__ || "").trim();
@@ -353,7 +354,7 @@ async function postJson(path, payload) {
 
   for (let attempt = 0; attempt <= retryDelays.length; attempt += 1) {
     try {
-      const response = await fetch(`${API_BASE_URL}${path}`, {
+      const { response, data } = await requestJsonWithTimeout(`${API_BASE_URL}${path}`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -361,10 +362,6 @@ async function postJson(path, payload) {
         body: JSON.stringify(payload),
       });
 
-      const contentType = response.headers.get("content-type") || "";
-      const data = contentType.includes("application/json")
-        ? await response.json()
-        : { detail: await response.text() };
       if (response.ok) {
         return data;
       }
@@ -471,6 +468,7 @@ form.addEventListener("submit", async (event) => {
   submitButton.classList.add("opacity-70", "cursor-not-allowed");
 
   try {
+    persistFormData(collectFormSnapshot());
     const data = await postJson("/api/readings?defer_widgets=true", payload);
     await storeReadingResult(data);
     persistFormData(collectFormSnapshot());

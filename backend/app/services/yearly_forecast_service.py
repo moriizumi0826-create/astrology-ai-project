@@ -5,6 +5,7 @@ from collections import Counter
 from datetime import date, datetime, time as dt_time, timedelta
 from functools import lru_cache
 from pathlib import Path
+from threading import Lock
 from typing import Any
 
 import pandas as pd
@@ -19,6 +20,7 @@ except ModuleNotFoundError:
 
 
 FORECAST_YEAR = 2026
+_YEARLY_CALCULATION_LOCK = Lock()
 ASPECT_GENRE_DESCRIPTION_SCHEMA_VERSION = 2
 ASPECT_GENRE_APPLICABILITY_SCHEMA_VERSION = 4
 ASPECT_GENRE_SCORE_SCHEMA_VERSION = 4
@@ -2030,6 +2032,16 @@ def _cached_yearly_forecast(
 def generate_yearly_forecast(
     birth_input: BirthInput,
     year: int = FORECAST_YEAR,
+) -> dict[str, Any]:
+    # lru_cache does not coalesce concurrent misses. Keep the lock outside
+    # the cache lookup so waiting requests reuse the completed result.
+    with _YEARLY_CALCULATION_LOCK:
+        return _generate_yearly_forecast_serialized(birth_input, year)
+
+
+def _generate_yearly_forecast_serialized(
+    birth_input: BirthInput,
+    year: int,
 ) -> dict[str, Any]:
     reading_reloaded = reading_service.reload_master_dataframes_if_changed()
     yearly_reloaded = reload_yearly_master_caches_if_changed()
