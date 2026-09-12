@@ -7752,6 +7752,7 @@ const UNIFIED_FORECAST_TABS = [
   { key: "monthly", label: "月間" },
   { key: "annual", label: "年間" },
 ];
+const FORECAST_YEAR_OPTIONS = Array.from({ length: 14 }, (_, index) => 2015 + index);
 
 function UnifiedForecastView({
   data,
@@ -7769,6 +7770,8 @@ function UnifiedForecastView({
   annualTransitDayIndex,
   setSelectedAnnualDayIndex,
   onOpenYearDialog,
+  onSelectYear,
+  calculatingYear,
   activeUnifiedView,
   setActiveUnifiedView,
   detailLoadingKeys,
@@ -7829,27 +7832,50 @@ function UnifiedForecastView({
 
   return (
     <ForecastGalaxyBackground>
-      <div className="flex flex-wrap items-end gap-3 sm:gap-5">
-        <div className="min-w-0">
-          <h2 className="font-serif text-2xl font-semibold text-starlight sm:text-4xl">星の見通し</h2>
+      <div className="grid gap-2 sm:gap-3">
+        <div className="flex justify-end">
+          <div className="flex max-w-full overflow-x-auto rounded-full border border-white/10 bg-white/[0.06] p-1 font-mono text-[9px] font-bold text-mist shadow-[0_10px_28px_rgba(0,0,0,0.22)] [scrollbar-width:none] sm:max-w-[28rem] sm:text-[10px]">
+            {FORECAST_YEAR_OPTIONS.map((year) => (
+              <button
+                key={year}
+                type="button"
+                onClick={() => onSelectYear(year)}
+                disabled={calculatingYear || year === activeYear}
+                className={cx(
+                  "shrink-0 rounded-full px-2.5 py-1.5 transition sm:px-3",
+                  year === activeYear
+                    ? "bg-gold text-[#241a00]"
+                    : "hover:bg-white/10 hover:text-starlight disabled:cursor-wait disabled:opacity-45"
+                )}
+                aria-pressed={year === activeYear}
+              >
+                {year}年
+              </button>
+            ))}
+          </div>
         </div>
-        <div className="mb-0.5 flex shrink-0 rounded-full border border-white/10 bg-white/[0.06] p-1 font-mono text-[10px] font-bold text-mist shadow-[0_10px_28px_rgba(0,0,0,0.22)] sm:mb-1 sm:text-xs">
-          {UNIFIED_FORECAST_TABS.map((item) => (
-            <button
-              key={item.key}
-              type="button"
-              onClick={() => setActiveUnifiedView(item.key)}
-              className={cx(
-                "rounded-full px-3 py-1.5 transition",
-                activeUnifiedView === item.key
-                  ? "bg-gold text-[#241a00]"
-                  : "hover:bg-white/10 hover:text-starlight"
-              )}
-              aria-pressed={activeUnifiedView === item.key}
-            >
-              {item.label}
-            </button>
-          ))}
+        <div className="flex flex-wrap items-end gap-3 sm:gap-5">
+          <div className="min-w-0">
+            <h2 className="font-serif text-2xl font-semibold text-starlight sm:text-4xl">星の見通し</h2>
+          </div>
+          <div className="mb-0.5 flex shrink-0 rounded-full border border-white/10 bg-white/[0.06] p-1 font-mono text-[10px] font-bold text-mist shadow-[0_10px_28px_rgba(0,0,0,0.22)] sm:mb-1 sm:text-xs">
+            {UNIFIED_FORECAST_TABS.map((item) => (
+              <button
+                key={item.key}
+                type="button"
+                onClick={() => setActiveUnifiedView(item.key)}
+                className={cx(
+                  "rounded-full px-3 py-1.5 transition",
+                  activeUnifiedView === item.key
+                    ? "bg-gold text-[#241a00]"
+                    : "hover:bg-white/10 hover:text-starlight"
+                )}
+                aria-pressed={activeUnifiedView === item.key}
+              >
+                {item.label}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 
@@ -8338,11 +8364,7 @@ function OraclePanel({ stats, forecast }) {
               {analysisTitle}
             </h2>
           </div>
-          <div className="flex w-full flex-col items-end gap-1 sm:w-auto sm:shrink-0">
-            <span className="font-mono text-[8px] font-bold leading-none tracking-[0.08em] text-gold/80 sm:text-[10px]">
-              {activeYear}年
-            </span>
-            <div className="flex w-full items-start overflow-x-auto rounded-full border border-white/10 bg-white/[0.04] p-1 font-mono text-[7px] font-bold text-mist [scrollbar-width:none] sm:w-auto sm:text-[10px]">
+          <div className="flex w-full items-start overflow-x-auto rounded-full border border-white/10 bg-white/[0.04] p-1 font-mono text-[7px] font-bold text-mist [scrollbar-width:none] sm:w-auto sm:shrink-0 sm:text-[10px]">
             <div className="flex shrink-0 flex-col">
             {[["summary", "総括"]].map(([value, label]) => (
               <button
@@ -8422,7 +8444,6 @@ function OraclePanel({ stats, forecast }) {
             ))}
             </div>
           </div>
-        </div>
         <div className="mt-3 h-px bg-white/10 sm:mt-5" />
         {analysisMode === "theme" ? (
           <div className="mt-6 grid min-h-0 flex-1 gap-6 overflow-y-auto pr-2 [scrollbar-color:#e9c349_rgba(255,255,255,0.08)] [scrollbar-width:thin] sm:mt-8 sm:gap-8">
@@ -9873,14 +9894,20 @@ function ForecastDetailPage() {
       setRefreshingLatest(false);
     }
   };
-  const handleCalculateYear = async () => {
+  const handleCalculateYear = async (requestedYear = targetYear) => {
     if (!CAN_ACCESS_PREMIUM) {
       setPremiumPromptOpen(true);
       return;
     }
-    const normalizedYear = Number(targetYear);
+    if (calculatingYear) {
+      return;
+    }
+    const normalizedYear = Number(requestedYear);
     if (!Number.isInteger(normalizedYear) || normalizedYear < 2015 || normalizedYear > 2028) {
       setYearCalculationError("2015年から2028年の範囲で年を入力してください。");
+      return;
+    }
+    if (normalizedYear === activeYear) {
       return;
     }
 
@@ -9891,6 +9918,7 @@ function ForecastDetailPage() {
     }
 
     setCalculatingYear(true);
+    setTargetYear(String(normalizedYear));
     setYearCalculationError("");
     try {
       const nextForecast = await requestYearlyForecast(formPayload, normalizedYear, { retryTransient: true });
@@ -9971,6 +9999,8 @@ function ForecastDetailPage() {
             annualTransitDayIndex={annualTransitDayIndex}
             setSelectedAnnualDayIndex={setSelectedAnnualDayIndex}
             onOpenYearDialog={() => setYearDialogOpen(true)}
+            onSelectYear={(year) => handleCalculateYear(year)}
+            calculatingYear={calculatingYear}
             activeUnifiedView={activeUnifiedView}
             setActiveUnifiedView={setActiveUnifiedView}
             detailLoadingKeys={forecastDetailLoadingKeys}
