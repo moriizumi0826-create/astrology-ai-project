@@ -5613,9 +5613,9 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
             >
               {option.label}
             </button>
-          ))}
-        </div>
-      </div>
+            ))}
+            </div>
+          </div>
     );
   };
   const MobileChartDisplayPanel = () => (
@@ -8338,7 +8338,11 @@ function OraclePanel({ stats, forecast }) {
               {analysisTitle}
             </h2>
           </div>
-          <div className="flex w-full items-start overflow-x-auto rounded-full border border-white/10 bg-white/[0.04] p-1 font-mono text-[7px] font-bold text-mist [scrollbar-width:none] sm:w-auto sm:shrink-0 sm:text-[10px]">
+          <div className="flex w-full flex-col items-end gap-1 sm:w-auto sm:shrink-0">
+            <span className="font-mono text-[8px] font-bold leading-none tracking-[0.08em] text-gold/80 sm:text-[10px]">
+              {activeYear}年
+            </span>
+            <div className="flex w-full items-start overflow-x-auto rounded-full border border-white/10 bg-white/[0.04] p-1 font-mono text-[7px] font-bold text-mist [scrollbar-width:none] sm:w-auto sm:text-[10px]">
             <div className="flex shrink-0 flex-col">
             {[["summary", "総括"]].map(([value, label]) => (
               <button
@@ -8416,6 +8420,7 @@ function OraclePanel({ stats, forecast }) {
                 {label}
               </button>
             ))}
+            </div>
           </div>
         </div>
         <div className="mt-3 h-px bg-white/10 sm:mt-5" />
@@ -8575,7 +8580,7 @@ function AnnualChart({
     <GlassPanel className="p-3 sm:p-8">
       <div className="flex flex-col gap-2 sm:gap-4 lg:flex-row lg:items-start lg:justify-between">
         <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-center sm:gap-4">
-          <h2 className="font-serif text-[26px] font-bold leading-tight text-starlight sm:text-5xl">年間運勢グラフ（{activeYear}年）</h2>
+          <h2 className="font-serif text-[18px] font-bold leading-tight text-starlight sm:text-3xl">年間運勢グラフ {activeYear}年</h2>
           <button
             type="button"
             onClick={onOpenYearDialog}
@@ -8700,7 +8705,7 @@ function MonthlyChart({
     <GlassPanel className="p-3 sm:p-8">
       <div className="flex flex-col gap-2 sm:gap-4 lg:flex-row lg:items-start lg:justify-between">
         <h2 className="font-serif text-[26px] font-bold leading-tight text-starlight sm:text-5xl">
-          月間運勢グラフ（{selectedMonth + 1}月）
+          月間運勢グラフ {activeYear}年{selectedMonth + 1}月
         </h2>
         <div className="flex flex-wrap gap-1.5 font-mono text-[9px] font-bold tracking-[0.04em] text-mist sm:gap-5 sm:text-xs sm:tracking-[0.08em]">
           {SCORE_KEYS.map((item) => (
@@ -9040,7 +9045,7 @@ function Matrix({
   );
   const activeAnalysisMode = analysisMode === "overview" && !monthlyOverview ? "theme" : analysisMode;
   const modeTitle = {
-    overview: `${selectedMonth + 1}月の総評`,
+    overview: "今月の総評",
     theme: "今月のテーマ",
     lesson: "今月のアクション",
     general: "全般",
@@ -9048,7 +9053,11 @@ function Matrix({
     work: "仕事",
     money: "お金",
   }[activeAnalysisMode] || "今月のテーマ";
-  const modeKicker = activeAnalysisMode === "overview" ? "Monthly Overview" : "Main Theme";
+  const modeKicker = activeAnalysisMode === "overview"
+    ? "Monthly Overview"
+    : ["general", "love", "work", "money"].includes(activeAnalysisMode)
+      ? "今月のアスペクト"
+      : "Main Theme";
   const toggleMonthlyAspect = (key) => {
     setOpenMonthlyAspectKeys((current) => {
       const next = new Set(current);
@@ -9065,17 +9074,26 @@ function Matrix({
     <>
       <div className="grid grid-cols-12 gap-0.5 pb-1 font-mono text-[7px] font-bold tracking-0 text-mist sm:flex sm:gap-2 sm:overflow-x-auto sm:text-xs sm:tracking-[0.06em] sm:[scrollbar-width:none]">
         {MONTHS.map((month, index) => (
-          <button
+          <div
             key={month}
-            type="button"
-            onClick={() => setSelectedMonthIndex(index)}
-            className={cx(
-              "min-w-0 rounded-full border px-0.5 py-1 transition sm:shrink-0 sm:px-3 sm:py-1.5",
-              selectedMonth === index ? "border-gold bg-gold text-[#241a00]" : "border-white/10 bg-white/[0.04] hover:border-white/20 hover:text-starlight"
-            )}
+            className="flex min-w-0 flex-col justify-end sm:shrink-0"
           >
-            {index + 1}月
-          </button>
+            {index === MONTHS.length - 1 ? (
+              <span className="mb-1 text-center font-mono text-[7px] font-bold leading-none tracking-[0.04em] text-gold/80 sm:text-[9px]">
+                {activeYear}年
+              </span>
+            ) : null}
+            <button
+              type="button"
+              onClick={() => setSelectedMonthIndex(index)}
+              className={cx(
+                "w-full min-w-0 rounded-full border px-0.5 py-1 transition sm:px-3 sm:py-1.5",
+                selectedMonth === index ? "border-gold bg-gold text-[#241a00]" : "border-white/10 bg-white/[0.04] hover:border-white/20 hover:text-starlight"
+              )}
+            >
+              {index + 1}月
+            </button>
+          </div>
         ))}
       </div>
       <GlassPanel variant="text" className="flex h-[520px] flex-col overflow-hidden border-gold/25 p-2 sm:h-[560px] sm:p-5 lg:h-[620px] lg:p-6">

@@ -1534,7 +1534,7 @@ function DashboardV2Header({ data, displayDate, activePage = "dashboard", onPage
   );
 }
 
-function DashboardV2PersonalCard({ data, displayDate = "", onDateShift = () => {}, isDateLoading = false }) {
+function DashboardV2PersonalCard({ data, displayDate = "", onDateShift = () => {}, isDateLoading = false, minDate = "", maxDate = "" }) {
   const [personalReadingTab, setPersonalReadingTab] = useState("daily");
   const [selectedHighlightKey, setSelectedHighlightKey] = useState("positive");
   const summaryScrollerRef = React.useRef(null);
@@ -1607,7 +1607,7 @@ function DashboardV2PersonalCard({ data, displayDate = "", onDateShift = () => {
                 <button
                   type="button"
                   onClick={() => onDateShift(-1)}
-                  disabled={isDateLoading}
+                  disabled={isDateLoading || (minDate && activeDisplayDate <= minDate)}
                   aria-label="前の日の洞察を表示"
                   className="inline-flex h-5 w-5 items-center justify-center rounded-full border border-[#e9c349]/45 text-[#e9c349] transition hover:border-[#e9c349] hover:bg-[#e9c349]/10 disabled:cursor-wait disabled:opacity-45"
                 >
@@ -1617,7 +1617,7 @@ function DashboardV2PersonalCard({ data, displayDate = "", onDateShift = () => {
                 <button
                   type="button"
                   onClick={() => onDateShift(1)}
-                  disabled={isDateLoading}
+                  disabled={isDateLoading || (maxDate && activeDisplayDate >= maxDate)}
                   aria-label="次の日の洞察を表示"
                   className="inline-flex h-5 w-5 items-center justify-center rounded-full border border-[#e9c349]/45 text-[#e9c349] transition hover:border-[#e9c349] hover:bg-[#e9c349]/10 disabled:cursor-wait disabled:opacity-45"
                 >
@@ -1900,7 +1900,7 @@ function PressureCountdownList({
   );
 }
 
-function DashboardV2DailyThemeCard({ data, displayDate = "", onDateShift = () => {}, isDateLoading = false, focusedAspect = null }) {
+function DashboardV2DailyThemeCard({ data, displayDate = "", onDateShift = () => {}, isDateLoading = false, focusedAspect = null, minDate = "", maxDate = "" }) {
   const [analysisMode, setAnalysisMode] = useState("theme");
   const activeDisplayDate = displayDate || dashboardDisplayDate(data);
   const dailyStarVibe = String(data.dailyStarVibe || data.daily_star_vibe || "").trim();
@@ -1978,7 +1978,7 @@ function DashboardV2DailyThemeCard({ data, displayDate = "", onDateShift = () =>
             <button
               type="button"
               onClick={() => onDateShift(-1)}
-              disabled={isDateLoading}
+              disabled={isDateLoading || (minDate && activeDisplayDate <= minDate)}
               aria-label="前の日の星の流れを表示"
               className="inline-flex h-5 w-5 items-center justify-center rounded-full border border-[#e9c349]/45 text-[#e9c349] transition hover:border-[#e9c349] hover:bg-[#e9c349]/10 disabled:cursor-wait disabled:opacity-45"
             >
@@ -1990,7 +1990,7 @@ function DashboardV2DailyThemeCard({ data, displayDate = "", onDateShift = () =>
             <button
               type="button"
               onClick={() => onDateShift(1)}
-              disabled={isDateLoading}
+              disabled={isDateLoading || (maxDate && activeDisplayDate >= maxDate)}
               aria-label="次の日の星の流れを表示"
               className="inline-flex h-5 w-5 items-center justify-center rounded-full border border-[#e9c349]/45 text-[#e9c349] transition hover:border-[#e9c349] hover:bg-[#e9c349]/10 disabled:cursor-wait disabled:opacity-45"
             >
@@ -4263,6 +4263,9 @@ function DashboardDailyDetailLayerBase({
   const dailyDataCacheRef = React.useRef(new Map());
   const dailyDateRequestIdRef = React.useRef(0);
   const displayDate = selectedDailyDate || dashboardDisplayDate(activeDailyData);
+  const dailyDateBase = currentTokyoDate();
+  const dailyDateMin = addDaysToIsoDate(dailyDateBase, -6);
+  const dailyDateMax = addDaysToIsoDate(dailyDateBase, 6);
 
   useEffect(() => {
     if (displayDate && onDisplayDateChange) {
@@ -4321,7 +4324,7 @@ function DashboardDailyDetailLayerBase({
 
   const handleDailyDateShift = async (days) => {
     const nextDate = addDaysToIsoDate(displayDate || dashboardDisplayDate(activeDailyData), days);
-    if (!nextDate) return;
+    if (!nextDate || nextDate < dailyDateMin || nextDate > dailyDateMax) return;
 
     const cached = dailyDataCacheRef.current.get(nextDate);
     setSelectedDailyDate(nextDate);
@@ -4377,6 +4380,8 @@ function DashboardDailyDetailLayerBase({
             displayDate={displayDate}
             onDateShift={handleDailyDateShift}
             isDateLoading={isDailyDateLoading}
+            minDate={dailyDateMin}
+            maxDate={dailyDateMax}
           />
         ) : (
           <DashboardV2DailyThemeCard
@@ -4385,6 +4390,8 @@ function DashboardDailyDetailLayerBase({
             onDateShift={handleDailyDateShift}
             isDateLoading={isDailyDateLoading}
             focusedAspect={focusedAspect}
+            minDate={dailyDateMin}
+            maxDate={dailyDateMax}
           />
         )}
         <DashboardV2CountdownCard
