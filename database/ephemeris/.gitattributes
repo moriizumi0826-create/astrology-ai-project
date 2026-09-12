@@ -1,0 +1,2 @@
+# Keep the generated CSV bytes consistent with its SHA-256 metadata on all OSes.
+*.csv text eol=lf

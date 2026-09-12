@@ -32,8 +32,7 @@ class ReadingRequest(BaseModel):
         return self
 
 
-class TransitChartRequest(ReadingRequest):
-    target_date: date
+class TransitChartTimeRequest(ReadingRequest):
     target_time: time = Field(default=time(hour=12))
 
     @field_validator("target_time")
@@ -42,6 +41,14 @@ class TransitChartRequest(ReadingRequest):
         if value.second or value.microsecond or value.minute % 10 != 0:
             raise ValueError("target_time must be specified in 10-minute intervals")
         return value
+
+
+class TransitChartRequest(TransitChartTimeRequest):
+    target_date: date
+
+
+class TransitChartsRequest(TransitChartTimeRequest):
+    target_dates: list[date] = Field(min_length=1, max_length=366)
 
 
 class ReadingSection(BaseModel):

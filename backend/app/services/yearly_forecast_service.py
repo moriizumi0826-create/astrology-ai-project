@@ -10,7 +10,7 @@ from typing import Any
 
 import pandas as pd
 
-from backend.app.services import monthly_overview_service, monthly_peak_service, reading_service
+from backend.app.services import monthly_overview_service, monthly_peak_service, reading_service, transit_ephemeris
 from backend.app.services.chart_calculator import BirthInput, get_angle_diff, get_aspect, get_house
 
 try:
@@ -425,19 +425,28 @@ def build_transit_chart(
     jd = _julian_day(local_dt, birth_input.timezone_offset)
     planet_ids = _forecast_planet_ids()
     planet_order = ("SUN", "MOON", "MERCURY", "VENUS", "MARS", "JUPITER", "SATURN", "URANUS", "NEPTUNE", "PLUTO")
+    cached = transit_ephemeris.cached_states(local_dt, birth_input.timezone_offset)
     transits = []
-    for planet in planet_order:
-        result = swe.calc_ut(jd, planet_ids[planet], swe.FLG_SPEED)
+    for index, planet in enumerate(planet_order):
+        if cached is None:
+            result = swe.calc_ut(jd, planet_ids[planet], swe.FLG_SPEED)
+            longitude, speed = float(result[0][0]), float(result[0][3])
+        else:
+            longitude, speed = cached[index * 2:index * 2 + 2]
         transits.append({
             "planet": planet,
-            "longitude": round(float(result[0][0]) % 360, 4),
-            "retrograde": float(result[0][3]) < 0,
+            "longitude": round(longitude % 360, 4),
+            "retrograde": speed < 0,
         })
 
     house_cusps, ascmc = swe.houses(jd, birth_input.latitude, birth_input.longitude, b"P")
-    node_result = swe.calc_ut(jd, swe.TRUE_NODE, swe.FLG_SPEED)
-    north_node_longitude = float(node_result[0][0]) % 360
-    node_retrograde = float(node_result[0][3]) < 0
+    if cached is None:
+        node_result = swe.calc_ut(jd, swe.TRUE_NODE, swe.FLG_SPEED)
+        north_node_longitude = float(node_result[0][0]) % 360
+        node_retrograde = float(node_result[0][3]) < 0
+    else:
+        north_node_longitude = cached[-2]
+        node_retrograde = cached[-1] < 0
     transits.extend([
         {
             "planet": "NORTH_NODE",

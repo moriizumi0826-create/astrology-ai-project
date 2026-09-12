@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "swisseph_version": "2.10.03",
+  "requested_flags": 256,
+  "returned_flags": {
+    "SUN": 260,
+    "MOON": 260,
+    "MERCURY": 260,
+    "VENUS": 260,
+    "MARS": 260,
+    "JUPITER": 260,
+    "SATURN": 260,
+    "URANUS": 260,
+    "NEPTUNE": 260,
+    "PLUTO": 260,
+    "NORTH_NODE": 260
+  },
+  "timezone": "UTC",
+  "longitude_unit": "degree",
+  "speed_unit": "degree/day",
+  "sha256": "921b5f8a469d2886495d9306a79a387f30926246755cceee450142067945361d"
+}

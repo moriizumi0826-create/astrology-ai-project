@@ -18,6 +18,7 @@ import {
 } from "./dashboard-shared.jsx";
 import { readableErrorMessage } from "./error-message.mjs";
 import { createSingleFlightRequester, retryTransientRequest } from "./request-control.mjs";
+import { buildTransitPlaybackDates, preloadTransitCharts } from "./transit-chart-preload.mjs";
 import {
   loadEarthCloudTexture,
   loadEarthSurfaceTexture,
@@ -3121,7 +3122,7 @@ function transitSkyMapData(day, forecast, selectedNatalPlanet = "SUN") {
   };
 }
 
-function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayIndex = 0, onSelectDayIndex = null }) {
+function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayIndex = 0, onSelectDayIndex = null, onSelectDate = null }) {
   const mountRef = React.useRef(null);
   const frameRef = React.useRef(null);
   const sceneStateRef = React.useRef(null);
@@ -3212,6 +3213,7 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
   const selectableDateSet = useMemo(() => new Set(selectableDates), [selectableDates]);
   const minSelectableDate = selectableDates[0] || selectedDate || "";
   const maxSelectableDate = selectableDates[selectableDates.length - 1] || selectedDate || "";
+  const hasDirectDateSelection = typeof onSelectDate === "function";
   useEffect(() => {
     if (!isTransitCalendarOpen) {
       setTransitCalendarMonth(monthKey(selectedDate));
@@ -3222,7 +3224,14 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
     setTransitPlaybackCursor(null);
     setPlaybackTransitChart(null);
     const nextDate = dateKey(value);
-    if (!nextDate || !onSelectDayIndex) return;
+    if (!nextDate) return;
+    if (hasDirectDateSelection) {
+      onSelectDate(nextDate);
+      setIsTransitCalendarOpen(false);
+      setTransitCalendarMonth(monthKey(nextDate));
+      return;
+    }
+    if (!onSelectDayIndex) return;
     const nextIndex = selectableDates.indexOf(nextDate);
     if (nextIndex >= 0) {
       onSelectDayIndex(nextIndex);
@@ -3236,6 +3245,7 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
   const canMoveTransitCalendarMonth = (direction) => {
     const nextMonth = addMonthsToMonthKey(transitCalendarMonth || selectedDate, direction);
     if (!nextMonth) return false;
+    if (hasDirectDateSelection) return true;
     if (direction < 0 && minSelectableDate) return nextMonth >= monthKey(minSelectableDate);
     if (direction > 0 && maxSelectableDate) return nextMonth <= monthKey(maxSelectableDate);
     return true;
@@ -3243,8 +3253,10 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
   const moveTransitCalendarMonth = (direction) => {
     const nextMonth = addMonthsToMonthKey(transitCalendarMonth || selectedDate, direction);
     if (!nextMonth) return;
-    if (direction < 0 && minSelectableDate && nextMonth < monthKey(minSelectableDate)) return;
-    if (direction > 0 && maxSelectableDate && nextMonth > monthKey(maxSelectableDate)) return;
+    if (!hasDirectDateSelection) {
+      if (direction < 0 && minSelectableDate && nextMonth < monthKey(minSelectableDate)) return;
+      if (direction > 0 && maxSelectableDate && nextMonth > monthKey(maxSelectableDate)) return;
+    }
     setTransitCalendarMonth(nextMonth);
   };
   const TransitDatePicker = ({ compact = false } = {}) => {
@@ -3253,6 +3265,7 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
     const calendarId = compact ? "mobile-transit-date-calendar" : "desktop-transit-date-calendar";
     const isDateSelectable = (date) => {
       if (!date) return false;
+      if (hasDirectDateSelection) return true;
       if (selectableDateSet.has(date)) return true;
       if (minSelectableDate && date < minSelectableDate) return false;
       if (maxSelectableDate && date > maxSelectableDate) return false;
@@ -3271,7 +3284,7 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
             event.stopPropagation();
             setIsTransitCalendarOpen((value) => !value);
           }}
-          disabled={!onSelectDayIndex}
+          disabled={!onSelectDayIndex && !hasDirectDateSelection}
           className={cx(
             "inline-flex h-7 items-center gap-1 rounded-md border font-semibold text-starlight outline-none transition hover:border-gold/35 hover:bg-[#121414]/80 focus:border-gold/50 focus:bg-[#121414]/70 focus:ring-2 focus:ring-gold/25 disabled:pointer-events-none disabled:opacity-100",
             compact
@@ -3713,32 +3726,15 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
     };
   }, [selectedDate, selectedTransitTime, isTransitPlaybackActive]);
 
-  const fetchTransitChartFor = React.useCallback(async (targetDate, targetTime) => {
-    const cacheKey = transitChartCacheKey(targetDate, targetTime);
-    const cachedChart = transitChartCacheRef.current.get(cacheKey);
-    if (cachedChart) return cachedChart;
-    const formPayload = getQueryReadingForm() || getStoredReadingForm();
-    if (!formPayload) throw new Error("出生データが見つかりません。");
-    const payload = await postJson("/api/transit-chart", {
-      ...formPayload,
-      target_date: targetDate,
-      target_time: targetTime,
-    });
-    transitChartCacheRef.current.set(cacheKey, payload);
-    return payload;
-  }, []);
-
   const preloadTransitChartsForDates = React.useCallback(async (targetTime, targetDates = null, onProgress = null) => {
     const dates = Array.isArray(targetDates) && targetDates.length
       ? targetDates
       : selectableDates.length ? selectableDates : [selectedDate].filter(Boolean);
-    onProgress?.(0, dates.length);
-    for (let index = 0; index < dates.length; index += 4) {
-      const batch = dates.slice(index, index + 4);
-      await Promise.all(batch.map((targetDate) => fetchTransitChartFor(targetDate, targetTime)));
-      onProgress?.(Math.min(index + batch.length, dates.length), dates.length);
-    }
-  }, [fetchTransitChartFor, selectableDates, selectedDate]);
+    await preloadTransitCharts({
+      dates, targetTime, cache: transitChartCacheRef.current, cacheKey: transitChartCacheKey,
+      request: postJson, formPayload: getQueryReadingForm() || getStoredReadingForm(), onProgress,
+    });
+  }, [selectableDates, selectedDate]);
 
   useEffect(() => {
     const mount = mountRef.current;
@@ -5392,7 +5388,10 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
       const rangeOption = isMobilePlayback
         ? TRANSIT_PLAYBACK_RANGE_OPTIONS.find((option) => option.key === "year")
         : TRANSIT_PLAYBACK_RANGE_OPTIONS.find((option) => option.key === transitPlaybackRange) || TRANSIT_PLAYBACK_RANGE_OPTIONS[0];
-      const remainingDates = (selectableDates.length ? selectableDates.slice(startIndex, startIndex + rangeOption.days) : [playbackStartDate]).filter(Boolean);
+      const remainingDates = (hasDirectDateSelection
+        ? buildTransitPlaybackDates(playbackStartDate, rangeOption.days)
+        : selectableDates.length ? selectableDates.slice(startIndex, startIndex + rangeOption.days) : [playbackStartDate]
+      ).filter(Boolean);
       const playbackStepDays = isMobilePlayback ? 1 : transitPlaybackStepDays;
       const playbackDates = remainingDates.filter((_, index) => index % playbackStepDays === 0);
       const finalRemainingDate = remainingDates[remainingDates.length - 1];
@@ -9475,6 +9474,9 @@ function PremiumAccessDialog({ open, onClose }) {
 }
 
 function Horoscope3DMap({ data }) {
+  const readingDate = dateKey(data?.reading_date) || currentTokyoDate();
+  const [selectedDate, setSelectedDate] = useState(readingDate);
+  useEffect(() => setSelectedDate(readingDate), [readingDate]);
   const natalPoints = Array.isArray(data?.natal_points)
     ? data.natal_points
     : Array.isArray(data?.natalPoints)
@@ -9489,7 +9491,7 @@ function Horoscope3DMap({ data }) {
   if (!natalPoints.length) return null;
 
   const mapDay = {
-    date: dateKey(data?.reading_date) || currentTokyoDate(),
+    date: selectedDate,
     all_aspects: [],
   };
   const mapForecast = {
@@ -9504,6 +9506,7 @@ function Horoscope3DMap({ data }) {
         forecast={mapForecast}
         availableDays={[mapDay]}
         selectedDayIndex={0}
+        onSelectDate={setSelectedDate}
       />
     </div>
   );

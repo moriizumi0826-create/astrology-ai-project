@@ -1,17 +1,25 @@
 import hashlib
 import json
+from contextlib import asynccontextmanager
 from datetime import date, datetime, time, timezone
 
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.gzip import GZipMiddleware
 
-from backend.app.schemas import LocationSearchResponse, ReadingRequest, TransitChartRequest
-from backend.app.services import aspect_interpretation_service, geocoding_service, reading_service, yearly_forecast_service
+from backend.app.schemas import LocationSearchResponse, ReadingRequest, TransitChartRequest, TransitChartsRequest
+from backend.app.services import aspect_interpretation_service, geocoding_service, reading_service, yearly_forecast_service, transit_ephemeris
 from backend.app.settings import settings
 
 
-app = FastAPI(title="Celestial Atelier API", version="0.1.0")
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    if transit_ephemeris.cache_enabled():
+        transit_ephemeris.load_hourly_cache()
+    yield
+
+
+app = FastAPI(title="Celestial Atelier API", version="0.1.0", lifespan=lifespan)
 
 app.add_middleware(GZipMiddleware, minimum_size=1000)
 app.add_middleware(
@@ -246,6 +254,15 @@ def create_yearly_forecast_detail(
 
 @app.post("/api/transit-chart")
 def create_transit_chart(payload: TransitChartRequest):
+    return _create_requested_transit_charts(payload, [payload.target_date])[0]
+
+
+@app.post("/api/transit-charts")
+def create_transit_charts(payload: TransitChartsRequest):
+    return {"charts": _create_requested_transit_charts(payload, payload.target_dates)}
+
+
+def _create_requested_transit_charts(payload, target_dates: list[date]):
     try:
         timezone_offset = payload.timezone_offset
         if timezone_offset is None:
@@ -268,11 +285,14 @@ def create_transit_chart(payload: TransitChartRequest):
             longitude=payload.longitude,
             timezone_offset=timezone_offset,
         )
-        return yearly_forecast_service.build_transit_chart(
-            birth_input,
-            payload.target_date,
-            payload.target_time,
-        )
+        # Resolve the birth location/timezone once, and preserve request order.
+        charts = {}
+        for target_date in target_dates:
+            if target_date not in charts:
+                charts[target_date] = yearly_forecast_service.build_transit_chart(
+                    birth_input, target_date, payload.target_time,
+                )
+        return [charts[target_date] for target_date in target_dates]
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except FileNotFoundError as exc:
