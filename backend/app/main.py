@@ -203,7 +203,7 @@ def _yearly_birth_input(payload: ReadingRequest) -> reading_service.BirthInput:
 
 
 @app.post("/api/yearly-forecast")
-def create_yearly_forecast(payload: ReadingRequest, year: int = Query(default=2026, ge=2015, le=2028)):
+def create_yearly_forecast(payload: ReadingRequest, year: int = Query(default=2026, ge=1900, le=2027)):
     try:
         forecast = yearly_forecast_service.generate_yearly_forecast(_yearly_birth_input(payload), year)
         result = yearly_forecast_service.build_yearly_forecast_summary(forecast)
@@ -222,7 +222,7 @@ def create_yearly_forecast(payload: ReadingRequest, year: int = Query(default=20
 @app.post("/api/yearly-forecast/detail")
 def create_yearly_forecast_detail(
     payload: ReadingRequest,
-    year: int = Query(default=2026, ge=2015, le=2028),
+    year: int = Query(default=2026, ge=1900, le=2027),
     scope: str = Query(pattern="^(day|month|annual)$"),
     day_date: date | None = Query(default=None, alias="date"),
     month: int | None = Query(default=None, ge=1, le=12),

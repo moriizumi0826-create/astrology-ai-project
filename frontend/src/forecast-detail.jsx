@@ -7752,7 +7752,12 @@ const UNIFIED_FORECAST_TABS = [
   { key: "monthly", label: "月間" },
   { key: "annual", label: "年間" },
 ];
-const FORECAST_YEAR_OPTIONS = Array.from({ length: 14 }, (_, index) => 2015 + index);
+const MIN_FORECAST_YEAR = 1900;
+const MAX_FORECAST_YEAR = 2027;
+const FORECAST_YEAR_OPTIONS = Array.from(
+  { length: MAX_FORECAST_YEAR - MIN_FORECAST_YEAR + 1 },
+  (_, index) => MIN_FORECAST_YEAR + index
+);
 
 function UnifiedForecastView({
   data,
@@ -7774,6 +7779,8 @@ function UnifiedForecastView({
   calculatingYear,
   activeUnifiedView,
   setActiveUnifiedView,
+  onSelectUnifiedView,
+  dailyViewResetKey,
   detailLoadingKeys,
   onRequestDayDetail,
   onDailyDisplayDateChange,
@@ -7784,10 +7791,21 @@ function UnifiedForecastView({
   );
   const [selectedUnifiedMonthlyDayIndex, setSelectedUnifiedMonthlyDayIndex] = useState(() => realtimeDayIndex(monthlyTransitDays));
   const [expandedForecastMapViews, setExpandedForecastMapViews] = useState({ monthly: false, annual: false });
+  const [forecastYearSelectorOpen, setForecastYearSelectorOpen] = useState(false);
+  const activeForecastYearButtonRef = React.useRef(null);
+  const canSelectForecastYear = activeUnifiedView !== "daily";
+  const displayedForecastYear = canSelectForecastYear
+    ? activeYear
+    : Number(String(currentTokyoDate()).slice(0, 4)) || activeYear;
   const monthlyTransitDateRange = `${dateKey(monthlyTransitDays[0]?.date)}:${dateKey(monthlyTransitDays[monthlyTransitDays.length - 1]?.date)}:${monthlyTransitDays.length}`;
   useEffect(() => {
     setSelectedUnifiedMonthlyDayIndex(realtimeDayIndex(monthlyTransitDays));
   }, [monthlyTransitDateRange]);
+  useEffect(() => {
+    if (forecastYearSelectorOpen) {
+      activeForecastYearButtonRef.current?.scrollIntoView({ block: "nearest", inline: "center" });
+    }
+  }, [forecastYearSelectorOpen]);
   const unifiedMonthlyDayIndex = clamp(selectedUnifiedMonthlyDayIndex, 0, Math.max(0, monthlyTransitDays.length - 1));
   const mapConfig = activeUnifiedView === "monthly"
     ? {
@@ -7834,24 +7852,54 @@ function UnifiedForecastView({
     <ForecastGalaxyBackground>
       <div className="grid gap-2 sm:gap-3">
         <div className="flex justify-end">
-          <div className="flex max-w-full overflow-x-auto rounded-full border border-white/10 bg-white/[0.06] p-1 font-mono text-[9px] font-bold text-mist shadow-[0_10px_28px_rgba(0,0,0,0.22)] [scrollbar-width:none] sm:max-w-[28rem] sm:text-[10px]">
-            {FORECAST_YEAR_OPTIONS.map((year) => (
+          <div
+            className={cx(
+              "overflow-hidden rounded-full border border-white/10 bg-white/[0.06] p-1 font-mono text-[9px] font-bold text-mist shadow-[0_10px_28px_rgba(0,0,0,0.22)] transition-[width] duration-300 ease-out sm:text-[10px]",
+              forecastYearSelectorOpen ? "w-40" : "w-[4.75rem]",
+              canSelectForecastYear ? "" : "opacity-50"
+            )}
+          >
+            {forecastYearSelectorOpen ? (
+              <div className="flex max-w-full overflow-x-auto [scrollbar-width:none]">
+                {FORECAST_YEAR_OPTIONS.map((year) => (
+                  <button
+                    key={year}
+                    ref={year === activeYear ? activeForecastYearButtonRef : undefined}
+                    type="button"
+                    onClick={() => {
+                      if (year === activeYear) {
+                        setForecastYearSelectorOpen(false);
+                        return;
+                      }
+                      setForecastYearSelectorOpen(false);
+                      onSelectYear(year);
+                    }}
+                    disabled={calculatingYear || !canSelectForecastYear}
+                    className={cx(
+                      "shrink-0 rounded-full px-2.5 py-1.5 transition sm:px-3",
+                      year === activeYear
+                        ? "bg-gold text-[#241a00]"
+                        : "hover:bg-white/10 hover:text-starlight disabled:cursor-wait disabled:opacity-45"
+                    )}
+                    aria-pressed={year === activeYear}
+                  >
+                    {year}年
+                  </button>
+                ))}
+              </div>
+            ) : (
               <button
-                key={year}
                 type="button"
-                onClick={() => onSelectYear(year)}
-                disabled={calculatingYear || year === activeYear}
-                className={cx(
-                  "shrink-0 rounded-full px-2.5 py-1.5 transition sm:px-3",
-                  year === activeYear
-                    ? "bg-gold text-[#241a00]"
-                    : "hover:bg-white/10 hover:text-starlight disabled:cursor-wait disabled:opacity-45"
-                )}
-                aria-pressed={year === activeYear}
+                onClick={() => setForecastYearSelectorOpen(true)}
+                disabled={!canSelectForecastYear}
+                className="w-full rounded-full px-2.5 py-1.5 transition hover:bg-white/10 hover:text-starlight disabled:cursor-not-allowed sm:px-3"
+                aria-expanded={false}
+                aria-disabled={!canSelectForecastYear}
+                aria-label={`${displayedForecastYear}年の表示年を変更`}
               >
-                {year}年
+                {displayedForecastYear}年
               </button>
-            ))}
+            )}
           </div>
         </div>
         <div className="flex flex-wrap items-end gap-3 sm:gap-5">
@@ -7863,7 +7911,10 @@ function UnifiedForecastView({
               <button
                 key={item.key}
                 type="button"
-                onClick={() => setActiveUnifiedView(item.key)}
+                onClick={() => {
+                  setForecastYearSelectorOpen(false);
+                  onSelectUnifiedView(item.key);
+                }}
                 className={cx(
                   "rounded-full px-3 py-1.5 transition",
                   activeUnifiedView === item.key
@@ -7881,6 +7932,7 @@ function UnifiedForecastView({
 
       <div className={cx(activeUnifiedView === "daily" ? "block" : "hidden")}>
         <DashboardDailyDetailContentLayer
+          key={`daily-${dailyViewResetKey}`}
           data={dailyDetailData}
           onDisplayDateChange={onDailyDisplayDateChange}
         />
@@ -9370,8 +9422,8 @@ function YearCalculationDialog({
           <span className="font-mono text-xs font-bold uppercase tracking-[0.14em] text-mist">任意の年</span>
           <input
             type="number"
-            min="2015"
-            max="2028"
+            min={MIN_FORECAST_YEAR}
+            max={MAX_FORECAST_YEAR}
             step="1"
             value={year}
             onChange={(event) => onYearChange(event.target.value)}
@@ -9665,7 +9717,15 @@ function ForecastDetailPage() {
   const [selectedMonthlyMonthIndex, setSelectedMonthlyMonthIndex] = useState(workdayMonthIndex);
   const [activeView, setActiveView] = useState(CAN_ACCESS_PREMIUM ? "unified" : "horoscope");
   const [activeUnifiedView, setActiveUnifiedView] = useState("daily");
+  const [dailyViewResetKey, setDailyViewResetKey] = useState(0);
   const [dailyOverviewDate, setDailyOverviewDate] = useState(() => currentTokyoDate());
+  const handleSelectUnifiedView = React.useCallback((view) => {
+    if (view === "daily") {
+      setDailyOverviewDate(currentTokyoDate());
+      setDailyViewResetKey((current) => current + 1);
+    }
+    setActiveUnifiedView(view);
+  }, []);
   const requestForecastDetail = React.useCallback(async (scope, options = {}) => {
     if (!CAN_ACCESS_PREMIUM) {
       setPremiumPromptOpen(true);
@@ -9903,8 +9963,8 @@ function ForecastDetailPage() {
       return;
     }
     const normalizedYear = Number(requestedYear);
-    if (!Number.isInteger(normalizedYear) || normalizedYear < 2015 || normalizedYear > 2028) {
-      setYearCalculationError("2015年から2028年の範囲で年を入力してください。");
+    if (!Number.isInteger(normalizedYear) || normalizedYear < MIN_FORECAST_YEAR || normalizedYear > MAX_FORECAST_YEAR) {
+      setYearCalculationError(`${MIN_FORECAST_YEAR}年から${MAX_FORECAST_YEAR}年の範囲で年を入力してください。`);
       return;
     }
     if (normalizedYear === activeYear) {
@@ -10003,6 +10063,8 @@ function ForecastDetailPage() {
             calculatingYear={calculatingYear}
             activeUnifiedView={activeUnifiedView}
             setActiveUnifiedView={setActiveUnifiedView}
+            onSelectUnifiedView={handleSelectUnifiedView}
+            dailyViewResetKey={dailyViewResetKey}
             detailLoadingKeys={forecastDetailLoadingKeys}
             onRequestDayDetail={requestForecastDayDetail}
             onDailyDisplayDateChange={setDailyOverviewDate}
