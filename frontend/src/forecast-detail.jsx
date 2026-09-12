@@ -542,29 +542,8 @@ const EMPTY_ASPECT_SELECTIONS = {
   natalNatal: { natal: [], transit: [] },
 };
 
-function addMinutesToTransitDateTime(dateValue, timeValue, minutes) {
-  const normalizedDate = dateKey(dateValue);
-  if (!normalizedDate || !timeValue) return null;
-  const nextDate = new Date(`${normalizedDate}T${timeValue}:00`);
-  if (Number.isNaN(nextDate.getTime())) return null;
-  nextDate.setMinutes(nextDate.getMinutes() + Number(minutes || 0));
-  return {
-    date: `${nextDate.getFullYear()}-${String(nextDate.getMonth() + 1).padStart(2, "0")}-${String(nextDate.getDate()).padStart(2, "0")}`,
-    time: `${String(nextDate.getHours()).padStart(2, "0")}:${String(nextDate.getMinutes()).padStart(2, "0")}`,
-  };
-}
-
 function transitChartCacheKey(dateValue, timeValue) {
   return `${dateKey(dateValue) || ""}T${timeValue || ""}`;
-}
-
-function zodiacSignLabel(value) {
-  const key = String(value || "").trim().toUpperCase();
-  const index = [
-    "ARIES", "TAURUS", "GEMINI", "CANCER", "LEO", "VIRGO",
-    "LIBRA", "SCORPIO", "SAGITTARIUS", "CAPRICORN", "AQUARIUS", "PISCES",
-  ].indexOf(key);
-  return index >= 0 ? `${ZODIAC_SIGN_NAMES[index]}座` : value || "";
 }
 
 function annualAspectGenreDescriptions(event) {
@@ -822,51 +801,6 @@ function transitAspectItemsFromForecast(forecast, transitPlanetName, annualKeys,
   });
 
   return grouped.sort((a, b) => a.startDate.localeCompare(b.startDate) || a.key.localeCompare(b.key));
-}
-
-function jupiterAspectItemsFromForecast(forecast) {
-  return transitAspectItemsFromForecast(
-    forecast,
-    "JUPITER",
-    ["annual_jupiter_aspects", "annualJupiterAspects"],
-    ["jupiter_aspects", "jupiterAspects", "events"],
-  );
-}
-
-function saturnAspectItemsFromForecast(forecast) {
-  return transitAspectItemsFromForecast(
-    forecast,
-    "SATURN",
-    ["annual_saturn_aspects", "annualSaturnAspects"],
-    ["saturn_aspects", "saturnAspects", "events"],
-  );
-}
-
-function demoForecast() {
-  const monthScores = {
-    general: [45, 12, 88, 34, -15, 62, 41, 94, 20, -30, 5, 18],
-    work: [22, -8, 56, 78, 44, -21, 89, 67, 32, 12, -10, 55],
-    love: [-12, 34, 92, 45, 12, 56, 22, 98, -5, -40, 63, 77],
-    money: [30, 45, -18, 12, 88, 56, -5, 33, 91, 22, 45, -22],
-  };
-  const yearly_data = Array.from({ length: 12 }, (_, index) => ({
-    date: `2026-${String(index + 1).padStart(2, "0")}-15`,
-    scores: {
-      total: Math.round(
-        (monthScores.general[index] + monthScores.work[index] + monthScores.love[index] + monthScores.money[index]) / 4
-      ),
-      general: monthScores.general[index],
-      work: monthScores.work[index],
-      love: monthScores.love[index],
-      money: monthScores.money[index],
-    },
-    text_description: "年間の流れを確認し、強まるテーマに合わせて行動の優先順位を整えます。",
-  }));
-  return {
-    summary: "2026年の運勢推移を、主要カテゴリごとのスコア変化として可視化します。",
-    reading_date: currentTokyoDate(),
-    yearly_data,
-  };
 }
 
 function categorizedAnnualAspectItemsFromForecast(forecast) {
@@ -2176,427 +2110,6 @@ function compactDateLabel(value) {
   return value ? String(value).replaceAll("-", "/") : "--";
 }
 
-function planetTexture(planet) {
-  const size = planet === "SUN" ? 512 : 320;
-  const canvas = document.createElement("canvas");
-  canvas.width = size;
-  canvas.height = size;
-  const ctx = canvas.getContext("2d");
-  const noise = (seed) => {
-    const value = Math.sin(seed * 127.1 + planet.length * 311.7) * 43758.5453;
-    return value - Math.floor(value);
-  };
-  const palette = {
-    SUN: ["#ff8f1f", "#e85a10", "#ffd15a"],
-    MOON: ["#f4f1e7", "#b8b9bf", "#6c7078"],
-    MERCURY: ["#c5b7a4", "#7f7468", "#3f3c38"],
-    VENUS: ["#ffd3bd", "#d9917e", "#f7e0b1"],
-    MARS: ["#f06b3e", "#9e2d1f", "#f2a060"],
-    JUPITER: ["#f2d29b", "#b77d51", "#f7ead0"],
-    SATURN: ["#dcc58f", "#8f7a54", "#f1dfb4"],
-    URANUS: ["#9ff4ff", "#45b7c5", "#e3ffff"],
-    NEPTUNE: ["#5f8dff", "#234aa6", "#9cc8ff"],
-    PLUTO: ["#c7a0ff", "#6a4a8f", "#e6d8ff"],
-    EARTH: ["#5aa7ff", "#1d5fb8", "#d9fbff"],
-    ASC: ["#f8ecd2", "#9f8f70", "#fff7dd"],
-    MC: ["#e7ddff", "#8172a5", "#ffffff"],
-  }[planet] || ["#e2e2e2", "#7d7d86", "#ffffff"];
-  const gradient = ctx.createRadialGradient(size * 0.34, size * 0.28, size * 0.06, size * 0.5, size * 0.5, size * 0.58);
-  gradient.addColorStop(0, palette[2]);
-  gradient.addColorStop(0.52, palette[0]);
-  gradient.addColorStop(1, palette[1]);
-  ctx.fillStyle = gradient;
-  ctx.fillRect(0, 0, size, size);
-
-  for (let index = 0; index < 220; index += 1) {
-    const alpha = planet === "SUN" ? 0.1 : 0.06;
-    ctx.fillStyle = noise(index) > 0.5 ? `rgba(255,255,255,${alpha})` : `rgba(0,0,0,${alpha})`;
-    ctx.fillRect(noise(index + 3) * size, noise(index + 7) * size, 1 + noise(index + 11) * 2, 1 + noise(index + 13) * 2);
-  }
-
-  if (planet === "EARTH") {
-    for (let index = 0; index < 18; index += 1) {
-      const x = noise(index + 31) * size;
-      const y = noise(index + 59) * size;
-      const width = 18 + noise(index + 83) * 42;
-      const height = 8 + noise(index + 107) * 18;
-      ctx.fillStyle = index % 3 === 0 ? "rgba(69,131,78,0.68)" : "rgba(73,153,91,0.54)";
-      ctx.beginPath();
-      ctx.ellipse(x, y, width, height, noise(index + 127) * Math.PI, 0, Math.PI * 2);
-      ctx.fill();
-    }
-    for (let index = 0; index < 12; index += 1) {
-      ctx.strokeStyle = "rgba(245,250,255,0.42)";
-      ctx.lineWidth = 4 + noise(index + 191) * 4;
-      ctx.beginPath();
-      ctx.ellipse(
-        size * (0.22 + noise(index + 211) * 0.62),
-        size * (0.18 + noise(index + 229) * 0.64),
-        18 + noise(index + 251) * 48,
-        5 + noise(index + 271) * 12,
-        noise(index + 293) * Math.PI,
-        0,
-        Math.PI * 2
-      );
-      ctx.stroke();
-    }
-  } else if (planet === "JUPITER" || planet === "SATURN") {
-    const bandStep = planet === "JUPITER" ? 20 : 26;
-    for (let y = 8; y < size; y += bandStep) {
-      const wobble = Math.sin(y * 0.08) * 5;
-      ctx.fillStyle = y % (bandStep * 2) === 0 ? "rgba(87, 46, 24, 0.42)" : "rgba(255, 244, 214, 0.34)";
-      ctx.beginPath();
-      ctx.moveTo(0, y + wobble);
-      for (let x = 0; x <= size; x += 16) {
-        ctx.lineTo(x, y + Math.sin(x * 0.045 + y * 0.05) * 4 + wobble);
-      }
-      ctx.lineTo(size, y + (planet === "JUPITER" ? 11 : 8));
-      ctx.lineTo(0, y + (planet === "JUPITER" ? 11 : 8));
-      ctx.closePath();
-      ctx.fill();
-    }
-    if (planet === "JUPITER") {
-      ctx.fillStyle = "rgba(150, 57, 34, 0.76)";
-      ctx.beginPath();
-      ctx.ellipse(size * 0.68, size * 0.56, 24, 13, -0.16, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.strokeStyle = "rgba(255,221,178,0.42)";
-      ctx.lineWidth = 3;
-      ctx.stroke();
-    }
-    for (let y = 14; y < size; y += planet === "JUPITER" ? 13 : 18) {
-      ctx.strokeStyle = planet === "JUPITER" ? "rgba(76,40,24,0.28)" : "rgba(92,75,48,0.22)";
-      ctx.lineWidth = planet === "JUPITER" ? 2 : 1.4;
-      ctx.beginPath();
-      for (let x = 0; x <= size; x += 10) {
-        const wave = Math.sin(x * 0.07 + y * 0.04) * 3 + Math.sin(x * 0.025) * 4;
-        if (x === 0) ctx.moveTo(x, y + wave);
-        else ctx.lineTo(x, y + wave);
-      }
-      ctx.stroke();
-    }
-  } else if (planet === "MOON" || planet === "MERCURY" || planet === "PLUTO") {
-    for (let index = 0; index < 42; index += 1) {
-      const x = noise(index + 23) * size;
-      const y = noise(index + 47) * size;
-      const radius = 3 + noise(index + 71) * (planet === "MOON" ? 11 : 7);
-      ctx.fillStyle = "rgba(14,14,18,0.24)";
-      ctx.beginPath();
-      ctx.arc(x, y, radius, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.strokeStyle = "rgba(255,255,255,0.14)";
-      ctx.lineWidth = 1.5;
-      ctx.stroke();
-    }
-    for (let index = 0; index < 26; index += 1) {
-      const x = noise(index + 131) * size;
-      const y = noise(index + 149) * size;
-      const radius = 1.5 + noise(index + 167) * 4;
-      ctx.fillStyle = "rgba(255,255,255,0.1)";
-      ctx.beginPath();
-      ctx.arc(x - radius * 0.32, y - radius * 0.32, radius * 0.65, 0, Math.PI * 2);
-      ctx.fill();
-    }
-  } else if (planet === "MARS" || planet === "VENUS" || planet === "NEPTUNE" || planet === "URANUS") {
-    for (let index = 0; index < 14; index += 1) {
-      ctx.strokeStyle = index % 2 ? "rgba(255,255,255,0.2)" : "rgba(18,31,54,0.2)";
-      ctx.lineWidth = 7 + (index % 4);
-      ctx.beginPath();
-      ctx.ellipse(size * 0.5, 18 + index * 17, size * 0.66, 10, 0.1 * index, 0, Math.PI * 2);
-      ctx.stroke();
-    }
-    if (planet === "MARS") {
-      ctx.fillStyle = "rgba(80,31,20,0.28)";
-      ctx.fillRect(size * 0.12, size * 0.58, size * 0.56, size * 0.1);
-      ctx.fillStyle = "rgba(255,233,214,0.52)";
-      ctx.beginPath();
-      ctx.ellipse(size * 0.5, size * 0.1, size * 0.16, size * 0.035, 0, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.beginPath();
-      ctx.ellipse(size * 0.5, size * 0.9, size * 0.14, size * 0.032, 0, 0, Math.PI * 2);
-      ctx.fill();
-    }
-    if (planet === "NEPTUNE") {
-      ctx.fillStyle = "rgba(10,23,83,0.36)";
-      ctx.beginPath();
-      ctx.ellipse(size * 0.66, size * 0.55, size * 0.11, size * 0.045, -0.25, 0, Math.PI * 2);
-      ctx.fill();
-    }
-    if (planet === "VENUS") {
-      ctx.strokeStyle = "rgba(255,248,222,0.34)";
-      ctx.lineWidth = 9;
-      ctx.beginPath();
-      ctx.moveTo(size * 0.08, size * 0.38);
-      ctx.bezierCurveTo(size * 0.34, size * 0.22, size * 0.58, size * 0.56, size * 0.92, size * 0.36);
-      ctx.stroke();
-    }
-  } else if (planet === "SUN") {
-    ctx.globalCompositeOperation = "screen";
-    for (let index = 0; index < 1700; index += 1) {
-      const x = noise(index + 401) * size;
-      const y = noise(index + 409) * size;
-      const distance = Math.hypot(x - size * 0.5, y - size * 0.5) / (size * 0.5);
-      if (distance > 0.98) continue;
-      const cell = 1.4 + noise(index + 419) * 6.6;
-      const alpha = 0.075 + (1 - distance) * 0.18;
-      ctx.fillStyle = noise(index + 431) > 0.58
-        ? `rgba(255,154,34,${alpha})`
-        : `rgba(226,75,8,${alpha * 0.98})`;
-      ctx.beginPath();
-      ctx.ellipse(x, y, cell * 1.55, cell, noise(index + 443) * Math.PI, 0, Math.PI * 2);
-      ctx.fill();
-    }
-    for (let index = 0; index < 18; index += 1) {
-      const x = noise(index + 601) * size;
-      const y = noise(index + 607) * size;
-      const distance = Math.hypot(x - size * 0.5, y - size * 0.5) / (size * 0.5);
-      if (distance > 0.92) continue;
-      const radius = 11 + noise(index + 613) * 25;
-      const activeGradient = ctx.createRadialGradient(x, y, 0, x, y, radius * 2.8);
-      activeGradient.addColorStop(0, "rgba(255,236,178,0.62)");
-      activeGradient.addColorStop(0.2, "rgba(255,159,39,0.42)");
-      activeGradient.addColorStop(0.54, "rgba(225,76,8,0.22)");
-      activeGradient.addColorStop(1, "rgba(177,34,0,0)");
-      ctx.fillStyle = activeGradient;
-      ctx.beginPath();
-      ctx.ellipse(x, y, radius * 1.9, radius * 1.15, noise(index + 619) * Math.PI, 0, Math.PI * 2);
-      ctx.fill();
-    }
-    for (let index = 0; index < 46; index += 1) {
-      const baseAngle = noise(index + 801) * Math.PI * 2;
-      const radial = 0.12 + noise(index + 809) * 0.76;
-      const baseX = size * 0.5 + Math.cos(baseAngle) * size * 0.5 * radial;
-      const baseY = size * 0.5 + Math.sin(baseAngle) * size * 0.5 * radial;
-      const distance = Math.hypot(baseX - size * 0.5, baseY - size * 0.5) / (size * 0.5);
-      if (distance > 0.92) continue;
-      const tangent = baseAngle + Math.PI / 2 + (noise(index + 817) - 0.5) * 1.2;
-      const length = size * (0.08 + noise(index + 823) * 0.16);
-      const width = size * (0.008 + noise(index + 829) * 0.018);
-      const flameGradient = ctx.createLinearGradient(
-        baseX - Math.cos(tangent) * length * 0.25,
-        baseY - Math.sin(tangent) * length * 0.25,
-        baseX + Math.cos(tangent) * length,
-        baseY + Math.sin(tangent) * length
-      );
-      flameGradient.addColorStop(0, "rgba(255,85,0,0)");
-      flameGradient.addColorStop(0.18, "rgba(213,54,0,0.28)");
-      flameGradient.addColorStop(0.56, "rgba(255,126,18,0.38)");
-      flameGradient.addColorStop(1, "rgba(255,202,88,0.1)");
-      ctx.fillStyle = flameGradient;
-      ctx.beginPath();
-      ctx.moveTo(baseX - Math.cos(tangent + Math.PI / 2) * width, baseY - Math.sin(tangent + Math.PI / 2) * width);
-      ctx.bezierCurveTo(
-        baseX + Math.cos(tangent) * length * 0.25,
-        baseY + Math.sin(tangent) * length * 0.25,
-        baseX + Math.cos(tangent) * length * 0.72 + Math.cos(tangent + Math.PI / 2) * width * 2.2,
-        baseY + Math.sin(tangent) * length * 0.72 + Math.sin(tangent + Math.PI / 2) * width * 2.2,
-        baseX + Math.cos(tangent) * length,
-        baseY + Math.sin(tangent) * length
-      );
-      ctx.bezierCurveTo(
-        baseX + Math.cos(tangent) * length * 0.62 - Math.cos(tangent + Math.PI / 2) * width * 2.8,
-        baseY + Math.sin(tangent) * length * 0.62 - Math.sin(tangent + Math.PI / 2) * width * 2.8,
-        baseX + Math.cos(tangent) * length * 0.12,
-        baseY + Math.sin(tangent) * length * 0.12,
-        baseX + Math.cos(tangent + Math.PI / 2) * width,
-        baseY + Math.sin(tangent + Math.PI / 2) * width
-      );
-      ctx.closePath();
-      ctx.fill();
-    }
-    ctx.globalCompositeOperation = "multiply";
-    for (let index = 0; index < 18; index += 1) {
-      const y = size * (0.18 + noise(index + 457) * 0.64);
-      const startX = size * (0.08 + noise(index + 463) * 0.22);
-      ctx.strokeStyle = "rgba(139,46,0,0.12)";
-      ctx.lineWidth = 3 + noise(index + 467) * 8;
-      ctx.beginPath();
-      ctx.moveTo(startX, y);
-      for (let step = 0; step < 7; step += 1) {
-        const x = startX + step * size * 0.12;
-        ctx.lineTo(x, y + Math.sin(step * 1.35 + index) * (8 + noise(index + step + 479) * 10));
-      }
-      ctx.stroke();
-    }
-    for (let index = 0; index < 4; index += 1) {
-      const x = size * (0.18 + noise(index + 701) * 0.64);
-      const y = size * (0.2 + noise(index + 709) * 0.56);
-      const distance = Math.hypot(x - size * 0.5, y - size * 0.5) / (size * 0.5);
-      if (distance > 0.78) continue;
-      const radius = size * (0.018 + noise(index + 719) * 0.028);
-      ctx.fillStyle = "rgba(72,17,0,0.28)";
-      ctx.beginPath();
-      ctx.ellipse(x, y, radius * 1.55, radius, noise(index + 727) * Math.PI, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.fillStyle = "rgba(145,48,0,0.2)";
-      ctx.beginPath();
-      ctx.ellipse(x - radius * 0.14, y - radius * 0.16, radius * 2.35, radius * 1.45, noise(index + 733) * Math.PI, 0, Math.PI * 2);
-      ctx.fill();
-    }
-    ctx.globalCompositeOperation = "screen";
-    for (let index = 0; index < 58; index += 1) {
-      ctx.strokeStyle = index % 2 ? "rgba(255,174,44,0.24)" : "rgba(222,67,4,0.24)";
-      ctx.lineWidth = 1.2 + noise(index + 503) * 3.8;
-      ctx.beginPath();
-      ctx.arc(
-        size * (0.46 + (noise(index + 509) - 0.5) * 0.1),
-        size * (0.5 + (noise(index + 521) - 0.5) * 0.12),
-        18 + index * 4.2,
-        index * 0.38,
-        index * 0.38 + Math.PI * (0.35 + noise(index + 541) * 0.5)
-      );
-      ctx.stroke();
-    }
-    for (let index = 0; index < 32; index += 1) {
-      const y = size * (0.14 + noise(index + 901) * 0.72);
-      const xStart = size * (0.04 + noise(index + 907) * 0.22);
-      ctx.strokeStyle = index % 3 === 0 ? "rgba(255,160,38,0.34)" : "rgba(214,61,0,0.28)";
-      ctx.lineWidth = 2 + noise(index + 911) * 5.5;
-      ctx.beginPath();
-      for (let step = 0; step <= 12; step += 1) {
-        const x = xStart + step * size * 0.075;
-        const wave = Math.sin(step * 0.95 + index * 1.7) * (7 + noise(index + step + 919) * 13);
-        const curl = Math.sin(step * 1.9 + index) * (noise(index + 929) * 5);
-        if (step === 0) ctx.moveTo(x, y + wave);
-        else ctx.lineTo(x, y + wave + curl);
-      }
-      ctx.stroke();
-    }
-    ctx.globalCompositeOperation = "source-over";
-  }
-
-  const shade = ctx.createRadialGradient(size * 0.32, size * 0.26, size * 0.05, size * 0.5, size * 0.5, size * 0.7);
-  shade.addColorStop(0, planet === "SUN" ? "rgba(255,191,82,0.3)" : "rgba(255,255,255,0.22)");
-  shade.addColorStop(0.5, "rgba(255,255,255,0)");
-  shade.addColorStop(0.86, planet === "SUN" ? "rgba(240,92,8,0.24)" : "rgba(0,0,0,0.24)");
-  shade.addColorStop(1, planet === "SUN" ? "rgba(255,128,18,0.42)" : "rgba(0,0,0,0.58)");
-  ctx.fillStyle = shade;
-  ctx.fillRect(0, 0, size, size);
-
-  ctx.globalCompositeOperation = "overlay";
-  ctx.fillStyle = "rgba(255,255,255,0.08)";
-  ctx.fillRect(0, 0, size, size);
-  ctx.globalCompositeOperation = "source-over";
-
-  const texture = new THREE.CanvasTexture(canvas);
-  texture.colorSpace = THREE.SRGBColorSpace;
-  texture.anisotropy = 4;
-  return texture;
-}
-
-function earthTexture() {
-  const width = 768;
-  const height = 384;
-  const canvas = document.createElement("canvas");
-  canvas.width = width;
-  canvas.height = height;
-  const ctx = canvas.getContext("2d");
-  const noise = (seed) => {
-    const value = Math.sin(seed * 193.37 + 17.11) * 43758.5453;
-    return value - Math.floor(value);
-  };
-
-  const ocean = ctx.createLinearGradient(0, 0, width, height);
-  ocean.addColorStop(0, "#061a46");
-  ocean.addColorStop(0.34, "#0a3a86");
-  ocean.addColorStop(0.58, "#0d5fb6");
-  ocean.addColorStop(1, "#03112e");
-  ctx.fillStyle = ocean;
-  ctx.fillRect(0, 0, width, height);
-
-  for (let index = 0; index < 950; index += 1) {
-    const x = noise(index + 3) * width;
-    const y = noise(index + 7) * height;
-    const alpha = 0.018 + noise(index + 11) * 0.038;
-    ctx.fillStyle = noise(index + 13) > 0.45 ? `rgba(44,154,210,${alpha})` : `rgba(2,10,38,${alpha})`;
-    ctx.fillRect(x, y, 1 + noise(index + 17) * 5, 1 + noise(index + 19) * 3);
-  }
-
-  const landMasses = [
-    { x: 0.14, y: 0.34, w: 0.16, h: 0.2, r: -0.12, c: "#2f7c45" },
-    { x: 0.22, y: 0.56, w: 0.1, h: 0.22, r: 0.18, c: "#2a6f3b" },
-    { x: 0.47, y: 0.33, w: 0.17, h: 0.18, r: 0.08, c: "#78954f" },
-    { x: 0.56, y: 0.51, w: 0.14, h: 0.22, r: -0.16, c: "#5d8643" },
-    { x: 0.7, y: 0.41, w: 0.18, h: 0.16, r: 0.22, c: "#3d874d" },
-    { x: 0.77, y: 0.68, w: 0.12, h: 0.1, r: 0.28, c: "#b4945c" },
-    { x: 0.9, y: 0.58, w: 0.12, h: 0.18, r: -0.1, c: "#267044" },
-  ];
-  landMasses.forEach((land, landIndex) => {
-    for (let index = 0; index < 9; index += 1) {
-      const x = (land.x + (noise(landIndex * 41 + index) - 0.5) * land.w * 0.38) * width;
-      const y = (land.y + (noise(landIndex * 43 + index) - 0.5) * land.h * 0.46) * height;
-      const w = land.w * width * (0.42 + noise(landIndex * 47 + index) * 0.48);
-      const h = land.h * height * (0.34 + noise(landIndex * 53 + index) * 0.48);
-      const gradient = ctx.createRadialGradient(x - w * 0.2, y - h * 0.22, 1, x, y, Math.max(w, h));
-      gradient.addColorStop(0, "#d0bd7a");
-      gradient.addColorStop(0.18, land.c);
-      gradient.addColorStop(0.72, "#1e5c35");
-      gradient.addColorStop(1, "rgba(16,64,42,0)");
-      ctx.fillStyle = gradient;
-      ctx.beginPath();
-      ctx.ellipse(x, y, w, h, land.r + (noise(landIndex * 59 + index) - 0.5) * 0.8, 0, Math.PI * 2);
-      ctx.fill();
-    }
-  });
-
-  ctx.strokeStyle = "rgba(227,244,255,0.16)";
-  for (let index = 0; index < 38; index += 1) {
-    const y = height * (0.12 + noise(index + 101) * 0.76);
-    ctx.lineWidth = 2 + noise(index + 107) * 5;
-    ctx.beginPath();
-    for (let x = -20; x <= width + 20; x += 28) {
-      const wave = Math.sin(x * 0.025 + index * 1.1) * (5 + noise(index + 113) * 11);
-      if (x === -20) ctx.moveTo(x, y + wave);
-      else ctx.lineTo(x, y + wave);
-    }
-    ctx.stroke();
-  }
-
-  const vignette = ctx.createRadialGradient(width * 0.36, height * 0.34, 8, width * 0.5, height * 0.5, width * 0.72);
-  vignette.addColorStop(0, "rgba(255,255,255,0.2)");
-  vignette.addColorStop(0.45, "rgba(255,255,255,0)");
-  vignette.addColorStop(0.78, "rgba(3,13,41,0.2)");
-  vignette.addColorStop(1, "rgba(0,0,0,0.58)");
-  ctx.fillStyle = vignette;
-  ctx.fillRect(0, 0, width, height);
-
-  const texture = new THREE.CanvasTexture(canvas);
-  texture.colorSpace = THREE.SRGBColorSpace;
-  texture.anisotropy = 8;
-  return texture;
-}
-
-function earthCloudTexture() {
-  const size = 512;
-  const canvas = document.createElement("canvas");
-  canvas.width = size;
-  canvas.height = size;
-  const ctx = canvas.getContext("2d");
-  const noise = (seed) => {
-    const value = Math.sin(seed * 241.73 + 91.5) * 43758.5453;
-    return value - Math.floor(value);
-  };
-  ctx.clearRect(0, 0, size, size);
-  for (let index = 0; index < 64; index += 1) {
-    const x = noise(index + 3) * size;
-    const y = noise(index + 7) * size;
-    const w = 16 + noise(index + 11) * 72;
-    const h = 4 + noise(index + 13) * 18;
-    const gradient = ctx.createRadialGradient(x, y, 0, x, y, Math.max(w, h));
-    gradient.addColorStop(0, "rgba(255,255,255,0.5)");
-    gradient.addColorStop(0.4, "rgba(255,255,255,0.2)");
-    gradient.addColorStop(1, "rgba(255,255,255,0)");
-    ctx.fillStyle = gradient;
-    ctx.beginPath();
-    ctx.ellipse(x, y, w, h, (noise(index + 17) - 0.5) * 0.8, 0, Math.PI * 2);
-    ctx.fill();
-  }
-  const texture = new THREE.CanvasTexture(canvas);
-  texture.colorSpace = THREE.SRGBColorSpace;
-  texture.anisotropy = 4;
-  return texture;
-}
-
 function planetSymbolTexture(symbol, colorValue) {
   const size = 180;
   const canvas = document.createElement("canvas");
@@ -2926,14 +2439,6 @@ function houseForLongitude(longitudeValue, houseCusps = []) {
   return null;
 }
 
-function transitPositionLabel(item, houseCusps) {
-  const longitude = normalizeLongitude(item?.longitude) ?? 0;
-  const signIndex = clamp(Math.floor(longitude / 30), 0, 11);
-  const degreeInSign = Math.floor(longitude % 30);
-  const house = houseForLongitude(longitude, houseCusps);
-  return `${ZODIAC_SIGN_NAMES[signIndex]} ${ZODIAC_SIGNS[signIndex]} / ${degreeInSign}° / ${house ? `${house}ハウス` : "-ハウス"}`;
-}
-
 function chartPositionParts(item, houseCusps) {
   const longitude = normalizeLongitude(item?.longitude) ?? 0;
   const signIndex = clamp(Math.floor(longitude / 30), 0, 11);
@@ -2945,10 +2450,6 @@ function chartPositionParts(item, houseCusps) {
     degree: `${degreeInSign}°`,
     house: house ? `${house}ハウス` : "-ハウス",
   };
-}
-
-function chartPositionLabel(item, houseCusps) {
-  return transitPositionLabel(item, houseCusps);
 }
 
 function ChartPositionColumns({ item, houseCusps, className = "" }) {
@@ -7144,11 +6645,6 @@ function summaryDurationDays(item) {
   return Math.max(1, Math.round((end.getTime() - start.getTime()) / 86400000) + 1);
 }
 
-function summaryTimelineHeight(item) {
-  const days = summaryDurationDays(item);
-  return { minHeight: `${Math.min(560, Math.max(112, days * 3))}px` };
-}
-
 function parseLocalDate(value) {
   const date = new Date(`${value || ""}T00:00:00`);
   return Number.isNaN(date.getTime()) ? null : date;
@@ -7499,64 +6995,6 @@ function monthlyItems(items, year, index) {
   return items.filter((item) => itemOverlapsMonth(item, year, index));
 }
 
-function annualTransitHouseTransitionItemsFromForecast(forecast) {
-  const transitions = Array.isArray(forecast?.annual_transit_house_transitions)
-    ? forecast.annual_transit_house_transitions
-    : Array.isArray(forecast?.annualTransitHouseTransitions)
-      ? forecast.annualTransitHouseTransitions
-      : [];
-  return transitions.map((transition) => {
-    const changes = Array.isArray(transition?.changes) ? transition.changes : [];
-    const changeLabels = changes.map((change) => {
-      const type = String(change?.type || "").toUpperCase();
-      if (type === "SIGN_INGRESS") return `${zodiacSignLabel(change?.value)}へ移動`;
-      if (type === "SOLAR_HOUSE_INGRESS") return `ソーラー${change?.value || "-"}ハウスへ移動`;
-      if (type === "NATAL_HOUSE_INGRESS") return `ネイタル${change?.value || "-"}ハウスへ移動`;
-      return String(change?.value || "");
-    }).filter(Boolean);
-    const planet = String(transition?.planet || "").trim().toUpperCase();
-    const date = formatThemeDate(transition?.date);
-    const description = String(transition?.description || "").trim();
-    return {
-      color: PLANET_COLORS[planet] || "#c3c6d7",
-      startRaw: transition?.date || "",
-      label: `${date}: ${planetLabel(planet)} ${changeLabels.join(" / ")}`.trim(),
-      body: !description || description === "-" ? "準備中" : description,
-    };
-  });
-}
-
-function annualHouseActivationItemsFromForecast(forecast) {
-  const events = Array.isArray(forecast?.annual_house_activation_events)
-    ? forecast.annual_house_activation_events
-    : Array.isArray(forecast?.annualHouseActivationEvents)
-      ? forecast.annualHouseActivationEvents
-      : [];
-  return events.map((event) => {
-    const planets = Array.isArray(event?.planets) ? event.planets : [];
-    const labels = planets.map((planet) => planetLabel(planet)).join("・");
-    const houseType = String(event?.house_type || "natal").toLowerCase() === "solar" ? "ソーラー" : "ネイタル";
-    const angle = event?.aspect_angle === null || event?.aspect_angle === undefined
-      ? ""
-      : ` ${event.aspect_angle}°`;
-    let summary = `${labels}が${houseType}${event?.house || "-"}ハウスを強調`;
-    if (event?.activation_type === "TRANSIT_TO_TRANSIT") {
-      summary = `現行${labels}${angle} / ${houseType}${event?.house || "-"}ハウスを強調`;
-    } else if (event?.activation_type === "TRANSIT_TO_NATAL") {
-      summary = `現行${labels}${angle} × ネイタル${planetLabel(event?.natal_target)} / ネイタル${event?.house || "-"}ハウスを刺激`;
-    } else if (event?.activation_type === "HOUSE_CLUSTER") {
-      summary = `${labels}が${houseType}${event?.house || "-"}ハウスに集中`;
-    }
-    const description = String(event?.description || "").trim();
-    return {
-      color: PLANET_COLORS[planets[0]] || "#d3bcf9",
-      startRaw: event?.date || "",
-      label: `${formatThemeDate(event?.date)}: ${summary}`,
-      body: !description || description === "-" ? "準備中" : description,
-    };
-  });
-}
-
 const YEARLY_MONTHLY_SCORE_SCALE = 1.0;
 
 function yearlyMonthlyPercentile(values, percentile) {
@@ -7583,9 +7021,9 @@ function monthlyScoreSummary(values) {
   };
 }
 
-function monthlyData(forecast, useDemoFallback = true) {
+function monthlyData(forecast) {
   const source = Array.isArray(forecast?.yearly_data) ? forecast.yearly_data : [];
-  if (!source.length) return useDemoFallback ? demoForecast().yearly_data : [];
+  if (!source.length) return [];
   return Array.from({ length: 12 }, (_, index) => {
     const items = source.filter((day) => monthIndex(day.date) === index);
     if (!items.length) {
@@ -7757,7 +7195,6 @@ const FORECAST_YEAR_OPTIONS = Array.from(
   { length: MAX_FORECAST_YEAR - MIN_FORECAST_YEAR + 1 },
   (_, index) => MIN_FORECAST_YEAR + index
 );
-
 function UnifiedForecastView({
   data,
   stats,
@@ -9679,7 +9116,7 @@ function ForecastDetailPage() {
         if (!active) return;
         const selectedYearForecast = forecastWithSelectedYear(nextForecast, activeYear);
         setForecast(selectedYearForecast);
-        setSelectedMonthIndex(realtimeMonthIndex(monthlyData(selectedYearForecast, false)));
+        setSelectedMonthIndex(realtimeMonthIndex(monthlyData(selectedYearForecast)));
         setSelectedMonthlyMonthIndex(workdayMonthIndex());
         const storedPayload = await getStoredReadingResultAsync({ allowStale: true });
         const nextPayload = {
@@ -9703,7 +9140,7 @@ function ForecastDetailPage() {
       active = false;
     };
   }, [activeYear, forceRefresh]);
-  const data = useMemo(() => monthlyData(forecast, false), [forecast]);
+  const data = useMemo(() => monthlyData(forecast), [forecast]);
   const stats = useMemo(() => aggregateStats(data), [data]);
   const [selectedSeriesKey, setSelectedSeriesKey] = useState("general");
   const [selectedMonthIndex, setSelectedMonthIndex] = useState(() => realtimeMonthIndex(data));
@@ -9928,7 +9365,7 @@ function ForecastDetailPage() {
       await storeReadingResult(nextPayload);
       setReadingPayload(nextPayload);
       setForecast(selectedYearForecast);
-      setSelectedMonthIndex(realtimeMonthIndex(monthlyData(selectedYearForecast, false)));
+      setSelectedMonthIndex(realtimeMonthIndex(monthlyData(selectedYearForecast)));
       setSelectedMonthlyMonthIndex(workdayMonthIndex());
       setVersionState({
         checking: false,
@@ -9977,7 +9414,7 @@ function ForecastDetailPage() {
       const nextForecast = await requestYearlyForecast(formPayload, normalizedYear, { retryTransient: true });
       const selectedYearForecast = forecastWithSelectedYear(nextForecast, normalizedYear);
       setForecast(selectedYearForecast);
-      setSelectedMonthIndex(realtimeMonthIndex(monthlyData(selectedYearForecast, false)));
+      setSelectedMonthIndex(realtimeMonthIndex(monthlyData(selectedYearForecast)));
       setSelectedMonthlyMonthIndex(workdayMonthIndex());
 
       const storedPayload = await getStoredReadingResultAsync({ allowStale: true });
