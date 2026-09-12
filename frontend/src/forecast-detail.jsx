@@ -7850,36 +7850,64 @@ function UnifiedForecastView({
 
   return (
     <ForecastGalaxyBackground>
-      <div className="grid gap-2 sm:gap-3">
-        <div className="flex justify-end">
-          <div
-            className={cx(
-              "overflow-hidden rounded-full border border-white/10 bg-white/[0.06] p-1 font-mono text-[9px] font-bold text-mist shadow-[0_10px_28px_rgba(0,0,0,0.22)] transition-[width] duration-300 ease-out sm:text-[10px]",
-              forecastYearSelectorOpen ? "w-40" : "w-[4.75rem]",
-              canSelectForecastYear ? "" : "opacity-50"
-            )}
-          >
-            {forecastYearSelectorOpen ? (
-              <div className="flex max-w-full overflow-x-auto [scrollbar-width:none]">
+      <div className="flex flex-wrap items-center justify-between gap-3 sm:gap-5">
+        <div className="min-w-0">
+          <h2 className="font-serif text-2xl font-semibold leading-tight text-starlight sm:text-4xl">星の見通し</h2>
+        </div>
+        <div className="flex shrink-0 rounded-full border border-white/10 bg-white/[0.06] p-1 font-mono text-[10px] font-bold text-mist shadow-[0_10px_28px_rgba(0,0,0,0.22)] sm:text-xs">
+          {UNIFIED_FORECAST_TABS.map((item) => (
+            <button
+              key={item.key}
+              type="button"
+              onClick={() => {
+                setForecastYearSelectorOpen(false);
+                onSelectUnifiedView(item.key);
+              }}
+              className={cx(
+                "rounded-full px-3 py-1.5 transition",
+                activeUnifiedView === item.key
+                  ? "bg-gold text-[#241a00]"
+                  : "hover:bg-white/10 hover:text-starlight"
+              )}
+              aria-pressed={activeUnifiedView === item.key}
+            >
+              {item.label}
+            </button>
+          ))}
+          <div className="relative ml-1 border-l border-white/10 pl-1">
+            <button
+              type="button"
+              onClick={() => setForecastYearSelectorOpen((current) => !current)}
+              disabled={!canSelectForecastYear}
+              className={cx(
+                "rounded-full px-3 py-1.5 transition",
+                canSelectForecastYear
+                  ? "hover:bg-white/10 hover:text-starlight"
+                  : "cursor-not-allowed text-mist/45"
+              )}
+              aria-expanded={forecastYearSelectorOpen}
+              aria-disabled={!canSelectForecastYear}
+              aria-label={`${displayedForecastYear}年の表示年を変更`}
+            >
+              {displayedForecastYear}年
+            </button>
+            {forecastYearSelectorOpen && canSelectForecastYear ? (
+              <div className="absolute right-0 top-[calc(100%+0.35rem)] z-30 max-h-48 w-24 overflow-y-auto rounded-xl border border-white/15 bg-[#0d1220]/95 p-1 shadow-[0_16px_38px_rgba(0,0,0,0.45)] backdrop-blur-md [scrollbar-color:#e9c349_rgba(255,255,255,0.1)] [scrollbar-width:thin]">
                 {FORECAST_YEAR_OPTIONS.map((year) => (
                   <button
                     key={year}
                     ref={year === activeYear ? activeForecastYearButtonRef : undefined}
                     type="button"
                     onClick={() => {
-                      if (year === activeYear) {
-                        setForecastYearSelectorOpen(false);
-                        return;
-                      }
                       setForecastYearSelectorOpen(false);
-                      onSelectYear(year);
+                      if (year !== activeYear) onSelectYear(year);
                     }}
-                    disabled={calculatingYear || !canSelectForecastYear}
+                    disabled={calculatingYear}
                     className={cx(
-                      "shrink-0 rounded-full px-2.5 py-1.5 transition sm:px-3",
+                      "block w-full rounded-lg px-2 py-1.5 text-right font-mono text-[10px] transition sm:text-xs",
                       year === activeYear
                         ? "bg-gold text-[#241a00]"
-                        : "hover:bg-white/10 hover:text-starlight disabled:cursor-wait disabled:opacity-45"
+                        : "text-mist hover:bg-white/10 hover:text-starlight disabled:cursor-wait disabled:opacity-45"
                     )}
                     aria-pressed={year === activeYear}
                   >
@@ -7887,45 +7915,7 @@ function UnifiedForecastView({
                   </button>
                 ))}
               </div>
-            ) : (
-              <button
-                type="button"
-                onClick={() => setForecastYearSelectorOpen(true)}
-                disabled={!canSelectForecastYear}
-                className="w-full rounded-full px-2.5 py-1.5 transition hover:bg-white/10 hover:text-starlight disabled:cursor-not-allowed sm:px-3"
-                aria-expanded={false}
-                aria-disabled={!canSelectForecastYear}
-                aria-label={`${displayedForecastYear}年の表示年を変更`}
-              >
-                {displayedForecastYear}年
-              </button>
-            )}
-          </div>
-        </div>
-        <div className="flex flex-wrap items-end gap-3 sm:gap-5">
-          <div className="min-w-0">
-            <h2 className="font-serif text-2xl font-semibold text-starlight sm:text-4xl">星の見通し</h2>
-          </div>
-          <div className="mb-0.5 flex shrink-0 rounded-full border border-white/10 bg-white/[0.06] p-1 font-mono text-[10px] font-bold text-mist shadow-[0_10px_28px_rgba(0,0,0,0.22)] sm:mb-1 sm:text-xs">
-            {UNIFIED_FORECAST_TABS.map((item) => (
-              <button
-                key={item.key}
-                type="button"
-                onClick={() => {
-                  setForecastYearSelectorOpen(false);
-                  onSelectUnifiedView(item.key);
-                }}
-                className={cx(
-                  "rounded-full px-3 py-1.5 transition",
-                  activeUnifiedView === item.key
-                    ? "bg-gold text-[#241a00]"
-                    : "hover:bg-white/10 hover:text-starlight"
-                )}
-                aria-pressed={activeUnifiedView === item.key}
-              >
-                {item.label}
-              </button>
-            ))}
+            ) : null}
           </div>
         </div>
       </div>
