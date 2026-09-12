@@ -13,6 +13,14 @@ class ReadingRequest(BaseModel):
     longitude: float = Field(ge=-180, le=180)
     timezone_offset: float | None = Field(default=None, ge=-12, le=14)
     timezone_name: str | None = Field(default=None, min_length=1, max_length=100)
+    birth_time_fold: int | None = Field(default=None, ge=0, le=1)
+    display_timezone_name: str | None = Field(default=None, min_length=1, max_length=100)
+
+    @field_validator("display_timezone_name")
+    @classmethod
+    def validate_display_timezone(cls, value):
+        from backend.app.services.display_time import validate_zone
+        return validate_zone(value)
     target_date: date | None = None
 
     @field_validator("full_name", "birthplace")
@@ -65,6 +73,8 @@ class ReadingMeta(BaseModel):
     birth_time_unknown: bool
     timezone_offset: float
     timezone_name: str | None = None
+    birth_time_fold: int | None = None
+    display_timezone_name: str | None = None
 
 
 class ReadingResponse(BaseModel):

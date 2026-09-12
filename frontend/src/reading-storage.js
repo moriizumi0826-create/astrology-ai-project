@@ -1,3 +1,4 @@
+import { localDate, deviceTimezone, isSameDisplayTimezone, storedDisplayTimezone } from "./device-time.mjs";
 export const RESULT_STORAGE_KEY = "celestial-atelier:last-reading-result";
 export const FORM_STORAGE_KEY = "celestial-atelier:last-reading-form";
 const RESULT_DB_NAME = "celestial-atelier-results";
@@ -5,15 +6,8 @@ const RESULT_DB_VERSION = 1;
 const RESULT_STORE_NAME = "reading-results";
 const LATEST_RESULT_ID = "latest";
 
-export function currentTokyoDate() {
-  const parts = new Intl.DateTimeFormat("en-US", {
-    timeZone: "Asia/Tokyo",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).formatToParts(new Date());
-  const values = Object.fromEntries(parts.map((part) => [part.type, part.value]));
-  return `${values.year}-${values.month}-${values.day}`;
+export function currentLocalDate() {
+  return localDate();
 }
 
 function storedResultDate(payload) {
@@ -35,11 +29,12 @@ function storedResultDate(payload) {
 }
 
 export function isStoredResultFresh(payload) {
+  if (!isSameDisplayTimezone(payload)) return false;
   const savedDate = String(storedResultDate(payload) || "").slice(0, 10);
   if (!savedDate) {
     return true;
   }
-  return savedDate === currentTokyoDate();
+  return savedDate === currentLocalDate();
 }
 
 export function storedMasterVersion(payload) {
@@ -142,6 +137,7 @@ export function normalizeReadingRequest(payload) {
     longitude,
     timezone_offset: timezoneOffset,
     timezone_name: timezoneName,
+    display_timezone_name: deviceTimezone(),
   };
 }
 
@@ -290,7 +286,7 @@ export function storeReadingForm(payload) {
 }
 
 export async function storeReadingResult(payload) {
-  const savedDate = storedResultDate(payload) || currentTokyoDate();
+  const savedDate = storedResultDate(payload) || currentLocalDate();
   const masterVersion = storedMasterVersion(payload);
   const normalizedPayload = {
     ...payload,
@@ -299,6 +295,7 @@ export async function storeReadingResult(payload) {
       ...(payload?.storage_meta || {}),
       stored_at: new Date().toISOString(),
       stored_date: String(savedDate).slice(0, 10),
+      display_timezone_name: storedDisplayTimezone(payload),
       ...(masterVersion ? { master_version: masterVersion, masterVersion } : {}),
     },
   };

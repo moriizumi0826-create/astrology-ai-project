@@ -1,5 +1,9 @@
 import { FORM_STORAGE_KEY, storeReadingForm, storeReadingResult } from "./reading-storage.js";
 
+import { buildBirthRequest, birthLocationQuery, birthSearchScope, birthTimezoneNames, normalizeBirthDate as normalizeBirthDateInput, normalizeBirthTime as normalizeBirthTimeInput } from "./birth-input.mjs";
+
+import { withDeviceTimezone } from "./device-time.mjs";
+
 function resolveApiBaseUrl() {
   const configured = String(__APP_API_BASE_URL__ || "").trim();
   if (configured) {
@@ -14,16 +18,16 @@ function resolveApiBaseUrl() {
 }
 
 const API_BASE_URL = resolveApiBaseUrl();
-const IS_TEST_VERSION = /(?:^|\/)index-v2\.html$/.test(window.location.pathname);
-const FORECAST_DETAIL_PATH = IS_TEST_VERSION
-  ? "./forecast-detail-v2.html"
-  : "./forecast-detail.html";
+const FORECAST_DETAIL_PATH = "./forecast-detail-v2.html";
 
 const form = document.querySelector("#reading-form");
 const birthDateInput = form.querySelector('input[name="birth_date"]');
 const birthTimeInput = document.querySelector("#birth-time-input");
 const birthTimeUnknownCheckbox = document.querySelector("#birth-time-unknown");
 const birthPrefectureSelect = document.querySelector("#birth-prefecture");
+const birthCountrySelect = document.querySelector("#birth-country");
+const timezoneNameInput = document.querySelector("#birth-timezone");
+const birthTimeFoldSelect = document.querySelector("#birth-time-fold");
 const birthplaceInput = document.querySelector("#birthplace-input");
 const searchLocationButton = document.querySelector("#search-location-button");
 const locationSearchStatus = document.querySelector("#location-search-status");
@@ -40,50 +44,19 @@ function roundCoordinate(value) {
   return Number(value).toFixed(4);
 }
 
-function deriveOffsetFromTimezone(timezoneName, fallbackOffset) {
-  if (fallbackOffset != null && fallbackOffset !== "") {
-    return String(fallbackOffset);
-  }
-  if (timezoneName === "Asia/Tokyo") {
-    return "9";
-  }
-  return "";
-}
 
-function getBrowserTimezoneName() {
-  try {
-    return Intl.DateTimeFormat().resolvedOptions().timeZone || "";
-  } catch {
-    return "";
-  }
-}
 
-function getBrowserTimezoneOffsetHours() {
-  return String(new Date().getTimezoneOffset() / -60);
-}
 
 function ensureTimezoneFallback() {
-  if (form.dataset.timezoneName || timezoneOffsetInput.value) {
-    return;
-  }
-
-  const browserTimezoneName = getBrowserTimezoneName();
-  if (browserTimezoneName) {
-    setResolvedTimezoneName(browserTimezoneName);
-  }
-
-  if (!timezoneOffsetInput.value) {
-    timezoneOffsetInput.value =
-      deriveOffsetFromTimezone(browserTimezoneName, "") || getBrowserTimezoneOffsetHours();
+  if (!timezoneNameInput.value && !timezoneOffsetInput.value && birthCountrySelect.value === "JP") {
+    setResolvedTimezoneName("Asia/Tokyo");
   }
 }
 
 function setResolvedTimezoneName(value) {
-  if (value) {
-    form.dataset.timezoneName = value;
-  } else {
-    delete form.dataset.timezoneName;
-  }
+  timezoneNameInput.value = value || "";
+  // A numerical offset is only for legacy/manual fixed-offset input.
+  timezoneOffsetInput.value = "";
 }
 
 function getPersistedFormData() {
@@ -110,63 +83,23 @@ function collectFormSnapshot() {
     birth_time: birthTimeInput.value || "",
     birth_time_unknown: birthTimeUnknownCheckbox.checked,
     birth_prefecture: birthPrefectureSelect.value || "",
+    birth_country: birthCountrySelect.value,
+    birth_time_fold: birthTimeFoldSelect.value === "" ? null : Number(birthTimeFoldSelect.value),
     birthplace: birthplaceInput.value || "",
     resolved_birthplace: birthplaceInput.dataset.resolvedBirthplace || "",
     latitude: latitudeInput.value || "",
     longitude: longitudeInput.value || "",
     timezone_offset: timezoneOffsetInput.value || "",
-    timezone_name: form.dataset.timezoneName || "",
+    timezone_name: timezoneNameInput.value.trim(),
   };
 }
 
-function normalizeBirthDateInput(value) {
-  const match = String(value || "")
-    .trim()
-    .match(/^(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})$/);
-  if (!match) {
-    return "";
-  }
-
-  const [, year, month, day] = match;
-  const normalized = `${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}`;
-  const date = new Date(`${normalized}T00:00:00`);
-  if (Number.isNaN(date.getTime())) {
-    return "";
-  }
-
-  const [resolvedYear, resolvedMonth, resolvedDay] = normalized.split("-").map(Number);
-  if (
-    date.getFullYear() !== resolvedYear ||
-    date.getMonth() + 1 !== resolvedMonth ||
-    date.getDate() !== resolvedDay
-  ) {
-    return "";
-  }
-
-  return normalized;
-}
 
 function formatBirthDateForDisplay(value) {
   const normalized = normalizeBirthDateInput(value);
   return normalized ? normalized.replaceAll("-", "/") : String(value || "").trim();
 }
 
-function normalizeBirthTimeInput(value) {
-  const match = String(value || "")
-    .trim()
-    .match(/^(\d{1,2}):(\d{2})$/);
-  if (!match) {
-    return "";
-  }
-
-  const hours = Number(match[1]);
-  const minutes = Number(match[2]);
-  if (hours < 0 || hours > 23 || minutes < 0 || minutes > 59) {
-    return "";
-  }
-
-  return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`;
-}
 
 function restoreFormSnapshot() {
   const saved = getPersistedFormData();
@@ -179,15 +112,17 @@ function restoreFormSnapshot() {
   birthTimeInput.value = normalizeBirthTimeInput(saved.birth_time || "") || "";
   birthTimeUnknownCheckbox.checked = Boolean(saved.birth_time_unknown);
   birthPrefectureSelect.value = saved.birth_prefecture || "";
+  birthCountrySelect.value = birthSearchScope(saved);
+  birthTimeFoldSelect.value = String(saved.birth_time_fold ?? "");
   birthplaceInput.value = saved.birthplace || "";
-  latitudeInput.value = saved.latitude || "";
-  longitudeInput.value = saved.longitude || "";
-  timezoneOffsetInput.value = saved.timezone_offset || "";
+  latitudeInput.value = saved.latitude ?? "";
+  longitudeInput.value = saved.longitude ?? "";
 
   if (saved.resolved_birthplace) {
     birthplaceInput.dataset.resolvedBirthplace = saved.resolved_birthplace;
   }
   setResolvedTimezoneName(saved.timezone_name || "");
+  if (!saved.timezone_name) timezoneOffsetInput.value = saved.timezone_offset ?? "";
 
   syncBirthTimeState();
   numericInputs.forEach((input) => syncNumericInputTone(input));
@@ -197,22 +132,6 @@ function syncNumericInputTone(input) {
   input.classList.toggle("has-value", String(input.value || "").trim() !== "");
 }
 
-function buildBirthplaceQuery() {
-  const cityOrArea = birthplaceInput.value.trim();
-  const prefecture = birthPrefectureSelect.value.trim();
-
-  if (!prefecture) {
-    throw new Error("先に都道府県を選択してください。");
-  }
-  if (!cityOrArea) {
-    throw new Error("市区町村や出生地エリアを入力してください。");
-  }
-
-  return {
-    cityOrArea,
-    prefecture,
-  };
-}
 
 function showLocationSearchStatus(message, isError = false) {
   locationSearchStatus.textContent = message;
@@ -232,10 +151,12 @@ function clearLocationSearchResults() {
 }
 
 function getLocationSearchParams() {
-  const params = new URLSearchParams({
-    q: buildBirthplaceQuery().cityOrArea,
-    prefecture: buildBirthplaceQuery().prefecture,
-  });
+  const snapshot = collectFormSnapshot();
+  const params = new URLSearchParams(birthLocationQuery(snapshot));
+  const birthDate = normalizeBirthDateInput(snapshot.birth_date);
+  if (birthDate) params.set("birth_date", birthDate);
+  if (snapshot.birth_time) params.set("birth_time", snapshot.birth_time);
+  params.set("birth_time_unknown", String(snapshot.birth_time_unknown));
   return params;
 }
 
@@ -243,10 +164,6 @@ function applyLocationResult(result) {
   birthplaceInput.dataset.resolvedBirthplace = result.display_name;
   latitudeInput.value = roundCoordinate(result.latitude);
   longitudeInput.value = roundCoordinate(result.longitude);
-  timezoneOffsetInput.value = deriveOffsetFromTimezone(
-    result.timezone_name,
-    result.timezone_offset
-  );
   setResolvedTimezoneName(result.timezone_name);
   syncNumericInputTone(latitudeInput);
   syncNumericInputTone(longitudeInput);
@@ -258,10 +175,21 @@ function applyLocationResult(result) {
 
 function clearResolvedBirthplace() {
   delete birthplaceInput.dataset.resolvedBirthplace;
-  const browserTimezoneName = getBrowserTimezoneName();
-  setResolvedTimezoneName(browserTimezoneName);
-  timezoneOffsetInput.value =
-    deriveOffsetFromTimezone(browserTimezoneName, "") || getBrowserTimezoneOffsetHours();
+  latitudeInput.value = "";
+  longitudeInput.value = "";
+  setResolvedTimezoneName(birthCountrySelect.value === "JP" ? "Asia/Tokyo" : "");
+  birthTimeFoldSelect.value = "";
+  numericInputs.forEach(syncNumericInputTone);
+  clearLocationSearchResults();
+  clearLocationSearchStatus();
+}
+
+function syncBirthCountry() {
+  const japan = birthCountrySelect.value === "JP";
+  birthPrefectureSelect.required = japan;
+  birthPrefectureSelect.disabled = !japan;
+  birthPrefectureSelect.parentElement.hidden = !japan;
+  birthplaceInput.placeholder = japan ? "世田谷区 / 札幌市 / Yokohama" : "Paris, France / New York City";
 }
 
 function renderLocationSearchResults(results) {
@@ -299,16 +227,13 @@ async function searchLocationCandidates() {
   clearLocationSearchResults();
   clearLocationSearchStatus();
 
-  const params = getLocationSearchParams();
-  if (!params) {
-    return;
-  }
 
   searchLocationButton.disabled = true;
   searchLocationButton.classList.add("opacity-70", "cursor-not-allowed");
   showLocationSearchStatus("出生地候補を検索しています...");
 
   try {
+    const params = getLocationSearchParams();
     const response = await fetch(`${API_BASE_URL}/api/location-search?${params.toString()}`);
     const data = await response.json();
     if (!response.ok) {
@@ -344,6 +269,7 @@ function clearError() {
 }
 
 async function postJson(path, payload) {
+  payload = withDeviceTimezone(payload);
   const retryDelays = [1500, 3000, 6000, 10000, 15000, 20000];
   let lastError;
 
@@ -394,8 +320,25 @@ function syncBirthTimeState() {
 }
 
 birthTimeUnknownCheckbox.addEventListener("change", syncBirthTimeState);
+birthTimeUnknownCheckbox.addEventListener("change", () => { birthTimeFoldSelect.value = ""; });
 restoreFormSnapshot();
+syncBirthCountry();
 ensureTimezoneFallback();
+document.querySelector("#birth-timezones").replaceChildren(...birthTimezoneNames().map((zone) => {
+  const option = document.createElement("option");
+  option.value = zone;
+  return option;
+}));
+birthCountrySelect.addEventListener("change", () => {
+  syncBirthCountry();
+  clearResolvedBirthplace();
+});
+timezoneNameInput.addEventListener("input", () => {
+  timezoneOffsetInput.value = "";
+  birthTimeFoldSelect.value = "";
+});
+birthDateInput.addEventListener("change", () => { birthTimeFoldSelect.value = ""; });
+birthTimeInput.addEventListener("change", () => { birthTimeFoldSelect.value = ""; });
 syncBirthTimeState();
 searchLocationButton.addEventListener("click", searchLocationCandidates);
 birthplaceInput.addEventListener("input", clearResolvedBirthplace);
@@ -410,55 +353,11 @@ form.addEventListener("submit", async (event) => {
   event.preventDefault();
   clearError();
 
-  const formData = new FormData(form);
-  const payload = Object.fromEntries(formData.entries());
-  const normalizedBirthDate = normalizeBirthDateInput(payload.birth_date);
-  if (!normalizedBirthDate) {
-    setError("生年月日は YYYY/MM/DD 形式で入力してください。");
-    return;
-  }
-  payload.birth_date = normalizedBirthDate;
-  payload.birth_time_unknown = birthTimeUnknownCheckbox.checked;
+  let payload;
   try {
-    payload.birthplace =
-      birthplaceInput.dataset.resolvedBirthplace ||
-      `${buildBirthplaceQuery().cityOrArea}, ${buildBirthplaceQuery().prefecture}, Japan`;
+    payload = buildBirthRequest(collectFormSnapshot());
   } catch (error) {
-    setError(error.message || "出生地を入力してください。");
-    return;
-  }
-  if (payload.birth_time_unknown && !payload.birth_time) {
-    payload.birth_time = null;
-  } else if (!payload.birth_time_unknown) {
-    const normalizedBirthTime = normalizeBirthTimeInput(payload.birth_time);
-    if (!normalizedBirthTime) {
-      setError("出生時刻は 24時間表記の HH:MM 形式で入力してください。");
-      return;
-    }
-    payload.birth_time = normalizedBirthTime;
-  }
-  payload.latitude = Number(payload.latitude);
-  payload.longitude = Number(payload.longitude);
-  payload.timezone_offset =
-    payload.timezone_offset === "" ? null : Number(payload.timezone_offset);
-  payload.timezone_name = form.dataset.timezoneName || getBrowserTimezoneName() || null;
-
-  if (payload.timezone_offset === null && payload.timezone_name) {
-    payload.timezone_offset =
-      Number(deriveOffsetFromTimezone(payload.timezone_name, "")) || null;
-  }
-
-  if (
-    Number.isNaN(payload.latitude) ||
-    Number.isNaN(payload.longitude) ||
-    (payload.timezone_offset !== null && Number.isNaN(payload.timezone_offset))
-  ) {
-    setError("出生地検索を使うか、緯度・経度を正しく入力してください。");
-    return;
-  }
-
-  if (payload.timezone_offset === null && !payload.timezone_name) {
-    setError("タイムゾーンの取得に失敗しました。ページを再読み込みして再度お試しください。");
+    setError(error.message || "出生情報を確認してください。");
     return;
   }
 

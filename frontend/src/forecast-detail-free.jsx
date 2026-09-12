@@ -2,10 +2,12 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { LockKeyhole, Menu, X } from "lucide-react";
 import { BirthDataEditor } from "./birth-data-editor.jsx";
+import { DeviceTimeBoundary } from "./device-time-boundary.jsx";
+import { normalizeReadingRequest } from "./reading-storage.js";
 import { FreeHoroscopeContent } from "./free-horoscope-content.jsx";
 import { Horoscope3DMap } from "./horoscope-3d-map.jsx";
 import {
-  currentTokyoDate,
+  currentLocalDate,
   getStoredReadingForm,
   getStoredReadingResult,
   getStoredReadingResultAsync,
@@ -79,6 +81,7 @@ async function getJson(path) {
 }
 
 async function postJson(path, payload) {
+  payload = normalizeReadingRequest(payload);
   const response = await fetch(`${resolveApiBaseUrl()}${path}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -143,7 +146,7 @@ export function selectFreeHoroscopePayload(payload) {
     ...(chartData && typeof chartData === "object" ? { chart_data: chartData } : {}),
     natal_points: Array.isArray(dashboard.natal_points) ? dashboard.natal_points : [],
     natal_house_cusps: Array.isArray(dashboard.natal_house_cusps) ? dashboard.natal_house_cusps : [],
-    reading_date: dashboard.reading_date || dashboard.readingDate || meta.reading_date || currentTokyoDate(),
+    reading_date: dashboard.reading_date || dashboard.readingDate || meta.reading_date || currentLocalDate(),
   };
 }
 
@@ -254,6 +257,7 @@ function FreeHoroscopePage() {
   const searchBirthLocations = useCallback((values) => {
     const params = new URLSearchParams({
       q: values.q,
+      country_code: values.country_code || "JP",
       prefecture: values.prefecture,
       birth_time_unknown: String(Boolean(values.birth_time_unknown)),
       limit: "5",
@@ -329,6 +333,6 @@ function FreeHoroscopePage() {
 
 createRoot(document.getElementById("forecast-detail-root")).render(
   <React.StrictMode>
-    <FreeHoroscopePage />
+    <DeviceTimeBoundary refreshReading={postJson}><FreeHoroscopePage /></DeviceTimeBoundary>
   </React.StrictMode>
 );

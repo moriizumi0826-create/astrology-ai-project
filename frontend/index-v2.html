@@ -184,6 +184,13 @@
                   <span class="text-[9px] text-on-surface-variant/60 font-light tracking-wider">出生地</span>
                 </label>
                 <div class="flex flex-col gap-4">
+                  <label class="block text-[10px] tracking-widest text-on-surface-variant">
+                    出生地の検索範囲
+                    <select id="birth-country" name="birth_country" class="mt-2 w-full bg-transparent border-t-0 border-x-0 border-b border-outline-variant/30 py-3 text-primary text-base">
+                      <option value="JP">日本</option>
+                      <option value="WORLD">海外（世界全域）</option>
+                    </select>
+                  </label>
                   <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
                       <label class="block text-[10px] uppercase tracking-widest text-on-surface-variant font-semibold mb-2">Prefecture</label>
@@ -249,7 +256,7 @@
                     </button>
                   </div>
                   <p class="text-[11px] text-on-surface-variant/80 font-notoSansJP leading-relaxed">
-                    先に都道府県を選び、市区町村やエリア名を入れて検索すると、緯度・経度とその日時の UTC オフセットを自動入力します。
+                    日本は都道府県と市区町村、海外は都市名・地域名・国名で検索してください。候補を選ぶと緯度・経度と出生地のタイムゾーンが設定されます。出生時刻は、その場所の当時の現地時刻を入力してください。
                   </p>
                   <div class="hidden bg-surface-container-low px-4 py-3 text-sm text-on-surface-variant font-notoSansJP" id="location-search-status"></div>
                   <div class="hidden flex-col gap-3" id="location-search-results"></div>
@@ -273,6 +280,21 @@
                 </div>
               </div>
               <input name="timezone_offset" type="hidden" />
+              <div>
+                <label for="birth-timezone" class="block text-[10px] tracking-widest text-on-surface-variant mb-2">出生地のタイムゾーン（検索で自動設定・手入力可）</label>
+                <input id="birth-timezone" name="timezone_name" list="birth-timezones" class="w-full bg-transparent border-t-0 border-x-0 border-b border-outline-variant/30 py-3 text-primary font-manrope text-base" placeholder="例: Asia/Tokyo / America/New_York" autocomplete="off" />
+                <datalist id="birth-timezones"></datalist>
+                <p class="mt-2 text-[11px] text-on-surface-variant/80">出生した日付に合わせて、夏時間を含む時差を計算します。</p>
+                <details class="mt-4 text-xs text-on-surface-variant">
+                  <summary class="cursor-pointer">時計変更で時刻が重複する場合</summary>
+                  <label for="birth-time-fold" class="block mt-3">同じ現地時刻が2回存在する日のみ指定してください。</label>
+                  <select id="birth-time-fold" name="birth_time_fold" class="mt-2 w-full bg-transparent border-t-0 border-x-0 border-b border-outline-variant/30 py-3 text-primary">
+                    <option value="">通常（重複時は確認メッセージを表示）</option>
+                    <option value="0">1回目（時計を戻す前）</option>
+                    <option value="1">2回目（時計を戻した後）</option>
+                  </select>
+                </details>
+              </div>
 
               <div class="pt-6">
                 <button class="w-full bg-primary text-on-primary py-5 px-10 text-sm uppercase tracking-[0.2em] font-semibold hover:bg-primary-dim transition-all duration-700 ease-[cubic-bezier(0.2,0,0,1)] flex justify-between items-center group" type="submit">

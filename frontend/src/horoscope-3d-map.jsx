@@ -17,7 +17,8 @@ import {
   WalletCards,
 } from "lucide-react";
 import * as THREE from "three";
-import { currentTokyoDate, getStoredReadingForm } from "./reading-storage.js";
+import { currentLocalDate, getStoredReadingForm, normalizeReadingRequest } from "./reading-storage.js";
+import { deviceTimezone } from "./device-time.mjs";
 import { readableErrorMessage } from "./error-message.mjs";
 import { preloadTransitCharts } from "./transit-chart-preload.mjs";
 import {
@@ -165,6 +166,7 @@ async function getJson(path) {
 }
 
 async function postJson(path, payload) {
+  payload = normalizeReadingRequest(payload);
   const apiBaseUrl = resolveApiBaseUrl();
   const response = await requestJson(`${apiBaseUrl}${path}`, payload, "POST");
   if (!response.ok) {
@@ -421,7 +423,7 @@ function addMinutesToTransitDateTime(dateValue, timeValue, minutes) {
 }
 
 function transitChartCacheKey(dateValue, timeValue) {
-  return `${dateKey(dateValue) || ""}T${timeValue || ""}`;
+  return `${deviceTimezone()}:${dateKey(dateValue) || ""}T${timeValue || ""}`;
 }
 
 function zodiacSignLabel(value) {
@@ -6384,6 +6386,9 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
               {transitChartError}
             </p>
           ) : null}
+          {transitChart?.time_adjustment && !transitChartError ? (
+            <p role="status" className="pointer-events-none absolute bottom-3 right-3 z-10 max-w-[320px] rounded bg-[#121414]/90 p-2 text-[10px] leading-5 text-gold">{transitChart.time_adjustment}</p>
+          ) : null}
         </div>
         {isMobileAspectListDetached && isAspectListPanelOpen ? (
           <div
@@ -6541,7 +6546,7 @@ function GlassPanel({ children, className = "", variant = "default" }) {
 }
 
 export function Horoscope3DMap({ data }) {
-  const [freePlaybackAnchorDate] = useState(() => currentTokyoDate());
+  const [freePlaybackAnchorDate] = useState(() => currentLocalDate());
   const freePlaybackDays = useMemo(
     () => buildFreePlaybackDates(freePlaybackAnchorDate).map((date) => ({ date, all_aspects: [] })),
     [freePlaybackAnchorDate]

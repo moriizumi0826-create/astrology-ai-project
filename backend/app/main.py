@@ -123,10 +123,12 @@ def location_search(
     birth_time: time | None = Query(default=None),
     birth_time_unknown: bool = Query(default=False),
     limit: int = Query(default=5, ge=1, le=10),
+    country_code: str = "JP",
 ):
     try:
         matches = geocoding_service.search_locations(
             query=q,
+            country_code=country_code,
             prefecture=prefecture,
             birth_date=birth_date.isoformat() if birth_date else None,
             birth_time=birth_time.strftime("%H:%M") if birth_time else None,
@@ -188,16 +190,8 @@ def create_deferred_reading_widgets(payload: ReadingRequest):
 
 
 def _yearly_birth_input(payload: ReadingRequest) -> reading_service.BirthInput:
-    timezone_offset = payload.timezone_offset
-    if timezone_offset is None:
-        if not payload.timezone_name:
-            raise ValueError("timezone information is missing")
-        timezone_offset, _ = geocoding_service.resolve_timezone_offset(
-            timezone_name=payload.timezone_name,
-            birth_date=payload.birth_date.isoformat(),
-            birth_time=payload.birth_time.strftime("%H:%M") if payload.birth_time else None,
-            birth_time_unknown=payload.birth_time_unknown,
-        )
+    from backend.app.services.birth_timezone import request_birth_offset
+    timezone_offset = request_birth_offset(payload)
     return reading_service.BirthInput(
         full_name=payload.full_name,
         birth_date=payload.birth_date.isoformat(),
@@ -207,6 +201,7 @@ def _yearly_birth_input(payload: ReadingRequest) -> reading_service.BirthInput:
         latitude=payload.latitude,
         longitude=payload.longitude,
         timezone_offset=timezone_offset,
+        display_timezone_name=payload.display_timezone_name,
     )
 
 
@@ -264,16 +259,8 @@ def create_transit_charts(payload: TransitChartsRequest):
 
 def _create_requested_transit_charts(payload, target_dates: list[date]):
     try:
-        timezone_offset = payload.timezone_offset
-        if timezone_offset is None:
-            if not payload.timezone_name:
-                raise ValueError("timezone information is missing")
-            timezone_offset, _ = geocoding_service.resolve_timezone_offset(
-                timezone_name=payload.timezone_name,
-                birth_date=payload.birth_date.isoformat(),
-                birth_time=payload.birth_time.strftime("%H:%M") if payload.birth_time else None,
-                birth_time_unknown=payload.birth_time_unknown,
-            )
+        from backend.app.services.birth_timezone import request_birth_offset
+        timezone_offset = request_birth_offset(payload)
 
         birth_input = reading_service.BirthInput(
             full_name=payload.full_name,
@@ -284,6 +271,7 @@ def _create_requested_transit_charts(payload, target_dates: list[date]):
             latitude=payload.latitude,
             longitude=payload.longitude,
             timezone_offset=timezone_offset,
+            display_timezone_name=payload.display_timezone_name,
         )
         # Resolve the birth location/timezone once, and preserve request order.
         charts = {}

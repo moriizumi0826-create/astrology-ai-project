@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { birthLocationQuery, birthTimezoneNames } from "./birth-input.mjs";
 import { ChevronDown, MapPin, PencilLine, Search, Sparkles } from "lucide-react";
 import {
   birthFormSnapshot,
@@ -27,7 +28,11 @@ export function BirthDataEditor({ initialForm = {}, meta = {}, onSearchLocations
   const [success, setSuccess] = useState("");
 
   const updateField = (name, value) => {
-    setForm((current) => ({ ...current, [name]: value }));
+    setForm((current) => ({
+      ...current, [name]: value,
+      ...(["birth_date", "birth_time", "birth_time_unknown", "timezone_name"].includes(name) ? { birth_time_fold: "" } : {}),
+      ...(name === "timezone_name" ? { timezone_offset: "" } : {}),
+    }));
     setError("");
     setSuccess("");
   };
@@ -39,6 +44,9 @@ export function BirthDataEditor({ initialForm = {}, meta = {}, onSearchLocations
       resolved_birthplace: "",
       latitude: "",
       longitude: "",
+      timezone_name: (name === "birth_country" ? value : current.birth_country) === "JP" ? "Asia/Tokyo" : "",
+      timezone_offset: "",
+      birth_time_fold: "",
     }));
     setLocationResults([]);
     setLocationMessage("");
@@ -57,11 +65,12 @@ export function BirthDataEditor({ initialForm = {}, meta = {}, onSearchLocations
   };
 
   const searchLocations = async () => {
-    const city = String(form.birthplace || "").trim();
-    const prefecture = String(form.birth_prefecture || "").trim();
-    if (!prefecture || !city) {
+    let query;
+    try {
+      query = birthLocationQuery(form);
+    } catch (error) {
       setLocationError(true);
-      setLocationMessage("都道府県と市区町村を入力してください。");
+      setLocationMessage(error.message);
       return;
     }
     setSearching(true);
@@ -70,8 +79,7 @@ export function BirthDataEditor({ initialForm = {}, meta = {}, onSearchLocations
     setLocationResults([]);
     try {
       const payload = await onSearchLocations({
-        q: city,
-        prefecture,
+        ...query,
         birth_date: form.birth_date,
         birth_time: form.birth_time_unknown ? "" : form.birth_time,
         birth_time_unknown: form.birth_time_unknown,
@@ -94,10 +102,9 @@ export function BirthDataEditor({ initialForm = {}, meta = {}, onSearchLocations
       resolved_birthplace: String(result.display_name || ""),
       latitude: Number(result.latitude).toFixed(4),
       longitude: Number(result.longitude).toFixed(4),
-      timezone_offset: result.timezone_offset === null || result.timezone_offset === undefined
-        ? current.timezone_offset
-        : String(result.timezone_offset),
-      timezone_name: String(result.timezone_name || current.timezone_name || "Asia/Tokyo"),
+      timezone_offset: "",
+      timezone_name: String(result.timezone_name || ""),
+      birth_time_fold: "",
     }));
     setLocationResults([]);
     setLocationError(false);
@@ -199,6 +206,7 @@ export function BirthDataEditor({ initialForm = {}, meta = {}, onSearchLocations
                     ...current,
                     birth_time_unknown: event.target.checked,
                     birth_time: event.target.checked ? "" : current.birth_time,
+                    birth_time_fold: "",
                   }))}
                 />
                 <span>出生時間不明（12:00を仮時刻として計算し、ASC・MC・ハウスは表示しません）</span>
@@ -212,6 +220,14 @@ export function BirthDataEditor({ initialForm = {}, meta = {}, onSearchLocations
               <p className="text-sm font-semibold">出生地</p>
             </div>
             <div className="grid gap-4 md:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)_auto] md:items-end">
+              <label className="md:col-span-3">
+                <span className={labelClass}>出生地の検索範囲</span>
+                <select className={fieldClass} value={form.birth_country} onChange={(event) => invalidateLocation("birth_country", event.target.value)}>
+                  <option value="JP">日本</option>
+                  <option value="WORLD">海外（世界全域）</option>
+                </select>
+              </label>
+              {form.birth_country === "JP" ? (
               <label>
                 <span className={labelClass}>Prefecture / 都道府県</span>
                 <select
@@ -223,6 +239,7 @@ export function BirthDataEditor({ initialForm = {}, meta = {}, onSearchLocations
                   {PREFECTURE_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
                 </select>
               </label>
+              ) : null}
               <label>
                 <span className={labelClass}>City / 市区町村</span>
                 <input
@@ -230,7 +247,7 @@ export function BirthDataEditor({ initialForm = {}, meta = {}, onSearchLocations
                   type="text"
                   value={form.birthplace}
                   onChange={(event) => invalidateLocation("birthplace", event.target.value)}
-                  placeholder="世田谷区 / 札幌市"
+                  placeholder={form.birth_country === "JP" ? "世田谷区 / 札幌市" : "Paris, France / New York City"}
                 />
               </label>
               <button
@@ -280,6 +297,23 @@ export function BirthDataEditor({ initialForm = {}, meta = {}, onSearchLocations
                   <input className={fieldClass} type="number" step="0.0001" value={form.longitude} onChange={(event) => updateField("longitude", event.target.value)} placeholder="139.7671" />
                 </label>
               </div>
+            </details>
+            <label className="mt-4 block">
+              <span className={labelClass}>出生地のタイムゾーン（検索で自動設定・手入力可）</span>
+              <input className={fieldClass} list="editor-birth-timezones" value={form.timezone_name} onChange={(event) => updateField("timezone_name", event.target.value)} placeholder="Asia/Tokyo / America/New_York" />
+              <datalist id="editor-birth-timezones">{birthTimezoneNames().map((zone) => <option key={zone} value={zone} />)}</datalist>
+            </label>
+            <p className="mt-2 text-xs leading-5 text-[#c7c6cc]">出生時刻は当時の現地時刻を入力してください。出生した日付の夏時間を含めて計算します。</p>
+            <details className="mt-4 text-xs text-[#c7c6cc]">
+              <summary className="cursor-pointer">時計変更で時刻が重複する場合</summary>
+              <label className="mt-3 block">
+                同じ現地時刻が2回存在する日のみ指定してください。
+                <select className={fieldClass} value={form.birth_time_fold} onChange={(event) => updateField("birth_time_fold", event.target.value)}>
+                  <option value="">通常（重複時は確認メッセージを表示）</option>
+                  <option value="0">1回目（時計を戻す前）</option>
+                  <option value="1">2回目（時計を戻した後）</option>
+                </select>
+              </label>
             </details>
           </div>
 

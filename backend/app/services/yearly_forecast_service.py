@@ -400,7 +400,8 @@ def _sample_local_datetime(day: date) -> datetime:
 
 
 def _julian_day(local_dt: datetime, timezone_offset: float) -> float:
-    utc_dt = local_dt - timedelta(hours=timezone_offset)
+    from backend.app.services.display_time import transit_utc
+    utc_dt = transit_utc(local_dt, timezone_offset)
     hour_decimal = utc_dt.hour + (utc_dt.minute / 60) + (utc_dt.second / 3600)
     return swe.julday(utc_dt.year, utc_dt.month, utc_dt.day, hour_decimal)
 
@@ -416,14 +417,36 @@ def build_transit_chart(
     target_date: date,
     target_time: dt_time,
 ) -> dict[str, Any]:
+    from backend.app.services.display_time import display_scope
+    with display_scope(birth_input.display_timezone_name):
+        return _build_transit_chart_in_zone(birth_input, target_date, target_time)
+
+
+def _build_transit_chart_in_zone(
+    birth_input: BirthInput,
+    target_date: date,
+    target_time: dt_time,
+) -> dict[str, Any]:
     if swe is None:
         raise RuntimeError("swisseph is not installed")
 
     local_dt = datetime.combine(target_date, target_time)
+    from backend.app.services.display_time import transit_offset, transit_utc
+    display_offset = transit_offset(local_dt, birth_input.timezone_offset)
+    time_adjustment = None
+    if birth_input.display_timezone_name:
+        from datetime import timezone
+        from zoneinfo import ZoneInfo
+        zone = ZoneInfo(birth_input.display_timezone_name)
+        resolved = transit_utc(local_dt, birth_input.timezone_offset).replace(tzinfo=timezone.utc).astimezone(zone)
+        if resolved.replace(tzinfo=None) != local_dt:
+            time_adjustment = f"夏時間などの時計変更により、{resolved.strftime('%Y-%m-%d %H:%M')} として計算しています。"
+        elif local_dt.replace(tzinfo=zone, fold=0).utcoffset() != local_dt.replace(tzinfo=zone, fold=1).utcoffset():
+            time_adjustment = "時計変更で同じ時刻が2回あるため、1回目の時刻として計算しています。"
     jd = _julian_day(local_dt, birth_input.timezone_offset)
     planet_ids = _forecast_planet_ids()
     planet_order = ("SUN", "MOON", "MERCURY", "VENUS", "MARS", "JUPITER", "SATURN", "URANUS", "NEPTUNE", "PLUTO")
-    cached = transit_ephemeris.cached_states(local_dt, birth_input.timezone_offset)
+    cached = transit_ephemeris.cached_states(local_dt, display_offset)
     transits = []
     for index, planet in enumerate(planet_order):
         if cached is None:
@@ -471,7 +494,10 @@ def build_transit_chart(
     return {
         "date": target_date.isoformat(),
         "time": target_time.strftime("%H:%M"),
-        "timezone_offset": birth_input.timezone_offset,
+        "timezone_offset": display_offset,
+        "display_timezone_name": birth_input.display_timezone_name,
+        "utc_datetime": transit_utc(local_dt, birth_input.timezone_offset).isoformat() + "Z",
+        "time_adjustment": time_adjustment,
         "transits": transits,
         "house_cusps": [round(float(cusp) % 360, 4) for cusp in house_cusps],
         "house_system": "Placidus",
@@ -484,6 +510,7 @@ def _build_daily_transit_chart(
     transit_states: dict[str, tuple[float, bool]],
 ) -> dict[str, Any]:
     local_dt = _sample_local_datetime(day)
+    from backend.app.services.display_time import transit_offset, zone_name
     moon_longitude, moon_retrograde = _calc_transit_state("MOON", local_dt, birth_input.timezone_offset)
     complete_states = {**transit_states, "MOON": (moon_longitude, moon_retrograde)}
     planet_order = ("SUN", "MOON", "MERCURY", "VENUS", "MARS", "JUPITER", "SATURN", "URANUS", "NEPTUNE", "PLUTO")
@@ -492,7 +519,8 @@ def _build_daily_transit_chart(
     return {
         "date": day.isoformat(),
         "time": "12:00",
-        "timezone_offset": birth_input.timezone_offset,
+        "timezone_offset": transit_offset(local_dt, birth_input.timezone_offset),
+        "display_timezone_name": zone_name(),
         "transits": [
             {
                 "planet": planet,
@@ -2020,6 +2048,7 @@ def _cached_yearly_forecast(
     year: int,
     _reading_master_signature: tuple[tuple[str, int | None, int | None], ...],
     _yearly_master_signature: tuple[tuple[str, int | None, int | None], ...],
+    display_timezone_name: str | None = None,
 ) -> dict[str, Any]:
     return _generate_yearly_forecast_uncached(
         BirthInput(
@@ -2031,12 +2060,22 @@ def _cached_yearly_forecast(
             latitude=latitude,
             longitude=longitude,
             timezone_offset=timezone_offset,
+            display_timezone_name=display_timezone_name,
         ),
         year,
     )
 
 
 def generate_yearly_forecast(
+    birth_input: BirthInput,
+    year: int = FORECAST_YEAR,
+) -> dict[str, Any]:
+    from backend.app.services.display_time import display_scope
+    with display_scope(birth_input.display_timezone_name):
+        return _generate_yearly_forecast_in_zone(birth_input, year)
+
+
+def _generate_yearly_forecast_in_zone(
     birth_input: BirthInput,
     year: int = FORECAST_YEAR,
 ) -> dict[str, Any]:
@@ -2059,6 +2098,7 @@ def generate_yearly_forecast(
         year,
         reading_service._MASTER_CSV_SIGNATURE,
         _YEARLY_CSV_SIGNATURE,
+        birth_input.display_timezone_name,
     )
 
 
@@ -2243,7 +2283,8 @@ def build_yearly_forecast_detail(
 
 def build_yearly_forecast_cache_payload(birth_input: BirthInput, year: int = FORECAST_YEAR) -> dict[str, Any]:
     return {
-        "cache_key": f"{birth_input.full_name}:{birth_input.birth_date}:{birth_input.birth_time}:{birth_input.latitude}:{birth_input.longitude}:{year}",
+        "cache_key": f"{birth_input.full_name}:{birth_input.birth_date}:{birth_input.birth_time}:{birth_input.latitude}:{birth_input.longitude}:{year}:{birth_input.timezone_offset}:{birth_input.display_timezone_name}",
+        "display_timezone_name": birth_input.display_timezone_name,
         "table": "yearly_forecast_cache",
         "refresh_policy": "login_or_weekly",
         "year": year,
