@@ -1,9 +1,11 @@
 ﻿import React, { useEffect, useMemo, useState } from "react";
 import { createRoot } from "react-dom/client";
+import { DeviceTimeBoundary } from "./device-time-boundary.jsx";
+import { deviceTimezone } from "./device-time.mjs";
 import { Activity, BriefcaseBusiness, CalendarDays, ChevronDown, CircleDot, HandHeart, LockKeyhole, Maximize2, Menu, Minimize2, Minus, Move, Pause, Play, Plus, RefreshCw, Shield, SlidersHorizontal, Sparkles, WalletCards } from "lucide-react";
 import * as THREE from "three";
 import {
-  currentTokyoDate,
+  currentLocalDate,
   getStoredReadingForm,
   getStoredReadingResult,
   getStoredReadingResultAsync,
@@ -543,7 +545,7 @@ const EMPTY_ASPECT_SELECTIONS = {
 };
 
 function transitChartCacheKey(dateValue, timeValue) {
-  return `${dateKey(dateValue) || ""}T${timeValue || ""}`;
+  return `${deviceTimezone()}:${dateKey(dateValue) || ""}T${timeValue || ""}`;
 }
 
 function annualAspectGenreDescriptions(event) {
@@ -6480,6 +6482,9 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
               {transitChartError}
             </p>
           ) : null}
+          {transitChart?.time_adjustment && !transitChartError ? (
+            <p role="status" className="pointer-events-none absolute bottom-3 right-3 z-10 max-w-[320px] rounded bg-[#121414]/90 p-2 text-[10px] leading-5 text-gold">{transitChart.time_adjustment}</p>
+          ) : null}
         </div>
         {isMobileAspectListDetached && isAspectListPanelOpen ? (
           <div
@@ -7232,7 +7237,7 @@ function UnifiedForecastView({
   const canSelectForecastYear = activeUnifiedView !== "daily";
   const displayedForecastYear = canSelectForecastYear
     ? activeYear
-    : Number(String(currentTokyoDate()).slice(0, 4)) || activeYear;
+    : Number(String(currentLocalDate()).slice(0, 4)) || activeYear;
   const monthlyTransitDateRange = `${dateKey(monthlyTransitDays[0]?.date)}:${dateKey(monthlyTransitDays[monthlyTransitDays.length - 1]?.date)}:${monthlyTransitDays.length}`;
   useEffect(() => {
     setSelectedUnifiedMonthlyDayIndex(realtimeDayIndex(monthlyTransitDays));
@@ -8911,7 +8916,7 @@ function PremiumAccessDialog({ open, onClose }) {
 }
 
 function Horoscope3DMap({ data }) {
-  const readingDate = dateKey(data?.reading_date) || currentTokyoDate();
+  const readingDate = dateKey(data?.reading_date) || currentLocalDate();
   const [selectedDate, setSelectedDate] = useState(readingDate);
   useEffect(() => setSelectedDate(readingDate), [readingDate]);
   const natalPoints = Array.isArray(data?.natal_points)
@@ -9148,10 +9153,10 @@ function ForecastDetailPage() {
   const [activeView, setActiveView] = useState(CAN_ACCESS_PREMIUM ? "unified" : "horoscope");
   const [activeUnifiedView, setActiveUnifiedView] = useState("daily");
   const [dailyViewResetKey, setDailyViewResetKey] = useState(0);
-  const [dailyOverviewDate, setDailyOverviewDate] = useState(() => currentTokyoDate());
+  const [dailyOverviewDate, setDailyOverviewDate] = useState(() => currentLocalDate());
   const handleSelectUnifiedView = React.useCallback((view) => {
     if (view === "daily") {
-      setDailyOverviewDate(currentTokyoDate());
+      setDailyOverviewDate(currentLocalDate());
       setDailyViewResetKey((current) => current + 1);
     }
     setActiveUnifiedView(view);
@@ -9536,7 +9541,7 @@ function ForecastDetailPage() {
 
 createRoot(document.getElementById("forecast-detail-root")).render(
   <React.StrictMode>
-    <ForecastDetailPage />
+    <DeviceTimeBoundary refreshReading={postJson}><ForecastDetailPage /></DeviceTimeBoundary>
   </React.StrictMode>
 );
 

@@ -36,6 +36,7 @@ class BirthInput:
     latitude: float
     longitude: float
     timezone_offset: float
+    display_timezone_name: str | None = None
 
 
 def require_swisseph():

@@ -6,12 +6,11 @@ from datetime import datetime
 from typing import Any
 from urllib.parse import urlencode
 from urllib.request import Request, urlopen
-from zoneinfo import ZoneInfo
 
 from backend.app.settings import settings
+from backend.app.services.birth_timezone import resolve_birth_timezone
 
 
-DEFAULT_BIRTH_TIME = "12:00"
 JAPAN_TIMEZONE = "Asia/Tokyo"
 
 
@@ -86,14 +85,9 @@ def _resolve_offset_hours(
     birth_date: str,
     birth_time: str | None,
     birth_time_unknown: bool,
+    birth_time_fold: int | None = None,
 ) -> tuple[float, datetime]:
-    local_time = DEFAULT_BIRTH_TIME if birth_time_unknown or not birth_time else birth_time
-    naive_dt = datetime.fromisoformat(f"{birth_date}T{local_time}")
-    localized = naive_dt.replace(tzinfo=ZoneInfo(timezone_name))
-    offset = localized.utcoffset()
-    if offset is None:
-        raise ValueError("Could not determine UTC offset for the selected timezone.")
-    return offset.total_seconds() / 3600, localized
+    return resolve_birth_timezone(timezone_name, birth_date, birth_time, birth_time_unknown, birth_time_fold)
 
 
 def _search_open_meteo(
@@ -103,6 +97,7 @@ def _search_open_meteo(
     birth_time: str | None,
     birth_time_unknown: bool,
     limit: int,
+    country_code: str = "JP",
 ) -> list[LocationMatch]:
     params = urlencode(
         {
@@ -110,7 +105,7 @@ def _search_open_meteo(
             "count": max(1, min(limit, 10)),
             "language": "ja",
             "format": "json",
-            "countryCode": "JP",
+            **({"countryCode": country_code} if country_code != "WORLD" else {}),
         }
     )
     url = f"{settings.geocoding_base_url}?{params}"
@@ -119,23 +114,33 @@ def _search_open_meteo(
     raw_results = payload.get("results") or []
     matches: list[LocationMatch] = []
     for item in raw_results:
-        country_code = str(item.get("country_code") or "").strip().upper()
+        result_country = str(item.get("country_code") or "").strip().upper()
         admin1 = str(item.get("admin1") or "").strip()
-        if country_code and country_code != "JP":
+        if country_code != "WORLD" and result_country and result_country != country_code:
             continue
         if prefecture and not _matches_prefecture(prefecture, admin1):
             continue
 
-        timezone_name = str(item.get("timezone") or "").strip() or JAPAN_TIMEZONE
+        timezone_name = str(item.get("timezone") or "").strip()
+        if not timezone_name:
+            if result_country == "JP" or country_code == "JP":
+                timezone_name = JAPAN_TIMEZONE
+            else:
+                continue
         timezone_offset = None
         resolved_at = None
         if birth_date:
-            timezone_offset, resolved_at = _resolve_offset_hours(
-                timezone_name=timezone_name,
-                birth_date=birth_date,
-                birth_time=birth_time,
-                birth_time_unknown=birth_time_unknown,
-            )
+            try:
+                timezone_offset, resolved_at = _resolve_offset_hours(
+                    timezone_name=timezone_name,
+                    birth_date=birth_date,
+                    birth_time=birth_time,
+                    birth_time_unknown=birth_time_unknown,
+                )
+            except ValueError:
+                # Location selection must remain possible on a DST boundary.
+                # The reading request validates the time and any fold choice.
+                pass
 
         matches.append(
             LocationMatch(
@@ -216,9 +221,15 @@ def search_locations(
     birth_time: str | None = None,
     birth_time_unknown: bool = False,
     limit: int = 5,
+    country_code: str = "JP",
 ) -> list[LocationMatch]:
     if not query.strip():
         raise ValueError("query is required")
+    country_code = country_code.strip().upper()
+    if country_code != "WORLD" and (len(country_code) != 2 or not country_code.isalpha()):
+        raise ValueError("country_code must be an ISO country code or WORLD")
+    if country_code != "JP":
+        prefecture = None
 
     try:
         open_meteo_matches = _search_open_meteo(
@@ -228,12 +239,19 @@ def search_locations(
             birth_time=birth_time,
             birth_time_unknown=birth_time_unknown,
             limit=limit,
+            country_code=country_code,
         )
         if open_meteo_matches:
             return open_meteo_matches
-    except Exception:
+    except Exception as exc:
+        if country_code != "JP":
+            raise ValueError("出生地検索に失敗しました。再試行するか、緯度・経度と出生地のタイムゾーンを手入力してください。") from exc
         # Fall back to a more tolerant search below.
         pass
+
+    if country_code != "JP":
+        # The Japan-only fallback has no international timezone information.
+        return []
 
     try:
         nominatim_matches = _search_nominatim(
@@ -274,10 +292,12 @@ def resolve_timezone_offset(
     birth_date: str,
     birth_time: str | None,
     birth_time_unknown: bool,
+    birth_time_fold: int | None = None,
 ) -> tuple[float, datetime]:
     return _resolve_offset_hours(
         timezone_name=timezone_name,
         birth_date=birth_date,
         birth_time=birth_time,
         birth_time_unknown=birth_time_unknown,
+        birth_time_fold=birth_time_fold,
     )

@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { normalizeReadingRequest } from "../src/reading-storage.js";
+import { deviceTimezone } from "../src/device-time.mjs";
 
 test("normalizes the stored display form before an API refresh", () => {
   const request = normalizeReadingRequest({
@@ -28,6 +29,7 @@ test("normalizes the stored display form before an API refresh", () => {
     longitude: 139.6532,
     timezone_offset: 9,
     timezone_name: "Asia/Tokyo",
+    display_timezone_name: deviceTimezone(),
   });
 });
 

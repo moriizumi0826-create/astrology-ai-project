@@ -1075,7 +1075,8 @@ def _dashboard_header() -> dict[str, Any]:
 
 
 def _app_now() -> datetime:
-    return datetime.now(APP_TIMEZONE).replace(tzinfo=None)
+    from backend.app.services.display_time import local_now
+    return local_now()
 
 
 def _app_today() -> date:
@@ -2065,6 +2066,13 @@ def _retrograde_calendar_start_day(
     normalized_planet = _normalize_planet(transit_planet)
     start_date = scan_start.date()
     end_date = (scan_start + timedelta(days=max(through_day, 0))).date()
+    from backend.app.services.display_time import zone_name
+    if zone_name():
+        for row in _retrograde_calendar_rows(scan_start, planet=normalized_planet, event_type="RETROGRADE_START"):
+            event_date = _parse_transit_calendar_date(row.get("Event_Date"))
+            if event_date and start_date <= event_date <= end_date:
+                return (event_date - start_date).days
+        return None
     for event_date in (_TRANSIT_RETROGRADE_START_DATES_BY_PLANET or {}).get(normalized_planet, ()):
         if not (start_date <= event_date <= end_date):
             continue
@@ -3361,7 +3369,8 @@ def _calc_transit_planet_state(planet: str, sample_local_dt: datetime, timezone_
 
 def _calc_transit_planet_motion(planet: str, sample_local_dt: datetime, timezone_offset: float) -> tuple[float, float]:
     normalized_planet = _normalize_planet(planet)
-    normalized_timezone_offset = float(timezone_offset)
+    from backend.app.services.display_time import transit_offset
+    normalized_timezone_offset = transit_offset(sample_local_dt, timezone_offset)
     cache = _TRANSIT_MOTION_REQUEST_CACHE.get()
     cache_key = (normalized_planet, sample_local_dt, normalized_timezone_offset)
     if cache is not None and cache_key in cache:
@@ -3447,7 +3456,9 @@ def _retrograde_calendar_rows(
         (normalized_planet, normalized_event),
         (),
     )
-    return [dict(row) for event_date, row in indexed_rows if event_date >= target_date]
+    from backend.app.services.display_time import local_calendar_row
+    rows = [local_calendar_row(row) for _, row in indexed_rows]
+    return [row for row in rows if (event_date := _parse_transit_calendar_date(row.get("Event_Date"))) and event_date >= target_date]
 
 
 def _next_motion_change_from_calendar(
@@ -3603,6 +3614,7 @@ def _dashboard_retrograde_calendar(current_dt: datetime | date | None) -> list[d
             "event_label": "逆行開始" if event_type == "RETROGRADE_START" else "順行開始",
             "event_date": event_date.isoformat() if event_date else _safe_text(row, "Event_Date"),
             "event_datetime_jst": _safe_text(row, "Event_DateTime_JST"),
+            "event_datetime": _safe_text(row, "Event_DateTime_Local") or _safe_text(row, "Event_DateTime_JST"),
             "sign": _safe_text(row, "Sign_ID"),
             "sign_label": _safe_text(row, "Sign_Label"),
             "degree_in_sign": _safe_number(row, "Degree_In_Sign"),
@@ -3645,18 +3657,19 @@ def _refine_planet_crossing(
     target_unwrapped: float,
     timezone_offset: float,
 ) -> datetime:
+    from backend.app.services.display_time import transit_midpoint
     ascending = target_unwrapped > start_unwrapped
     low_dt, high_dt = start_dt, end_dt
     start_longitude, _ = _calc_transit_planet_motion(planet, start_dt, timezone_offset)
     for _ in range(12):
-        mid_dt = low_dt + ((high_dt - low_dt) / 2)
+        mid_dt = transit_midpoint(low_dt, high_dt, timezone_offset)
         longitude, _ = _calc_transit_planet_motion(planet, mid_dt, timezone_offset)
         mid_unwrapped = start_unwrapped + _signed_longitude_delta(start_longitude, longitude)
         if (mid_unwrapped < target_unwrapped) == ascending:
             low_dt = mid_dt
         else:
             high_dt = mid_dt
-    return (low_dt + ((high_dt - low_dt) / 2)).replace(microsecond=0)
+    return transit_midpoint(low_dt, high_dt, timezone_offset).replace(microsecond=0)
 
 
 def _refine_lunation_crossing(
@@ -3666,13 +3679,14 @@ def _refine_lunation_crossing(
     target_unwrapped: float,
     timezone_offset: float,
 ) -> datetime:
+    from backend.app.services.display_time import transit_midpoint
     ascending = target_unwrapped > start_unwrapped
     start_moon, _ = _calc_transit_planet_motion("MOON", start_dt, timezone_offset)
     start_sun, _ = _calc_transit_planet_motion("SUN", start_dt, timezone_offset)
     start_relative = (start_moon - start_sun) % 360
     low_dt, high_dt = start_dt, end_dt
     for _ in range(12):
-        mid_dt = low_dt + ((high_dt - low_dt) / 2)
+        mid_dt = transit_midpoint(low_dt, high_dt, timezone_offset)
         moon, _ = _calc_transit_planet_motion("MOON", mid_dt, timezone_offset)
         sun, _ = _calc_transit_planet_motion("SUN", mid_dt, timezone_offset)
         relative = (moon - sun) % 360
@@ -3681,7 +3695,7 @@ def _refine_lunation_crossing(
             low_dt = mid_dt
         else:
             high_dt = mid_dt
-    return (low_dt + ((high_dt - low_dt) / 2)).replace(microsecond=0)
+    return transit_midpoint(low_dt, high_dt, timezone_offset).replace(microsecond=0)
 
 
 def _celestial_planet_samples(
@@ -3724,7 +3738,8 @@ def _celestial_event_item(
     classification: str = "neutral",
     **details: Any,
 ) -> dict[str, Any]:
-    hours_remaining = (event_dt - start_dt).total_seconds() / 3600
+    from backend.app.services.display_time import transit_utc, zone_name
+    hours_remaining = (transit_utc(event_dt, 0) - transit_utc(start_dt, 0)).total_seconds() / 3600
     days_remaining = ceil(hours_remaining / 24) if hours_remaining >= 0 else floor(hours_remaining / 24)
     return {
         "event_id": "|".join([
@@ -3736,6 +3751,7 @@ def _celestial_event_item(
         ]),
         "event_type": event_type,
         "event_datetime": event_dt.isoformat(timespec="seconds"),
+        **({"event_utc_datetime": transit_utc(event_dt, 0).isoformat(timespec="seconds") + "Z"} if zone_name() else {}),
         "event_date": event_dt.date().isoformat(),
         "hours_remaining": round(hours_remaining, 2),
         "days_remaining": int(days_remaining),
@@ -4067,7 +4083,7 @@ def _build_celestial_event_calendar(
             ))
 
     for row in _dashboard_retrograde_calendar(sample_start_dt):
-        raw_datetime = row.get("event_datetime_jst") or row.get("event_date")
+        raw_datetime = row.get("event_datetime") or row.get("event_datetime_jst") or row.get("event_date")
         try:
             event_dt = datetime.fromisoformat(str(raw_datetime))
         except ValueError:
@@ -5162,18 +5178,8 @@ def get_aspect_dashboard_data(
 
 
 def _birth_input_from_request(payload: ReadingRequest) -> BirthInput:
-    timezone_offset = payload.timezone_offset
-    if timezone_offset is None:
-        if not payload.timezone_name:
-            raise ValueError("timezone information is missing")
-        from backend.app.services.geocoding_service import resolve_timezone_offset
-
-        timezone_offset, _ = resolve_timezone_offset(
-            timezone_name=payload.timezone_name,
-            birth_date=payload.birth_date.isoformat(),
-            birth_time=payload.birth_time.strftime("%H:%M") if payload.birth_time else None,
-            birth_time_unknown=payload.birth_time_unknown,
-        )
+    from backend.app.services.birth_timezone import request_birth_offset
+    timezone_offset = request_birth_offset(payload)
     return BirthInput(
         full_name=payload.full_name,
         birth_date=payload.birth_date.isoformat(),
@@ -5197,14 +5203,16 @@ def generate_readings(
     payload: ReadingRequest,
     include_deferred_widgets: bool = True,
 ) -> ReadingResponse:
-    with _transit_motion_request_cache(), _countdown_orb_request_cache(), _natal_data_request_cache():
+    from backend.app.services.display_time import display_scope
+    with display_scope(getattr(payload, "display_timezone_name", None)), _transit_motion_request_cache(), _countdown_orb_request_cache(), _natal_data_request_cache():
         if include_deferred_widgets:
             return _generate_readings(payload)
         return _generate_readings(payload, include_deferred_widgets=False)
 
 
 def generate_deferred_dashboard_widgets(payload: ReadingRequest) -> dict[str, Any]:
-    with _transit_motion_request_cache(), _countdown_orb_request_cache(), _natal_data_request_cache():
+    from backend.app.services.display_time import display_scope, event_times
+    with display_scope(payload.display_timezone_name), _transit_motion_request_cache(), _countdown_orb_request_cache(), _natal_data_request_cache():
         reload_master_dataframes_if_changed()
         birth_input = _birth_input_from_request(payload)
         current_dt = _reading_current_datetime(payload)
@@ -5215,18 +5223,20 @@ def generate_deferred_dashboard_widgets(payload: ReadingRequest) -> dict[str, An
                 birth_input.timezone_offset,
             ),
         )
-        return _to_json_compatible({
+        return event_times(_to_json_compatible({
             "dailyPerformance": _build_daily_performance(birth_input, current_dt, daily_vibe),
             "weekly_aspects": _build_weekly_aspect_items(birth_input, current_dt),
             "celestial_event_calendar": _build_celestial_event_calendar(birth_input, current_dt),
             "deferred_widgets_pending": False,
-        })
+            "display_timezone_name": payload.display_timezone_name,
+        }))
 
 
 def _generate_readings(
     payload: ReadingRequest,
     include_deferred_widgets: bool = True,
 ) -> ReadingResponse:
+    from backend.app.services.display_time import event_times
     reload_master_dataframes_if_changed()
     birth_input = _birth_input_from_request(payload)
     timezone_offset = birth_input.timezone_offset
@@ -5276,9 +5286,13 @@ def _generate_readings(
             birth_time_unknown=payload.birth_time_unknown,
             timezone_offset=timezone_offset,
             timezone_name=payload.timezone_name,
+            birth_time_fold=payload.birth_time_fold,
+            display_timezone_name=payload.display_timezone_name,
         ),
         chart_data=chart_data,
         readings=[ReadingSection(type=REPORT_TYPE, title=REPORT_TITLE, content=report_text)],
         transit_ready=bool(transit_data.get("aspect_map")) and bool(transit_data.get("house_map")),
-        dashboard_data=_to_json_compatible(dashboard_data),
+        dashboard_data=event_times(_to_json_compatible({
+            **dashboard_data, "display_timezone_name": payload.display_timezone_name,
+        })),
     )

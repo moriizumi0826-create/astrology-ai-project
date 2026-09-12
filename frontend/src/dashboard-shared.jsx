@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
-import { currentTokyoDate, getStoredReadingForm, getStoredReadingResult, getStoredReadingResultAsync, normalizeReadingRequest } from "./reading-storage.js";
+import { deviceTimezone } from "./device-time.mjs";
+import { currentLocalDate, getStoredReadingForm, getStoredReadingResult, getStoredReadingResultAsync, normalizeReadingRequest } from "./reading-storage.js";
 import { MonthlyOverviewContent } from "./monthly-overview-content.jsx";
 import { monthlyOverviewForDate } from "./monthly-overview.mjs";
 import {
@@ -84,7 +85,7 @@ function dashboardDataDate(data = {}) {
 }
 
 function dashboardDisplayDate(data = {}) {
-  return dashboardDataDate(data) || currentTokyoDate();
+  return dashboardDataDate(data) || currentLocalDate();
 }
 
 function addDaysToIsoDate(value, days) {
@@ -311,13 +312,12 @@ function countdownRemainingValue(slide, baseDateKey = "") {
   };
 }
 
-function stellarEventTokyoClockMinutes() {
+function stellarEventLocalClockMinutes() {
   try {
     const parts = new Intl.DateTimeFormat("en-US", {
-      timeZone: "Asia/Tokyo",
       hour: "2-digit",
       minute: "2-digit",
-      hour12: false,
+      hourCycle: "h23",
     }).formatToParts(new Date());
     const hour = Number(parts.find((part) => part.type === "hour")?.value);
     const minute = Number(parts.find((part) => part.type === "minute")?.value);
@@ -328,15 +328,20 @@ function stellarEventTokyoClockMinutes() {
 }
 
 function isStellarEventCompleted(item, baseDateKey = "") {
+  const instant = String(item?.event_datetime || item?.eventDatetime || "");
+  if (/(Z|[+-]\d{2}:\d{2})$/.test(instant)) {
+    const timestamp = Date.parse(instant);
+    if (Number.isFinite(timestamp)) return timestamp <= Date.now();
+  }
   const daysUntil = countdownDaysUntil(item, baseDateKey);
   if (!Number.isFinite(daysUntil)) return false;
   const eventDate = formatIsoDate(item?.event_date || item?.eventDate || item?.target_date || item?.targetDate);
   if (daysUntil < 0) return true;
-  if (eventDate !== currentTokyoDate()) return false;
+  if (eventDate !== currentLocalDate()) return false;
   const match = String(item?.event_datetime || item?.eventDatetime || "").match(/T(\d{2}):(\d{2})/);
   if (!match) return daysUntil === 0;
   const eventMinutes = Number(match[1]) * 60 + Number(match[2]);
-  const nowMinutes = stellarEventTokyoClockMinutes();
+  const nowMinutes = stellarEventLocalClockMinutes();
   return Number.isFinite(nowMinutes) && eventMinutes <= nowMinutes;
 }
 
@@ -730,6 +735,9 @@ function DashboardV2DailyThemeCard({ data, displayDate = "", onDateShift = () =>
         </div>
       </div>
       <div className="mt-3 h-px bg-white/10 sm:mt-5" />
+      {analysisMode === "theme" && deviceTimezone() !== "Asia/Tokyo" ? (
+        <p className="mt-3 text-[10px] leading-5 text-white/50">この解説文は日本時間基準です。文中の「朝・夜」や時刻は端末の現地時間には変換されません。</p>
+      ) : null}
       {analysisMode === "theme" ? timelineItems([], summaryText, "#e9c349") : null}
       {analysisMode === "lesson" ? timelineItems(positiveHighlights, "追い風に該当するアスペクトなし", "#38bdf8") : null}
       {analysisMode === "summary" ? timelineItems(negativeHighlights, "負荷・消耗注意に該当するアスペクトなし", "#fecdd3") : null}
@@ -2344,14 +2352,14 @@ function DashboardDailyDetailLayerBase({
   onDisplayDateChange = null,
 }) {
   const [activeDailyData, setActiveDailyData] = useState(data);
-  const [selectedDailyDate, setSelectedDailyDate] = useState(() => currentTokyoDate());
+  const [selectedDailyDate, setSelectedDailyDate] = useState(() => currentLocalDate());
   const [isDailyDateLoading, setIsDailyDateLoading] = useState(false);
   const [dailyDateError, setDailyDateError] = useState("");
   const [focusedAspect, setFocusedAspect] = useState(null);
   const dailyDataCacheRef = React.useRef(new Map());
   const dailyDateRequestIdRef = React.useRef(0);
   const displayDate = selectedDailyDate || dashboardDisplayDate(activeDailyData);
-  const dailyDateBase = currentTokyoDate();
+  const dailyDateBase = currentLocalDate();
   const dailyDateMin = addDaysToIsoDate(dailyDateBase, -6);
   const dailyDateMax = addDaysToIsoDate(dailyDateBase, 6);
 
@@ -2362,7 +2370,7 @@ function DashboardDailyDetailLayerBase({
   }, [displayDate, onDisplayDateChange]);
 
   useEffect(() => {
-    const today = currentTokyoDate();
+    const today = currentLocalDate();
     const sourceDate = dashboardDataDate(data);
     const nextDate = sourceDate === today ? sourceDate : today;
     setActiveDailyData(data);

@@ -130,7 +130,8 @@ class TransitBatchApiTests(unittest.TestCase):
             self.assertEqual(build.call_count, 1)
 
     def test_timezone_name_resolves_once_and_unknown_birth_time_works(self):
-        with patch("backend.app.services.geocoding_service.resolve_timezone_offset", return_value=(9, "Asia/Tokyo")) as resolve:
+        from backend.app.services.birth_timezone import resolve_birth_timezone
+        with patch("backend.app.services.birth_timezone.resolve_birth_timezone", wraps=resolve_birth_timezone) as resolve:
             payload = {**PAYLOAD, "timezone_offset": None, "timezone_name": "Asia/Tokyo", "birth_time": None, "birth_time_unknown": True, "target_dates": ["2026-01-01", "2026-01-02"]}
             self.assertEqual(self.client.post("/api/transit-charts", json=payload).status_code, 200)
             self.assertEqual(resolve.call_count, 1)
