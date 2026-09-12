@@ -19,6 +19,7 @@ import {
   dashboardData as fallbackDashboardData,
 } from "./dashboard-shared.jsx";
 import { readableErrorMessage } from "./error-message.mjs";
+import { preloadTransitCharts } from "./transit-chart-preload.mjs";
 import {
   loadEarthCloudTexture,
   loadEarthSurfaceTexture,
@@ -180,7 +181,9 @@ async function postJson(path, payload) {
   const response = await requestJson(`${apiBaseUrl}${path}`, requestPayload);
   if (!response.ok) {
     const errorPayload = response.data || {};
-    throw new Error(formatApiError(errorPayload.detail, `Request failed: ${response.status}`));
+    const error = new Error(formatApiError(errorPayload.detail, `Request failed: ${response.status}`));
+    error.status = response.status;
+    throw error;
   }
   return response.data;
 }
@@ -3660,32 +3663,15 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
     };
   }, [selectedDate, selectedTransitTime, isTransitPlaybackActive]);
 
-  const fetchTransitChartFor = React.useCallback(async (targetDate, targetTime) => {
-    const cacheKey = transitChartCacheKey(targetDate, targetTime);
-    const cachedChart = transitChartCacheRef.current.get(cacheKey);
-    if (cachedChart) return cachedChart;
-    const formPayload = getQueryReadingForm() || getStoredReadingForm();
-    if (!formPayload) throw new Error("出生データが見つかりません。");
-    const payload = await postJson("/api/transit-chart", {
-      ...formPayload,
-      target_date: targetDate,
-      target_time: targetTime,
-    });
-    transitChartCacheRef.current.set(cacheKey, payload);
-    return payload;
-  }, []);
-
   const preloadTransitChartsForDates = React.useCallback(async (targetTime, targetDates = null, onProgress = null) => {
     const dates = Array.isArray(targetDates) && targetDates.length
       ? targetDates
       : selectableDates.length ? selectableDates : [selectedDate].filter(Boolean);
-    onProgress?.(0, dates.length);
-    for (let index = 0; index < dates.length; index += 4) {
-      const batch = dates.slice(index, index + 4);
-      await Promise.all(batch.map((targetDate) => fetchTransitChartFor(targetDate, targetTime)));
-      onProgress?.(Math.min(index + batch.length, dates.length), dates.length);
-    }
-  }, [fetchTransitChartFor, selectableDates, selectedDate]);
+    await preloadTransitCharts({
+      dates, targetTime, cache: transitChartCacheRef.current, cacheKey: transitChartCacheKey,
+      request: postJson, formPayload: getQueryReadingForm() || getStoredReadingForm(), onProgress,
+    });
+  }, [selectableDates, selectedDate]);
 
   useEffect(() => {
     const mount = mountRef.current;
