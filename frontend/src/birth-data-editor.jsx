@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { birthLocationQuery, birthTimezoneNames } from "./birth-input.mjs";
+import { birthLocationQuery, birthTimezoneNames, birthTimeKey, isAmbiguousBirthTimeError } from "./birth-input.mjs";
 import { ChevronDown, MapPin, PencilLine, Search, Sparkles } from "lucide-react";
 import {
   birthFormSnapshot,
@@ -26,8 +26,11 @@ export function BirthDataEditor({ initialForm = {}, meta = {}, onSearchLocations
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+  const [ambiguousTimeKey, setAmbiguousTimeKey] = useState(null);
+  const needsTimeConfirmation = ambiguousTimeKey === birthTimeKey(form);
 
   const updateField = (name, value) => {
+    if (["birth_date", "birth_time", "birth_time_unknown", "timezone_name"].includes(name)) setAmbiguousTimeKey(null);
     setForm((current) => ({
       ...current, [name]: value,
       ...(["birth_date", "birth_time", "birth_time_unknown", "timezone_name"].includes(name) ? { birth_time_fold: "" } : {}),
@@ -38,6 +41,7 @@ export function BirthDataEditor({ initialForm = {}, meta = {}, onSearchLocations
   };
 
   const invalidateLocation = (name, value) => {
+    setAmbiguousTimeKey(null);
     setForm((current) => ({
       ...current,
       [name]: value,
@@ -56,6 +60,7 @@ export function BirthDataEditor({ initialForm = {}, meta = {}, onSearchLocations
 
   const resetAndToggle = () => {
     if (!open) {
+      setAmbiguousTimeKey(null);
       setForm(initialBirthData(initialForm, meta));
       setLocationResults([]);
       setLocationMessage("");
@@ -97,6 +102,7 @@ export function BirthDataEditor({ initialForm = {}, meta = {}, onSearchLocations
   };
 
   const selectLocation = (result) => {
+    setAmbiguousTimeKey(null);
     setForm((current) => ({
       ...current,
       resolved_birthplace: String(result.display_name || ""),
@@ -129,7 +135,12 @@ export function BirthDataEditor({ initialForm = {}, meta = {}, onSearchLocations
       setSuccess("出生情報を更新し、ホロスコープを再計算しました。");
       setOpen(false);
     } catch (submitError) {
-      setError(submitError?.message || "ホロスコープの再計算に失敗しました。");
+      if (isAmbiguousBirthTimeError(submitError)) {
+        setAmbiguousTimeKey(birthTimeKey(form));
+        setError("出生時刻の確認欄で選択してから、もう一度再計算してください。");
+      } else {
+        setError(submitError?.message || "ホロスコープの再計算に失敗しました。");
+      }
     } finally {
       setSubmitting(false);
     }
@@ -202,12 +213,12 @@ export function BirthDataEditor({ initialForm = {}, meta = {}, onSearchLocations
                   className="mt-0.5 h-4 w-4 rounded border-white/20 bg-white/5 text-[#e9c349] focus:ring-[#e9c349]/35"
                   type="checkbox"
                   checked={form.birth_time_unknown}
-                  onChange={(event) => setForm((current) => ({
+                  onChange={(event) => { setAmbiguousTimeKey(null); setForm((current) => ({
                     ...current,
                     birth_time_unknown: event.target.checked,
                     birth_time: event.target.checked ? "" : current.birth_time,
                     birth_time_fold: "",
-                  }))}
+                  })); }}
                 />
                 <span>出生時間不明（12:00を仮時刻として計算し、ASC・MC・ハウスは表示しません）</span>
               </label>
@@ -303,18 +314,19 @@ export function BirthDataEditor({ initialForm = {}, meta = {}, onSearchLocations
               <input className={fieldClass} list="editor-birth-timezones" value={form.timezone_name} onChange={(event) => updateField("timezone_name", event.target.value)} placeholder="Asia/Tokyo / America/New_York" />
               <datalist id="editor-birth-timezones">{birthTimezoneNames().map((zone) => <option key={zone} value={zone} />)}</datalist>
             </label>
-            <p className="mt-2 text-xs leading-5 text-[#c7c6cc]">出生時刻は当時の現地時刻を入力してください。出生した日付の夏時間を含めて計算します。</p>
-            <details className="mt-4 text-xs text-[#c7c6cc]">
-              <summary className="cursor-pointer">時計変更で時刻が重複する場合</summary>
+            {needsTimeConfirmation ? (
+            <div className="mt-4 text-xs text-[#c7c6cc]" role="status">
+              <p>この出生時刻は、時計を戻す日にあたるため2回あります。</p>
               <label className="mt-3 block">
-                同じ現地時刻が2回存在する日のみ指定してください。
-                <select className={fieldClass} value={form.birth_time_fold} onChange={(event) => updateField("birth_time_fold", event.target.value)}>
-                  <option value="">通常（重複時は確認メッセージを表示）</option>
-                  <option value="0">1回目（時計を戻す前）</option>
-                  <option value="1">2回目（時計を戻した後）</option>
+                生まれたのは時計を戻す前・後のどちらですか？
+                <select required className={fieldClass} value={form.birth_time_fold} onChange={(event) => updateField("birth_time_fold", event.target.value)}>
+                  <option value="">選択してください</option>
+                  <option value="0">時計を戻す前（1回目）</option>
+                  <option value="1">時計を戻した後（2回目）</option>
                 </select>
               </label>
-            </details>
+            </div>
+            ) : null}
           </div>
 
           {error ? (

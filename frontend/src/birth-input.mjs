@@ -1,4 +1,14 @@
 // Birthplace time is independent of the device's present timezone.
+export function isAmbiguousBirthTimeError(error) {
+  return /この出生時刻は.*2回存在/.test(String(error?.message || error || ""));
+}
+
+// A confirmation belongs only to the date, time and birthplace being checked.
+export function birthTimeKey(form) {
+  return JSON.stringify([form.birth_date, form.birth_time, Boolean(form.birth_time_unknown),
+    form.timezone_name, String(form.timezone_offset ?? ""), form.birth_country, form.birthplace]);
+}
+
 export function birthSearchScope(saved = {}) {
   return saved.birth_country || (saved.timezone_name && saved.timezone_name !== "Asia/Tokyo" ? "WORLD" : "JP");
 }

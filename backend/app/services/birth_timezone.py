@@ -21,7 +21,7 @@ def resolve_birth_timezone(name, birth_date, birth_time=None, unknown=False, fol
         raise ValueError("この出生時刻は夏時間などの時計変更により存在しません。現地の記録を確認してください。")
     ambiguous = len({dt.utcoffset() for dt in candidates.values()}) > 1
     if ambiguous and fold is None:
-        raise ValueError("この出生時刻は時計変更により2回存在します。「時計変更で時刻が重複する場合」で1回目か2回目を選択してください。")
+        raise ValueError("この出生時刻は、時計を戻す日にあたるため2回存在します。時計を戻す前・後のどちらかを選んでください。")
     localized = candidates[fold if ambiguous else min(candidates)]
     return localized.utcoffset().total_seconds() / 3600, localized
 

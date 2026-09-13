@@ -3,6 +3,7 @@ import { FORM_STORAGE_KEY, storeReadingForm, storeReadingResult } from "./readin
 import { buildBirthRequest, birthLocationQuery, birthSearchScope, birthTimezoneNames, normalizeBirthDate as normalizeBirthDateInput, normalizeBirthTime as normalizeBirthTimeInput } from "./birth-input.mjs";
 
 import { withDeviceTimezone } from "./device-time.mjs";
+import { birthTimeKey, isAmbiguousBirthTimeError } from "./birth-input.mjs";
 
 function resolveApiBaseUrl() {
   const configured = String(__APP_API_BASE_URL__ || "").trim();
@@ -28,6 +29,13 @@ const birthPrefectureSelect = document.querySelector("#birth-prefecture");
 const birthCountrySelect = document.querySelector("#birth-country");
 const timezoneNameInput = document.querySelector("#birth-timezone");
 const birthTimeFoldSelect = document.querySelector("#birth-time-fold");
+const birthTimeConfirmation = document.querySelector("#birth-time-confirmation");
+
+function resetBirthTimeConfirmation() {
+  birthTimeConfirmation.hidden = true;
+  birthTimeFoldSelect.required = false;
+  birthTimeFoldSelect.value = "";
+}
 const birthplaceInput = document.querySelector("#birthplace-input");
 const searchLocationButton = document.querySelector("#search-location-button");
 const locationSearchStatus = document.querySelector("#location-search-status");
@@ -161,6 +169,7 @@ function getLocationSearchParams() {
 }
 
 function applyLocationResult(result) {
+  resetBirthTimeConfirmation();
   birthplaceInput.dataset.resolvedBirthplace = result.display_name;
   latitudeInput.value = roundCoordinate(result.latitude);
   longitudeInput.value = roundCoordinate(result.longitude);
@@ -178,7 +187,7 @@ function clearResolvedBirthplace() {
   latitudeInput.value = "";
   longitudeInput.value = "";
   setResolvedTimezoneName(birthCountrySelect.value === "JP" ? "Asia/Tokyo" : "");
-  birthTimeFoldSelect.value = "";
+  resetBirthTimeConfirmation();
   numericInputs.forEach(syncNumericInputTone);
   clearLocationSearchResults();
   clearLocationSearchStatus();
@@ -320,7 +329,7 @@ function syncBirthTimeState() {
 }
 
 birthTimeUnknownCheckbox.addEventListener("change", syncBirthTimeState);
-birthTimeUnknownCheckbox.addEventListener("change", () => { birthTimeFoldSelect.value = ""; });
+birthTimeUnknownCheckbox.addEventListener("change", resetBirthTimeConfirmation);
 restoreFormSnapshot();
 syncBirthCountry();
 ensureTimezoneFallback();
@@ -335,10 +344,10 @@ birthCountrySelect.addEventListener("change", () => {
 });
 timezoneNameInput.addEventListener("input", () => {
   timezoneOffsetInput.value = "";
-  birthTimeFoldSelect.value = "";
+  resetBirthTimeConfirmation();
 });
-birthDateInput.addEventListener("change", () => { birthTimeFoldSelect.value = ""; });
-birthTimeInput.addEventListener("change", () => { birthTimeFoldSelect.value = ""; });
+birthDateInput.addEventListener("input", resetBirthTimeConfirmation);
+birthTimeInput.addEventListener("input", resetBirthTimeConfirmation);
 syncBirthTimeState();
 searchLocationButton.addEventListener("click", searchLocationCandidates);
 birthplaceInput.addEventListener("input", clearResolvedBirthplace);
@@ -352,6 +361,7 @@ numericInputs.forEach((input) => {
 form.addEventListener("submit", async (event) => {
   event.preventDefault();
   clearError();
+  const submittedTimeKey = birthTimeKey(collectFormSnapshot());
 
   let payload;
   try {
@@ -371,7 +381,12 @@ form.addEventListener("submit", async (event) => {
     persistFormData(collectFormSnapshot());
     window.location.href = FORECAST_DETAIL_PATH;
   } catch (error) {
-    if (error instanceof TypeError) {
+    if (isAmbiguousBirthTimeError(error) && submittedTimeKey === birthTimeKey(collectFormSnapshot())) {
+      birthTimeConfirmation.hidden = false;
+      birthTimeFoldSelect.required = true;
+      birthTimeConfirmation.scrollIntoView({ behavior: "smooth", block: "center" });
+      birthTimeFoldSelect.focus({ preventScroll: true });
+    } else if (error instanceof TypeError) {
       const endpoint = API_BASE_URL || "現在のサイト";
       setError(`Backend API（${endpoint}）との通信に失敗しました。時間をおいて再度お試しください。`);
     } else {
