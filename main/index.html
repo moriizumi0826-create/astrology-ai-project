@@ -75,7 +75,7 @@
       }
     </style>
     <script type="module" crossorigin src="./assets/reading-storage-Bv900IjJ.js"></script>
-    <script type="module" crossorigin src="./assets/main-DeEBJIvH.js"></script>
+    <script type="module" crossorigin src="./assets/main-C3-32bGt.js"></script>
   </head>
   <body class="bg-surface text-on-surface selection:bg-[#f7e382]">
     <nav class="fixed top-0 left-0 w-full z-50 bg-[#fafaf5]/80 backdrop-blur-md flex justify-between items-center px-6 md:px-12 py-6">
@@ -286,16 +286,15 @@
                 <label for="birth-timezone" class="block text-[10px] tracking-widest text-on-surface-variant mb-2">出生地のタイムゾーン（検索で自動設定・手入力可）</label>
                 <input id="birth-timezone" name="timezone_name" list="birth-timezones" class="w-full bg-transparent border-t-0 border-x-0 border-b border-outline-variant/30 py-3 text-primary font-manrope text-base" placeholder="例: Asia/Tokyo / America/New_York" autocomplete="off" />
                 <datalist id="birth-timezones"></datalist>
-                <p class="mt-2 text-[11px] text-on-surface-variant/80">出生した日付に合わせて、夏時間を含む時差を計算します。</p>
-                <details class="mt-4 text-xs text-on-surface-variant">
-                  <summary class="cursor-pointer">時計変更で時刻が重複する場合</summary>
-                  <label for="birth-time-fold" class="block mt-3">同じ現地時刻が2回存在する日のみ指定してください。</label>
+                <div id="birth-time-confirmation" hidden class="mt-4 text-xs text-on-surface-variant" role="status">
+                  <p>この出生時刻は、時計を戻す日にあたるため2回あります。</p>
+                  <label for="birth-time-fold" class="block mt-3">生まれたのは時計を戻す前・後のどちらですか？</label>
                   <select id="birth-time-fold" name="birth_time_fold" class="mt-2 w-full bg-transparent border-t-0 border-x-0 border-b border-outline-variant/30 py-3 text-primary">
-                    <option value="">通常（重複時は確認メッセージを表示）</option>
-                    <option value="0">1回目（時計を戻す前）</option>
-                    <option value="1">2回目（時計を戻した後）</option>
+                    <option value="">選択してください</option>
+                    <option value="0">時計を戻す前（1回目）</option>
+                    <option value="1">時計を戻した後（2回目）</option>
                   </select>
-                </details>
+                </div>
               </div>
 
               <div class="pt-6">
