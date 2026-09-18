@@ -3,6 +3,7 @@ import { createPortal } from "react-dom";
 import { deviceTimezone } from "./device-time.mjs";
 import { currentLocalDate, getStoredReadingForm, getStoredReadingResult, getStoredReadingResultAsync, normalizeReadingRequest } from "./reading-storage.js";
 import { MonthlyOverviewContent } from "./monthly-overview-content.jsx";
+import { YearlyOverviewContent } from "./yearly-overview-content.jsx";
 import { monthlyOverviewForDate } from "./monthly-overview.mjs";
 import {
   CalendarDays,
@@ -635,6 +636,7 @@ function DashboardV2DailyThemeCard({ data, displayDate = "", onDateShift = () =>
     () => monthlyOverviewForDate(yearlyForecast, activeDisplayDate),
     [yearlyForecast, activeDisplayDate]
   );
+  const yearlyOverview = yearlyForecast?.yearly_overview || yearlyForecast?.yearlyOverview || null;
   const isMonthlyOverviewLoading = Boolean(
     data.monthly_overview_loading || data.monthlyOverviewLoading
   );
@@ -652,6 +654,7 @@ function DashboardV2DailyThemeCard({ data, displayDate = "", onDateShift = () =>
     test1: "負荷が抜けるまで",
     relief: "追い風が届くまで",
     monthly: "今月の運気",
+    yearly: "今年の運気",
   }[analysisMode] || "今日の星の流れ";
   const timelineItems = (items, fallbackBody, color) => (
     <div className="mt-6 grid min-h-0 flex-1 gap-6 overflow-y-auto pr-2 [scrollbar-color:#e9c349_rgba(255,255,255,0.08)] [scrollbar-width:thin] sm:mt-8 sm:gap-8">
@@ -672,7 +675,7 @@ function DashboardV2DailyThemeCard({ data, displayDate = "", onDateShift = () =>
 
   return (
     <DashboardV2Card className="h-[520px] sm:h-[560px] lg:h-[620px]" bodyClassName="flex h-full flex-col p-2 sm:p-5 lg:p-6">
-      <div className="flex flex-col items-start gap-3 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex flex-col items-start gap-3">
         <div>
           <p className="font-mono text-[8px] font-bold uppercase tracking-[0.18em] text-[#e9c349]/75 sm:text-[9px]">
             Main Theme
@@ -707,7 +710,7 @@ function DashboardV2DailyThemeCard({ data, displayDate = "", onDateShift = () =>
             </button>
           </div>
         </div>
-        <div className="flex w-full overflow-x-auto rounded-full border border-white/10 bg-white/[0.04] p-0.5 font-mono text-[7px] font-bold text-[#909096] [scrollbar-width:none] sm:w-auto sm:shrink-0 sm:p-1 sm:text-[10px]">
+        <div className="flex w-full max-w-full overflow-x-auto rounded-full border border-white/10 bg-white/[0.04] p-0.5 font-mono text-[7px] font-bold text-[#909096] [scrollbar-width:none] sm:p-1 sm:text-[10px]">
           {[
             ["theme", "星の流れ"],
             ["lesson", "追い風"],
@@ -715,6 +718,7 @@ function DashboardV2DailyThemeCard({ data, displayDate = "", onDateShift = () =>
             ["test1", "負荷が抜ける\nまで"],
             ["relief", "追い風が届く\nまで"],
             ["monthly", "今月の運気"],
+            ["yearly", "今年の運気"],
           ].map(([value, label]) => (
             <button
               key={value}
@@ -765,6 +769,13 @@ function DashboardV2DailyThemeCard({ data, displayDate = "", onDateShift = () =>
               : "この月の運気は準備中です。",
             "#e9c349"
           )
+        )
+      ) : null}
+      {analysisMode === "yearly" ? (
+        yearlyOverview ? (
+          <YearlyOverviewContent overview={yearlyOverview} />
+        ) : (
+          timelineItems([], "今年の運気は準備中です。", "#e9c349")
         )
       ) : null}
     </DashboardV2Card>

@@ -10,7 +10,7 @@ from typing import Any
 
 import pandas as pd
 
-from backend.app.services import monthly_overview_service, monthly_peak_service, reading_service, transit_ephemeris
+from backend.app.services import monthly_overview_service, monthly_peak_service, reading_service, transit_ephemeris, yearly_overview_service
 from backend.app.services.chart_calculator import BirthInput, get_angle_diff, get_aspect, get_house
 
 try:
@@ -26,6 +26,7 @@ ASPECT_GENRE_APPLICABILITY_SCHEMA_VERSION = 4
 ASPECT_GENRE_SCORE_SCHEMA_VERSION = 4
 ANNUAL_TRANSIT_HOUSE_TRANSITION_SCHEMA_VERSION = 1
 MONTHLY_OVERVIEW_SCHEMA_VERSION = 1
+YEARLY_OVERVIEW_SCHEMA_VERSION = 1
 ASPECT_GENRE_KEYS = ("general_health", "love", "work", "money")
 ASPECT_STANDARD_GENRE_KEYS = ("love", "work", "money")
 ANNUAL_GENERAL_MIN_COMPONENT_SCORE = 65.0
@@ -142,6 +143,7 @@ def _yearly_csv_paths() -> list[Path]:
     paths.extend(sorted(DATABASE_DIR.glob("M_Monthly_Overview_Event_Paragraphs_*.csv")))
     paths.extend(sorted(DATABASE_DIR.glob("M_Monthly_Overview_Aspect_Clusters_*.csv")))
     paths.extend(sorted(DATABASE_DIR.glob("M_Personal_Long_Term_Background_*.csv")))
+    paths.extend(yearly_overview_service.yearly_overview_csv_paths(FORECAST_YEAR))
     return paths
 
 
@@ -176,6 +178,7 @@ def _clear_yearly_master_caches() -> None:
     _cached_yearly_forecast.cache_clear()
     monthly_overview_service.clear_monthly_overview_caches()
     monthly_peak_service.clear_monthly_peak_caches()
+    yearly_overview_service.clear_yearly_overview_caches()
 
 
 def reload_yearly_master_caches_if_changed(force: bool = False) -> bool:
@@ -1993,6 +1996,12 @@ def _generate_yearly_forecast_uncached(
         natal_sun_sign=natal_sun_sign,
         transitions=annual_transit_house_transitions,
     )
+    yearly_overview = yearly_overview_service.build_yearly_overview(
+        year=year,
+        natal_points=natal_points,
+        house_cusps=house_cusps,
+        natal_sun_sign=natal_sun_sign,
+    )
 
     yearly_summary = build_yearly_summary(yearly_data)
     # These fields are required while assembling scores and period summaries,
@@ -2016,6 +2025,7 @@ def _generate_yearly_forecast_uncached(
         "aspect_genre_score_schema": ASPECT_GENRE_SCORE_SCHEMA_VERSION,
         "annual_transit_house_transition_schema": ANNUAL_TRANSIT_HOUSE_TRANSITION_SCHEMA_VERSION,
         "monthly_overview_schema": MONTHLY_OVERVIEW_SCHEMA_VERSION,
+        "yearly_overview_schema": YEARLY_OVERVIEW_SCHEMA_VERSION,
         "yearly_data": yearly_data,
         "monthly_peak_periods": monthly_peak_periods,
         "natal_points": natal_points,
@@ -2033,6 +2043,7 @@ def _generate_yearly_forecast_uncached(
         "monthly_sun_themes": monthly_sun_themes,
         "monthly_mars_themes": monthly_mars_themes,
         "monthly_overviews": monthly_overviews,
+        "yearly_overview": yearly_overview,
         "cache": build_yearly_forecast_cache_payload(birth_input, year),
     }
 
@@ -2109,6 +2120,8 @@ def _generate_yearly_forecast_serialized(
 YEARLY_FORECAST_SUMMARY_KEYS = (
     "summary",
     "monthly_overview_schema",
+    "yearly_overview_schema",
+    "yearly_overview",
     "aspect_genre_description_schema",
     "aspect_genre_applicability_schema",
     "aspect_genre_score_schema",
@@ -2274,6 +2287,7 @@ def build_yearly_forecast_detail(
             "annual_summary_columns",
             "annual_transit_house_transitions",
             "annual_house_activation_events",
+            "yearly_overview",
         )
         payload = {key: forecast.get(key) for key in annual_keys}
         payload.update({
