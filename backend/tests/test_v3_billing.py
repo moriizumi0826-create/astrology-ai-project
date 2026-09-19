@@ -1,0 +1,149 @@
+import os
+import unittest
+from datetime import datetime, timedelta, timezone
+from types import SimpleNamespace
+from unittest.mock import Mock, patch
+
+import httpx
+import stripe
+
+from backend.tests.test_v3_access import local_test_client
+from backend.v3.app import create_app
+
+
+USER = "00000000-0000-4000-8000-000000000001"
+AUTH = {"Authorization": "Bearer member-token", "Origin": "http://127.0.0.1:5176"}
+CONFIG = {"V3_SUPABASE_URL": "https://test.supabase.co",
+          "V3_SUPABASE_PUBLISHABLE_KEY": "sb_publishable_test",
+          "V3_SUPABASE_SECRET_KEY": "sb_secret_test",
+          "V3_STRIPE_SECRET_KEY": "sk_test_example",
+          "V3_STRIPE_WEBHOOK_SECRET": "whsec_example",
+          "V3_STRIPE_PRICE_JPY": "price_jpyTest",
+          "V3_STRIPE_PRICE_USD": ""}
+
+
+def auth_response():
+    return httpx.Response(200, json={"id": USER, "email": "member@example.test",
+        "email_confirmed_at": "2026-09-19T00:00:00Z"})
+
+
+class BillingTests(unittest.TestCase):
+    def setUp(self):
+        self.env = patch.dict(os.environ, CONFIG)
+        self.env.start()
+        self.addCleanup(self.env.stop)
+        self.app = create_app()
+        self.client = local_test_client(self.app)
+        self.store = Mock()
+        self.store.key = CONFIG["V3_SUPABASE_SECRET_KEY"]
+        self.store.entitlement.return_value = ("none", None)
+        self.store.customer.return_value = None
+        self.store.status.return_value = None
+        self.app.state.billing.store = self.store
+        self.auth_http = patch("backend.v3.supabase_auth.httpx.request", return_value=auth_response()).start()
+        self.addCleanup(patch.stopall)
+
+    def test_checkout_uses_allowlisted_price_and_verified_member(self):
+        self.store.save_customer.return_value = "cus_member"
+        def price(price_id, **_kwargs):
+            data = {"id": price_id, "active": True, "livemode": False, "currency": "jpy",
+                    "unit_amount": 400, "product": "prod_v3", "recurring": {"interval": "month", "interval_count": 1}}
+            return SimpleNamespace(to_dict=lambda: data)
+        patch("backend.v3.billing.stripe.Price.retrieve", side_effect=price).start()
+        customer = patch("backend.v3.billing.stripe.Customer.create",
+            return_value=SimpleNamespace(id="cus_member")).start()
+        checkout = patch("backend.v3.billing.stripe.checkout.Session.create",
+            return_value=SimpleNamespace(url="https://checkout.stripe.com/test/session")).start()
+        response = self.client.post("/api/v3/billing/checkout", headers=AUTH, json={"currency": "jpy"})
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["url"], "https://checkout.stripe.com/test/session")
+        self.assertEqual(customer.call_args.kwargs["metadata"]["v3_user_id"], USER)
+        self.assertEqual(customer.call_args.kwargs["email"], "member@example.test")
+        self.assertEqual(checkout.call_args.kwargs["line_items"][0]["price"], "price_jpyTest")
+        self.assertEqual(checkout.call_args.kwargs["mode"], "subscription")
+
+    def test_checkout_refuses_mispriced_or_existing_subscription(self):
+        bad = {"active": True, "livemode": False, "currency": "jpy", "unit_amount": 999,
+               "product": "prod_v3", "recurring": {"interval": "month", "interval_count": 1}}
+        patch("backend.v3.billing.stripe.Price.retrieve",
+              return_value=SimpleNamespace(to_dict_recursive=lambda: bad)).start()
+        response = self.client.post("/api/v3/billing/checkout", headers=AUTH, json={"currency": "jpy"})
+        self.assertEqual(response.status_code, 503)
+        response = self.client.post("/api/v3/billing/checkout", headers=AUTH, json={"currency": "usd"})
+        self.assertEqual(response.status_code, 422)
+
+    def test_checkout_rejects_unknown_currency_origin_and_anonymous(self):
+        self.assertEqual(self.client.post("/api/v3/billing/checkout", headers=AUTH, json={"currency": "eur"}).status_code, 422)
+        self.assertEqual(self.client.post("/api/v3/billing/checkout",
+            headers={"Authorization": "Bearer member-token"}, json={"currency": "jpy"}).status_code, 403)
+        self.assertEqual(self.client.post("/api/v3/billing/checkout",
+            headers={"Origin": AUTH["Origin"]}, json={"currency": "jpy"}).status_code, 401)
+
+    def test_verified_database_entitlement_unlocks_paid_state(self):
+        expiry = datetime.now(timezone.utc) + timedelta(days=20)
+        self.store.entitlement.return_value = ("active", expiry)
+        response = self.client.get("/api/v3/session", headers=AUTH)
+        self.assertEqual(response.json()["state"], "paid")
+        self.assertTrue(response.json()["capabilities"]["stellar_forecast"])
+        self.assertEqual(response.json()["user_id"], f"supabase:test:{USER}")
+
+    def test_billing_store_failure_fails_closed(self):
+        from fastapi import HTTPException
+        self.store.entitlement.side_effect = HTTPException(503, "offline")
+        response = self.client.get("/api/v3/session", headers=AUTH)
+        self.assertEqual(response.json()["state"], "unavailable")
+        paid = self.client.post("/api/v3/paid-reading", headers=AUTH, json={})
+        self.assertEqual(paid.status_code, 503)
+
+    def test_portal_requires_existing_customer(self):
+        response = self.client.post("/api/v3/billing/portal", headers=AUTH, json={})
+        self.assertEqual(response.status_code, 409)
+        self.store.customer.return_value = "cus_member"
+        portal = patch("backend.v3.billing.stripe.billing_portal.Session.create",
+            return_value=SimpleNamespace(url="https://billing.stripe.com/p/session/test")).start()
+        response = self.client.post("/api/v3/billing/portal", headers=AUTH, json={})
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(portal.call_args.kwargs["customer"], "cus_member")
+
+    def test_invalid_webhook_signature_is_rejected(self):
+        patch("backend.v3.billing.stripe.Webhook.construct_event",
+            side_effect=stripe.SignatureVerificationError("bad", "sig")).start()
+        response = self.client.post("/api/v3/billing/webhook", content=b"{}",
+            headers={"Stripe-Signature": "bad"})
+        self.assertEqual(response.status_code, 400)
+
+    def test_paid_invoice_extends_access_using_customer_mapping(self):
+        self.store.begin_event.return_value = True
+        self.store.user_for_customer.return_value = USER
+        subscription = {"id": "sub_paid", "customer": "cus_member", "status": "active", "currency": "jpy",
+            "current_period_end": 1790000000, "cancel_at_period_end": False,
+            "items": {"data": [{"price": {"id": "price_jpyTest", "currency": "jpy"}}]}}
+        retrieved = SimpleNamespace(to_dict_recursive=lambda: subscription)
+        patch("backend.v3.billing.stripe.Subscription.retrieve", return_value=retrieved).start()
+        event = {"id": "evt_paid", "type": "invoice.paid", "created": 1787000000,
+                 "data": {"object": {"subscription": "sub_paid"}}}
+        self.assertEqual(self.app.state.billing.handle(event), "processed")
+        record = self.store.save_subscription.call_args.args[0]
+        self.assertEqual(record["user_id"], USER)
+        self.assertEqual(record["stripe_price_id"], "price_jpyTest")
+        self.assertIn("access_until", record)
+        self.store.finish_event.assert_called_once_with("evt_paid")
+
+    def test_duplicate_webhook_is_idempotent(self):
+        self.store.begin_event.return_value = False
+        event = {"id": "evt_same", "type": "customer.subscription.updated", "created": 1,
+                 "data": {"object": {}}}
+        self.assertEqual(self.app.state.billing.handle(event), "duplicate")
+        self.store.save_subscription.assert_not_called()
+
+    def test_live_or_partial_configuration_is_refused(self):
+        with patch.dict(os.environ, {**CONFIG, "V3_STRIPE_SECRET_KEY": "sk_live_forbidden"}):
+            with self.assertRaises(RuntimeError):
+                create_app()
+        with patch.dict(os.environ, {**CONFIG, "V3_STRIPE_PRICE_JPY": ""}):
+            with self.assertRaises(RuntimeError):
+                create_app()
+
+
+if __name__ == "__main__":
+    unittest.main()

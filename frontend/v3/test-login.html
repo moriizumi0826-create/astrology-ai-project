@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex,nofollow">
+  <title>テストログイン | The Celestial Atelier V3</title>
+  <style>
+    *{box-sizing:border-box}body{margin:0;background:#0c1018;color:#f3f3f0;font-family:system-ui,sans-serif;line-height:1.7}main{max-width:460px;margin:8vh auto;padding:28px}h1{font-size:25px;color:#e9c349}p{font-size:13px;color:#c7c6cc}label{display:block;margin:18px 0}input:not([type=checkbox]){display:block;width:100%;margin-top:6px;padding:12px;border:1px solid #ffffff33;border-radius:8px;background:#ffffff09;color:white;font-size:16px}button{width:100%;padding:12px;border:0;border-radius:8px;background:#e9c349;color:#121414;font-size:15px;cursor:pointer}button:disabled{opacity:.5;cursor:wait}a{color:#e9c349}#error{color:#ffb8b8}#transfer-row{font-size:13px}input:focus-visible,button:focus-visible,a:focus-visible{outline:2px solid #e9c349;outline-offset:3px}[hidden]{display:none!important}
+  </style>
+</head>
+<body><main>
+  <p>The Celestial Atelier · V3</p>
+  <h1>テストログイン</h1>
+  <p>このPC内で有料版を確認するためのログインです。実際の課金は発生しません。</p>
+  <form id="login-form">
+    <label for="login-id">ログインID<input id="login-id" name="login_id" autocomplete="username" maxlength="128" required></label>
+    <label for="login-password">パスワード<input id="login-password" name="password" type="password" autocomplete="current-password" maxlength="128" required></label>
+    <label id="transfer-row" hidden><input id="transfer" type="checkbox"> 現在の出生情報をテストユーザーに引き継ぐ<br>※テストユーザーに保存済みの出生情報がある場合は、そちらを使用します。</label>
+    <p id="error" role="alert" hidden></p>
+    <p id="status" role="status">利用状態を確認しています…</p>
+    <button type="submit" disabled>ログインして有料版を確認</button>
+  </form>
+  <p><a href="/entry.html">無料版の出生入力へ戻る</a></p>
+</main><script type="module" src="/test-login.js"></script></body>
+</html>

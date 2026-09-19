@@ -6,7 +6,9 @@
     "dev": "vite",
     "build": "vite build",
     "test": "node --test tests/*.test.mjs",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "dev:v3": "vite --config vite.v3.config.mjs",
+    "build:v3": "vite build --config vite.v3.config.mjs"
   },
   "devDependencies": {
     "@vitejs/plugin-react": "^5.2.0",
@@ -16,6 +18,7 @@
     "vite": "^5.4.8"
   },
   "dependencies": {
+    "@supabase/supabase-js": "2.116.0",
     "three": "^0.184.0"
   }
 }

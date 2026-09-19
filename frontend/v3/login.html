@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html lang="ja"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex,nofollow"><meta name="referrer" content="no-referrer">
+<title>会員ログイン | The Celestial Atelier</title><link rel="stylesheet" href="/member.css">
+</head><body><main>
+<p>The Celestial Atelier · V3</p><h1 id="heading">ログイン</h1>
+<p>会員登録は無料です。出生情報を保存して、次回も同じチャートを利用できます。登録だけで有料機能は開放されません。</p>
+<nav aria-label="認証操作"><button type="button" data-mode="login" aria-pressed="true">ログイン</button><button type="button" data-mode="signup" aria-pressed="false">新規登録</button><button type="button" data-mode="reset" aria-pressed="false">パスワードを忘れた場合</button></nav>
+<form id="member-form">
+<label>メールアドレス<input id="email" type="email" autocomplete="username" maxlength="254" required></label>
+<label id="password-row">パスワード<input id="password" type="password" autocomplete="current-password" maxlength="128" required></label>
+<label id="transfer-row" hidden><input id="transfer" type="checkbox"> この端末で入力済みの出生情報をアカウントに保存する<br>※アカウントに保存済みの出生情報がある場合は上書きしません。</label>
+<p id="signup-note" hidden>12文字以上のパスワードを設定してください。確認メールは、この登録操作を行ったブラウザで開いてください。</p>
+<button id="submit" type="submit" disabled>ログイン</button>
+</form>
+<p id="error" role="alert" hidden></p><p id="status" role="status">接続を確認しています…</p>
+<button id="resend" type="button" hidden>確認メールを再送</button>
+<section id="signed-in" hidden><p>ログイン済みです。</p><p><a href="/index.html#horoscope">ホロスコープへ進む</a></p><button id="signout" type="button">ログアウト</button></section>
+<p><a href="/entry.html">出生入力へ戻る</a></p>
+</main><script type="module" src="/login.js"></script></body></html>
