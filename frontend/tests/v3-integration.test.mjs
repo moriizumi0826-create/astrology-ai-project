@@ -18,7 +18,11 @@ test("one map implementation is shared and paid entry is lazy", () => {
   assert.doesNotMatch(paid, /function TransitNatalSunMap/);
   assert.match(app, /lazy\(\(\) => import\("\.\/paid-forecast\.jsx"\)\)/);
   assert.match(app, /DeviceTimeBoundary key=\{`\$\{session.user_id\}:\$\{session.state\}`\}/);
-  assert.match(app, /const navigate = next => \{ setPaidReady\(false\)/);
+  assert.match(app, /const \[paidRequested, setPaidRequested\] = useState\(initialView === "forecast"\)/);
+  assert.match(app, /if \(!paidRequested \|\| !stellarForecast \|\| paidReady\) return/);
+  assert.match(app, /<div hidden=\{view !== "horoscope"\}>/);
+  assert.match(app, /<div hidden=\{view !== "forecast"\}>/);
+  assert.doesNotMatch(app, /const navigate = next => \{ setPaidReady\(false\)/);
   const map = readFileSync(new URL("../v3/horoscope-map.jsx", import.meta.url), "utf8");
   assert.match(map, /isFreePlayback \? buildFreePlaybackDates\(currentLocalDate\(\)\)/);
   assert.match(map, /buildTransitPlaybackDates\(playbackStartDate, rangeOption.days\)/);
@@ -67,6 +71,12 @@ test("V3 keeps the original headers and mounts account access inside the header"
   for (const source of [app, paid, entry, entryScript]) assert.doesNotMatch(source, /v3-auth-bar-height|mountAuthControls/);
   assert.match(app, /fixed left-0 top-0 z-40 w-full border-b border-slate-200\/90 bg-\[#f8fafc\]\/95/);
   assert.match(app, /<AccountControls session=\{session\} \/>/);
+  const navStart = app.indexOf('id="v3-workspace-nav"');
+  const nav = app.slice(navStart, app.indexOf("</nav>", navStart));
+  assert.ok(nav.indexOf("星の見通し") < nav.indexOf("Horoscope"));
+  const paidNavStart = paid.indexOf("const navItems");
+  const paidNav = paid.slice(paidNavStart, paid.indexOf("];", paidNavStart));
+  assert.ok(paidNav.indexOf("星の見通し") < paidNav.indexOf("Horoscope"));
   assert.match(paid, /<AccountControls session=\{session\} \/>/);
   assert.match(entry, /href="\/login\.html">ログイン<\/a>/);
 });

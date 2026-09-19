@@ -53,7 +53,6 @@ function Horoscope({ onForecast, session }) {
           id="v3-workspace-nav"
           className={`order-last w-full items-center gap-5 overflow-x-auto border-t border-slate-200 pt-3 font-mono text-[10px] font-bold tracking-[0.1em] text-[#0A192F]/70 transition-all [scrollbar-width:none] sm:text-xs lg:gap-10 lg:tracking-[0.12em] ${menuOpen ? "flex max-h-20 opacity-100" : "hidden max-h-0 opacity-0"}`}
         >
-          <button type="button" className="border-b-2 border-[#D4AF37] pb-2 text-[#0A192F] sm:pb-3" onClick={() => setMenuOpen(false)}>Horoscope</button>
           <button
             type="button"
             className={`pb-2 transition sm:pb-3 ${stellarForecast ? "hover:text-[#D4AF37]" : "text-[#0A192F]/45"}`}
@@ -62,6 +61,7 @@ function Horoscope({ onForecast, session }) {
           >
             星の見通し{!stellarForecast ? " 🔒" : ""}
           </button>
+          <button type="button" className="border-b-2 border-[#D4AF37] pb-2 text-[#0A192F] sm:pb-3" onClick={() => setMenuOpen(false)}>Horoscope</button>
         </nav>
       </div>
     </header>
@@ -78,23 +78,29 @@ function Horoscope({ onForecast, session }) {
 
 function Workspace({ session }) {
   const { stellarForecast } = featurePolicy(session);
-  const [view, setView] = useState(() => location.hash === "#horoscope" || !stellarForecast ? "horoscope" : "forecast");
+  const initialView = location.hash === "#horoscope" || !stellarForecast ? "horoscope" : "forecast";
+  const [view, setView] = useState(initialView);
+  const [paidRequested, setPaidRequested] = useState(initialView === "forecast");
   const [paidReady, setPaidReady] = useState(false);
   const [error, setError] = useState("");
   const [retry, setRetry] = useState(0);
-  const navigate = next => { setPaidReady(false); location.hash = next; setView(next); };
+  const navigate = next => {
+    if (next === "forecast" && stellarForecast) setPaidRequested(true);
+    location.hash = next;
+    setView(next);
+  };
   useEffect(() => {
     const syncView = () => {
-      setPaidReady(false);
-      setView(location.hash === "#forecast" && stellarForecast ? "forecast" : "horoscope");
+      const next = location.hash === "#forecast" && stellarForecast ? "forecast" : "horoscope";
+      if (next === "forecast") setPaidRequested(true);
+      setView(next);
     };
     window.addEventListener("hashchange", syncView);
     return () => window.removeEventListener("hashchange", syncView);
   }, [stellarForecast]);
   useEffect(() => {
-    if (view !== "forecast" || !stellarForecast) return;
+    if (!paidRequested || !stellarForecast || paidReady) return;
     let active = true;
-    setPaidReady(false);
     setError("");
     postJson("/api/paid-reading?defer_widgets=true", getStoredReadingForm()).then(async result => {
       if (!active) return;
@@ -102,12 +108,19 @@ function Workspace({ session }) {
       if (active) setPaidReady(true);
     }).catch(failure => { if (active) setError(failure.message); });
     return () => { active = false; };
-  }, [view, stellarForecast, retry]);
-  if (view === "forecast" && stellarForecast) {
-    if (error) return <section className="p-8"><p role="alert">{error}</p><button onClick={() => setRetry(value => value + 1)}>再試行</button><button className="ml-5" onClick={() => navigate("horoscope")}>Horoscopeへ戻る</button></section>;
-    return paidReady ? <Suspense fallback={<p className="p-8" role="status">星の見通しを読み込んでいます…</p>}><PaidForecast onHoroscope={() => navigate("horoscope")} /></Suspense> : <p className="p-8" role="status">星の見通しの計算を開始しています…</p>;
-  }
-  return <Horoscope session={session} onForecast={() => navigate("forecast")} />;
+  }, [paidRequested, stellarForecast, retry]);
+  return <>
+    <div hidden={view !== "horoscope"}>
+      <Horoscope session={session} onForecast={() => navigate("forecast")} />
+    </div>
+    {stellarForecast && paidRequested && <div hidden={view !== "forecast"}>
+      {error
+        ? <section className="p-8"><p role="alert">{error}</p><button onClick={() => setRetry(value => value + 1)}>再試行</button><button className="ml-5" onClick={() => navigate("horoscope")}>Horoscopeへ戻る</button></section>
+        : paidReady
+          ? <Suspense fallback={<p className="p-8" role="status">星の見通しを読み込んでいます…</p>}><PaidForecast onHoroscope={() => navigate("horoscope")} /></Suspense>
+          : <p className="p-8" role="status">星の見通しの計算を開始しています…</p>}
+    </div>}
+  </>;
 }
 
 function App() {
