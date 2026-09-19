@@ -1,11 +1,9 @@
 import { configureStorage } from "./reading-storage.js";
-import { mountAuthControls } from "./auth-controls.js";
 import { prepareSession } from "./profile.mjs";
 const button = document.querySelector('button[type="submit"]');
 button.disabled = true;
 prepareSession().then(async session => {
   configureStorage(session);
-  mountAuthControls(session);
   if (String(session.user_id || "").startsWith("supabase:")) {
     const notice = document.createElement("p");
     notice.textContent = "計算完了時に、この出生情報をログイン中のアカウントへ保存します。";

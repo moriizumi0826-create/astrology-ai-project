@@ -76,12 +76,15 @@
     </style>
   </head>
   <body class="bg-surface text-on-surface selection:bg-[#f7e382]">
-    <nav style="top:var(--v3-auth-bar-height, 0px)" class="fixed top-0 left-0 w-full z-50 bg-[#fafaf5]/80 backdrop-blur-md flex justify-between items-center px-6 md:px-12 py-6">
+    <nav class="fixed top-0 left-0 w-full z-50 bg-[#fafaf5]/80 backdrop-blur-md flex justify-between items-center px-6 md:px-12 py-6">
       <div class="text-2xl font-normal font-notoSerif text-primary">The Celestial Atelier</div>
-      <div class="hidden md:flex gap-10 items-center font-notoSerif tracking-wider text-sm">
-        <a class="text-secondary border-b border-secondary pb-1" href="#home">Home</a>
-        <a class="text-primary hover:text-secondary transition-colors duration-500" href="#entry">Chart Entry</a>
-        <a class="text-primary hover:text-secondary transition-colors duration-500" href="#results">Readings</a>
+      <div class="flex items-center gap-5 md:gap-10 font-notoSerif tracking-wider text-sm">
+        <div class="hidden md:flex gap-10 items-center">
+          <a class="text-secondary border-b border-secondary pb-1" href="#home">Home</a>
+          <a class="text-primary hover:text-secondary transition-colors duration-500" href="#entry">Chart Entry</a>
+          <a class="text-primary hover:text-secondary transition-colors duration-500" href="#results">Readings</a>
+        </div>
+        <a class="text-primary hover:text-secondary transition-colors duration-500" href="/login.html">ログイン</a>
       </div>
     </nav>
 

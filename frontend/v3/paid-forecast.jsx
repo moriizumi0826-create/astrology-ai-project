@@ -2,6 +2,7 @@
 import { TransitNatalSunMap, Horoscope3DMap } from "./horoscope-map.jsx";
 import { getJson, postJson, requestJson, formatApiError, resolveApiBaseUrl, getQueryReadingForm, reloadCsvMasters } from "./api.mjs";
 import { useAccess } from "./access-context.jsx";
+import { AccountControls } from "./account-controls.jsx";
 import { featurePolicy } from "./feature-policy.mjs";
 import React, { useEffect, useMemo, useState } from "react";
 
@@ -1660,6 +1661,7 @@ function Header({
   canAccessPremium = true,
   onPremiumRequired = () => {},
 }) {
+  const { session } = useAccess();
   const [isMobileUnifiedMenuOpen, setIsMobileUnifiedMenuOpen] = useState(false);
   const [isRetrogradeCalendarOpen, setIsRetrogradeCalendarOpen] = useState(false);
   const [retrogradeCalendarSort, setRetrogradeCalendarSort] = useState("date");
@@ -1694,7 +1696,7 @@ function Header({
     });
   }, [retrogradeCalendar, retrogradeCalendarSort]);
   return (
-    <header style={{ top: "var(--v3-auth-bar-height, 0px)" }} className="fixed left-0 top-0 z-40 w-full border-b border-slate-200/90 bg-[#f8fafc]/95 backdrop-blur-xl">
+    <header className="fixed left-0 top-0 z-40 w-full border-b border-slate-200/90 bg-[#f8fafc]/95 backdrop-blur-xl">
       <div className="flex w-full max-w-none flex-wrap items-center justify-between gap-2 px-3 py-2 sm:gap-6 sm:px-8 sm:py-6 lg:mx-auto lg:max-w-[1760px]">
         <div className="flex min-w-0 flex-1 items-center gap-2 sm:flex-none sm:gap-8">
           <a href={ENTRY_PAGE_PATH} className="max-w-[66px] font-serif text-[11px] font-bold leading-[0.98] text-[#0A192F] sm:max-w-none sm:text-4xl sm:leading-none">{APP_BRAND}</a>
@@ -1744,6 +1746,7 @@ function Header({
           onRefreshLatest={onRefreshLatest}
           refreshingLatest={refreshingLatest}
         />
+        <AccountControls session={session} />
         <nav
           id="forecast-mobile-nav"
           className={cx(

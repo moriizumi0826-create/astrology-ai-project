@@ -58,3 +58,15 @@ test("real member birth data stays memory-only and profile excludes display stat
   assert.equal(birthProfile(input).display_timezone_name, undefined);
   assert.equal(birthProfile(input).target_date, undefined);
 });
+
+test("V3 keeps the original headers and mounts account access inside the header", () => {
+  const app = readFileSync(new URL("../v3/app.jsx", import.meta.url), "utf8");
+  const paid = readFileSync(new URL("../v3/paid-forecast.jsx", import.meta.url), "utf8");
+  const entry = readFileSync(new URL("../v3/entry.html", import.meta.url), "utf8");
+  const entryScript = readFileSync(new URL("../v3/entry.js", import.meta.url), "utf8");
+  for (const source of [app, paid, entry, entryScript]) assert.doesNotMatch(source, /v3-auth-bar-height|mountAuthControls/);
+  assert.match(app, /fixed left-0 top-0 z-40 w-full border-b border-slate-200\/90 bg-\[#f8fafc\]\/95/);
+  assert.match(app, /<AccountControls session=\{session\} \/>/);
+  assert.match(paid, /<AccountControls session=\{session\} \/>/);
+  assert.match(entry, /href="\/login\.html">ログイン<\/a>/);
+});

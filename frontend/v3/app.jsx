@@ -1,5 +1,7 @@
 import React, { lazy, Suspense, useEffect, useState } from "react";
+import { Menu } from "lucide-react";
 import { createRoot } from "react-dom/client";
+import { AccountControls } from "./account-controls.jsx";
 import { AccessContext } from "./access-context.jsx";
 import { BirthDataEditor } from "./birth-data-editor.jsx";
 import { FreeHoroscopeContent } from "./free-horoscope-content.jsx";
@@ -8,7 +10,6 @@ import { DeviceTimeBoundary } from "../src/device-time-boundary.jsx";
 import { configureStorage, freeResult, getStoredReadingForm, getStoredReadingResult, storeReadingForm, storeReadingResult } from "./reading-storage.js";
 import { getJson, postJson, searchBirthLocations } from "./api.mjs";
 import background from "../src/assets/daily-detail-galaxy-bg.jpg";
-import { mountAuthControls } from "./auth-controls.js";
 import { featurePolicy } from "./feature-policy.mjs";
 import { prepareSession, saveMemberProfile } from "./profile.mjs";
 import { isMemberMode } from "./auth-client.mjs";
@@ -20,6 +21,7 @@ function Horoscope({ onForecast, session }) {
   const [result, setResult] = useState(() => freeResult(getStoredReadingResult({ allowStale: true })));
   const [revision, setRevision] = useState(0);
   const [locked, setLocked] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
   const recalculate = async ({ request, snapshot }) => {
     const next = await postJson("/api/readings", request);
     await saveMemberProfile(snapshot);
@@ -30,11 +32,40 @@ function Horoscope({ onForecast, session }) {
   };
   const data = { ...result, ...result.dashboard_data };
   return <div className="min-h-screen text-starlight">
-    <header className="flex flex-wrap items-center justify-between gap-3 border-b border-white/10 bg-[#121414] px-5 py-4">
-      <a href="/entry.html" className="font-serif text-xl text-gold">The Celestial Atelier</a>
-      <nav className="flex gap-5 text-sm"><span>Horoscope</span><button onClick={() => stellarForecast ? onForecast() : setLocked(true)}>星の見通し{!stellarForecast ? " 🔒" : ""}</button></nav>
+    <header className="fixed left-0 top-0 z-40 w-full border-b border-slate-200/90 bg-[#f8fafc]/95 backdrop-blur-xl">
+      <div className="flex w-full max-w-none flex-wrap items-center justify-between gap-2 px-3 py-2 sm:gap-6 sm:px-8 sm:py-6 lg:mx-auto lg:max-w-[1760px]">
+        <div className="flex min-w-0 flex-1 items-center gap-2 sm:flex-none sm:gap-8">
+          <a href="/entry.html" className="max-w-[66px] font-serif text-[11px] font-bold leading-[0.98] text-[#0A192F] sm:max-w-none sm:text-4xl sm:leading-none">The Celestial Atelier</a>
+          <button
+            type="button"
+            onClick={() => setMenuOpen(value => !value)}
+            className={`inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-slate-200 bg-white text-[#0A192F] shadow-sm transition ${menuOpen ? "ring-1 ring-[#D4AF37]/45" : "hover:bg-[#fff7df] hover:text-[#D4AF37]"}`}
+            aria-expanded={menuOpen}
+            aria-controls="v3-workspace-nav"
+            aria-label="ナビゲーションを開く"
+            title="メニュー"
+          >
+            <Menu size={15} />
+          </button>
+        </div>
+        <AccountControls session={session} />
+        <nav
+          id="v3-workspace-nav"
+          className={`order-last w-full items-center gap-5 overflow-x-auto border-t border-slate-200 pt-3 font-mono text-[10px] font-bold tracking-[0.1em] text-[#0A192F]/70 transition-all [scrollbar-width:none] sm:text-xs lg:gap-10 lg:tracking-[0.12em] ${menuOpen ? "flex max-h-20 opacity-100" : "hidden max-h-0 opacity-0"}`}
+        >
+          <button type="button" className="border-b-2 border-[#D4AF37] pb-2 text-[#0A192F] sm:pb-3" onClick={() => setMenuOpen(false)}>Horoscope</button>
+          <button
+            type="button"
+            className={`pb-2 transition sm:pb-3 ${stellarForecast ? "hover:text-[#D4AF37]" : "text-[#0A192F]/45"}`}
+            onClick={() => { setMenuOpen(false); stellarForecast ? onForecast() : setLocked(true); }}
+            aria-disabled={!stellarForecast}
+          >
+            星の見通し{!stellarForecast ? " 🔒" : ""}
+          </button>
+        </nav>
+      </div>
     </header>
-    <div style={{ backgroundImage: `linear-gradient(#05070f66,#05070f99),url(${background})`, backgroundSize: "cover", backgroundAttachment: "fixed" }}>
+    <div className="pt-[56px] sm:pt-36" style={{ backgroundImage: `linear-gradient(#05070f66,#05070f99),url(${background})`, backgroundSize: "cover", backgroundAttachment: "fixed" }}>
       <FreeHoroscopeContent data={data} belowMetaContent={<>
         {isMemberMode() && session.user_id && <p className="px-4 text-xs text-white/60">再計算の完了時に、変更した出生情報をアカウントへ保存します。</p>}
         <BirthDataEditor initialForm={getStoredReadingForm() || {}} meta={result.meta} onSearchLocations={searchBirthLocations} onRecalculate={recalculate} />
@@ -96,7 +127,6 @@ function App() {
     window.addEventListener("v3-auth-changed", changed);
     return () => window.removeEventListener("v3-auth-changed", changed);
   }, []);
-  useEffect(() => session ? mountAuthControls(session) : undefined, [session?.user_id, session?.state]);
   useEffect(() => {
     if (session?.state !== "paid") return;
     const remaining = Date.parse(session.valid_until) - Date.now();
@@ -110,7 +140,7 @@ function App() {
   }, [session?.state, session?.valid_until]);
   if (error) return <section className="p-8"><p role="alert">{error}</p><button onClick={refresh}>再試行</button><a className="ml-5 underline" href="/login.html">ログイン画面へ</a></section>;
   if (!session) return <p className="p-8" role="status">利用状態を確認しています…</p>;
-  return <AccessContext.Provider value={{ session }}><DeviceTimeBoundary key={`${session.user_id}:${session.state}`} refreshReading={postJson}><Workspace session={session} /></DeviceTimeBoundary><div className="fixed bottom-1 left-1 z-[250] rounded bg-black/80 px-2 py-1 text-[10px] text-white/60">{isMemberMode() ? "V3 テスト公開" : "V3 ローカル検証"}</div></AccessContext.Provider>;
+  return <AccessContext.Provider value={{ session }}><DeviceTimeBoundary key={`${session.user_id}:${session.state}`} refreshReading={postJson}><Workspace session={session} /></DeviceTimeBoundary></AccessContext.Provider>;
 }
 
 const root = import.meta.hot?.data.root || createRoot(document.getElementById("forecast-detail-root"));
