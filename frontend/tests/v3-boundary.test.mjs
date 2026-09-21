@@ -40,8 +40,10 @@ test("production V3 blueprint starts with billing closed and contains no secrets
 test("production-facing source does not hard-code preview billing copy", () => {
   const billing = readFileSync(new URL("../v3/billing.html", import.meta.url), "utf8");
   const entry = readFileSync(new URL("../v3/entry.html", import.meta.url), "utf8");
+  const workspace = readFileSync(new URL("../v3/index.html", import.meta.url), "utf8");
   assert.doesNotMatch(billing, /テスト決済|テストモード/);
   assert.doesNotMatch(entry, /テスト運用版|Test Operation/);
+  assert.doesNotMatch(workspace, /V3 検証/);
 });
 
 test("legacy build entry points do not include the local V3 shell", () => {
