@@ -145,9 +145,13 @@ class StripeBilling:
         self.prices = {"jpy": jpy_price}
         if usd_price:
             self.prices["usd"] = usd_price
-        required = [self.secret_key, self.webhook_secret, jpy_price, store.key]
+        stripe_values = [self.secret_key, self.webhook_secret, jpy_price]
+        required = [*stripe_values, store.key]
         self.configured = all(required)
-        if any([*required, usd_price]) and not self.configured:
+        # The production shell may run with sales disabled before live Stripe
+        # credentials exist. A Supabase secret by itself is database config,
+        # not a partial Stripe configuration.
+        if any([*stripe_values, usd_price]) and not self.configured:
             raise RuntimeError("V3のStripe設定とSupabase Secret keyを全て設定してください。")
         if self.configured:
             expected_prefix = "sk_live_" if self.live_mode else "sk_test_"

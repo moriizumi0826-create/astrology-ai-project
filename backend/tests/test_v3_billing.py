@@ -183,6 +183,16 @@ class BillingTests(unittest.TestCase):
             with self.assertRaises(RuntimeError):
                 create_app()
 
+        billing_closed = {**production,
+            "V3_STRIPE_SECRET_KEY": "",
+            "V3_STRIPE_WEBHOOK_SECRET": "",
+            "V3_STRIPE_PRICE_JPY": "",
+        }
+        with patch.dict(os.environ, billing_closed):
+            closed_app = create_app()
+        self.assertFalse(closed_app.state.billing.configured)
+        self.assertFalse(closed_app.state.billing.checkout_enabled)
+
         live_price = {"active": True, "livemode": True, "currency": "jpy", "unit_amount": 400,
                       "product": "prod_v3", "recurring": {"interval": "month", "interval_count": 1}}
         app.state.billing.checkout_enabled = True
