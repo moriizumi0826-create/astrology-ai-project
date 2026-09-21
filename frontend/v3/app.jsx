@@ -1,4 +1,5 @@
 import React, { lazy, Suspense, useEffect, useState } from "react";
+import "./tailwind.css";
 import { Menu } from "lucide-react";
 import { createRoot } from "react-dom/client";
 import { AccountControls } from "./account-controls.jsx";

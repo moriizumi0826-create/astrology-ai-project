@@ -1,3 +1,4 @@
+import "./tailwind.css";
 import { configureStorage } from "./reading-storage.js";
 import { prepareSession } from "./profile.mjs";
 if (__APP_ENVIRONMENT__ === "preview") {
@@ -15,7 +16,7 @@ prepareSession().then(async session => {
   if (String(session.user_id || "").startsWith("supabase:")) {
     const notice = document.createElement("p");
     notice.textContent = "計算完了時に、この出生情報をログイン中のアカウントへ保存します。";
-    notice.style.cssText = "font-size:13px;margin:12px 0";
+    notice.className = "entry-member-notice";
     button.before(notice);
   }
   window.addEventListener("v3-auth-changed", () => { configureStorage(null); location.replace("/login.html"); });

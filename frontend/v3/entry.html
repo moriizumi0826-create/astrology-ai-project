@@ -4,7 +4,6 @@
     <meta charset="utf-8" />
     <meta content="width=device-width, initial-scale=1.0" name="viewport" />
     <title>The Celestial Atelier | V3</title>
-    <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
     <link href="https://fonts.googleapis.com" rel="preconnect" />
     <link crossorigin href="https://fonts.gstatic.com" rel="preconnect" />
     <link
@@ -15,67 +14,8 @@
       href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap"
       rel="stylesheet"
     />
-    <script id="tailwind-config">
-      tailwind.config = {
-        theme: {
-          extend: {
-            colors: {
-              "primary-dim": "#53534d",
-              background: "#fafaf5",
-              primary: "#5f5f59",
-              secondary: "#6d5f07",
-              surface: "#fafaf5",
-              "surface-container": "#ecefe7",
-              "surface-container-low": "#f3f4ee",
-              "surface-container-lowest": "#ffffff",
-              "inverse-surface": "#0d0f0c",
-              "on-primary": "#faf8f0",
-              "on-surface": "#2e342d",
-              "on-surface-variant": "#5b6159",
-              "outline-variant": "#aeb4aa",
-            },
-            fontFamily: {
-              notoSerif: ["Noto Serif", "serif"],
-              manrope: ["Manrope", "sans-serif"],
-              notoSansJP: ["Noto Sans JP", "sans-serif"],
-            },
-          },
-        },
-      };
-    </script>
-    <style>
-      html {
-        scroll-behavior: smooth;
-      }
-      body {
-        font-family: "Manrope", "Noto Sans JP", sans-serif;
-      }
-      .numeric-input {
-        color: rgba(95, 95, 89, 0.38);
-      }
-      .numeric-input::placeholder {
-        color: rgba(95, 95, 89, 0.38);
-      }
-      .numeric-input.has-value {
-        color: #5f5f59;
-      }
-      .font-notoSerif {
-        font-family: "Noto Serif", serif;
-      }
-      .reveal {
-        opacity: 0;
-        transform: translateY(10px);
-        animation: fadeUp 0.8s cubic-bezier(0.2, 0, 0, 1) forwards;
-      }
-      @keyframes fadeUp {
-        to {
-          opacity: 1;
-          transform: translateY(0);
-        }
-      }
-    </style>
   </head>
-  <body class="bg-surface text-on-surface selection:bg-[#f7e382]">
+  <body class="entry-page bg-surface text-on-surface selection:bg-[#f7e382]">
     <nav class="fixed top-0 left-0 w-full z-50 bg-[#fafaf5]/80 backdrop-blur-md flex justify-between items-center px-6 md:px-12 py-6">
       <div class="text-2xl font-normal font-notoSerif text-primary">The Celestial Atelier</div>
       <div class="flex items-center gap-5 md:gap-10 font-notoSerif tracking-wider text-sm">

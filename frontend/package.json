@@ -11,10 +11,15 @@
     "build:v3": "vite build --config vite.v3.config.mjs"
   },
   "devDependencies": {
+    "@tailwindcss/container-queries": "^0.1.1",
+    "@tailwindcss/forms": "^0.5.10",
     "@vitejs/plugin-react": "^5.2.0",
+    "autoprefixer": "^10.4.21",
     "lucide-react": "^1.8.0",
+    "postcss": "^8.5.6",
     "react": "^19.2.5",
     "react-dom": "^19.2.5",
+    "tailwindcss": "^3.4.17",
     "vite": "^5.4.8"
   },
   "dependencies": {

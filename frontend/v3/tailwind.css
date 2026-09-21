@@ -1,0 +1,73 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html {
+  scroll-behavior: smooth;
+}
+
+body.entry-page {
+  font-family: "Manrope", "Noto Sans JP", sans-serif;
+}
+
+.entry-page .numeric-input {
+  color: rgba(95, 95, 89, 0.38);
+}
+
+.entry-page .numeric-input::placeholder {
+  color: rgba(95, 95, 89, 0.38);
+}
+
+.entry-page .numeric-input.has-value {
+  color: #5f5f59;
+}
+
+.entry-page .font-notoSerif {
+  font-family: "Noto Serif", serif;
+}
+
+.entry-page .reveal {
+  opacity: 0;
+  transform: translateY(10px);
+  animation: fadeUp 0.8s cubic-bezier(0.2, 0, 0, 1) forwards;
+}
+
+.entry-member-notice {
+  margin: 12px 0;
+  font-size: 13px;
+}
+
+@keyframes fadeUp {
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+html.horoscope-shell {
+  background: #121414;
+}
+
+body.horoscope-page {
+  margin: 0;
+  min-height: 100vh;
+  font-family: "Manrope", "Noto Sans JP", sans-serif;
+  background:
+    radial-gradient(circle at 80% 8%, rgba(211, 188, 249, 0.15), transparent 26%),
+    radial-gradient(circle at 10% 18%, rgba(233, 195, 73, 0.12), transparent 24%),
+    linear-gradient(180deg, #0d0e0f 0%, #121414 42%, #0d0e0f 100%);
+  color: #e2e2e2;
+}
+
+body.horoscope-page::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.24;
+  background-image:
+    radial-gradient(circle, rgba(255, 255, 255, 0.42) 0 1px, transparent 1px),
+    radial-gradient(circle, rgba(233, 195, 73, 0.45) 0 1px, transparent 1px);
+  background-position: 24px 40px, 160px 220px;
+  background-size: 220px 220px, 330px 330px;
+}
