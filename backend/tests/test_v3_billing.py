@@ -1,5 +1,8 @@
 import os
 import unittest
+import base64
+import json
+import time
 from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
 from unittest.mock import Mock, patch
@@ -9,6 +12,7 @@ import stripe
 
 from backend.tests.test_v3_access import local_test_client
 from backend.v3.app import create_app
+from backend.v3.billing import BillingStore
 
 
 USER = "00000000-0000-4000-8000-000000000001"
@@ -20,6 +24,12 @@ CONFIG = {"V3_SUPABASE_URL": "https://test.supabase.co",
           "V3_STRIPE_WEBHOOK_SECRET": "whsec_example",
           "V3_STRIPE_PRICE_JPY": "price_jpyTest",
           "V3_STRIPE_PRICE_USD": ""}
+
+
+def bearer_token(issued_at: int):
+    def segment(value):
+        return base64.urlsafe_b64encode(json.dumps(value).encode()).decode().rstrip("=")
+    return f"{segment({'alg': 'none'})}.{segment({'iat': issued_at})}.signature"
 
 
 def auth_response():
@@ -36,6 +46,7 @@ class BillingTests(unittest.TestCase):
         self.client = local_test_client(self.app)
         self.store = Mock()
         self.store.key = CONFIG["V3_SUPABASE_SECRET_KEY"]
+        self.store.configured = True
         self.store.entitlement.return_value = ("none", None)
         self.store.customer.return_value = None
         self.store.status.return_value = None
@@ -199,6 +210,42 @@ class BillingTests(unittest.TestCase):
         with patch("backend.v3.billing.stripe.Price.retrieve",
                    return_value=SimpleNamespace(to_dict_recursive=lambda: live_price)):
             app.state.billing.validate_prices()
+
+    def test_account_delete_requires_recent_auth_and_no_open_subscription(self):
+        recent = {**AUTH, "Authorization": f"Bearer {bearer_token(int(time.time()))}"}
+        self.store.status.return_value = {"status": "active"}
+        response = self.client.request("DELETE", "/api/v3/account", headers=recent,
+            json={"confirmation": "アカウントを削除"})
+        self.assertEqual(response.status_code, 409)
+        self.store.delete_auth_user.assert_not_called()
+
+        self.store.status.return_value = None
+        response = self.client.request("DELETE", "/api/v3/account", headers=recent,
+            json={"confirmation": "アカウントを削除"})
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.json()["deleted"])
+        self.store.delete_auth_user.assert_called_once_with(USER)
+
+    def test_account_delete_rejects_stale_auth_and_wrong_confirmation(self):
+        stale = {**AUTH, "Authorization": f"Bearer {bearer_token(int(time.time()) - 3600)}"}
+        response = self.client.request("DELETE", "/api/v3/account", headers=stale,
+            json={"confirmation": "アカウントを削除"})
+        self.assertEqual(response.status_code, 401)
+        self.store.delete_auth_user.assert_not_called()
+
+        recent = {**AUTH, "Authorization": f"Bearer {bearer_token(int(time.time()))}"}
+        response = self.client.request("DELETE", "/api/v3/account", headers=recent,
+            json={"confirmation": "削除"})
+        self.assertEqual(response.status_code, 422)
+
+    def test_account_delete_uses_server_secret_for_supabase_admin(self):
+        store = BillingStore(CONFIG["V3_SUPABASE_URL"])
+        remote = patch("backend.v3.billing.httpx.delete", return_value=httpx.Response(200, json={})).start()
+        store.delete_auth_user(USER)
+        headers = remote.call_args.kwargs["headers"]
+        self.assertEqual(headers["apikey"], CONFIG["V3_SUPABASE_SECRET_KEY"])
+        self.assertEqual(headers["Authorization"], f"Bearer {CONFIG['V3_SUPABASE_SECRET_KEY']}")
+        self.assertTrue(remote.call_args.args[0].endswith(f"/auth/v1/admin/users/{USER}"))
 
 
 if __name__ == "__main__":

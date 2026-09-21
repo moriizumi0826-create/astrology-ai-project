@@ -34,6 +34,7 @@ class SupabaseTests(unittest.TestCase):
     def test_anonymous_cannot_read_or_write_profiles(self):
         self.assertEqual(self.client.get("/api/v3/profile").status_code, 401)
         self.assertEqual(self.client.put("/api/v3/profile", json={"profile": FORM}).status_code, 401)
+        self.assertEqual(self.client.delete("/api/v3/profile").status_code, 401)
         self.http.assert_not_called()
 
     def test_metadata_cannot_grant_paid_access_and_test_login_disabled(self):
@@ -79,6 +80,23 @@ class SupabaseTests(unittest.TestCase):
         self.assertEqual(response.status_code, 409)
         self.assertEqual(self.http.call_args.args[0], "PATCH")
         self.assertEqual(self.http.call_args.kwargs["params"]["revision"], "eq.3")
+
+    def test_profile_delete_uses_verified_subject_and_requires_origin(self):
+        self.http.side_effect = [self.user(), httpx.Response(200, json=[{"user_id": USER}])]
+        response = self.client.delete("/api/v3/profile", headers=HEADERS)
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.json()["deleted"])
+        call = self.http.call_args
+        self.assertEqual(call.args[0], "DELETE")
+        self.assertEqual(call.kwargs["params"]["user_id"], f"eq.{USER}")
+        self.assertEqual(call.kwargs["headers"]["Authorization"], "Bearer test-token")
+
+        self.http.reset_mock()
+        self.http.side_effect = None
+        self.http.return_value = self.user()
+        response = self.client.delete("/api/v3/profile", headers={"Authorization": "Bearer test-token"})
+        self.assertEqual(response.status_code, 403)
+        self.assertEqual(self.http.call_count, 1)
 
     def test_write_origin_and_injected_owner_are_rejected(self):
         self.http.return_value = self.user()

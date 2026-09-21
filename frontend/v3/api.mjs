@@ -37,6 +37,7 @@ async function json(path, payload, method) {
 export const getJson = path => json(path, undefined, "GET");
 export const postJson = (path, payload) => json(path, payload, "POST");
 export const putJson = (path, payload) => json(path, payload, "PUT");
+export const deleteJson = (path, payload) => json(path, payload, "DELETE");
 // Existing paid refresh UI may check version, but must never invoke an admin mutation.
 export const reloadCsvMasters = () => getJson("/api/master-version");
 export const searchBirthLocations = values => {

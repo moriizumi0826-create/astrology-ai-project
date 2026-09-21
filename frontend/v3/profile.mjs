@@ -1,5 +1,5 @@
 import { initializeAuth } from "./auth-client.mjs";
-import { getJson, putJson } from "./api.mjs";
+import { deleteJson, getJson, putJson } from "./api.mjs";
 import { configureStorage, storageOwner, getStoredReadingForm, storeReadingForm, clearReadingResult, normalizeReadingRequest } from "./reading-storage.js";
 
 let owner;
@@ -35,6 +35,16 @@ export async function saveMemberProfile(form) {
   const { saved } = await putJson("/api/v3/profile", { profile: birthProfile(form), expected_revision: revision });
   if (owner !== expectedOwner) throw new Error("会員が切り替わりました。再読み込みしてください。");
   revision = saved.revision;
+}
+export async function deleteMemberProfile() {
+  const session = await prepareSession();
+  if (!String(session.user_id || "").startsWith("supabase:")) throw new Error("会員ログインが必要です。");
+  const result = await deleteJson("/api/v3/profile");
+  storeReadingForm(null);
+  clearReadingResult();
+  revision = null;
+  hydrated = true;
+  return result;
 }
 export async function finishMemberLogin(anonymousForm, transfer) {
   const session = await prepareSession();

@@ -66,3 +66,12 @@ def save(payload: SaveProfile, request: Request, owner=Depends(identity)):
     if not rows:
         raise HTTPException(409, "別の画面で出生情報が更新されています。再読み込みしてから変更してください。")
     return {"saved": rows[0]}
+
+
+@router.delete("")
+def delete(request: Request, owner=Depends(identity)):
+    check_origin(request)
+    subject, token = owner
+    rows = request.app.state.supabase_auth.request("DELETE", "/rest/v1/v3_birth_profiles", token,
+        params={"user_id": f"eq.{subject}", "select": "user_id"})
+    return {"deleted": bool(rows)}

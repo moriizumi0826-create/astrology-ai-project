@@ -38,9 +38,12 @@ export function AccountControls({ session }) {
   return (
     <div className="relative flex shrink-0 items-center gap-2 font-mono text-[9px] font-bold tracking-[0.06em] text-[#0A192F]/70 sm:gap-3 sm:text-xs">
       {isMemberMode() ? (
-        <a href="/billing.html" className="transition hover:text-[#D4AF37]">
-          {session.state === "paid" ? "契約管理" : "有料プラン"}
-        </a>
+        <>
+          <a href="/billing.html" className="transition hover:text-[#D4AF37]">
+            {session.state === "paid" ? "契約管理" : "有料プラン"}
+          </a>
+          <a href="/account.html" className="transition hover:text-[#D4AF37]">アカウント</a>
+        </>
       ) : null}
       <button type="button" onClick={signOut} disabled={busy} className="transition hover:text-[#D4AF37] disabled:opacity-50">
         {busy ? "処理中" : "ログアウト"}

@@ -129,6 +129,19 @@ class BillingStore:
             payload["processed_at"] = datetime.now(timezone.utc).isoformat()
         self.request("PATCH", "v3_stripe_events", params={"stripe_event_id": f"eq.{event_id}"}, json=payload)
 
+    def delete_auth_user(self, user_id: str):
+        if not self.configured:
+            raise HTTPException(503, "アカウント削除の設定が完了していません。")
+        headers = {"apikey": self.key, "Authorization": f"Bearer {self.key}",
+                   "User-Agent": "celestial-atelier-v3-server"}
+        try:
+            response = httpx.delete(f"{self.url}/auth/v1/admin/users/{user_id}", headers=headers,
+                                    timeout=15, follow_redirects=False)
+        except httpx.RequestError:
+            raise HTTPException(503, "会員サービスに接続できません。時間をおいて再試行してください。") from None
+        if not response.is_success:
+            raise HTTPException(503, "アカウントを削除できませんでした。時間をおいて再試行してください。")
+
 
 class StripeBilling:
     def __init__(self, store: BillingStore, deployment: str = "local", checkout_enabled: bool = True):

@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="ja"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex,nofollow"><meta name="referrer" content="no-referrer">
+<title>アカウント・データ管理 | The Celestial Atelier</title><link rel="stylesheet" href="/member.css"><link rel="stylesheet" href="/account.css">
+</head><body><main>
+<p>The Celestial Atelier · V3</p><h1>アカウント・データ管理</h1>
+<p id="status" role="status">保存状態を確認しています…</p>
+
+<section class="management-panel" aria-labelledby="birth-heading">
+  <h2 id="birth-heading">出生情報</h2>
+  <p>アカウントに保存されている出生情報だけを削除します。ログインと契約はそのまま維持されます。</p>
+  <button id="delete-profile" class="secondary danger" type="button" disabled>保存済みの出生情報を削除</button>
+</section>
+
+<section class="management-panel danger-zone" aria-labelledby="account-heading">
+  <h2 id="account-heading">アカウント削除</h2>
+  <p>アカウント、保存済みの出生情報、アプリ内の契約対応情報を削除します。この操作は元に戻せません。</p>
+  <p id="subscription-note" class="notice"></p>
+  <p><a id="billing-link" href="/billing.html">契約・支払い状態を確認する</a></p>
+  <label>現在のパスワード<input id="current-password" type="password" autocomplete="current-password" maxlength="128"></label>
+  <label>確認のため「アカウントを削除」と入力<input id="delete-confirmation" type="text" autocomplete="off" maxlength="20"></label>
+  <button id="delete-account" class="danger" type="button" disabled>アカウントを完全に削除</button>
+</section>
+
+<p id="error" role="alert" hidden></p>
+<p><a href="/index.html#horoscope">ホロスコープへ戻る</a></p>
+</main><script type="module" src="/account.js"></script></body></html>

@@ -1,0 +1,6 @@
+.management-panel{margin:28px 0;padding:20px;border:1px solid #ffffff24;border-radius:12px;background:#ffffff08}
+.management-panel h2{margin-top:0;font-size:19px}
+.danger-zone{border-color:#ff8f8f66}
+.danger{background:#b84141;color:white}
+.secondary.danger{border-color:#ff8f8f99;color:#ffb8b8;background:transparent}
+.management-panel button{width:100%}

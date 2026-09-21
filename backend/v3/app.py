@@ -15,6 +15,7 @@ from starlette.middleware.gzip import GZipMiddleware
 from backend.v3.supabase_auth import SupabaseAuth
 from backend.v3.profiles import router as profile_router
 from backend.v3.billing import BillingStore, StripeBilling, router as billing_router
+from backend.v3.accounts import router as account_router
 from backend.v3.deployment import (
     allowed_hosts,
     allowed_origins,
@@ -58,7 +59,7 @@ def create_app(*, auth_mode: str | None = None) -> FastAPI:
     app.add_middleware(
         CORSMiddleware,
         allow_origins=sorted(origins),
-        allow_methods=["GET", "POST", "PUT"],
+        allow_methods=["GET", "POST", "PUT", "DELETE"],
         allow_headers=["Content-Type", "Authorization"],
     )
 
@@ -96,6 +97,7 @@ def create_app(*, auth_mode: str | None = None) -> FastAPI:
     app.include_router(router)
     app.include_router(profile_router)
     app.include_router(billing_router)
+    app.include_router(account_router)
     if deployment == "local" and not hasattr(app.state, "supabase_auth"):
         app.include_router(test_auth_router)
     return app

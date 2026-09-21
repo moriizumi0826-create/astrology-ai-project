@@ -19,7 +19,7 @@ export default defineConfig(({ mode }) => {
       throw new Error("The production V3 build cannot use a preview API host");
     }
   }
-  const inputs = { app: path.join(directory, "v3/index.html"), entry: path.join(directory, "v3/entry.html"), login: path.join(directory, "v3/login.html"), callback: path.join(directory, "v3/auth-callback.html"), billing: path.join(directory, "v3/billing.html") };
+  const inputs = { app: path.join(directory, "v3/index.html"), entry: path.join(directory, "v3/entry.html"), login: path.join(directory, "v3/login.html"), callback: path.join(directory, "v3/auth-callback.html"), billing: path.join(directory, "v3/billing.html"), account: path.join(directory, "v3/account.html") };
   if (deployment === "local" && rootEnv.V3_INCLUDE_TEST_LOGIN !== "false") inputs.testLogin = path.join(directory, "v3/test-login.html");
   return {
   // Intentionally independent from legacy VITE_API_BASE_URL and entry pages.

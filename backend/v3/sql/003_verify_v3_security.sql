@@ -1,5 +1,5 @@
 -- Read-only verification for a freshly prepared V3 Supabase project.
--- Run after 001_birth_profiles.sql and 002_billing.sql.
+-- Run after 001_birth_profiles.sql, 002_billing.sql and 005_profile_delete_policy.sql.
 -- Every row must return result = OK. This script changes no data.
 begin read only;
 
@@ -21,8 +21,8 @@ with checks(name, passed) as (
         and c.relname in ('v3_birth_profiles', 'v3_billing_customers', 'v3_subscriptions', 'v3_stripe_events')
         and not c.relforcerowsecurity
     )),
-    ('birth profile has exactly three owner policies', (
-      select count(*) = 3 from pg_policies
+    ('birth profile has exactly four owner policies', (
+      select count(*) = 4 from pg_policies
       where schemaname = 'public' and tablename = 'v3_birth_profiles'
     )),
     ('billing tables expose no browser policies', not exists (
@@ -34,6 +34,7 @@ with checks(name, passed) as (
     ('anon cannot read subscriptions', not has_table_privilege('anon', 'public.v3_subscriptions', 'select')),
     ('authenticated cannot read subscriptions', not has_table_privilege('authenticated', 'public.v3_subscriptions', 'select')),
     ('authenticated can read own birth profile through RLS', has_table_privilege('authenticated', 'public.v3_birth_profiles', 'select')),
+    ('authenticated can delete own birth profile through RLS', has_table_privilege('authenticated', 'public.v3_birth_profiles', 'delete')),
     ('authenticated cannot directly update ownership', not has_column_privilege('authenticated', 'public.v3_birth_profiles', 'user_id', 'update')),
     ('anon cannot execute automatic RLS helper', not has_function_privilege('anon', 'public.rls_auto_enable()', 'execute')),
     ('authenticated cannot execute automatic RLS helper', not has_function_privilege('authenticated', 'public.rls_auto_enable()', 'execute')),
