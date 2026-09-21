@@ -56,7 +56,15 @@ class V3BoundaryTests(unittest.TestCase):
         self.client = local_test_client(self.app)
 
     def test_local_health_and_session_are_non_cached(self):
-        self.assertEqual(self.client.get("/api/v3/health").json()["stage"], 6)
+        health = self.client.get("/api/v3/health")
+        self.assertEqual(health.json()["stage"], 6)
+        self.assertEqual(health.headers["content-security-policy"],
+                         "default-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'")
+        self.assertEqual(health.headers["permissions-policy"], "camera=(), microphone=(), geolocation=()")
+        self.assertEqual(health.headers["referrer-policy"], "no-referrer")
+        self.assertEqual(health.headers["x-content-type-options"], "nosniff")
+        self.assertEqual(health.headers["x-frame-options"], "DENY")
+        self.assertNotIn("strict-transport-security", health.headers)
         response = self.client.get("/api/v3/session")
         self.assertEqual(response.json()["state"], "anonymous")
         self.assertEqual(response.headers["cache-control"], "no-store")
@@ -124,6 +132,7 @@ class V3BoundaryTests(unittest.TestCase):
             "origin": "https://atelier.example"})
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json()["environment"], "production")
+        self.assertEqual(response.headers["strict-transport-security"], "max-age=31536000")
         self.assertEqual(client.post("/api/v3/test-auth/login",
             headers={"host": "api.atelier.example"}, json={}).status_code, 404)
         with patch.dict("os.environ", {**config, "V3_SUPABASE_PROJECT_REF": "wrong"}):

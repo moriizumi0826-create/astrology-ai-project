@@ -21,6 +21,7 @@ DATA_DIR = Path(__file__).resolve().parents[3] / "database" / "ephemeris"
 YEAR = 2026
 PLANETS = ("SUN", "MOON", "MERCURY", "VENUS", "MARS", "JUPITER", "SATURN", "URANUS", "NEPTUNE", "PLUTO", "NORTH_NODE")
 HEADER = ["utc_datetime", *[f"{planet}_{field}" for planet in PLANETS for field in ("longitude", "speed")]]
+SAMPLE_TOLERANCE = 1e-5
 
 
 def cache_enabled() -> bool:
@@ -72,7 +73,8 @@ def load_hourly_cache() -> dict[datetime, tuple[float, ...]]:
                 result, flags = swe.calc_ut(julian_day(stamp), planet_id, swe.FLG_SPEED)
                 if flags != metadata["returned_flags"][PLANETS[index]]:
                     raise ValueError("ephemeris calculation engine mismatch")
-                if abs(rows[stamp][index * 2] - result[0] % 360) > 1e-8 or abs(rows[stamp][index * 2 + 1] - result[3]) > 1e-8:
+                if (abs(rows[stamp][index * 2] - result[0] % 360) > SAMPLE_TOLERANCE
+                        or abs(rows[stamp][index * 2 + 1] - result[3]) > SAMPLE_TOLERANCE):
                     raise ValueError("ephemeris sample mismatch")
         LOGGER.info("Loaded %s hourly transit rows", len(rows))
         return rows

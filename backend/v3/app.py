@@ -24,6 +24,15 @@ from backend.v3.deployment import (
 )
 
 
+API_SECURITY_HEADERS = {
+    "Content-Security-Policy": "default-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'",
+    "Permissions-Policy": "camera=(), microphone=(), geolocation=()",
+    "Referrer-Policy": "no-referrer",
+    "X-Content-Type-Options": "nosniff",
+    "X-Frame-Options": "DENY",
+}
+
+
 def create_app(*, auth_mode: str | None = None) -> FastAPI:
     deployment = environment()
     origins = allowed_origins()
@@ -64,6 +73,10 @@ def create_app(*, auth_mode: str | None = None) -> FastAPI:
                 return JSONResponse({"detail": "Local V3 only"}, status_code=403)
         response = await call_next(request)
         response.headers["Cache-Control"] = "no-store"
+        for name, value in API_SECURITY_HEADERS.items():
+            response.headers[name] = value
+        if deployment != "local":
+            response.headers["Strict-Transport-Security"] = "max-age=31536000"
         return response
 
     @app.get("/api/v3/health")

@@ -94,6 +94,21 @@ class EphemerisTests(unittest.TestCase):
             self.assertEqual(cache.load_hourly_cache(), {})
         cache.load_hourly_cache.cache_clear()
 
+    def test_cross_platform_sample_rounding_is_accepted(self):
+        cache.load_hourly_cache.cache_clear()
+        original = cache.swe.calc_ut
+
+        def rounded(julian_day, planet_id, flags):
+            result, returned_flags = original(julian_day, planet_id, flags)
+            values = list(result)
+            values[0] += cache.SAMPLE_TOLERANCE / 10
+            values[3] -= cache.SAMPLE_TOLERANCE / 10
+            return tuple(values), returned_flags
+
+        with patch.object(cache.swe, "calc_ut", side_effect=rounded):
+            self.assertEqual(len(cache.load_hourly_cache()), 8760)
+        cache.load_hourly_cache.cache_clear()
+
     def test_parallel_readers_do_not_mutate_cached_states(self):
         cache.load_hourly_cache()
         def chart(_):
