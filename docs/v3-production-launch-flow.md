@@ -1,6 +1,6 @@
 # V3 本番環境移行フロー
 
-更新日：2026-09-20
+更新日：2026-09-22
 対象：`C:\dev\astrology-v3` / `codex/v3-integration`
 
 ## 目的
@@ -15,7 +15,7 @@
 
 ## 現在地
 
-2026-09-20時点では、工程6「課金・契約情報を接続」のテスト環境まで確認済み。本番移行工程は未着手。
+2026-09-22時点では、本番Supabaseと本番Renderの分離環境を作成済み。Stripeライブ課金、独自SMTP、独自ドメイン、法務導線は未接続で、課金停止スイッチを閉じた状態にしている。
 
 | 項目 | 現在の状態 | 本番化で必要な対応 |
 |---|---|---|
@@ -103,8 +103,8 @@
 - [x] `backend/v3/sql/004_harden_automatic_rls.sql`を実行する。
 - [x] 全テーブルのRLS、権限、インデックスを確認する。
 - [ ] 匿名キー・ログインユーザーから契約テーブルを直接読めないことを実環境で確認する。
-- [ ] 本番Site URLを正式URLへ設定する。
-- [ ] メール確認・パスワード再設定のRedirect URLを本番の正確なURLだけで登録する。
+- [x] 本番Site URLを正式URLへ設定する。
+- [x] メール確認・パスワード再設定のRedirect URLを本番の正確なURLだけで登録する。
 - [ ] 独自SMTPを設定し、送信元ドメイン、SPF、DKIM、メール文面、到達性を確認する。
 - [ ] 登録・ログイン・再設定のレート制限とCAPTCHA導入を検討・設定する。
 - [ ] Security Advisor、SSL、Network Restrictions、バックアップ／PITR、プランを確認する。
@@ -143,18 +143,24 @@
 
 プレビューサービスを本番へ改名・上書きせず、本番用のStatic SiteとWeb Serviceを新設する。
 
-- [ ] 本番用デプロイブランチまたはリリースタグの運用を決める。
-- [ ] 本番用`render-v3-production.yaml`相当を作成する。
-- [ ] 本番APIは無料インスタンスを避け、スリープによるCheckout・Webhook遅延がないプランを選ぶ。
-- [ ] APIのHealth Checkを`/api/v3/health`へ設定する。
-- [ ] フロントの`VITE_V3_API_BASE_URL`を本番API URLへ固定する。
-- [ ] APIの`V3_ALLOWED_ORIGINS`を本番フロントのHTTPSオリジンだけにする。
-- [ ] APIの`V3_ALLOWED_HOSTS`を本番APIホストだけにする。
+- [x] 本番用デプロイブランチまたはリリースタグの運用を決める。
+- [x] 本番用`render-v3-production.yaml`相当を作成する。
+- [x] 本番APIは無料インスタンスを避け、スリープによるCheckout・Webhook遅延がないプランを選ぶ。
+- [x] APIのHealth Checkを`/api/v3/health`へ設定する。
+- [x] フロントの`VITE_V3_API_BASE_URL`を本番API URLへ固定する。
+- [x] APIの`V3_ALLOWED_ORIGINS`を本番フロントのHTTPSオリジンだけにする。
+- [x] APIの`V3_ALLOWED_HOSTS`を本番APIホストだけにする。
 - [ ] `V3_ENVIRONMENT=production`と本番Supabase／Stripeの秘密値をRender Dashboardに設定する。
 - [ ] ログにtoken、秘密鍵、出生情報、決済情報を出さないことを確認する。
 - [ ] カスタムドメインをRenderへ追加し、DNSとTLSを確認する。
 - [ ] Content Security Policy等の本番セキュリティヘッダーを確認する。
 - [ ] PreviewのURL・環境変数・Webhookを本番と明確に分離したまま残す。
+
+2026-09-22にRender Blueprint `celestial-atelier-v3-production`を作成。APIはStarter、フロントはStatic Siteで分離し、`V3_BILLING_ENABLED=false`、Stripeライブ設定なしで配備した。
+
+- 本番フロント：`https://celestial-atelier-v3-production.onrender.com`
+- 本番API：`https://celestial-atelier-v3-production-api.onrender.com`
+- 確認済み：Health Check `200`、`environment=production`、本番OriginだけにCORS許可、未知OriginにはCORS許可なし、公開環境のテストログインAPI・画面は`404`
 
 ### 6. 本番公開前の総合検証を行う
 
