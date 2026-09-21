@@ -102,10 +102,36 @@ class V3BoundaryTests(unittest.TestCase):
         self.assertEqual(client.post("/api/v3/test-auth/login", headers={"host": "api.example.test"}, json={}).status_code, 404)
         self.assertEqual(client.get("/api/v3/health", headers={"host": "wrong.example.test"}).status_code, 400)
 
-    def test_production_cannot_start_the_local_shell(self):
-        with patch.dict("os.environ", {"V3_ENVIRONMENT": "production"}):
+    def test_production_requires_public_auth_and_never_mounts_test_login(self):
+        config = {
+            "V3_ENVIRONMENT": "production",
+            "V3_ALLOWED_ORIGINS": "https://atelier.example",
+            "V3_ALLOWED_HOSTS": "api.atelier.example",
+            "V3_SUPABASE_PROJECT_REF": "production",
+            "V3_SUPABASE_URL": "https://production.supabase.co",
+            "V3_SUPABASE_PUBLISHABLE_KEY": "sb_publishable_production",
+            "V3_SUPABASE_SECRET_KEY": "sb_secret_production",
+            "V3_STRIPE_SECRET_KEY": "sk_live_example",
+            "V3_STRIPE_WEBHOOK_SECRET": "whsec_example",
+            "V3_STRIPE_PRICE_JPY": "price_jpyLive",
+            "V3_STRIPE_PRICE_USD": "",
+            "V3_BILLING_ENABLED": "false",
+        }
+        with patch.dict("os.environ", config):
+            app = create_app()
+        client = local_test_client(app, "192.0.2.5")
+        response = client.get("/api/v3/health", headers={"host": "api.atelier.example",
+            "origin": "https://atelier.example"})
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["environment"], "production")
+        self.assertEqual(client.post("/api/v3/test-auth/login",
+            headers={"host": "api.atelier.example"}, json={}).status_code, 404)
+        with patch.dict("os.environ", {**config, "V3_SUPABASE_PROJECT_REF": "wrong"}):
             with self.assertRaises(RuntimeError):
                 create_app()
+        with patch.dict("os.environ", {"V3_ENVIRONMENT": "production"}):
+            with self.assertRaises(RuntimeError):
+                create_app(auth_mode="local_test")
 
     def test_paid_dependency_checks_server_context_and_expiry(self):
         # This route exists only in the test, not in the shipped preview API.

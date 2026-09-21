@@ -10,8 +10,9 @@ from fastapi import HTTPException, Request
 
 
 class SupabaseAuth:
-    def __init__(self):
-        local = dotenv_values(Path(__file__).resolve().parents[2] / ".env.v3.local")
+    def __init__(self, deployment: str = "local"):
+        local = (dotenv_values(Path(__file__).resolve().parents[2] / ".env.v3.local")
+                 if deployment == "local" else {})
         self.url = (os.environ.get("V3_SUPABASE_URL", local.get("V3_SUPABASE_URL")) or "").strip().rstrip("/")
         self.key = (os.environ.get("V3_SUPABASE_PUBLISHABLE_KEY", local.get("V3_SUPABASE_PUBLISHABLE_KEY")) or "").strip()
         self.configured = bool(self.url or self.key)

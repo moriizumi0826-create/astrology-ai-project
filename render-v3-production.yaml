@@ -1,8 +1,8 @@
 services:
   - type: web
-    name: celestial-atelier-v3-api
+    name: celestial-atelier-v3-production-api
     runtime: python
-    plan: free
+    plan: starter
     buildCommand: pip install -r requirements.txt
     startCommand: uvicorn backend.v3.app:app --host 0.0.0.0 --port $PORT --no-proxy-headers
     healthCheckPath: /api/v3/health
@@ -11,18 +11,20 @@ services:
         - backend/**
         - database/**
         - requirements.txt
-        - render-v3.yaml
+        - render-v3-production.yaml
     envVars:
       - key: PYTHON_VERSION
         value: 3.12.9
       - key: V3_ENVIRONMENT
-        value: preview
-      - key: V3_ALLOWED_ORIGINS
-        value: https://celestial-atelier-v3-preview.onrender.com
-      - key: V3_ALLOWED_HOSTS
-        value: celestial-atelier-v3-api.onrender.com
+        value: production
       - key: V3_BILLING_ENABLED
-        value: true
+        value: false
+      - key: V3_ALLOWED_ORIGINS
+        sync: false
+      - key: V3_ALLOWED_HOSTS
+        sync: false
+      - key: V3_SUPABASE_PROJECT_REF
+        sync: false
       - key: V3_SUPABASE_URL
         sync: false
       - key: V3_SUPABASE_PUBLISHABLE_KEY
@@ -37,19 +39,19 @@ services:
         sync: false
 
   - type: web
-    name: celestial-atelier-v3-preview
+    name: celestial-atelier-v3-production
     runtime: static
     buildCommand: cd frontend && npm ci && npm run build:v3
     staticPublishPath: ./frontend/dist/v3
     buildFilter:
       paths:
         - frontend/**
-        - render-v3.yaml
+        - render-v3-production.yaml
     envVars:
       - key: VITE_V3_API_BASE_URL
-        value: https://celestial-atelier-v3-api.onrender.com
+        sync: false
       - key: VITE_V3_ENVIRONMENT
-        value: preview
+        value: production
       - key: V3_INCLUDE_TEST_LOGIN
         value: false
     headers:

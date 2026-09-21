@@ -1,5 +1,13 @@
 import { configureStorage } from "./reading-storage.js";
 import { prepareSession } from "./profile.mjs";
+if (__APP_ENVIRONMENT__ === "preview") {
+  const note = document.querySelector("#environment-note");
+  const label = document.querySelector("#environment-label");
+  note.textContent = "テスト運用版です";
+  note.hidden = false;
+  label.textContent = "Test Operation";
+  label.hidden = false;
+}
 const button = document.querySelector('button[type="submit"]');
 button.disabled = true;
 prepareSession().then(async session => {
@@ -15,6 +23,6 @@ prepareSession().then(async session => {
   button.disabled = false;
 }).catch(error => {
   const box = document.querySelector("#error-box");
-  box.textContent = `V3検証APIに接続できません。起動を確認して再読み込みしてください。${error.message}`;
+  box.textContent = `V3 APIに接続できません。時間をおいて再読み込みしてください。${error.message}`;
   box.classList.remove("hidden");
 });

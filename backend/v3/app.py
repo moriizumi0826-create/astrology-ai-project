@@ -15,22 +15,33 @@ from starlette.middleware.gzip import GZipMiddleware
 from backend.v3.supabase_auth import SupabaseAuth
 from backend.v3.profiles import router as profile_router
 from backend.v3.billing import BillingStore, StripeBilling, router as billing_router
-from backend.v3.deployment import allowed_hosts, allowed_origins, environment
+from backend.v3.deployment import (
+    allowed_hosts,
+    allowed_origins,
+    billing_enabled,
+    environment,
+    require_expected_supabase_project,
+)
 
 
 def create_app(*, auth_mode: str | None = None) -> FastAPI:
     deployment = environment()
     origins = allowed_origins()
     hosts = allowed_hosts()
-    app = FastAPI(title="Celestial Atelier V3 — preview integration", docs_url=None, redoc_url=None, lifespan=lifespan)
+    app = FastAPI(title=f"Celestial Atelier V3 — {deployment}", docs_url=None, redoc_url=None, lifespan=lifespan)
     app.state.v3_environment = deployment
     app.state.v3_allowed_origins = origins
-    provider = None if auth_mode == "local_test" else SupabaseAuth()
+    provider = None if auth_mode == "local_test" else SupabaseAuth(deployment)
     if deployment != "local" and (provider is None or not provider.configured):
-        raise RuntimeError("公開テスト環境にはSupabase認証設定が必要です。")
+        raise RuntimeError("公開環境にはSupabase認証設定が必要です。")
     if provider is not None and provider.configured:
+        require_expected_supabase_project(deployment, provider.project)
         app.state.supabase_auth = provider
-        app.state.billing = StripeBilling(BillingStore(provider.url))
+        app.state.billing = StripeBilling(
+            BillingStore(provider.url, deployment),
+            deployment,
+            checkout_enabled=billing_enabled(deployment),
+        )
     else:
         app.state.local_test_auth = LocalTestAuth()
     app.add_middleware(GZipMiddleware, minimum_size=1000)
@@ -50,7 +61,7 @@ def create_app(*, auth_mode: str | None = None) -> FastAPI:
             except ValueError:
                 local = False
             if not local:
-                return JSONResponse({"detail": "Local V3 preview only"}, status_code=403)
+                return JSONResponse({"detail": "Local V3 only"}, status_code=403)
         response = await call_next(request)
         response.headers["Cache-Control"] = "no-store"
         return response

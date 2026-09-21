@@ -1,4 +1,4 @@
-"""Stripe test-mode billing. Entitlements come from verified webhooks, never redirects."""
+"""Stripe billing. Entitlements come from verified webhooks, never redirects."""
 from datetime import datetime, timezone
 import os
 from pathlib import Path
@@ -33,8 +33,9 @@ def _env(name: str, local: dict) -> str:
 class BillingStore:
     """Server-only Data API client. The secret key must never reach the browser."""
 
-    def __init__(self, supabase_url: str):
-        local = dotenv_values(Path(__file__).resolve().parents[2] / ".env.v3.local")
+    def __init__(self, supabase_url: str, deployment: str = "local"):
+        local = (dotenv_values(Path(__file__).resolve().parents[2] / ".env.v3.local")
+                 if deployment == "local" else {})
         self.url = supabase_url.rstrip("/")
         self.key = _env("V3_SUPABASE_SECRET_KEY", local)
         self.configured = bool(self.key)
@@ -130,8 +131,13 @@ class BillingStore:
 
 
 class StripeBilling:
-    def __init__(self, store: BillingStore):
-        local = dotenv_values(Path(__file__).resolve().parents[2] / ".env.v3.local")
+    def __init__(self, store: BillingStore, deployment: str = "local", checkout_enabled: bool = True):
+        local = (dotenv_values(Path(__file__).resolve().parents[2] / ".env.v3.local")
+                 if deployment == "local" else {})
+        self.deployment = deployment
+        self.live_mode = deployment == "production"
+        self.mode = "live" if self.live_mode else "test"
+        self.checkout_enabled = checkout_enabled
         self.secret_key = _env("V3_STRIPE_SECRET_KEY", local)
         self.webhook_secret = _env("V3_STRIPE_WEBHOOK_SECRET", local)
         jpy_price = _env("V3_STRIPE_PRICE_JPY", local)
@@ -142,10 +148,11 @@ class StripeBilling:
         required = [self.secret_key, self.webhook_secret, jpy_price, store.key]
         self.configured = all(required)
         if any([*required, usd_price]) and not self.configured:
-            raise RuntimeError("V3のStripeテスト設定とSupabase Secret keyを全て設定してください。")
+            raise RuntimeError("V3のStripe設定とSupabase Secret keyを全て設定してください。")
         if self.configured:
-            if not self.secret_key.startswith("sk_test_"):
-                raise RuntimeError("V3ローカル検証ではStripeのsk_test_キーだけを使用できます。")
+            expected_prefix = "sk_live_" if self.live_mode else "sk_test_"
+            if not self.secret_key.startswith(expected_prefix):
+                raise RuntimeError(f"{deployment}ではStripeの{expected_prefix}キーだけを使用できます。")
             if not self.webhook_secret.startswith("whsec_"):
                 raise RuntimeError("V3_STRIPE_WEBHOOK_SECRETを確認してください。")
             if any(not value.startswith("price_") for value in self.prices.values()):
@@ -157,7 +164,7 @@ class StripeBilling:
 
     def _require(self):
         if not self.configured:
-            raise HTTPException(503, "Stripeテスト決済はまだ設定されていません。")
+            raise HTTPException(503, "Stripe決済はまだ設定されていません。")
 
     def ensure_customer(self, user_id: str, email: str):
         self._require()
@@ -182,7 +189,7 @@ class StripeBilling:
                 price = stripe.Price.retrieve(price_id, api_key=self.secret_key)
                 data = _plain_dict(price)
                 recurring = data.get("recurring") or {}
-                if (data.get("livemode") or not data.get("active") or data.get("currency") != currency
+                if (data.get("livemode") is not self.live_mode or not data.get("active") or data.get("currency") != currency
                         or int(data.get("unit_amount") or -1) != expected[currency]
                         or recurring.get("interval") != "month" or int(recurring.get("interval_count") or 0) != 1):
                     raise RuntimeError("price mismatch")
@@ -194,6 +201,8 @@ class StripeBilling:
         self._prices_validated = True
 
     def checkout(self, user_id: str, email: str, currency: str, origin: str):
+        if not self.checkout_enabled:
+            raise HTTPException(503, "現在、新規の有料プラン申し込みを停止しています。")
         if currency not in self.prices:
             raise HTTPException(422, "選択した通貨の決済は現在利用できません。")
         self.validate_prices()
@@ -266,6 +275,8 @@ class StripeBilling:
 
     def handle(self, event):
         raw = _plain_dict(event)
+        if not isinstance(raw.get("livemode"), bool) or raw["livemode"] is not self.live_mode:
+            raise HTTPException(400, "Stripeイベントの環境が一致しません。")
         event_id, event_type, created = raw["id"], raw["type"], int(raw["created"])
         if not self.store.begin_event(event_id, event_type, created):
             return "duplicate"
@@ -311,7 +322,7 @@ def _origin(request: Request):
 def _service(request: Request) -> StripeBilling:
     service = getattr(request.app.state, "billing", None)
     if not service:
-        raise HTTPException(503, "Stripeテスト決済はまだ設定されていません。")
+        raise HTTPException(503, "Stripe決済はまだ設定されていません。")
     return service
 
 
@@ -319,8 +330,10 @@ def _service(request: Request) -> StripeBilling:
 def billing_status(request: Request, user_id=Depends(_identity)):
     service = _service(request)
     if not service.configured:
-        return {"configured": False, "customer": False, "subscription": None}
-    return {"configured": True, "customer": bool(service.store.customer(user_id)),
+        return {"configured": False, "checkout_enabled": False, "mode": service.mode,
+                "customer": False, "subscription": None}
+    return {"configured": True, "checkout_enabled": service.checkout_enabled, "mode": service.mode,
+            "customer": bool(service.store.customer(user_id)),
             "subscription": service.store.status(user_id)}
 
 

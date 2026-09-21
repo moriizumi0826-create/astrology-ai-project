@@ -79,6 +79,20 @@ class BillingTests(unittest.TestCase):
         self.assertEqual(self.client.post("/api/v3/billing/checkout",
             headers={"Origin": AUTH["Origin"]}, json={"currency": "jpy"}).status_code, 401)
 
+    def test_billing_switch_stops_only_new_checkout(self):
+        self.app.state.billing.checkout_enabled = False
+        response = self.client.get("/api/v3/billing/status", headers=AUTH)
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(response.json()["checkout_enabled"])
+        self.assertEqual(response.json()["mode"], "test")
+        response = self.client.post("/api/v3/billing/checkout", headers=AUTH, json={"currency": "jpy"})
+        self.assertEqual(response.status_code, 503)
+        self.assertIn("新規", response.json()["detail"])
+        self.store.customer.return_value = "cus_member"
+        patch("backend.v3.billing.stripe.billing_portal.Session.create",
+            return_value=SimpleNamespace(url="https://billing.stripe.com/p/session/test")).start()
+        self.assertEqual(self.client.post("/api/v3/billing/portal", headers=AUTH, json={}).status_code, 200)
+
     def test_verified_database_entitlement_unlocks_paid_state(self):
         expiry = datetime.now(timezone.utc) + timedelta(days=20)
         self.store.entitlement.return_value = ("active", expiry)
@@ -120,7 +134,7 @@ class BillingTests(unittest.TestCase):
             "items": {"data": [{"price": {"id": "price_jpyTest", "currency": "jpy"}}]}}
         retrieved = SimpleNamespace(to_dict_recursive=lambda: subscription)
         patch("backend.v3.billing.stripe.Subscription.retrieve", return_value=retrieved).start()
-        event = {"id": "evt_paid", "type": "invoice.paid", "created": 1787000000,
+        event = {"id": "evt_paid", "type": "invoice.paid", "created": 1787000000, "livemode": False,
                  "data": {"object": {"subscription": "sub_paid"}}}
         self.assertEqual(self.app.state.billing.handle(event), "processed")
         record = self.store.save_subscription.call_args.args[0]
@@ -131,10 +145,17 @@ class BillingTests(unittest.TestCase):
 
     def test_duplicate_webhook_is_idempotent(self):
         self.store.begin_event.return_value = False
-        event = {"id": "evt_same", "type": "customer.subscription.updated", "created": 1,
+        event = {"id": "evt_same", "type": "customer.subscription.updated", "created": 1, "livemode": False,
                  "data": {"object": {}}}
         self.assertEqual(self.app.state.billing.handle(event), "duplicate")
         self.store.save_subscription.assert_not_called()
+
+    def test_webhook_mode_must_match_deployment(self):
+        event = {"id": "evt_live", "type": "customer.subscription.updated", "created": 1,
+                 "livemode": True, "data": {"object": {}}}
+        with self.assertRaisesRegex(Exception, "環境が一致"):
+            self.app.state.billing.handle(event)
+        self.store.begin_event.assert_not_called()
 
     def test_live_or_partial_configuration_is_refused(self):
         with patch.dict(os.environ, {**CONFIG, "V3_STRIPE_SECRET_KEY": "sk_live_forbidden"}):
@@ -143,6 +164,31 @@ class BillingTests(unittest.TestCase):
         with patch.dict(os.environ, {**CONFIG, "V3_STRIPE_PRICE_JPY": ""}):
             with self.assertRaises(RuntimeError):
                 create_app()
+
+    def test_production_accepts_only_live_configuration_and_live_price(self):
+        production = {**CONFIG,
+            "V3_ENVIRONMENT": "production",
+            "V3_ALLOWED_ORIGINS": "https://atelier.example",
+            "V3_ALLOWED_HOSTS": "api.atelier.example",
+            "V3_SUPABASE_PROJECT_REF": "test",
+            "V3_STRIPE_SECRET_KEY": "sk_live_example",
+            "V3_BILLING_ENABLED": "false",
+        }
+        with patch.dict(os.environ, production):
+            app = create_app()
+        self.assertEqual(app.state.v3_environment, "production")
+        self.assertEqual(app.state.billing.mode, "live")
+        self.assertFalse(app.state.billing.checkout_enabled)
+        with patch.dict(os.environ, {**production, "V3_STRIPE_SECRET_KEY": "sk_test_forbidden"}):
+            with self.assertRaises(RuntimeError):
+                create_app()
+
+        live_price = {"active": True, "livemode": True, "currency": "jpy", "unit_amount": 400,
+                      "product": "prod_v3", "recurring": {"interval": "month", "interval_count": 1}}
+        app.state.billing.checkout_enabled = True
+        with patch("backend.v3.billing.stripe.Price.retrieve",
+                   return_value=SimpleNamespace(to_dict_recursive=lambda: live_price)):
+            app.state.billing.validate_prices()
 
 
 if __name__ == "__main__":
