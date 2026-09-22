@@ -9,6 +9,7 @@ test("V3 keeps local development isolated and requires an explicit public API UR
   assert.match(config, /target: "http:\/\/127\.0\.0\.1:8103"/);
   assert.match(config, /VITE_V3_API_BASE_URL/);
   assert.match(config, /VITE_V3_ENVIRONMENT/);
+  assert.match(config, /VITE_V3_TURNSTILE_SITE_KEY/);
   assert.match(config, /V3_INCLUDE_TEST_LOGIN/);
   assert.match(config, /deployment === "local"/);
   const entry = readFileSync(new URL("../v3/api.mjs", import.meta.url), "utf8");
@@ -34,7 +35,19 @@ test("production V3 blueprint starts with billing closed and contains no secrets
   assert.match(blueprint, /V3_BILLING_ENABLED\s*\n\s*value: false/);
   assert.match(blueprint, /V3_SUPABASE_PROJECT_REF[\s\S]*sync: false/);
   assert.match(blueprint, /VITE_V3_ENVIRONMENT[\s\S]*production/);
+  assert.match(blueprint, /VITE_V3_TURNSTILE_SITE_KEY[\s\S]*sync: false/);
   assert.doesNotMatch(blueprint, /sk_(?:test|live)_|sb_secret_|whsec_/);
+});
+
+test("V3 auth submits CAPTCHA tokens only when Turnstile is configured", () => {
+  const login = readFileSync(new URL("../v3/login.js", import.meta.url), "utf8");
+  const captcha = readFileSync(new URL("../v3/captcha.mjs", import.meta.url), "utf8");
+  assert.match(login, /signInWithPassword[\s\S]*captchaToken/);
+  assert.match(login, /signUp[\s\S]*captchaToken/);
+  assert.match(login, /resetPasswordForEmail[\s\S]*captchaToken/);
+  assert.match(login, /resend[\s\S]*captchaToken/);
+  assert.match(captcha, /challenges\.cloudflare\.com\/turnstile/);
+  assert.match(captcha, /if \(!siteKey\) return undefined/);
 });
 
 test("V3 email links use token hashes without depending on the signup browser", () => {

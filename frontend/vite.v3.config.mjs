@@ -10,6 +10,7 @@ export default defineConfig(({ mode }) => {
   const deployment = rootEnv.VITE_V3_ENVIRONMENT || "local";
   if (!["local", "preview", "production"].includes(deployment)) throw new Error("VITE_V3_ENVIRONMENT must be local, preview, or production");
   const apiBaseUrl = rootEnv.VITE_V3_API_BASE_URL || "";
+  const turnstileSiteKey = String(rootEnv.VITE_V3_TURNSTILE_SITE_KEY || "").trim();
   if (deployment !== "local") {
     const api = new URL(apiBaseUrl);
     if (api.protocol !== "https:" || api.username || api.password || api.pathname !== "/" || api.search || api.hash) {
@@ -36,6 +37,7 @@ export default defineConfig(({ mode }) => {
   define: {
     __APP_API_BASE_URL__: JSON.stringify(apiBaseUrl),
     __APP_ENVIRONMENT__: JSON.stringify(deployment),
+    __APP_TURNSTILE_SITE_KEY__: JSON.stringify(turnstileSiteKey),
   },
   server: {
     host: "127.0.0.1",

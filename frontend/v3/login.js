@@ -2,6 +2,7 @@ import { authClient, authMessage, initializeAuth } from "./auth-client.mjs";
 import { getJson } from "./api.mjs";
 import { configureStorage, getStoredReadingForm } from "./reading-storage.js";
 import { finishMemberLogin } from "./profile.mjs";
+import { captchaTokenForRequest, initializeCaptcha, resetCaptcha } from "./captcha.mjs";
 
 const $ = selector => document.querySelector(selector);
 const form = $("#member-form"), button = $("#submit"), status = $("#status"), errorBox = $("#error");
@@ -33,41 +34,44 @@ initializeAuth().then(async config => {
     await client.auth.signOut({ scope: "local" });
     session = {};
   }
+  setMode("login");
   if (session.user_id) { form.hidden = true; $("nav").hidden = true; $("#signed-in").hidden = false; }
-  setMode("login"); button.disabled = false;
+  else { await initializeCaptcha($("#captcha")); button.disabled = false; }
 }).catch(error => { status.textContent = "認証設定を確認できません。再読み込みしてください。"; showError(error); });
 document.querySelectorAll("[data-mode]").forEach(item => item.addEventListener("click", () => setMode(item.dataset.mode)));
 form.addEventListener("submit", async event => {
   event.preventDefault(); button.disabled = true; errorBox.hidden = true; status.hidden = false; status.textContent = "処理しています…";
   const email = $("#email").value.trim(), password = $("#password").value;
   try {
+    const captchaToken = captchaTokenForRequest();
     if (mode === "login") {
-      const { error } = await client.auth.signInWithPassword({ email, password });
+      const { error } = await client.auth.signInWithPassword({ email, password, options: { captchaToken } });
       if (error) throw error;
       await finishMemberLogin(anonymousForm, $("#transfer").checked);
       location.assign(destination());
     } else if (mode === "signup") {
-      const { error } = await client.auth.signUp({ email, password, options: { emailRedirectTo: `${location.origin}/auth-callback.html` } });
+      const { error } = await client.auth.signUp({ email, password, options: { emailRedirectTo: `${location.origin}/auth-callback.html`, captchaToken } });
       if (error) throw error;
       status.textContent = "登録可能な場合は確認メールが届きます。登録済みの場合はログインまたはパスワード再設定をご利用ください。";
       $("#resend").hidden = false;
     } else {
-      const { error } = await client.auth.resetPasswordForEmail(email, { redirectTo: `${location.origin}/auth-callback.html` });
+      const { error } = await client.auth.resetPasswordForEmail(email, { redirectTo: `${location.origin}/auth-callback.html`, captchaToken });
       if (error) throw error;
       status.textContent = "登録済みのメールアドレスであれば再設定メールが届きます。";
     }
   } catch (error) { status.hidden = true; showError(error); }
-  finally { $("#password").value = ""; button.disabled = false; }
+  finally { $("#password").value = ""; resetCaptcha(); button.disabled = false; }
 });
 $("#resend").addEventListener("click", async () => {
   $("#resend").disabled = true;
   try {
     if (!$("#email").reportValidity()) return;
-    const { error } = await client.auth.resend({ type: "signup", email: $("#email").value.trim(), options: { emailRedirectTo: `${location.origin}/auth-callback.html` } });
+    const captchaToken = captchaTokenForRequest();
+    const { error } = await client.auth.resend({ type: "signup", email: $("#email").value.trim(), options: { emailRedirectTo: `${location.origin}/auth-callback.html`, captchaToken } });
     if (error) throw error;
     status.textContent = "送信可能な場合は確認メールが届きます。"; status.hidden = false;
   } catch (error) { showError(error); }
-  finally { $("#resend").disabled = false; }
+  finally { resetCaptcha(); $("#resend").disabled = false; }
 });
 $("#signout").addEventListener("click", async () => {
   const { error } = await client.auth.signOut({ scope: "local" });

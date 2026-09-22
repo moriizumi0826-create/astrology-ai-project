@@ -55,6 +55,7 @@ export function authMessage(error) {
   const code = error?.code || "";
   if (code === "invalid_credentials") return "メールアドレスまたはパスワードが違います。";
   if (code === "email_not_confirmed") return "確認メールのリンクを開いてからログインしてください。";
+  if (code === "captcha_required" || /captcha/i.test(code)) return "不正アクセス防止の確認を完了してから、もう一度お試しください。";
   if (/rate_limit|over_.*limit/.test(code)) return "操作回数の上限に達しました。時間をおいて再試行してください。";
   if (["weak_password", "same_password"].includes(code)) return "12文字以上の、新しい強いパスワードを設定してください。";
   return "認証処理を完了できませんでした。入力・メールの有効期限・通信状態を確認してください。";

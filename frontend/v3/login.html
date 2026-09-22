@@ -11,6 +11,7 @@
 <label>メールアドレス<input id="email" type="email" autocomplete="username" maxlength="254" required></label>
 <label id="password-row">パスワード<input id="password" type="password" autocomplete="current-password" maxlength="128" required></label>
 <label id="transfer-row" hidden><input id="transfer" type="checkbox"> この端末で入力済みの出生情報をアカウントに保存する<br>※アカウントに保存済みの出生情報がある場合は上書きしません。</label>
+<div id="captcha" class="captcha" aria-label="不正アクセス防止の確認" hidden></div>
 <p id="signup-note" hidden>12文字以上のパスワードを設定してください。確認メールのリンクは、受信した端末やブラウザから開けます。</p>
 <button id="submit" type="submit" disabled>ログイン</button>
 </form>

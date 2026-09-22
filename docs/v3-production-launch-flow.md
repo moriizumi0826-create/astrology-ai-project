@@ -15,7 +15,7 @@
 
 ## 現在地
 
-2026-09-22時点では、本番Supabaseと本番Renderの分離環境を作成済み。Stripeライブ課金、独自SMTP、独自ドメイン、法務導線は未接続で、課金停止スイッチを閉じた状態にしている。
+2026-09-22時点では、本番Supabaseと本番Renderの分離環境を作成済み。独自SMTPは接続済み。Stripeライブ課金と法務導線は未接続で、課金停止スイッチを閉じた状態にしている。
 
 | 項目 | 現在の状態 | 本番化で必要な対応 |
 |---|---|---|
@@ -105,12 +105,18 @@
 - [ ] 匿名キー・ログインユーザーから契約テーブルを直接読めないことを実環境で確認する。
 - [x] 本番Site URLを正式URLへ設定する。
 - [x] メール確認・パスワード再設定のRedirect URLを本番の正確なURLだけで登録する。
-- [ ] 独自SMTPを設定し、送信元ドメイン、SPF、DKIM、メール文面、到達性を確認する。
+- [x] 独自SMTPを設定し、送信元ドメイン、SPF、DKIM、メール文面、到達性を確認する。
 - [ ] 登録・ログイン・再設定のレート制限とCAPTCHA導入を検討・設定する。
 - [ ] Security Advisor、SSL、Network Restrictions、バックアップ／PITR、プランを確認する。
 - [ ] プレビューの共有テストユーザー、テスト出生情報、テスト契約を本番へコピーしない。
 
 2026-09-22時点で、本番プロジェクト`celestial-atelier-v3-production`（Project Ref: `sxkhgczqvsewtsrcnbbe`、Sydney）を作成済み。`003_verify_v3_security.sql`の16項目はすべて`OK`、Security AdvisorはErrors 0・Warnings 0。Info 3件は、サーバー専用の課金3テーブルに意図的にブラウザー向けRLSポリシーを作成していないことを示す想定どおりの結果。
+
+2026-09-22に認証設定を再確認し、メール確認、TOTP方式MFA、MFA未完了セッションの15分制限が有効であることを確認した。ログイン・登録は同一IPあたり5分30回、トークン更新は5分150回、メールOTP有効期限は1時間・8桁。パスワード最小長をフロントと同じ12文字へ変更し、直近24時間以内に認証していないセッションからのパスワード変更を拒否する設定を有効化した。
+
+CAPTCHAはCloudflare TurnstileのSite Keyを`VITE_V3_TURNSTILE_SITE_KEY`へ設定すると、ログイン・登録・再設定・確認メール再送の全処理でトークンをSupabaseへ渡す実装まで準備済み。Turnstileウィジェットを本番ドメイン用に作成し、RenderへSite Keyを設定済み。フロントの配備と表示確認後にSupabaseへSecret Keyを設定して有効化する。
+
+独自SMTPはResend経由で設定済み。送信元ドメインのSPF・DKIM・DMARCと日本語メール文面を設定し、確認メールの受信と、ブラウザに依存しないtoken hash方式の再設定リンク表示を確認済み。
 
 本番Renderへ登録するSupabase値は次の3つ。値そのものはMarkdownやGitへ書かない。
 
