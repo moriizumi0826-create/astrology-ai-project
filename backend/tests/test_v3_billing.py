@@ -12,7 +12,7 @@ import stripe
 
 from backend.tests.test_v3_access import local_test_client
 from backend.v3.app import create_app
-from backend.v3.billing import BillingStore
+from backend.v3.billing import BillingStore, checkout_available, subscription_access_state
 
 
 USER = "00000000-0000-4000-8000-000000000001"
@@ -112,6 +112,40 @@ class BillingTests(unittest.TestCase):
         self.assertTrue(response.json()["capabilities"]["stellar_forecast"])
         self.assertEqual(response.json()["user_id"], f"supabase:test:{USER}")
 
+    def test_subscription_access_states_and_checkout_safety(self):
+        now = datetime(2026, 9, 22, tzinfo=timezone.utc)
+        future = (now + timedelta(days=10)).isoformat()
+        self.assertEqual(subscription_access_state(None, now), "none")
+        self.assertEqual(subscription_access_state({"status": "active", "access_until": future}, now), "active")
+        self.assertEqual(subscription_access_state({"status": "active", "access_until": future,
+            "cancel_at_period_end": True}, now), "active_canceling")
+        self.assertEqual(subscription_access_state({"status": "active",
+            "access_until": now.isoformat()}, now), "expired")
+        for status, expected in [("past_due", "payment_required"), ("unpaid", "payment_required"),
+                                 ("paused", "paused"), ("incomplete", "processing"),
+                                 ("incomplete_expired", "expired"), ("canceled", "canceled"),
+                                 ("unexpected", "unknown")]:
+            with self.subTest(status=status):
+                self.assertEqual(subscription_access_state({"status": status}, now), expected)
+        self.assertTrue(checkout_available(None))
+        self.assertTrue(checkout_available({"status": "canceled"}))
+        self.assertFalse(checkout_available({"status": "past_due"}))
+        self.assertFalse(checkout_available({"status": "unexpected"}))
+
+    def test_billing_status_guides_payment_recovery_without_new_checkout(self):
+        self.store.customer.return_value = "cus_member"
+        self.store.status.return_value = {"status": "past_due", "currency": "jpy",
+                                          "access_until": "2026-10-01T00:00:00+00:00"}
+        response = self.client.get("/api/v3/billing/status", headers=AUTH)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["access_state"], "payment_required")
+        self.assertFalse(response.json()["checkout_available"])
+        self.assertTrue(response.json()["customer"])
+
+        self.app.state.billing._prices_validated = True
+        response = self.client.post("/api/v3/billing/checkout", headers=AUTH, json={"currency": "jpy"})
+        self.assertEqual(response.status_code, 409)
+
     def test_billing_store_failure_fails_closed(self):
         from fastapi import HTTPException
         self.store.entitlement.side_effect = HTTPException(503, "offline")
@@ -171,6 +205,23 @@ class BillingTests(unittest.TestCase):
         self.assertEqual(record["stripe_price_id"], "price_jpyTest")
         self.assertIn("access_until", record)
         self.store.finish_event.assert_called_once_with("evt_paid")
+
+    def test_failed_invoice_updates_subscription_state_for_recovery_ui(self):
+        self.store.begin_event.return_value = True
+        self.store.user_for_customer.return_value = USER
+        subscription = {"id": "sub_failed", "customer": "cus_member", "status": "past_due",
+            "currency": "jpy", "current_period_end": 1790000000,
+            "cancel_at_period_end": False,
+            "items": {"data": [{"price": {"id": "price_jpyTest", "currency": "jpy"}}]}}
+        patch("backend.v3.billing.stripe.Subscription.retrieve",
+              return_value=SimpleNamespace(to_dict_recursive=lambda: subscription)).start()
+        event = {"id": "evt_failed", "type": "invoice.payment_failed", "created": 1787000000,
+                 "livemode": False, "data": {"object": {"subscription": "sub_failed"}}}
+        self.assertEqual(self.app.state.billing.handle(event), "processed")
+        record = self.store.save_subscription.call_args.args[0]
+        self.assertEqual(record["status"], "past_due")
+        self.assertNotIn("access_until", record)
+        self.store.finish_event.assert_called_once_with("evt_failed")
 
     def test_duplicate_webhook_is_idempotent(self):
         self.store.begin_event.return_value = False

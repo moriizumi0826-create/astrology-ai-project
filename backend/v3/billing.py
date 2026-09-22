@@ -15,6 +15,42 @@ from backend.v3.deployment import require_allowed_origin
 
 
 ACTIVE_STATUSES = {"active", "trialing"}
+TERMINAL_STATUSES = {"canceled", "incomplete_expired"}
+
+
+def subscription_access_state(subscription: dict | None, now: datetime | None = None) -> str:
+    """Return the user-facing access state without granting any capability."""
+    if not subscription:
+        return "none"
+    status = str(subscription.get("status") or "unknown")
+    if status in ACTIVE_STATUSES:
+        raw_until = subscription.get("access_until")
+        if not raw_until:
+            return "processing"
+        try:
+            valid_until = datetime.fromisoformat(str(raw_until).replace("Z", "+00:00"))
+        except ValueError:
+            return "unknown"
+        if valid_until.utcoffset() is None:
+            return "unknown"
+        if valid_until <= (now or datetime.now(timezone.utc)):
+            return "expired"
+        return "active_canceling" if subscription.get("cancel_at_period_end") else "active"
+    if status in {"past_due", "unpaid"}:
+        return "payment_required"
+    if status == "paused":
+        return "paused"
+    if status == "incomplete":
+        return "processing"
+    if status == "incomplete_expired":
+        return "expired"
+    if status == "canceled":
+        return "canceled"
+    return "unknown"
+
+
+def checkout_available(subscription: dict | None) -> bool:
+    return not subscription or subscription.get("status") in TERMINAL_STATUSES
 
 
 def _plain_dict(value):
@@ -229,7 +265,7 @@ class StripeBilling:
             raise HTTPException(422, "選択した通貨の決済は現在利用できません。")
         self.validate_prices()
         current = self.store.status(user_id)
-        if current and current.get("status") in {"active", "trialing", "past_due", "unpaid", "paused", "incomplete"}:
+        if not checkout_available(current):
             raise HTTPException(409, "既存の契約は契約管理画面から確認してください。")
         customer_id = self.ensure_customer(user_id, email)
         try:
@@ -322,7 +358,7 @@ class StripeBilling:
             if event_type in {"customer.subscription.created", "customer.subscription.updated",
                               "customer.subscription.deleted"}:
                 subscription = obj
-            elif event_type == "invoice.paid":
+            elif event_type in {"invoice.paid", "invoice.payment_failed"}:
                 subscription_id = self._subscription_id(obj)
                 if subscription_id:
                     subscription = self._retrieve_subscription(subscription_id)
@@ -367,10 +403,13 @@ def billing_status(request: Request, user_id=Depends(_identity)):
     service = _service(request)
     if not service.configured:
         return {"configured": False, "checkout_enabled": False, "mode": service.mode,
-                "customer": False, "subscription": None}
+                "customer": False, "subscription": None, "access_state": "none",
+                "checkout_available": False}
+    subscription = service.store.status(user_id)
     return {"configured": True, "checkout_enabled": service.checkout_enabled, "mode": service.mode,
-            "customer": bool(service.store.customer(user_id)),
-            "subscription": service.store.status(user_id)}
+            "customer": bool(service.store.customer(user_id)), "subscription": subscription,
+            "access_state": subscription_access_state(subscription),
+            "checkout_available": service.checkout_enabled and checkout_available(subscription)}
 
 
 @router.post("/checkout")
