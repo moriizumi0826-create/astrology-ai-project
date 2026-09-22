@@ -137,6 +137,24 @@ class BillingTests(unittest.TestCase):
             headers={"Stripe-Signature": "bad"})
         self.assertEqual(response.status_code, 400)
 
+    def test_current_subscription_record_uses_period_end_or_observed_terminal_time(self):
+        observed_at = datetime(2026, 9, 22, tzinfo=timezone.utc)
+        self.store.user_for_customer.return_value = USER
+        subscription = {"id": "sub_current", "customer": "cus_member", "status": "active",
+            "currency": "jpy", "current_period_end": 1792713600,
+            "cancel_at_period_end": False,
+            "items": {"data": [{"price": {"id": "price_jpyTest", "currency": "jpy"}}]}}
+
+        active = self.app.state.billing.current_subscription_record(
+            subscription, observed_at=observed_at)
+        self.assertEqual(active["access_until"],
+            datetime.fromtimestamp(1792713600, timezone.utc).isoformat())
+
+        subscription["status"] = "canceled"
+        canceled = self.app.state.billing.current_subscription_record(
+            subscription, observed_at=observed_at)
+        self.assertEqual(canceled["access_until"], observed_at.isoformat())
+
     def test_paid_invoice_extends_access_using_customer_mapping(self):
         self.store.begin_event.return_value = True
         self.store.user_for_customer.return_value = USER

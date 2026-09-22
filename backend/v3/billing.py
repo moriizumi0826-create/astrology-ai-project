@@ -85,6 +85,11 @@ class BillingStore:
             "order": "access_until.desc.nullslast", "limit": "1"})
         return rows[0] if rows else None
 
+    def subscriptions_for_user(self, user_id: str):
+        return self.request("GET", "v3_subscriptions", params={"user_id": f"eq.{user_id}",
+            "select": "stripe_subscription_id,stripe_customer_id,stripe_price_id,currency,status,access_until,cancel_at_period_end,latest_event_created",
+            "order": "updated_at.desc"}) or []
+
     def entitlement(self, user_id: str):
         current = self.status(user_id)
         if not current or current["status"] not in ACTIVE_STATUSES or not current.get("access_until"):
@@ -288,6 +293,20 @@ class StripeBilling:
             record["access_until"] = datetime.fromtimestamp(int(period_end), timezone.utc).isoformat()
         elif event_type == "customer.subscription.deleted":
             record["access_until"] = datetime.now(timezone.utc).isoformat()
+        return record
+
+    def current_subscription_record(self, subscription: dict, *, observed_at: datetime | None = None):
+        """Build a recovery record from Stripe's current state, not an event redirect."""
+        record = self._record(subscription, "reconcile")
+        if not record:
+            return None
+        observed_at = observed_at or datetime.now(timezone.utc)
+        items = subscription.get("items", {}).get("data", [])
+        period_end = subscription.get("current_period_end") or (items[0].get("current_period_end") if items else None)
+        if record["status"] in {"canceled", "incomplete_expired"}:
+            record["access_until"] = observed_at.isoformat()
+        elif period_end:
+            record["access_until"] = datetime.fromtimestamp(int(period_end), timezone.utc).isoformat()
         return record
 
     def handle(self, event):
