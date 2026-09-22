@@ -135,6 +135,10 @@ def extract_archive(encrypted: Path, output_file: str, passphrase: str) -> Path:
 
 def _pg_dump_path() -> str:
     binary = shutil.which("pg_dump")
+    if not binary and os.environ.get("LOCALAPPDATA"):
+        local = Path(os.environ["LOCALAPPDATA"]) / "CelestialAtelier" / "postgresql-client-18.6" / "bin" / "pg_dump.exe"
+        if local.is_file():
+            binary = str(local)
     if not binary:
         raise RuntimeError("pg_dump was not found. Install PostgreSQL command-line tools first.")
     return binary
