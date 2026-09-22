@@ -208,9 +208,10 @@ class StripeBilling:
         if any([*stripe_values, usd_price]) and not self.configured:
             raise RuntimeError("V3のStripe設定とSupabase Secret keyを全て設定してください。")
         if self.configured:
-            expected_prefix = "sk_live_" if self.live_mode else "sk_test_"
-            if not self.secret_key.startswith(expected_prefix):
-                raise RuntimeError(f"{deployment}ではStripeの{expected_prefix}キーだけを使用できます。")
+            expected_prefixes = ("sk_live_", "rk_live_") if self.live_mode else ("sk_test_", "rk_test_")
+            if not self.secret_key.startswith(expected_prefixes):
+                expected = " または ".join(expected_prefixes)
+                raise RuntimeError(f"{deployment}ではStripeの{expected}キーだけを使用できます。")
             if not self.webhook_secret.startswith("whsec_"):
                 raise RuntimeError("V3_STRIPE_WEBHOOK_SECRETを確認してください。")
             if any(not value.startswith("price_") for value in self.prices.values()):

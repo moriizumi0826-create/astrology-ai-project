@@ -259,6 +259,9 @@ class BillingTests(unittest.TestCase):
         self.assertEqual(app.state.v3_environment, "production")
         self.assertEqual(app.state.billing.mode, "live")
         self.assertFalse(app.state.billing.checkout_enabled)
+        with patch.dict(os.environ, {**production, "V3_STRIPE_SECRET_KEY": "rk_live_example"}):
+            restricted_app = create_app()
+        self.assertEqual(restricted_app.state.billing.mode, "live")
         with patch.dict(os.environ, {**production, "V3_STRIPE_SECRET_KEY": "sk_test_forbidden"}):
             with self.assertRaises(RuntimeError):
                 create_app()
