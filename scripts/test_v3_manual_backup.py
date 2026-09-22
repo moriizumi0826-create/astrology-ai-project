@@ -6,7 +6,7 @@ from pathlib import Path
 import pytest
 from cryptography.exceptions import InvalidTag
 
-from scripts.v3_manual_backup import _output_directory, encrypt_stream, verify_archive
+from scripts.v3_manual_backup import _output_directory, encrypt_stream, extract_archive, verify_archive
 
 
 def test_encrypted_archive_verifies_without_plaintext_file(tmp_path: Path):
@@ -17,6 +17,8 @@ def test_encrypted_archive_verifies_without_plaintext_file(tmp_path: Path):
 
     assert plaintext not in target.read_bytes()
     assert verify_archive(target, "long backup passphrase") == len(plaintext)
+    restored = extract_archive(target, str(tmp_path / "restore.dump"), "long backup passphrase")
+    assert restored.read_bytes() == plaintext
 
 
 def test_wrong_password_or_modified_archive_is_rejected(tmp_path: Path):
@@ -37,3 +39,16 @@ def test_wrong_password_or_modified_archive_is_rejected(tmp_path: Path):
 def test_backup_refuses_repository_output():
     with pytest.raises(ValueError, match="outside the Git repository"):
         _output_directory(str(Path(__file__).resolve().parents[1] / "output"))
+
+
+def test_extract_refuses_repository_and_existing_file(tmp_path: Path):
+    encrypted = tmp_path / "sample.catv3"
+    with encrypted.open("wb") as output:
+        encrypt_stream(BytesIO(b"PGDMPpayload"), output, "long backup passphrase")
+    with pytest.raises(ValueError, match="outside the Git repository"):
+        extract_archive(encrypted, str(Path(__file__).resolve().parents[1] / "restore.dump"), "long backup passphrase")
+    existing = tmp_path / "restore.dump"
+    existing.write_bytes(b"existing")
+    with pytest.raises(FileExistsError):
+        extract_archive(encrypted, str(existing), "long backup passphrase")
+    assert existing.read_bytes() == b"existing"

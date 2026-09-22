@@ -38,6 +38,15 @@ python scripts/v3_manual_backup.py verify "C:\Users\morii\CelestialAtelierBackup
 
 ## 公開前の復元確認
 
-`verify`はファイルの改ざん・破損検出であり、復元の成功は保証しない。本番DBに上書きせず、**隔離したテスト用DB／別プロジェクト**へ実際に復元し、AuthユーザーとV3の4表の件数、RLS・ログイン・有料判定を確認する。この復元先と手順を確保するまでは「復元確認済み」としない。復元時は[Supabaseの移行・復元ガイド](https://supabase.com/docs/guides/platform/migrating-within-supabase/backup-restore)を参照し、管理スキーマ・権限の差分を先に評価する。
+`verify`はファイルの改ざん・破損検出であり、復元の成功は保証しない。本番DBに上書きせず、**隔離したテスト用DB／別プロジェクト**へ実際に復元し、AuthユーザーとV3の4表の件数、RLS・ログイン・有料判定を確認する。この復元先と手順を確保するまでは「復元確認済み」としない。
+
+隔離環境での復元に必要な場合だけ、暗号化ドライブなどのGit外へ平文アーカイブを取り出す。取り出したファイルは個人情報そのものなので、復元作業後に削除し、残存コピーも確認する。
+
+```powershell
+python scripts/v3_manual_backup.py extract "C:\Users\morii\CelestialAtelierBackups\v3-supabase-実際のファイル名.catv3" --output-file "C:\Users\morii\CelestialAtelierBackups\restore-test.dump" --acknowledge-plaintext
+pg_restore --list "C:\Users\morii\CelestialAtelierBackups\restore-test.dump"
+```
+
+`pg_restore --list`も目録確認に過ぎない。実際の復元時は[Supabaseの移行・復元ガイド](https://supabase.com/docs/guides/platform/migrating-within-supabase/backup-restore)を参照し、管理スキーマ・権限の差分を先に評価する。復元先が本番DBでないことを必ず確認する。
 
 参考：[Supabaseのバックアップ説明](https://supabase.com/docs/guides/platform/backups)（FreeプランではCLI等による定期エクスポートとオフサイト保管を推奨）、[PostgreSQLの`pg_dump`説明](https://www.postgresql.org/docs/current/app-pgdump.html)。

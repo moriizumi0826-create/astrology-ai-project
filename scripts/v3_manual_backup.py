@@ -55,8 +55,8 @@ def encrypt_stream(source, destination, passphrase: str) -> int:
     return size
 
 
-def verify_archive(path: Path, passphrase: str) -> int:
-    """Check encryption integrity and pg_dump magic; does not prove a restore works."""
+def _decrypt_archive(path: Path, passphrase: str, destination=None) -> int:
+    """Authenticate and stream-decrypt; optionally write a restore archive."""
     path = Path(path)
     with path.open("rb") as source:
         header = source.read(len(MAGIC) + SALT_SIZE + NONCE_SIZE)
@@ -83,12 +83,19 @@ def verify_archive(path: Path, passphrase: str) -> int:
             plaintext = decryptor.update(chunk)
             if len(prefix) < 5:
                 prefix += plaintext[: 5 - len(prefix)]
+            if destination is not None:
+                destination.write(plaintext)
             count += len(plaintext)
             remaining -= len(chunk)
         decryptor.finalize()  # Raises InvalidTag for a wrong passphrase or modified file.
         if prefix != b"PGDMP":
             raise ValueError("Decrypted content is not a pg_dump custom archive")
         return count
+
+
+def verify_archive(path: Path, passphrase: str) -> int:
+    """Check encryption integrity and pg_dump magic; does not prove a restore works."""
+    return _decrypt_archive(path, passphrase)
 
 
 def _output_directory(raw: str) -> Path:
@@ -100,6 +107,30 @@ def _output_directory(raw: str) -> Path:
         raise ValueError("Backups must be stored outside the Git repository")
     path.mkdir(parents=True, exist_ok=True)
     return path
+
+
+def extract_archive(encrypted: Path, output_file: str, passphrase: str) -> Path:
+    """Extract plaintext only when explicitly requested for an isolated restore."""
+    target = Path(output_file).expanduser()
+    if not target.is_absolute():
+        raise ValueError("Extracted archive path must be absolute")
+    target = target.resolve()
+    if target == REPO_ROOT or REPO_ROOT in target.parents:
+        raise ValueError("Extracted archive must be outside the Git repository")
+    target.parent.mkdir(parents=True, exist_ok=True)
+    partial = target.with_suffix(target.suffix + ".partial")
+    if target.exists() or partial.exists():
+        raise FileExistsError("Extracted archive target already exists")
+    try:
+        with partial.open("xb") as destination:
+            _decrypt_archive(encrypted, passphrase, destination)
+            destination.flush()
+            os.fsync(destination.fileno())
+        partial.rename(target)
+        return target
+    except Exception:
+        partial.unlink(missing_ok=True)
+        raise
 
 
 def _pg_dump_path() -> str:
@@ -185,6 +216,10 @@ def main() -> int:
     backup_parser.add_argument("--output-dir", required=True, help="Absolute path outside this repository")
     verify_parser = sub.add_parser("verify", help="Verify file integrity without restoring")
     verify_parser.add_argument("file", type=Path)
+    extract_parser = sub.add_parser("extract", help="Create plaintext dump for isolated restore only")
+    extract_parser.add_argument("file", type=Path)
+    extract_parser.add_argument("--output-file", required=True, help="Absolute path outside this repository")
+    extract_parser.add_argument("--acknowledge-plaintext", action="store_true", help="Confirm the output contains personal data")
     args = parser.parse_args()
     try:
         if args.command == "preflight":
@@ -195,10 +230,17 @@ def main() -> int:
             path = backup(args.output_dir)
             print(f"Encrypted backup verified: {path}")
             print("Next: copy it to a separate encrypted location and test restore in an isolated project.")
-        else:
+        elif args.command == "verify":
             passphrase = getpass.getpass("Backup encryption passphrase (not shown): ")
             size = verify_archive(args.file, passphrase)
             print(f"Encryption integrity verified ({size} archive bytes). Restore not yet tested.")
+        else:
+            if not args.acknowledge_plaintext:
+                raise ValueError("extract requires --acknowledge-plaintext")
+            passphrase = getpass.getpass("Backup encryption passphrase (not shown): ")
+            path = extract_archive(args.file, args.output_file, passphrase)
+            print(f"Plaintext restore archive created: {path}")
+            print("Keep it on an encrypted drive, restore only to an isolated DB, then remove this plaintext copy.")
         return 0
     except (OSError, ValueError, RuntimeError, InvalidTag) as exc:
         print(f"Backup error: {exc if not isinstance(exc, InvalidTag) else 'wrong passphrase or modified file'}", file=sys.stderr)
