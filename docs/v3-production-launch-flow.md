@@ -21,7 +21,7 @@
 |---|---|---|
 | V3フロント | Render公開プレビューで稼働 | 本番用サービス・ドメインを分離して配備 |
 | V3 API | Render公開プレビューで稼働 | 本番用APIとして別サービスを用意 |
-| 認証 | Supabase Authで登録・確認・ログイン・再設定を確認 | 本番用プロジェクト、URL、SMTP、メール文面を設定 |
+| 認証 | 本番Supabaseで登録・確認・ログイン・再設定、独自SMTP、Turnstileを設定済み | 公開前に本番端末で一連の認証導線を再確認 |
 | 出生情報 | Supabaseへ本人単位で保存・復元を確認 | 本番DBへSQL適用、RLS・バックアップ・削除運用を確認 |
 | 決済 | Stripeテストモード、月額400円 | Stripe本番モードに商品・価格・Webhookを新規作成 |
 | 有料判定 | `invoice.paid`後に有料機能が解放されることを確認 | 本番Webhook、更新・失敗・解約・照合運用を完成 |
@@ -106,7 +106,7 @@
 - [x] 本番Site URLを正式URLへ設定する。
 - [x] メール確認・パスワード再設定のRedirect URLを本番の正確なURLだけで登録する。
 - [x] 独自SMTPを設定し、送信元ドメイン、SPF、DKIM、メール文面、到達性を確認する。
-- [ ] 登録・ログイン・再設定のレート制限とCAPTCHA導入を検討・設定する。
+- [x] 登録・ログイン・再設定のレート制限とCAPTCHAを設定する。
 - [ ] Security Advisor、SSL、Network Restrictions、バックアップ／PITR、プランを確認する。
 - [ ] プレビューの共有テストユーザー、テスト出生情報、テスト契約を本番へコピーしない。
 
@@ -114,7 +114,7 @@
 
 2026-09-22に認証設定を再確認し、メール確認、TOTP方式MFA、MFA未完了セッションの15分制限が有効であることを確認した。ログイン・登録は同一IPあたり5分30回、トークン更新は5分150回、メールOTP有効期限は1時間・8桁。パスワード最小長をフロントと同じ12文字へ変更し、直近24時間以内に認証していないセッションからのパスワード変更を拒否する設定を有効化した。
 
-CAPTCHAはCloudflare TurnstileのSite Keyを`VITE_V3_TURNSTILE_SITE_KEY`へ設定すると、ログイン・登録・再設定・確認メール再送の全処理でトークンをSupabaseへ渡す実装まで準備済み。Turnstileウィジェットを本番ドメイン用に作成し、RenderへSite Keyを設定済み。フロントの配備と表示確認後にSupabaseへSecret Keyを設定して有効化する。
+CAPTCHAはCloudflare Turnstileを本番ドメイン用に作成し、Renderの`VITE_V3_TURNSTILE_SITE_KEY`とSupabaseのSecret Keyを設定して有効化済み。ログイン・登録・再設定・確認メール再送の全処理でトークンをSupabaseへ渡す。本番画面でTurnstileの成功表示と、CAPTCHA拒否ではなく通常の認証エラーが返るところまで確認済み。キーの値はGitやMarkdownへ記録しない。
 
 独自SMTPはResend経由で設定済み。送信元ドメインのSPF・DKIM・DMARCと日本語メール文面を設定し、確認メールの受信と、ブラウザに依存しないtoken hash方式の再設定リンク表示を確認済み。
 
