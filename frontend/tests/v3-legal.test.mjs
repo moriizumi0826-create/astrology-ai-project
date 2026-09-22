@@ -22,7 +22,7 @@ test("legal pages identify the operator and contain no publication placeholders"
   }
   const commerce = readV3("public/legal/commerce.html");
   assert.match(commerce, /森泉勇耶/);
-  assert.match(commerce, /moriizumi0826@gmail\.com/);
+  assert.match(commerce, /j1nby1937@yahoo\.ne\.jp/);
   assert.match(commerce, /請求があった場合、遅滞なく開示/);
   assert.match(commerce, /月額400円（税込）/);
 });
