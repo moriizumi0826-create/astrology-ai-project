@@ -3,16 +3,25 @@ import { getJson } from "./api.mjs";
 import { configureStorage, getStoredReadingForm } from "./reading-storage.js";
 import { finishMemberLogin } from "./profile.mjs";
 const $ = selector => document.querySelector(selector);
-const recovery = new URLSearchParams(location.search).get("mode") === "recovery";
-const failedLink = new URLSearchParams(location.search).has("error") || new URLSearchParams(location.hash.slice(1)).has("error");
+const query = new URLSearchParams(location.search);
+const hash = new URLSearchParams(location.hash.slice(1));
+const tokenHash = query.get("token_hash");
+const tokenType = query.get("type");
+const recovery = tokenType === "recovery" || query.get("mode") === "recovery";
+const failedLink = query.has("error") || hash.has("error");
 configureStorage(null);
 const anonymousForm = getStoredReadingForm();
 let client;
 (async () => {
   client = await authClient();
+  if (tokenHash) {
+    if (!["email", "recovery"].includes(tokenType)) throw new Error("確認リンクの種類を判別できません。ログイン画面からメールを再送してください。");
+    const { error } = await client.auth.verifyOtp({ token_hash: tokenHash, type: tokenType });
+    if (error) throw new Error("確認リンクが無効または期限切れです。ログイン画面からメールを再送してください。");
+  }
   history.replaceState(null, "", location.pathname + (recovery ? "?mode=recovery" : ""));
   const session = await getJson("/api/v3/session");
-  if (failedLink || !session.user_id) throw new Error("確認リンクが無効・期限切れか、別のブラウザで開かれています。操作したブラウザで開くか、ログイン画面からメールを再送してください。");
+  if (failedLink || !session.user_id) throw new Error("確認リンクが無効または期限切れです。ログイン画面からメールを再送してください。");
   $("#status").textContent = recovery ? "新しいパスワードを設定してください（12文字以上）。" : "メールを確認しました。会員登録は無料です。";
   $("#heading").textContent = recovery ? "パスワード再設定" : "メール確認完了";
   $("#password-row").hidden = !recovery;

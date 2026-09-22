@@ -49,12 +49,12 @@ form.addEventListener("submit", async event => {
     } else if (mode === "signup") {
       const { error } = await client.auth.signUp({ email, password, options: { emailRedirectTo: `${location.origin}/auth-callback.html` } });
       if (error) throw error;
-      status.textContent = "登録可能な場合は確認メールが届きます。このブラウザでメールのリンクを開いてください。登録済みの場合はログインまたはパスワード再設定をご利用ください。";
+      status.textContent = "登録可能な場合は確認メールが届きます。登録済みの場合はログインまたはパスワード再設定をご利用ください。";
       $("#resend").hidden = false;
     } else {
-      const { error } = await client.auth.resetPasswordForEmail(email, { redirectTo: `${location.origin}/auth-callback.html?mode=recovery` });
+      const { error } = await client.auth.resetPasswordForEmail(email, { redirectTo: `${location.origin}/auth-callback.html` });
       if (error) throw error;
-      status.textContent = "登録済みのメールアドレスであれば再設定メールが届きます。このブラウザでリンクを開いてください。";
+      status.textContent = "登録済みのメールアドレスであれば再設定メールが届きます。";
     }
   } catch (error) { status.hidden = true; showError(error); }
   finally { $("#password").value = ""; button.disabled = false; }

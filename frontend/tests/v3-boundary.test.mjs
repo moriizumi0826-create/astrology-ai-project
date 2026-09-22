@@ -37,6 +37,15 @@ test("production V3 blueprint starts with billing closed and contains no secrets
   assert.doesNotMatch(blueprint, /sk_(?:test|live)_|sb_secret_|whsec_/);
 });
 
+test("V3 email links use token hashes without depending on the signup browser", () => {
+  const callback = readFileSync(new URL("../v3/auth-callback.js", import.meta.url), "utf8");
+  const login = readFileSync(new URL("../v3/login.js", import.meta.url), "utf8");
+  const loginHtml = readFileSync(new URL("../v3/login.html", import.meta.url), "utf8");
+  assert.match(callback, /query\.get\("token_hash"\)/);
+  assert.match(callback, /verifyOtp\(\{ token_hash: tokenHash, type: tokenType \}\)/);
+  assert.doesNotMatch(login + loginHtml, /このブラウザで/);
+});
+
 test("production-facing source does not hard-code preview billing copy", () => {
   const billing = readFileSync(new URL("../v3/billing.html", import.meta.url), "utf8");
   const entry = readFileSync(new URL("../v3/entry.html", import.meta.url), "utf8");
