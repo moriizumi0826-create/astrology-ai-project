@@ -255,7 +255,14 @@ def backup(output_dir: str, pg_dump_path: str | None = None, setup_pg_dump: bool
     try:
         assert process.stdout is not None
         with partial.open("xb") as destination:
-            archive_bytes = encrypt_stream(process.stdout, destination, passphrase)
+            try:
+                archive_bytes = encrypt_stream(process.stdout, destination, passphrase)
+            except ValueError as exc:
+                if process.wait() != 0:
+                    stderr_thread.join(timeout=5)
+                    detail = b"".join(stderr_parts).decode("utf-8", "replace").strip()
+                    raise RuntimeError(f"pg_dump failed: {detail or 'no diagnostic output'}") from exc
+                raise
             destination.flush()
             os.fsync(destination.fileno())
         if process.wait() != 0:

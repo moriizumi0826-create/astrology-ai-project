@@ -89,3 +89,24 @@ def test_setup_extracts_only_client_bin(tmp_path: Path, monkeypatch):
     assert binary.read_bytes() == b"dump"
     assert (binary.parent / "pg_restore.exe").read_bytes() == b"restore"
     assert not (binary.parent.parent / "share").exists()
+
+
+def test_backup_reports_pg_dump_failure_instead_of_archive_error(tmp_path: Path, monkeypatch):
+    class FailedDump:
+        stdout = BytesIO()
+        stderr = BytesIO(b"pg_dump: error: connection failed: password authentication failed\n")
+
+        def wait(self, timeout=None):
+            return 1
+
+        def poll(self):
+            return 1
+
+    prompts = iter(["database-password", "long backup passphrase", "long backup passphrase"])
+    monkeypatch.setattr(backup_module, "_pg_dump_path", lambda *_args: "pg_dump")
+    monkeypatch.setattr(backup_module.getpass, "getpass", lambda *_args: next(prompts))
+    monkeypatch.setattr(backup_module.subprocess, "Popen", lambda *_args, **_kwargs: FailedDump())
+
+    with pytest.raises(RuntimeError, match="pg_dump failed: .*password authentication failed"):
+        backup_module.backup(str(tmp_path))
+    assert not list(tmp_path.glob("*.partial"))
