@@ -14,7 +14,10 @@ import secrets
 import shutil
 import subprocess
 import sys
+import tempfile
 import threading
+import urllib.request
+import zipfile
 from datetime import datetime, timezone
 
 from cryptography.exceptions import InvalidTag
@@ -31,6 +34,8 @@ NONCE_SIZE = 12
 TAG_SIZE = 16
 CHUNK_SIZE = 1024 * 1024
 REPO_ROOT = Path(__file__).resolve().parents[1]
+CLIENT_URL = "https://sbp.enterprisedb.com/getfile.jsp?fileid=1260566"
+CLIENT_ZIP_BYTES = 382815572
 
 
 def _key(passphrase: str, salt: bytes) -> bytes:
@@ -141,6 +146,9 @@ def _pg_dump_path(explicit: str | None = None) -> str:
         return str(path)
     binary = shutil.which("pg_dump")
     if not binary:
+        bundled = REPO_ROOT / ".tools" / "postgresql-client-18.6" / "bin" / "pg_dump.exe"
+        if bundled.is_file():
+            return str(bundled)
         local_roots = [Path.home() / "AppData" / "Local"]
         if os.environ.get("LOCALAPPDATA"):
             local_roots.insert(0, Path(os.environ["LOCALAPPDATA"]))
@@ -154,8 +162,54 @@ def _pg_dump_path(explicit: str | None = None) -> str:
     return binary
 
 
-def backup(output_dir: str, pg_dump_path: str | None = None) -> Path:
-    pg_dump = _pg_dump_path(pg_dump_path)
+def _setup_pg_dump() -> str:
+    """Install pinned Windows client binaries under this user's LocalAppData."""
+    try:
+        return _pg_dump_path()
+    except RuntimeError:
+        pass
+    if os.name != "nt":
+        raise RuntimeError("Automatic pg_dump setup is available on Windows only")
+    local_root = Path(os.environ.get("LOCALAPPDATA") or (Path.home() / "AppData" / "Local"))
+    parent = local_root / "CelestialAtelier"
+    target = parent / "postgresql-client-18.6"
+    if target.exists():
+        raise RuntimeError(f"Client directory exists but pg_dump was not found: {target}")
+    parent.mkdir(parents=True, exist_ok=True)
+    print("Downloading PostgreSQL client (about 383 MB)...")
+    with tempfile.TemporaryDirectory(prefix="pg-client-setup-", dir=parent) as temporary:
+        staging = Path(temporary)
+        archive = staging / "client.zip"
+        size = 0
+        with urllib.request.urlopen(CLIENT_URL, timeout=60) as response, archive.open("xb") as output:
+            while chunk := response.read(CHUNK_SIZE):
+                output.write(chunk)
+                size += len(chunk)
+        if size != CLIENT_ZIP_BYTES:
+            raise RuntimeError("PostgreSQL client download size did not match")
+        staged_target = staging / "postgresql-client-18.6"
+        staged_bin = staged_target / "bin"
+        staged_bin.mkdir(parents=True)
+        count = 0
+        with zipfile.ZipFile(archive) as source:
+            for entry in source.infolist():
+                parts = entry.filename.split("/")
+                if len(parts) == 3 and parts[:2] == ["pgsql", "bin"] and parts[2] and not entry.is_dir():
+                    with source.open(entry) as content, (staged_bin / parts[2]).open("xb") as output:
+                        shutil.copyfileobj(content, output)
+                    count += 1
+        if count < 2 or not (staged_bin / "pg_dump.exe").is_file() or not (staged_bin / "pg_restore.exe").is_file():
+            raise RuntimeError("PostgreSQL client archive was incomplete")
+        result = subprocess.run([str(staged_bin / "pg_dump.exe"), "--version"], capture_output=True, text=True)
+        if result.returncode != 0 or "PostgreSQL" not in result.stdout:
+            raise RuntimeError("Extracted pg_dump did not start")
+        staged_target.rename(target)
+    print(result.stdout.strip())
+    return str(target / "bin" / "pg_dump.exe")
+
+
+def backup(output_dir: str, pg_dump_path: str | None = None, setup_pg_dump: bool = False) -> Path:
+    pg_dump = _setup_pg_dump() if setup_pg_dump and not pg_dump_path else _pg_dump_path(pg_dump_path)
     directory = _output_directory(output_dir)
     db_password = getpass.getpass("Supabase database password (not shown): ")
     if not db_password:
@@ -229,6 +283,7 @@ def main() -> int:
     backup_parser = sub.add_parser("backup", help="Create an encrypted production DB backup")
     backup_parser.add_argument("--output-dir", required=True, help="Absolute path outside this repository")
     backup_parser.add_argument("--pg-dump", help="Explicit pg_dump.exe path, if auto-discovery fails")
+    backup_parser.add_argument("--setup-pg-dump", action="store_true", help="Download official Windows client if missing")
     verify_parser = sub.add_parser("verify", help="Verify file integrity without restoring")
     verify_parser.add_argument("file", type=Path)
     extract_parser = sub.add_parser("extract", help="Create plaintext dump for isolated restore only")
@@ -242,7 +297,7 @@ def main() -> int:
             result = subprocess.run([binary, "--version"], check=True, capture_output=True, text=True)
             print(result.stdout.strip())
         elif args.command == "backup":
-            path = backup(args.output_dir, args.pg_dump)
+            path = backup(args.output_dir, args.pg_dump, args.setup_pg_dump)
             print(f"Encrypted backup verified: {path}")
             print("Next: copy it to a separate encrypted location and test restore in an isolated project.")
         elif args.command == "verify":

@@ -14,7 +14,7 @@
 
 ## 準備
 
-1. [PostgreSQL公式のWindowsダウンロード案内](https://www.postgresql.org/download/windows/)から、**本番DBと同じか新しいメジャーバージョン**のコマンドラインツール（`pg_dump`）を用意し、PATHから呼べる状態にする。サーバーのインストール・起動は不要。バージョンが古い`pg_dump`は新しいサーバーのダンプを拒否する。
+1. Windowsで`pg_dump`が未導入なら、下記コマンドの`--setup-pg-dump`で[EDB提供のPostgreSQL 18.6バイナリ](https://www.enterprisedb.com/download-postgresql-binaries)を初回のみ自動取得する（約383 MBのダウンロード）。サーバーのインストール・起動は不要。既に利用可能ならダウンロードしない。
 2. 使用するPythonで`cryptography`が読み込めるようにする。現在の開発環境では読み込める。別のPythonを使う場合は`python -m pip install cryptography`を実行する。
 3. Supabase管理画面の本番プロジェクトで「Connect → Direct → Session pooler」を確認する。2026-09-23時点の接続先はスクリプトに固定済み。**DBパスワードはこの画面には表示されない。** 不明なら勝手にリセットせず、運営者と影響を確認する。
 4. バックアップ保存先をGitリポジトリの外に決める。端末故障に備え、完成後に別媒体・別サービスにも暗号化ファイルを保管する。暗号化パスフレーズはバックアップ本体とは別に安全に保管する。
@@ -24,11 +24,8 @@
 PowerShellで`C:\dev\astrology-v3`へ移動し、以下を実行する。保存先はGitリポジトリ外の絶対パスに置き換えられる。存在しない保存用フォルダーは作成される。パスワードやパスフレーズをコマンドに書かないこと。
 
 ```powershell
-python scripts/v3_manual_backup.py preflight
-python scripts/v3_manual_backup.py backup --output-dir "C:\Users\morii\CelestialAtelierBackups"
+python scripts/v3_manual_backup.py backup --output-dir "C:\Users\morii\CelestialAtelierBackups" --setup-pg-dump
 ```
-
-このPCでは`pg_dump`を`C:\Users\morii\AppData\Local\CelestialAtelier\postgresql-client-18.6\bin`に配置した。自動検出に失敗する場合は、バックアップのコマンドに`--pg-dump "C:\Users\morii\AppData\Local\CelestialAtelier\postgresql-client-18.6\bin\pg_dump.exe"`を付ける。
 
 2種類を対話入力する：Supabaseの**DBパスワード**、バックアップを開くための**16文字以上の暗号化パスフレーズ**。アカウントのログインパスワードやSupabase Secret keyとは別物。成功すると`.catv3`ファイルができ、暗号化の整合性が自動検証される。任意の再検証：
 

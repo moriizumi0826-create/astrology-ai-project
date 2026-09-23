@@ -2,10 +2,12 @@
 
 from io import BytesIO
 from pathlib import Path
+import zipfile
 
 import pytest
 from cryptography.exceptions import InvalidTag
 
+import scripts.v3_manual_backup as backup_module
 from scripts.v3_manual_backup import _output_directory, _pg_dump_path, encrypt_stream, extract_archive, verify_archive
 
 
@@ -60,3 +62,30 @@ def test_explicit_pg_dump_path(tmp_path: Path):
     assert _pg_dump_path(str(binary)) == str(binary)
     with pytest.raises(RuntimeError, match="does not exist"):
         _pg_dump_path(str(tmp_path / "missing.exe"))
+
+
+def test_setup_extracts_only_client_bin(tmp_path: Path, monkeypatch):
+    archive = BytesIO()
+    with zipfile.ZipFile(archive, "w") as output:
+        output.writestr("pgsql/bin/pg_dump.exe", b"dump")
+        output.writestr("pgsql/bin/pg_restore.exe", b"restore")
+        output.writestr("pgsql/share/unused.txt", b"unused")
+    payload = archive.getvalue()
+
+    def missing_client():
+        raise RuntimeError("missing")
+
+    monkeypatch.setattr(backup_module, "_pg_dump_path", missing_client)
+    monkeypatch.setattr(backup_module, "CLIENT_ZIP_BYTES", len(payload))
+    monkeypatch.setattr(backup_module.urllib.request, "urlopen", lambda *_args, **_kwargs: BytesIO(payload))
+    monkeypatch.setattr(
+        backup_module.subprocess,
+        "run",
+        lambda *_args, **_kwargs: type("Result", (), {"returncode": 0, "stdout": "pg_dump (PostgreSQL) 18.6"})(),
+    )
+    monkeypatch.setenv("LOCALAPPDATA", str(tmp_path))
+
+    binary = Path(backup_module._setup_pg_dump())
+    assert binary.read_bytes() == b"dump"
+    assert (binary.parent / "pg_restore.exe").read_bytes() == b"restore"
+    assert not (binary.parent.parent / "share").exists()
