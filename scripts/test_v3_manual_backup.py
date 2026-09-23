@@ -6,7 +6,7 @@ from pathlib import Path
 import pytest
 from cryptography.exceptions import InvalidTag
 
-from scripts.v3_manual_backup import _output_directory, encrypt_stream, extract_archive, verify_archive
+from scripts.v3_manual_backup import _output_directory, _pg_dump_path, encrypt_stream, extract_archive, verify_archive
 
 
 def test_encrypted_archive_verifies_without_plaintext_file(tmp_path: Path):
@@ -52,3 +52,11 @@ def test_extract_refuses_repository_and_existing_file(tmp_path: Path):
     with pytest.raises(FileExistsError):
         extract_archive(encrypted, str(existing), "long backup passphrase")
     assert existing.read_bytes() == b"existing"
+
+
+def test_explicit_pg_dump_path(tmp_path: Path):
+    binary = tmp_path / "pg_dump.exe"
+    binary.write_bytes(b"test")
+    assert _pg_dump_path(str(binary)) == str(binary)
+    with pytest.raises(RuntimeError, match="does not exist"):
+        _pg_dump_path(str(tmp_path / "missing.exe"))

@@ -133,19 +133,29 @@ def extract_archive(encrypted: Path, output_file: str, passphrase: str) -> Path:
         raise
 
 
-def _pg_dump_path() -> str:
+def _pg_dump_path(explicit: str | None = None) -> str:
+    if explicit:
+        path = Path(explicit).expanduser().resolve()
+        if not path.is_file():
+            raise RuntimeError(f"pg_dump does not exist at: {path}")
+        return str(path)
     binary = shutil.which("pg_dump")
-    if not binary and os.environ.get("LOCALAPPDATA"):
-        local = Path(os.environ["LOCALAPPDATA"]) / "CelestialAtelier" / "postgresql-client-18.6" / "bin" / "pg_dump.exe"
-        if local.is_file():
-            binary = str(local)
+    if not binary:
+        local_roots = [Path.home() / "AppData" / "Local"]
+        if os.environ.get("LOCALAPPDATA"):
+            local_roots.insert(0, Path(os.environ["LOCALAPPDATA"]))
+        for root in local_roots:
+            local = root / "CelestialAtelier" / "postgresql-client-18.6" / "bin" / "pg_dump.exe"
+            if local.is_file():
+                binary = str(local)
+                break
     if not binary:
         raise RuntimeError("pg_dump was not found. Install PostgreSQL command-line tools first.")
     return binary
 
 
-def backup(output_dir: str) -> Path:
-    pg_dump = _pg_dump_path()
+def backup(output_dir: str, pg_dump_path: str | None = None) -> Path:
+    pg_dump = _pg_dump_path(pg_dump_path)
     directory = _output_directory(output_dir)
     db_password = getpass.getpass("Supabase database password (not shown): ")
     if not db_password:
@@ -218,6 +228,7 @@ def main() -> int:
     sub.add_parser("preflight", help="Check whether pg_dump is installed")
     backup_parser = sub.add_parser("backup", help="Create an encrypted production DB backup")
     backup_parser.add_argument("--output-dir", required=True, help="Absolute path outside this repository")
+    backup_parser.add_argument("--pg-dump", help="Explicit pg_dump.exe path, if auto-discovery fails")
     verify_parser = sub.add_parser("verify", help="Verify file integrity without restoring")
     verify_parser.add_argument("file", type=Path)
     extract_parser = sub.add_parser("extract", help="Create plaintext dump for isolated restore only")
@@ -231,7 +242,7 @@ def main() -> int:
             result = subprocess.run([binary, "--version"], check=True, capture_output=True, text=True)
             print(result.stdout.strip())
         elif args.command == "backup":
-            path = backup(args.output_dir)
+            path = backup(args.output_dir, args.pg_dump)
             print(f"Encrypted backup verified: {path}")
             print("Next: copy it to a separate encrypted location and test restore in an isolated project.")
         elif args.command == "verify":

@@ -28,6 +28,8 @@ python scripts/v3_manual_backup.py preflight
 python scripts/v3_manual_backup.py backup --output-dir "C:\Users\morii\CelestialAtelierBackups"
 ```
 
+このPCでは`pg_dump`を`C:\Users\morii\AppData\Local\CelestialAtelier\postgresql-client-18.6\bin`に配置した。自動検出に失敗する場合は、バックアップのコマンドに`--pg-dump "C:\Users\morii\AppData\Local\CelestialAtelier\postgresql-client-18.6\bin\pg_dump.exe"`を付ける。
+
 2種類を対話入力する：Supabaseの**DBパスワード**、バックアップを開くための**16文字以上の暗号化パスフレーズ**。アカウントのログインパスワードやSupabase Secret keyとは別物。成功すると`.catv3`ファイルができ、暗号化の整合性が自動検証される。任意の再検証：
 
 ```powershell
