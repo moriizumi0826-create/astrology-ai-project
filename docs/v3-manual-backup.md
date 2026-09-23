@@ -29,6 +29,8 @@ python scripts/v3_manual_backup.py backup --output-dir "C:\Users\morii\Celestial
 
 接続プール側の認証が失敗し、端末からIPv6で直接接続できる場合は、末尾に`--direct`を付ける。これにより[Supabaseがバックアップに推奨する直接接続](https://supabase.com/docs/guides/database/connecting-to-postgres)を使う。直接接続できないネットワークでは通常のSession pooler接続を使う。
 
+直接接続でも認証が失敗するときは、パスワードを変更する前に`python scripts/v3_manual_backup.py check-auth`で切り分ける。このコマンドでは`psql`自身がパスワードを尋ね、読み取り専用の`select 1`を実行する。バックアップや暗号化パスフレーズの入力は行わない。
+
 2種類を対話入力する：Supabaseの**DBパスワード**、バックアップを開くための**16文字以上の暗号化パスフレーズ**。アカウントのログインパスワードやSupabase Secret keyとは別物。成功すると`.catv3`ファイルができ、暗号化の整合性が自動検証される。任意の再検証：
 
 ```powershell

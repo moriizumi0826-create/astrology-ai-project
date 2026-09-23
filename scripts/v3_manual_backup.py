@@ -209,6 +209,32 @@ def _setup_pg_dump() -> str:
     return str(target / "bin" / "pg_dump.exe")
 
 
+def check_auth() -> None:
+    """Check direct DB login via psql's own prompt, without Python handling the password."""
+    pg_dump = Path(_pg_dump_path())
+    psql = pg_dump.with_name("psql.exe" if os.name == "nt" else "psql")
+    if not psql.is_file():
+        raise RuntimeError(f"psql was not found alongside pg_dump: {psql}")
+    child_env = os.environ.copy()
+    child_env.pop("PGPASSWORD", None)
+    child_env["PGSSLMODE"] = "require"
+    child_env["PGCONNECT_TIMEOUT"] = "10"
+    command = [
+        str(psql),
+        "--host", DIRECT_DB_HOST,
+        "--port", "5432",
+        "--username", "postgres",
+        "--dbname", "postgres",
+        "--password",
+        "--no-psqlrc",
+        "--set", "ON_ERROR_STOP=1",
+        "--command", "select 1",
+    ]
+    if subprocess.run(command, env=child_env).returncode != 0:
+        raise RuntimeError("Direct psql login failed")
+    print("Direct database login succeeded.")
+
+
 def backup(output_dir: str, pg_dump_path: str | None = None, setup_pg_dump: bool = False, direct: bool = False) -> Path:
     pg_dump = _setup_pg_dump() if setup_pg_dump and not pg_dump_path else _pg_dump_path(pg_dump_path)
     directory = _output_directory(output_dir)
@@ -288,6 +314,7 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     sub = parser.add_subparsers(dest="command", required=True)
     sub.add_parser("preflight", help="Check whether pg_dump is installed")
+    sub.add_parser("check-auth", help="Check direct database login with psql's own password prompt")
     backup_parser = sub.add_parser("backup", help="Create an encrypted production DB backup")
     backup_parser.add_argument("--output-dir", required=True, help="Absolute path outside this repository")
     backup_parser.add_argument("--pg-dump", help="Explicit pg_dump.exe path, if auto-discovery fails")
@@ -305,6 +332,8 @@ def main() -> int:
             binary = _pg_dump_path()
             result = subprocess.run([binary, "--version"], check=True, capture_output=True, text=True)
             print(result.stdout.strip())
+        elif args.command == "check-auth":
+            check_auth()
         elif args.command == "backup":
             path = backup(args.output_dir, args.pg_dump, args.setup_pg_dump, args.direct)
             print(f"Encrypted backup verified: {path}")

@@ -137,3 +137,23 @@ def test_direct_backup_bypasses_pooler(tmp_path: Path, monkeypatch):
     assert command[command.index("--host") + 1] == backup_module.DIRECT_DB_HOST
     assert command[command.index("--username") + 1] == "postgres"
     assert verify_archive(archive, "long backup passphrase") == len(b"PGDMPpayload")
+
+
+def test_check_auth_uses_psql_prompt_without_python_password(tmp_path: Path, monkeypatch):
+    pg_dump = tmp_path / "pg_dump.exe"
+    pg_dump.write_bytes(b"test")
+    (tmp_path / "psql.exe").write_bytes(b"test")
+    monkeypatch.setattr(backup_module, "_pg_dump_path", lambda: str(pg_dump))
+    monkeypatch.setenv("PGPASSWORD", "must-not-be-forwarded")
+    seen = {}
+
+    def launch(command, **kwargs):
+        seen["command"] = command
+        seen["env"] = kwargs["env"]
+        return type("Result", (), {"returncode": 0})()
+
+    monkeypatch.setattr(backup_module.subprocess, "run", launch)
+    backup_module.check_auth()
+    assert "--password" in seen["command"]
+    assert seen["command"][seen["command"].index("--host") + 1] == backup_module.DIRECT_DB_HOST
+    assert "PGPASSWORD" not in seen["env"]
