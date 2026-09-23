@@ -110,3 +110,30 @@ def test_backup_reports_pg_dump_failure_instead_of_archive_error(tmp_path: Path,
     with pytest.raises(RuntimeError, match="pg_dump failed: .*password authentication failed"):
         backup_module.backup(str(tmp_path))
     assert not list(tmp_path.glob("*.partial"))
+
+
+def test_direct_backup_bypasses_pooler(tmp_path: Path, monkeypatch):
+    class SuccessfulDump:
+        stdout = BytesIO(b"PGDMPpayload")
+        stderr = BytesIO()
+
+        def wait(self, timeout=None):
+            return 0
+
+        def poll(self):
+            return 0
+
+    command = []
+    prompts = iter(["database-password", "long backup passphrase", "long backup passphrase"])
+    monkeypatch.setattr(backup_module, "_pg_dump_path", lambda *_args: "pg_dump")
+    monkeypatch.setattr(backup_module.getpass, "getpass", lambda *_args: next(prompts))
+
+    def launch(args, **_kwargs):
+        command.extend(args)
+        return SuccessfulDump()
+
+    monkeypatch.setattr(backup_module.subprocess, "Popen", launch)
+    archive = backup_module.backup(str(tmp_path), direct=True)
+    assert command[command.index("--host") + 1] == backup_module.DIRECT_DB_HOST
+    assert command[command.index("--username") + 1] == "postgres"
+    assert verify_archive(archive, "long backup passphrase") == len(b"PGDMPpayload")

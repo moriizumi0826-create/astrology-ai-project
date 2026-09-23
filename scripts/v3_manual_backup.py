@@ -28,6 +28,7 @@ from cryptography.hazmat.primitives.kdf.scrypt import Scrypt
 PROJECT_REF = "sxkhgczqvsewtsrcnbbe"
 DB_HOST = "aws-0-ap-southeast-2.pooler.supabase.com"
 DB_USER = f"postgres.{PROJECT_REF}"
+DIRECT_DB_HOST = f"db.{PROJECT_REF}.supabase.co"
 MAGIC = b"CATV3BK1"
 SALT_SIZE = 16
 NONCE_SIZE = 12
@@ -208,7 +209,7 @@ def _setup_pg_dump() -> str:
     return str(target / "bin" / "pg_dump.exe")
 
 
-def backup(output_dir: str, pg_dump_path: str | None = None, setup_pg_dump: bool = False) -> Path:
+def backup(output_dir: str, pg_dump_path: str | None = None, setup_pg_dump: bool = False, direct: bool = False) -> Path:
     pg_dump = _setup_pg_dump() if setup_pg_dump and not pg_dump_path else _pg_dump_path(pg_dump_path)
     directory = _output_directory(output_dir)
     db_password = getpass.getpass("Supabase database password (not shown): ")
@@ -228,9 +229,9 @@ def backup(output_dir: str, pg_dump_path: str | None = None, setup_pg_dump: bool
 
     command = [
         pg_dump,
-        "--host", DB_HOST,
+        "--host", DIRECT_DB_HOST if direct else DB_HOST,
         "--port", "5432",
-        "--username", DB_USER,
+        "--username", "postgres" if direct else DB_USER,
         "--dbname", "postgres",
         "--format=custom",
         "--no-owner",
@@ -291,6 +292,7 @@ def main() -> int:
     backup_parser.add_argument("--output-dir", required=True, help="Absolute path outside this repository")
     backup_parser.add_argument("--pg-dump", help="Explicit pg_dump.exe path, if auto-discovery fails")
     backup_parser.add_argument("--setup-pg-dump", action="store_true", help="Download official Windows client if missing")
+    backup_parser.add_argument("--direct", action="store_true", help="Connect directly to Supabase over IPv6, bypassing the pooler")
     verify_parser = sub.add_parser("verify", help="Verify file integrity without restoring")
     verify_parser.add_argument("file", type=Path)
     extract_parser = sub.add_parser("extract", help="Create plaintext dump for isolated restore only")
@@ -304,7 +306,7 @@ def main() -> int:
             result = subprocess.run([binary, "--version"], check=True, capture_output=True, text=True)
             print(result.stdout.strip())
         elif args.command == "backup":
-            path = backup(args.output_dir, args.pg_dump, args.setup_pg_dump)
+            path = backup(args.output_dir, args.pg_dump, args.setup_pg_dump, args.direct)
             print(f"Encrypted backup verified: {path}")
             print("Next: copy it to a separate encrypted location and test restore in an isolated project.")
         elif args.command == "verify":
