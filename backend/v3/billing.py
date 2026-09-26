@@ -371,8 +371,13 @@ class StripeBilling:
         try:
             obj = raw.get("data", {}).get("object", {})
             subscription = None
-            if event_type in {"customer.subscription.created", "customer.subscription.updated",
-                              "customer.subscription.deleted"}:
+            if event_type in {"customer.subscription.created", "customer.subscription.updated"}:
+                # Event delivery can be out of order, including events created in the same second.
+                # Read the current Stripe state instead of applying an older snapshot.
+                subscription_id = obj.get("id")
+                if subscription_id:
+                    subscription = self._retrieve_subscription(subscription_id)
+            elif event_type == "customer.subscription.deleted":
                 subscription = obj
             elif event_type in {"invoice.paid", "invoice.payment_failed"}:
                 subscription_id = self._subscription_id(obj)

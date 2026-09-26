@@ -288,12 +288,33 @@ class BillingTests(unittest.TestCase):
             "items": {"data": [{"price": {"id": "price_jpyTest", "currency": "jpy"}}]}}
         event = {"id": "evt_canceling", "type": "customer.subscription.updated",
                  "created": 1790420975, "livemode": False, "data": {"object": subscription}}
+        patch("backend.v3.billing.stripe.Subscription.retrieve",
+              return_value=SimpleNamespace(to_dict_recursive=lambda: subscription)).start()
 
         self.assertEqual(self.app.state.billing.handle(event), "processed")
         record = self.store.save_subscription.call_args.args[0]
         self.assertTrue(record["cancel_at_period_end"])
         self.assertEqual(record["status"], "active")
         self.store.finish_event.assert_called_once_with("evt_canceling")
+
+    def test_out_of_order_subscription_update_uses_current_stripe_state(self):
+        self.store.begin_event.return_value = True
+        self.store.user_for_customer.return_value = USER
+        stale = {"id": "sub_reordered", "customer": "cus_member", "status": "active",
+                 "cancel_at_period_end": False,
+                 "items": {"data": [{"price": {"id": "price_jpyTest", "currency": "jpy"}}]}}
+        current = {**stale, "status": "past_due", "cancel_at_period_end": True}
+        retrieve = patch("backend.v3.billing.stripe.Subscription.retrieve",
+            return_value=SimpleNamespace(to_dict_recursive=lambda: current)).start()
+        event = {"id": "evt_stale", "type": "customer.subscription.updated",
+                 "created": 1790420975, "livemode": False, "data": {"object": stale}}
+
+        self.assertEqual(self.app.state.billing.handle(event), "processed")
+        retrieve.assert_called_once_with("sub_reordered", api_key="sk_test_example")
+        record = self.store.save_subscription.call_args.args[0]
+        self.assertEqual(record["status"], "past_due")
+        self.assertTrue(record["cancel_at_period_end"])
+        self.store.finish_event.assert_called_once_with("evt_stale")
 
     def test_paid_invoice_extends_access_using_customer_mapping(self):
         self.store.begin_event.return_value = True
