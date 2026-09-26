@@ -23,6 +23,20 @@ class PublicHealthTests(unittest.TestCase):
             with self.assertRaises(health.HealthFailure):
                 health.check_api(3)
 
+    def test_legal_pages_require_their_own_titles(self):
+        def legal_page(url, _timeout):
+            slug = url.rsplit("/", 1)[-1].removesuffix(".html")
+            title = health.LEGAL_PAGES[slug]
+            return "text/html", f"<title>{title} | The Celestial Atelier</title>".encode()
+
+        with patch.object(health, "fetch", side_effect=legal_page) as fetch:
+            health.check_legal_pages(3)
+        self.assertEqual(fetch.call_count, 5)
+
+        with patch.object(health, "fetch", return_value=("text/html", b"<title>The Celestial Atelier | V3</title>")):
+            with self.assertRaises(health.HealthFailure):
+                health.check_legal_pages(3)
+
 
 if __name__ == "__main__":
     unittest.main()

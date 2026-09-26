@@ -11,6 +11,13 @@ from urllib.request import Request, urlopen
 
 FRONTEND = "https://thecelestialatelier.com"
 API = "https://api.thecelestialatelier.com"
+LEGAL_PAGES = {
+    "terms": "利用規約",
+    "privacy": "プライバシーポリシー",
+    "commerce": "特定商取引法に基づく表記",
+    "disclaimer": "免責事項",
+    "contact": "お問い合わせ",
+}
 
 
 class HealthFailure(Exception):
@@ -82,6 +89,21 @@ def check_api(timeout):
         raise HealthFailure("API is not healthy production")
 
 
+def check_legal_pages(timeout):
+    for slug, title in LEGAL_PAGES.items():
+        page = f"legal/{slug}.html"
+        content_type, body = fetch(f"{FRONTEND}/{page}", timeout)
+        if content_type != "text/html" or len(body) > 2_000_000:
+            raise HealthFailure(f"invalid legal HTML response: {page}")
+        parser = PageAssets()
+        try:
+            parser.feed(body.decode("utf-8"))
+        except UnicodeDecodeError as exc:
+            raise HealthFailure(f"invalid legal HTML encoding: {page}") from exc
+        if title not in parser.title or "The Celestial Atelier" not in parser.title:
+            raise HealthFailure(f"missing legal page title: {page}")
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--timeout", type=float, default=10.0)
@@ -91,11 +113,12 @@ def main(argv=None):
     try:
         for page in ("entry.html", "index.html"):
             check_frontend(page, args.timeout)
+        check_legal_pages(args.timeout)
         check_api(args.timeout)
     except HealthFailure as exc:
         print(f"FAIL: {exc}", file=sys.stderr)
         return 1
-    print("OK: V3 entry, horoscope, JavaScript assets, and API health")
+    print("OK: V3 entry, horoscope, legal pages, JavaScript assets, and API health")
     return 0
 
 

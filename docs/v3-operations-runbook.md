@@ -19,7 +19,7 @@ Better Stack Freeの商用利用については、2026-09-27時点の[料金ペ�
 
 ### 公開URLの手動スモークチェック
 
-リポジトリ直下から`python scripts/v3_public_health.py`を実行する。`entry.html`・`index.html`と同一ドメインの画面用JavaScript、APIの`status=ok`・`environment=production`を読み取り専用で確認し、異常時は終了コード1を返す。2026-09-27の単発実行は成功。**このスクリプト自体の定期実行・異常通知は未設定。**別途、Better StackでサイトトップとAPIのHTTP死活監視を実施している。この検査もログイン、Supabase、Stripeの動作を保証しない。
+リポジトリ直下から`python scripts/v3_public_health.py`を実行する。`entry.html`・`index.html`と同一ドメインの画面用JavaScript、法務・問い合わせ5ページのタイトル、APIの`status=ok`・`environment=production`を読み取り専用で確認し、異常時は終了コード1を返す。2026-09-27の単発実行は成功。**このスクリプト自体の定期実行・異常通知は未設定。**別途、Better StackでサイトトップとAPIのHTTP死活監視を実施している。この検査もログイン、Supabase、Stripeの動作を保証しない。
 
 ### APIが正常でも登録・決済に異常があるとき
 
