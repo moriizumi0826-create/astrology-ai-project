@@ -202,6 +202,25 @@ class BillingTests(unittest.TestCase):
         self.assertTrue(response.json()["capabilities"]["stellar_forecast"])
         self.assertEqual(response.json()["user_id"], f"supabase:test:{USER}")
 
+    def test_failed_or_expired_subscription_cannot_access_paid_api(self):
+        store = BillingStore(CONFIG["V3_SUPABASE_URL"])
+        self.app.state.billing.store = store
+        future = (datetime.now(timezone.utc) + timedelta(days=10)).isoformat()
+        past = (datetime.now(timezone.utc) - timedelta(seconds=1)).isoformat()
+        for record in (
+            {"status": "active", "access_until": past},
+            {"status": "past_due", "access_until": future},
+            {"status": "unpaid", "access_until": future},
+            {"status": "canceled", "access_until": future},
+        ):
+            with self.subTest(status=record["status"], access_until=record["access_until"]):
+                with patch.object(store, "status", return_value=record):
+                    session = self.client.get("/api/v3/session", headers=AUTH)
+                    self.assertEqual(session.json()["state"], "free")
+                    self.assertFalse(session.json()["capabilities"]["stellar_forecast"])
+                    paid = self.client.post("/api/v3/paid-reading", headers=AUTH, json={})
+                    self.assertEqual(paid.status_code, 403)
+
     def test_subscription_access_states_and_checkout_safety(self):
         now = datetime(2026, 9, 22, tzinfo=timezone.utc)
         future = (now + timedelta(days=10)).isoformat()
