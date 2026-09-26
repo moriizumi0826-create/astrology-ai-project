@@ -316,6 +316,31 @@ class BillingTests(unittest.TestCase):
         self.assertTrue(record["cancel_at_period_end"])
         self.store.finish_event.assert_called_once_with("evt_stale")
 
+    def test_subscription_webhook_retries_after_stripe_lookup_outage(self):
+        from fastapi import HTTPException
+
+        self.store.begin_event.return_value = True
+        self.store.user_for_customer.return_value = USER
+        event = {"id": "evt_retry", "type": "customer.subscription.updated",
+                 "created": 1790420975, "livemode": False,
+                 "data": {"object": {"id": "sub_retry"}}}
+        subscription = {"id": "sub_retry", "customer": "cus_member", "status": "active",
+                        "items": {"data": [{"price": {"id": "price_jpyTest", "currency": "jpy"}}]}}
+        with patch("backend.v3.billing.stripe.Subscription.retrieve",
+                   side_effect=[stripe.APIConnectionError("offline"),
+                                SimpleNamespace(to_dict_recursive=lambda: subscription)]) as retrieve:
+            with self.assertRaises(HTTPException) as raised:
+                self.app.state.billing.handle(event)
+            self.assertEqual(raised.exception.status_code, 503)
+            self.store.save_subscription.assert_not_called()
+            self.store.finish_event.assert_called_once_with("evt_retry", "HTTPException")
+
+            self.store.finish_event.reset_mock()
+            self.assertEqual(self.app.state.billing.handle(event), "processed")
+            self.store.save_subscription.assert_called_once()
+            self.store.finish_event.assert_called_once_with("evt_retry")
+            self.assertEqual(retrieve.call_count, 2)
+
     def test_paid_invoice_extends_access_using_customer_mapping(self):
         self.store.begin_event.return_value = True
         self.store.user_for_customer.return_value = USER
