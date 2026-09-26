@@ -33,6 +33,18 @@ Better Stack Freeの商用利用については、2026-09-27時点の[料金ペ�
 
 SupabaseのLogsはAuth・Postgresなどの種別と時刻で絞り込める。[Supabase公式説明](https://supabase.com/docs/guides/observability/logs)。Stripeのイベントは配信失敗・保留で絞り込めるが、実際の原因は対象Webhookの送信結果とアプリ側の記録を突き合わせる。[StripeイベントAPI](https://docs.stripe.com/api/events/list)。
 
+### ログ・イベントの調査期限
+
+障害の報告を受けたら、消える前に**発生時刻・イベントID・HTTP結果・デプロイID**を記録する。ログ本文に個人情報・認証情報があれば、そのまま文書やチャットに貼らない。
+
+| 保存元 | 2026-09-27時点の公開条件 | この運用での扱い |
+|---|---|---|
+| Supabase Free | API・DBログは1日、Auth監査ログは1時間。[料金表](https://supabase.com/pricing) | 登録・ログイン障害は特に早く確認する。1時間後に認証監査ログが残ると期待しない。 |
+| Render | ログはワークスペースがHobbyなら7日、Proなら14日、Scale／Enterpriseなら30日。[公式説明](https://render.com/docs/logging) | 2026-09-27に管理画面で本番ワークスペースがHobbyと確認。本番APIはStarter**インスタンス**だが、ログ保持はワークスペース基準の7日。 |
+| Stripe | イベントIDを用いたAPI取得は作成から30日以内。[イベント取得仕様](https://docs.stripe.com/api/events/retrieve) | 本番Webhookの失敗を後回しにせず、イベントIDと送信結果を早期に確認する。Dashboardの表示保持期間を30日と断定しない。 |
+
+ログを外部に長期保存する設定や有料プラン変更は未実施。現在は各サービス内で参照できる範囲で調査する。
+
 ## 最初の切り分け
 
 | 症状 | まず確認する場所 | 初動 |
@@ -50,13 +62,28 @@ SupabaseのLogsはAuth・Postgresなどの種別と時刻で絞り込める。[S
 4. Webhook失敗はStripeの該当送信先・Failedイベントで原因を確認する。修正前に無差別に再送しない。修正後の再送と契約照合は[既存手順](v3-billing-reconciliation.md)に従い、照合はまず`--apply`なしで行う。[StripeのWebhook障害確認](https://support.stripe.com/questions/troubleshooting-webhook-delivery-issues)
 5. 復旧後にフロントとAPIの応答、無料会員の有料API拒否、影響を受けた契約のStripe／Supabase一致を確認する。誤課金・二重課金の返金は個別に事実確認して運営者が判断する。
 
+## 机上訓練の記録（2026-09-27）
+
+実サービスを停止せず、コード・既存テスト・運用手順を照合した。以下は**手順の机上確認**であり、本番障害やWebhook再送を再現した結果ではない。
+
+| 想定 | 確認できた初動・安全条件 | 未実施の実運用確認 |
+|---|---|---|
+| APIが応答しない | 外部監視の通知を起点にRender Events／Logsと直近デプロイを確認する。課金スイッチは既にOFFで、DBやStripeを先に変更しない。 | Render通知の実到達、実際のロールバックと復帰 |
+| Stripe照会中にWebhook処理が失敗 | 現在契約の取得失敗ではHTTP 503を返し、契約を保存しない。ローカルテストでは同じイベントを再処理できた。失敗イベントの原因を確認し、修正後に再送を判断する。 | Stripeライブでの失敗配信・再送と、契約照合の実測 |
+| Supabaseの契約情報を取得できない | ローカルテストでは有料APIがHTTP 503となり、利用資格不明のまま有料機能を解放しない。Supabase／Renderのログを確認する。 | 本番の依存障害時の通知、復旧後の契約一致確認 |
+| コード起因で切り戻しが必要 | 対象デプロイ・課金スイッチ・本番接続先を先に特定する。Renderのロールバックは環境変数も巻き戻し得るため、実施後にも3点を確認する。 | 実際の切り戻し操作とフロント・API・既存契約の再確認 |
+
+`python -m backend.v3.reconcile_billing --help`で`--user-id`必須、`--apply`・`--confirm`が別指定であることを確認した。**本番会員を指定した照合、`--apply`、Webhook再送、ロールバックは実行していない。**
+
 ## 残る運用準備
 
 - [ ] Renderの通知メールが運営者に実際に届くことを確認する。
 - [x] フロントとAPIをRender外から監視し、異常時の通知先・頻度を決める。Better Stackで3分ごと、メール通知を設定し、テストメール到着済み。
 - [x] Supabase・Stripeの障害／Webhook失敗の一次確認者と確認先を暫定決定した。個別障害の自動通知は未設定。
-- [ ] ログ保存期間と、問い合わせ・障害連絡の担当者を決める。
-- [ ] 障害・切り戻し・Webhook再送の模擬訓練を行う。
+- [x] Supabase FreeとStripeイベントAPIの調査期限を記録し、RenderワークスペースHobbyのログ保持7日を管理画面と公式仕様で確認した。
+- [ ] 問い合わせ・障害連絡の担当者を確定する。
+- [x] 障害・切り戻し・Webhook再送の机上手順を照合する（上記）。
+- [ ] 実際の障害・切り戻し・Webhook再送を伴う模擬訓練を行う。
 - [ ] 暗号化DBバックアップの定期取得と隔離環境への復元を確認する。復元テストは現在保留中。
 
 公開前の全体状況は[本番移行フロー](v3-production-launch-flow.md)を参照する。
