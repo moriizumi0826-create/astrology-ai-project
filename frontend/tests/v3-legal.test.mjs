@@ -6,7 +6,7 @@ const readV3 = path => readFileSync(new URL(`../v3/${path}`, import.meta.url), "
 const legalFiles = ["terms.html", "privacy.html", "commerce.html", "disclaimer.html", "contact.html"];
 
 test("LP and member pages expose every required legal route", () => {
-  for (const page of ["entry.html", "login.html", "billing.html", "account.html"]) {
+  for (const page of ["entry.html", "login.html", "billing.html", "account.html", "app.jsx"]) {
     const source = readV3(page);
     for (const legal of legalFiles) {
       assert.match(source, new RegExp(`/legal/${legal.replace(".", "\\.")}`), `${page} -> ${legal}`);

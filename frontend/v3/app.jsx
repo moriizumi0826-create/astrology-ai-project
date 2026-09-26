@@ -121,6 +121,13 @@ function Workspace({ session }) {
           ? <Suspense fallback={<p className="p-8" role="status">星の見通しを読み込んでいます…</p>}><PaidForecast onHoroscope={() => navigate("horoscope")} /></Suspense>
           : <p className="p-8" role="status">星の見通しの計算を開始しています…</p>}
     </div>}
+    <footer aria-label="法務情報" className="flex flex-wrap justify-center gap-x-5 gap-y-2 border-t border-slate-200/90 bg-[#f8fafc] px-4 py-5 text-center text-xs text-[#0A192F]/70">
+      <a href="/legal/terms.html">利用規約</a>
+      <a href="/legal/privacy.html">プライバシーポリシー</a>
+      <a href="/legal/commerce.html">特定商取引法に基づく表記</a>
+      <a href="/legal/disclaimer.html">免責事項</a>
+      <a href="/legal/contact.html">お問い合わせ</a>
+    </footer>
   </>;
 }
 
