@@ -279,6 +279,22 @@ class BillingTests(unittest.TestCase):
             subscription, observed_at=observed_at)
         self.assertEqual(canceled["access_until"], observed_at.isoformat())
 
+    def test_scheduled_cancel_at_is_reflected_even_without_period_end_flag(self):
+        self.store.begin_event.return_value = True
+        self.store.user_for_customer.return_value = USER
+        subscription = {"id": "sub_canceling", "customer": "cus_member", "status": "active",
+            "currency": "jpy", "current_period_end": 1793012079,
+            "cancel_at": 1793012079, "cancel_at_period_end": False,
+            "items": {"data": [{"price": {"id": "price_jpyTest", "currency": "jpy"}}]}}
+        event = {"id": "evt_canceling", "type": "customer.subscription.updated",
+                 "created": 1790420975, "livemode": False, "data": {"object": subscription}}
+
+        self.assertEqual(self.app.state.billing.handle(event), "processed")
+        record = self.store.save_subscription.call_args.args[0]
+        self.assertTrue(record["cancel_at_period_end"])
+        self.assertEqual(record["status"], "active")
+        self.store.finish_event.assert_called_once_with("evt_canceling")
+
     def test_paid_invoice_extends_access_using_customer_mapping(self):
         self.store.begin_event.return_value = True
         self.store.user_for_customer.return_value = USER

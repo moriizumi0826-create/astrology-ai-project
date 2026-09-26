@@ -337,7 +337,10 @@ class StripeBilling:
                   "stripe_customer_id": customer_id, "stripe_price_id": price_id,
                   "currency": subscription.get("currency") or price.get("currency"),
                   "status": subscription.get("status", "unknown"),
-                  "cancel_at_period_end": bool(subscription.get("cancel_at_period_end"))}
+                  # Stripe can schedule period-end cancellation with cancel_at set
+                  # while cancel_at_period_end remains false.
+                  "cancel_at_period_end": bool(subscription.get("cancel_at_period_end")
+                                               or subscription.get("cancel_at"))}
         if event_type == "invoice.paid" and period_end:
             record["access_until"] = datetime.fromtimestamp(int(period_end), timezone.utc).isoformat()
         elif event_type == "customer.subscription.deleted":
