@@ -104,6 +104,96 @@ class BillingTests(unittest.TestCase):
             return_value=SimpleNamespace(url="https://billing.stripe.com/p/session/test")).start()
         self.assertEqual(self.client.post("/api/v3/billing/portal", headers=AUTH, json={}).status_code, 200)
 
+    def test_production_checkout_requires_explicit_single_user_allowlist(self):
+        production = {**CONFIG,
+            "V3_ENVIRONMENT": "production",
+            "V3_ALLOWED_ORIGINS": "https://atelier.example",
+            "V3_ALLOWED_HOSTS": "api.atelier.example",
+            "V3_SUPABASE_PROJECT_REF": "test",
+            "V3_STRIPE_SECRET_KEY": "sk_live_example",
+            "V3_BILLING_ENABLED": "true",
+        }
+        headers = {"Authorization": AUTH["Authorization"], "Origin": "https://atelier.example",
+                   "Host": "api.atelier.example"}
+
+        with patch.dict(os.environ, production, clear=True):
+            closed_app = create_app()
+        closed_app.state.billing.store = self.store
+        closed_client = local_test_client(closed_app, "192.0.2.5")
+        self.assertFalse(closed_client.get("/api/v3/billing/status", headers=headers).json()["checkout_enabled"])
+        with patch("backend.v3.billing.stripe.Price.retrieve") as price:
+            response = closed_client.post("/api/v3/billing/checkout", headers=headers, json={"currency": "jpy"})
+            self.assertEqual(response.status_code, 403)
+            price.assert_not_called()
+        self.store.save_customer.assert_not_called()
+
+        with patch.dict(os.environ, {**production, "V3_BILLING_ALLOWED_USER_ID": USER}, clear=True):
+            allowed_app = create_app()
+        allowed_app.state.billing.store = self.store
+        allowed_app.state.billing._prices_validated = True
+        allowed_client = local_test_client(allowed_app, "192.0.2.5")
+        status = allowed_client.get("/api/v3/billing/status", headers=headers).json()
+        self.assertTrue(status["checkout_enabled"])
+        self.assertTrue(status["checkout_available"])
+
+        other_user = "00000000-0000-4000-8000-000000000002"
+        self.auth_http.return_value = httpx.Response(200, json={"id": other_user,
+            "email": "other@example.test", "email_confirmed_at": "2026-09-19T00:00:00Z"})
+        status = allowed_client.get("/api/v3/billing/status", headers=headers).json()
+        self.assertFalse(status["checkout_enabled"])
+        self.assertFalse(status["checkout_available"])
+        self.assertEqual(allowed_client.post("/api/v3/billing/checkout", headers=headers,
+            json={"currency": "jpy"}).status_code, 403)
+        self.store.save_customer.assert_not_called()
+        self.store.customer.return_value = "cus_existing"
+        with patch("backend.v3.billing.stripe.billing_portal.Session.create",
+                   return_value=SimpleNamespace(url="https://billing.stripe.com/p/session/test")):
+            self.assertEqual(allowed_client.post("/api/v3/billing/portal", headers=headers,
+                json={}).status_code, 200)
+
+        self.auth_http.return_value = auth_response()
+        self.store.customer.return_value = None
+        self.store.save_customer.return_value = "cus_member"
+        with patch("backend.v3.billing.stripe.Customer.create",
+                   return_value=SimpleNamespace(id="cus_member")), patch(
+                   "backend.v3.billing.stripe.checkout.Session.create",
+                   return_value=SimpleNamespace(url="https://checkout.stripe.com/test/session")):
+            response = allowed_client.post("/api/v3/billing/checkout", headers=headers, json={"currency": "jpy"})
+        self.assertEqual(response.status_code, 200)
+
+        with patch.dict(os.environ, {**production, "V3_BILLING_ENABLED": "false",
+                                  "V3_BILLING_ALLOWED_USER_ID": USER}, clear=True):
+            stopped_app = create_app()
+        stopped_app.state.billing.store = self.store
+        stopped_client = local_test_client(stopped_app, "192.0.2.5")
+        self.assertFalse(stopped_client.get("/api/v3/billing/status", headers=headers).json()["checkout_enabled"])
+        self.assertEqual(stopped_client.post("/api/v3/billing/checkout", headers=headers,
+            json={"currency": "jpy"}).status_code, 503)
+
+    def test_public_checkout_requires_explicit_scope_and_no_stale_allowlist(self):
+        production = {**CONFIG,
+            "V3_ENVIRONMENT": "production",
+            "V3_ALLOWED_ORIGINS": "https://atelier.example",
+            "V3_ALLOWED_HOSTS": "api.atelier.example",
+            "V3_SUPABASE_PROJECT_REF": "test",
+            "V3_STRIPE_SECRET_KEY": "sk_live_example",
+            "V3_BILLING_ENABLED": "true",
+            "V3_BILLING_ACCESS_MODE": "public",
+        }
+        with patch.dict(os.environ, production, clear=True):
+            app = create_app()
+        self.assertTrue(app.state.billing.checkout_enabled_for(USER))
+        with patch.dict(os.environ, {**production, "V3_BILLING_ALLOWED_USER_ID": USER}, clear=True):
+            with self.assertRaisesRegex(RuntimeError, "空にしてください"):
+                create_app()
+        with patch.dict(os.environ, {**production, "V3_BILLING_ACCESS_MODE": "unknown"}, clear=True):
+            with self.assertRaisesRegex(RuntimeError, "V3_BILLING_ACCESS_MODE"):
+                create_app()
+        with patch.dict(os.environ, {**production, "V3_BILLING_ACCESS_MODE": "single_user",
+                                  "V3_BILLING_ALLOWED_USER_ID": "not-a-uuid"}, clear=True):
+            with self.assertRaisesRegex(RuntimeError, "V3_BILLING_ALLOWED_USER_ID"):
+                create_app()
+
     def test_verified_database_entitlement_unlocks_paid_state(self):
         expiry = datetime.now(timezone.utc) + timedelta(days=20)
         self.store.entitlement.return_value = ("active", expiry)

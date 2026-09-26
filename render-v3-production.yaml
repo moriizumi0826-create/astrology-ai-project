@@ -19,6 +19,8 @@ services:
         value: production
       - key: V3_BILLING_ENABLED
         value: false
+      # Production checkout defaults to single_user. Set V3_BILLING_ALLOWED_USER_ID
+      # in Render before a limited live test; public mode requires a separate decision.
       - key: V3_ALLOWED_ORIGINS
         sync: false
       - key: V3_ALLOWED_HOSTS

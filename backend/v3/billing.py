@@ -185,13 +185,16 @@ class BillingStore:
 
 
 class StripeBilling:
-    def __init__(self, store: BillingStore, deployment: str = "local", checkout_enabled: bool = True):
+    def __init__(self, store: BillingStore, deployment: str = "local", checkout_enabled: bool = True,
+                 checkout_access_mode: str | None = None, checkout_allowed_user_id: str | None = None):
         local = (dotenv_values(Path(__file__).resolve().parents[2] / ".env.v3.local")
                  if deployment == "local" else {})
         self.deployment = deployment
         self.live_mode = deployment == "production"
         self.mode = "live" if self.live_mode else "test"
         self.checkout_enabled = checkout_enabled
+        self.checkout_access_mode = checkout_access_mode or ("single_user" if self.live_mode else "public")
+        self.checkout_allowed_user_id = checkout_allowed_user_id
         self.secret_key = _env("V3_STRIPE_SECRET_KEY", local)
         self.webhook_secret = _env("V3_STRIPE_WEBHOOK_SECRET", local)
         jpy_price = _env("V3_STRIPE_PRICE_JPY", local)
@@ -224,6 +227,13 @@ class StripeBilling:
     def _require(self):
         if not self.configured:
             raise HTTPException(503, "Stripe決済はまだ設定されていません。")
+
+    def checkout_enabled_for(self, user_id: str) -> bool:
+        if not self.checkout_enabled:
+            return False
+        if self.checkout_access_mode == "public":
+            return True
+        return bool(self.checkout_allowed_user_id and user_id == self.checkout_allowed_user_id)
 
     def ensure_customer(self, user_id: str, email: str):
         self._require()
@@ -262,6 +272,8 @@ class StripeBilling:
     def checkout(self, user_id: str, email: str, currency: str, origin: str):
         if not self.checkout_enabled:
             raise HTTPException(503, "現在、新規の有料プラン申し込みを停止しています。")
+        if not self.checkout_enabled_for(user_id):
+            raise HTTPException(403, "このアカウントでは現在、有料プランの申し込みを受け付けていません。")
         if currency not in self.prices:
             raise HTTPException(422, "選択した通貨の決済は現在利用できません。")
         self.validate_prices()
@@ -407,10 +419,11 @@ def billing_status(request: Request, user_id=Depends(_identity)):
                 "customer": False, "subscription": None, "access_state": "none",
                 "checkout_available": False}
     subscription = service.store.status(user_id)
-    return {"configured": True, "checkout_enabled": service.checkout_enabled, "mode": service.mode,
+    checkout_enabled = service.checkout_enabled_for(user_id)
+    return {"configured": True, "checkout_enabled": checkout_enabled, "mode": service.mode,
             "customer": bool(service.store.customer(user_id)), "subscription": subscription,
             "access_state": subscription_access_state(subscription),
-            "checkout_available": service.checkout_enabled and checkout_available(subscription)}
+            "checkout_available": checkout_enabled and checkout_available(subscription)}
 
 
 @router.post("/checkout")

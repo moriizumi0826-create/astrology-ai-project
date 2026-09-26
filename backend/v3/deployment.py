@@ -2,6 +2,7 @@
 
 import os
 from urllib.parse import urlsplit
+from uuid import UUID
 
 from fastapi import HTTPException, Request
 
@@ -26,6 +27,23 @@ def billing_enabled(deployment: str) -> bool:
     if raw not in {"true", "false"}:
         raise RuntimeError("V3_BILLING_ENABLEDはtrueまたはfalseを指定してください。")
     return raw == "true"
+
+
+def billing_checkout_access(deployment: str) -> tuple[str, str | None]:
+    default_mode = "single_user" if deployment == "production" else "public"
+    mode = os.environ.get("V3_BILLING_ACCESS_MODE", "").strip().lower() or default_mode
+    if mode not in {"single_user", "public"}:
+        raise RuntimeError("V3_BILLING_ACCESS_MODEはsingle_userまたはpublicを指定してください。")
+    raw_user_id = os.environ.get("V3_BILLING_ALLOWED_USER_ID", "").strip()
+    if mode == "public" and raw_user_id:
+        raise RuntimeError("publicで申し込みを開放する前にV3_BILLING_ALLOWED_USER_IDを空にしてください。")
+    if not raw_user_id:
+        return mode, None
+    try:
+        allowed_user_id = str(UUID(raw_user_id))
+    except (ValueError, AttributeError):
+        raise RuntimeError("V3_BILLING_ALLOWED_USER_IDには会員のUUIDを指定してください。") from None
+    return mode, allowed_user_id
 
 
 def _csv(name: str) -> set[str]:

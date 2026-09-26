@@ -19,6 +19,7 @@ from backend.v3.accounts import router as account_router
 from backend.v3.deployment import (
     allowed_hosts,
     allowed_origins,
+    billing_checkout_access,
     billing_enabled,
     environment,
     require_expected_supabase_project,
@@ -47,10 +48,13 @@ def create_app(*, auth_mode: str | None = None) -> FastAPI:
     if provider is not None and provider.configured:
         require_expected_supabase_project(deployment, provider.project)
         app.state.supabase_auth = provider
+        checkout_access_mode, checkout_allowed_user_id = billing_checkout_access(deployment)
         app.state.billing = StripeBilling(
             BillingStore(provider.url, deployment),
             deployment,
             checkout_enabled=billing_enabled(deployment),
+            checkout_access_mode=checkout_access_mode,
+            checkout_allowed_user_id=checkout_allowed_user_id,
         )
     else:
         app.state.local_test_auth = LocalTestAuth()
