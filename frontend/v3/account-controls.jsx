@@ -12,7 +12,7 @@ export function AccountControls({ session }) {
     setBusy(true);
     setError("");
     try {
-      if (isMemberMode()) {
+      if (__APP_ENVIRONMENT__ !== "local" || isMemberMode()) {
         const client = await authClient();
         const { error: signOutError } = await client.auth.signOut({ scope: "local" });
         if (signOutError) throw new Error(authMessage(signOutError));
