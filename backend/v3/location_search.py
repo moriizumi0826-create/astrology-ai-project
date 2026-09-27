@@ -33,6 +33,10 @@ def normalize_name(value: str) -> str:
     return " ".join(unicodedata.normalize("NFKC", value).casefold().split())
 
 
+def _uses_japanese_script(value: str) -> bool:
+    return any("\u3040" <= char <= "\u30ff" or "\u4e00" <= char <= "\u9fff" for char in value)
+
+
 def database_ready(path: Path = DEFAULT_DATABASE) -> bool:
     return path.is_file() and path.stat().st_size > 100
 
@@ -104,7 +108,9 @@ def search_locations(
     results = []
     seen_labels = set()
     for _, row in sorted(candidates.values(), key=lambda item: item[0]):
-        label = row["display_name"]
+        label = row["name"]
+        if row["country_code"] == "JP" and row["term"] == key and _uses_japanese_script(city):
+            label = city
         region = row["admin1_name"]
         nation = row["country_name"]
         display_name = ", ".join(dict.fromkeys(part for part in (label, region, nation) if part))

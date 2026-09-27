@@ -30,6 +30,8 @@ class GeoNamesTests(unittest.TestCase):
                 "P", "PPL", "US", "NY", 8500000, "America/New_York"),
             row(2988507, "Paris", "Paris", 48.85, 2.35,
                 "P", "PPLC", "FR", "11", 2160000, "Europe/Paris"),
+            row(1850147, "Tokyo", "东京,東京,東京都", 35.68, 139.69,
+                "P", "PPLC", "JP", "40", 9733276, "Asia/Tokyo"),
         ]
         japan_rows = [
             city_rows[0],
@@ -48,6 +50,7 @@ class GeoNamesTests(unittest.TestCase):
                 archive.writestr(member, "\n".join(rows) + "\n")
         (self.source / "admin1CodesASCII.txt").write_text(
             "JP.34\tSaitama\tSaitama\t1\nJP.13\tHyōgo\tHyogo\t4\n"
+            "JP.40\tTokyo\tTokyo\t5\n"
             "US.NY\tNew York\tNew York\t2\n"
             "FR.11\tÎle-de-France\tIle-de-France\t3\n", encoding="utf-8")
         (self.source / "countryInfo.txt").write_text(
@@ -56,7 +59,7 @@ class GeoNamesTests(unittest.TestCase):
 
     def test_build_and_search_without_external_service(self):
         manifest = build(self.source, self.database)
-        self.assertEqual(manifest["places"], 5)
+        self.assertEqual(manifest["places"], 6)
         self.assertEqual(len(JAPANESE_PREFECTURES), 47)
         japan = search_locations("川口市", "JP", "Saitama", database=self.database)
         self.assertEqual(len(japan), 1)
@@ -65,6 +68,12 @@ class GeoNamesTests(unittest.TestCase):
         self.assertEqual(search_locations("川口町", "JP", "Saitama", database=self.database)[0]["query"], "川口町")
         self.assertEqual(search_locations("神戸市", "JP", "Hyogo", database=self.database)[0]["display_name"],
                          "神戸市, 兵庫県, 日本")
+        self.assertEqual(search_locations("Kobe", "JP", "Hyogo", database=self.database)[0]["display_name"],
+                         "Kobe, 兵庫県, 日本")
+        self.assertEqual(search_locations("Tokyo", "JP", database=self.database)[0]["display_name"],
+                         "Tokyo, 東京都, 日本")
+        self.assertEqual(search_locations("東京", "JP", database=self.database)[0]["display_name"],
+                         "東京, 東京都, 日本")
         world = search_locations("New York, United States", "WORLD", database=self.database)
         self.assertEqual(world[0]["display_name"], "New York City, New York, United States")
         self.assertEqual(search_locations("Paris", "FR", database=self.database)[0]["timezone_name"], "Europe/Paris")
