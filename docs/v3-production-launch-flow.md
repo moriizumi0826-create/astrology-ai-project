@@ -151,7 +151,7 @@ CAPTCHAはCloudflare Turnstileを本番ドメイン用に作成し、Renderの`V
 - [x] APIの`V3_ALLOWED_ORIGINS`を本番フロントのHTTPSオリジンだけにする。
 - [x] APIの`V3_ALLOWED_HOSTS`を本番APIホストだけにする。
 - [x] `V3_ENVIRONMENT=production`と本番Supabase／Stripeの秘密値をRender Dashboardに設定する。
-- [ ] ログにtoken、秘密鍵、出生情報、決済情報を出さないことを確認する（直近1時間のアプリログでは該当文字列なし。長期・異常系は未確認）。
+- [ ] ログにtoken、秘密鍵、出生情報、決済情報を出さないことを確認する。2026-09-27の本番APIログ（直近24時間）で、出生地検索のGET URLに都市名・出生年月日・出生時刻が含まれ、アクセスログに記録されていることを確認。V3の出生地検索はPOST化し、出生日時を送らない修正とローカル画面確認まで完了。本番反映後にアクセスログを再確認する。Bearer、`sk_live_`、`sb_secret_`、`whsec_`、password、card_number、メールドメイン等の検索は該当なし（確認した期間・語句に限る）。
 - [x] カスタムドメインをRenderへ追加し、DNSとTLSを確認する。
 - [x] Content Security Policy等の本番セキュリティヘッダーを確認する。
 - [x] PreviewのURL・環境変数・Webhookを本番と分離したまま残す。

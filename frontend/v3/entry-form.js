@@ -134,14 +134,9 @@ function clearLocationSearchResults() {
   locationSearchResults.classList.add("hidden");
 }
 
-function getLocationSearchParams() {
+function getLocationSearchPayload() {
   const snapshot = collectFormSnapshot();
-  const params = new URLSearchParams(birthLocationQuery(snapshot));
-  const birthDate = normalizeBirthDateInput(snapshot.birth_date);
-  if (birthDate) params.set("birth_date", birthDate);
-  if (snapshot.birth_time) params.set("birth_time", snapshot.birth_time);
-  params.set("birth_time_unknown", String(snapshot.birth_time_unknown));
-  return params;
+  return birthLocationQuery(snapshot);
 }
 
 function applyLocationResult(result) {
@@ -216,17 +211,27 @@ async function searchLocationCandidates() {
   searchLocationButton.classList.add("opacity-70", "cursor-not-allowed");
   showLocationSearchStatus("出生地候補を検索しています...");
 
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 20000);
   try {
-    const params = getLocationSearchParams();
-    const response = await fetch(`${API_BASE_URL}/location-search?${params.toString()}`);
+    const payload = getLocationSearchPayload();
+    const response = await fetch(`${API_BASE_URL}/location-search`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+      signal: controller.signal,
+    });
     const data = await response.json();
     if (!response.ok) {
       throw new Error(data.detail || "出生地検索に失敗しました。");
     }
     renderLocationSearchResults(data.results || []);
   } catch (error) {
-    showLocationSearchStatus(error.message || "出生地検索に失敗しました。", true);
+    showLocationSearchStatus(error.name === "AbortError"
+      ? "出生地検索がタイムアウトしました。時間をおいて再試行してください。"
+      : error.message || "出生地検索に失敗しました。", true);
   } finally {
+    clearTimeout(timeout);
     searchLocationButton.disabled = false;
     searchLocationButton.classList.remove("opacity-70", "cursor-not-allowed");
   }

@@ -2,12 +2,22 @@
 from datetime import timedelta
 from zoneinfo import ZoneInfo
 from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel, ConfigDict, Field
 from backend.app import main as legacy
-from backend.app.schemas import ReadingRequest, TransitChartsRequest
+from backend.app.schemas import LocationSearchResponse, ReadingRequest, TransitChartsRequest
 from backend.v3.access import AccessSnapshot, get_access_snapshot, require_paid_access
 from backend.v3.horoscope import generate_horoscope
 
 router = APIRouter(prefix="/api/v3")
+
+
+class LocationSearchPayload(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    q: str = Field(min_length=1, max_length=100)
+    prefecture: str | None = None
+    country_code: str = "JP"
+    limit: int = Field(default=5, ge=1, le=10)
 
 
 @router.post("/readings")
@@ -18,8 +28,20 @@ def horoscope(payload: ReadingRequest):
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
+@router.post("/location-search", response_model=LocationSearchResponse)
+def location_search(payload: LocationSearchPayload):
+    return legacy.location_search(
+        q=payload.q,
+        prefecture=payload.prefecture,
+        country_code=payload.country_code,
+        limit=payload.limit,
+        birth_date=None,
+        birth_time=None,
+        birth_time_unknown=False,
+    )
+
+
 for path, endpoint in [
-    ("/location-search", legacy.location_search),
     ("/master-version", legacy.master_version),
     ("/aspect-interpretations", legacy.v2_aspect_interpretations),
 ]:

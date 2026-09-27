@@ -83,12 +83,7 @@ export function BirthDataEditor({ initialForm = {}, meta = {}, onSearchLocations
     setLocationMessage("出生地候補を検索しています…");
     setLocationResults([]);
     try {
-      const payload = await onSearchLocations({
-        ...query,
-        birth_date: form.birth_date,
-        birth_time: form.birth_time_unknown ? "" : form.birth_time,
-        birth_time_unknown: form.birth_time_unknown,
-      });
+      const payload = await onSearchLocations(query);
       const results = Array.isArray(payload?.results) ? payload.results : [];
       setLocationResults(results);
       setLocationError(!results.length);

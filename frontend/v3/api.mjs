@@ -15,18 +15,18 @@ export function formatApiError(detail, fallback) {
   if (Array.isArray(detail)) return detail.map(item => item.msg || "入力を確認してください").join(" / ");
   return fallback;
 }
-export async function requestJson(path, payload, method = "POST") {
+export async function requestJson(path, payload, method = "POST", timeoutMs = 180000) {
   const identity = await authSnapshot();
   const normalized = payload?.birth_date ? normalizeReadingRequest(payload) : payload;
   const { response, data } = await requestJsonWithTimeout(apiUrl(apiPath(path)), {
     method, headers: { "Content-Type": "application/json", ...identity.headers }, cache: "no-store",
     body: method === "GET" || normalized === undefined ? undefined : JSON.stringify(normalized),
-  }, 180000);
+  }, timeoutMs);
   await assertSameIdentity(identity);
   return { ok: response.ok, status: response.status, data };
 }
-async function json(path, payload, method) {
-  const response = await requestJson(path, payload, method);
+async function json(path, payload, method, timeoutMs) {
+  const response = await requestJson(path, payload, method, timeoutMs);
   if (!response.ok) {
     const error = new Error(formatApiError(response.data?.detail, `APIエラー（${response.status}）`));
     error.status = response.status;
@@ -40,7 +40,14 @@ export const putJson = (path, payload) => json(path, payload, "PUT");
 export const deleteJson = (path, payload) => json(path, payload, "DELETE");
 // Existing paid refresh UI may check version, but must never invoke an admin mutation.
 export const reloadCsvMasters = () => getJson("/api/master-version");
-export const searchBirthLocations = values => {
-  const query = new URLSearchParams(Object.entries(values).filter(([, value]) => value !== undefined && value !== null));
-  return getJson(`/api/location-search?${query}`);
+export const searchBirthLocations = async values => {
+  const { q, prefecture, country_code, limit } = values;
+  try {
+    return await json("/api/location-search", { q, prefecture, country_code, limit }, "POST", 20000);
+  } catch (error) {
+    if (error.name === "RequestTimeoutError") {
+      throw new Error("出生地検索がタイムアウトしました。時間をおいて再試行してください。");
+    }
+    throw error;
+  }
 };
