@@ -1,5 +1,6 @@
 """Explicit V3 route adapters; never mount the legacy app or admin endpoints."""
 from datetime import timedelta
+import sqlite3
 from zoneinfo import ZoneInfo
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, ConfigDict, Field
@@ -7,7 +8,7 @@ from backend.app import main as legacy
 from backend.app.schemas import LocationSearchResponse, ReadingRequest, TransitChartsRequest
 from backend.v3.access import AccessSnapshot, get_access_snapshot, require_paid_access
 from backend.v3.horoscope import generate_horoscope
-from backend.v3.location_search import normalize_prefecture
+from backend.v3.location_search import search_locations
 
 router = APIRouter(prefix="/api/v3")
 
@@ -31,15 +32,17 @@ def horoscope(payload: ReadingRequest):
 
 @router.post("/location-search", response_model=LocationSearchResponse)
 def location_search(payload: LocationSearchPayload):
-    return legacy.location_search(
-        q=payload.q,
-        prefecture=normalize_prefecture(payload.prefecture, payload.country_code),
-        country_code=payload.country_code,
-        limit=payload.limit,
-        birth_date=None,
-        birth_time=None,
-        birth_time_unknown=False,
-    )
+    try:
+        return LocationSearchResponse(results=search_locations(
+            query=payload.q,
+            prefecture=payload.prefecture,
+            country_code=payload.country_code,
+            limit=payload.limit,
+        ))
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except (RuntimeError, sqlite3.Error) as exc:
+        raise HTTPException(status_code=503, detail="出生地検索を一時的に利用できません。") from exc
 
 
 for path, endpoint in [

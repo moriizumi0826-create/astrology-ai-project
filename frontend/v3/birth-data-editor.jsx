@@ -284,6 +284,9 @@ export function BirthDataEditor({ initialForm = {}, meta = {}, onSearchLocations
                 ))}
               </div>
             ) : null}
+            <p className="mt-3 text-[10px] text-[#c7c6cc]/70">
+              地名データ: <a href="https://www.geonames.org/" rel="noopener noreferrer">GeoNames</a>（CC BY 4.0）
+            </p>
 
             {form.resolved_birthplace ? (
               <p className="mt-3 rounded-xl border border-[#e9c349]/20 bg-[#e9c349]/[0.045] px-3 py-2 text-xs leading-5 text-[#e9c349]">

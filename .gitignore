@@ -8,6 +8,7 @@ frontend/dist/
 *.catv3
 *.catv3.partial
 .tools/
+backend/v3/data/*.sqlite
 
 .venv/
 

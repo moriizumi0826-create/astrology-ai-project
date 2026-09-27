@@ -2,7 +2,7 @@
 
 from ipaddress import ip_address
 
-from fastapi import Depends, FastAPI, Request
+from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 from starlette.responses import JSONResponse
@@ -25,6 +25,7 @@ from backend.v3.deployment import (
     owner_access_user_id,
     require_expected_supabase_project,
 )
+from backend.v3.location_search import database_ready
 
 
 API_SECURITY_HEADERS = {
@@ -88,6 +89,8 @@ def create_app(*, auth_mode: str | None = None) -> FastAPI:
 
     @app.get("/api/v3/health")
     def health():
+        if deployment != "local" and not database_ready():
+            raise HTTPException(status_code=503, detail="Location database unavailable")
         return {"status": "ok", "environment": deployment, "stage": 6}
 
     @app.get("/api/v3/auth/config")

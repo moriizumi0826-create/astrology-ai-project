@@ -24,19 +24,21 @@ class FeatureBoundaryTests(unittest.TestCase):
 
     def test_location_search_uses_post_body_and_rejects_birth_details(self):
         payload = {"q": "川口市", "prefecture": "Saitama", "country_code": "JP"}
-        with patch("backend.v3.routes.legacy.location_search", return_value={"results": []}) as search:
+        with patch("backend.v3.routes.search_locations", return_value=[]) as search:
             response = self.client.post("/api/v3/location-search", json=payload)
             self.assertEqual(response.status_code, 200, response.text)
             self.assertEqual(response.json(), {"results": []})
-            search.assert_called_once_with(
-                q="川口市", prefecture="埼玉県", country_code="JP", limit=5,
-                birth_date=None, birth_time=None, birth_time_unknown=False,
-            )
+            search.assert_called_once_with(query="川口市", prefecture="Saitama", country_code="JP", limit=5)
             self.assertEqual(self.client.get("/api/v3/location-search", params=payload).status_code, 405)
             self.assertEqual(self.client.post("/api/v3/location-search", json={
                 **payload, "birth_date": "2000-01-01",
             }).status_code, 422)
             search.assert_called_once()
+
+        with patch("backend.v3.routes.search_locations", side_effect=RuntimeError("internal path")):
+            response = self.client.post("/api/v3/location-search", json=payload)
+            self.assertEqual(response.status_code, 503)
+            self.assertNotIn("internal path", response.text)
 
     def batch(self, dates, zone="Asia/Tokyo", **extra):
         return self.client.post("/api/v3/transit-charts", json={**FORM, "target_time": "12:00", "display_timezone_name": zone, "target_dates": dates, **extra})
