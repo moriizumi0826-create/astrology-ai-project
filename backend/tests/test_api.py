@@ -444,6 +444,22 @@ class ApiTestCase(unittest.TestCase):
         self.assertEqual(row["Aspect_Angle"], 0)
         self.assertEqual(row["Score_Impact"], 70)
 
+    def test_aspect_interpretation_cache_evicts_oldest_unused_entry(self):
+        first = ("SUN", "MOON", 0, 1, False, "Applying")
+        second = ("MARS", "MOON", 90, 1, False, "Applying")
+        third = ("VENUS", "MOON", 120, 1, False, "Applying")
+        with patch.object(reading_service, "_ASPECT_INTERPRETATION_CACHE", {}), patch.object(
+            reading_service, "_ASPECT_INTERPRETATION_CACHE_MAXSIZE", 2
+        ):
+            reading_service._remember_aspect_interpretation(first, {"text": "first"})
+            reading_service._remember_aspect_interpretation(second, {"text": "second"})
+            self.assertEqual(reading_service._cached_aspect_interpretation(first), {"text": "first"})
+            reading_service._remember_aspect_interpretation(third, {"text": "third"})
+            self.assertEqual(list(reading_service._ASPECT_INTERPRETATION_CACHE), [first, third])
+            returned = reading_service._cached_aspect_interpretation(first)
+            returned["text"] = "changed"
+            self.assertEqual(reading_service._ASPECT_INTERPRETATION_CACHE[first]["text"], "first")
+
     def test_aspect_dashboard_data_maps_csv_columns(self):
         dashboard_data = get_aspect_dashboard_data(
             t_planet="SUN",

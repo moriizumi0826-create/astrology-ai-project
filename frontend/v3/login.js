@@ -25,7 +25,10 @@ function setMode(next) {
 }
 function showError(error) { errorBox.textContent = error?.status ? error.message : authMessage(error); errorBox.hidden = false; }
 initializeAuth().then(async config => {
-  if (config.mode === "local_test") { location.replace("/test-login.html"); return; }
+  if (__APP_ENVIRONMENT__ === "local" && config.mode === "local_test") {
+    location.replace("/test-login.html");
+    return;
+  }
   client = await authClient();
   let session;
   try { session = await getJson("/api/v3/session"); }

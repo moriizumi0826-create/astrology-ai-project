@@ -475,7 +475,29 @@ _RETROGRADE_CALENDAR_INDEX: dict[
     tuple[str, str], tuple[tuple[date, dict[str, Any]], ...]
 ] | None = None
 _ASPECT_INTERPRETATION_CACHE: dict[tuple[str, str, int, int, bool, str], dict[str, Any]] = {}
+_ASPECT_INTERPRETATION_CACHE_MAXSIZE = 4096
 _ASPECT_MASTER_INDEX_LOCK = Lock()
+
+
+def _cached_aspect_interpretation(cache_key: tuple[str, str, int, int, bool, str]) -> dict[str, Any] | None:
+    with _ASPECT_MASTER_INDEX_LOCK:
+        cached = _ASPECT_INTERPRETATION_CACHE.get(cache_key)
+        if cached is None:
+            return None
+        # Dictionaries preserve insertion order; move hits to the newest position.
+        _ASPECT_INTERPRETATION_CACHE.pop(cache_key)
+        _ASPECT_INTERPRETATION_CACHE[cache_key] = cached
+        return dict(cached)
+
+
+def _remember_aspect_interpretation(
+    cache_key: tuple[str, str, int, int, bool, str], row: dict[str, Any]
+) -> None:
+    with _ASPECT_MASTER_INDEX_LOCK:
+        _ASPECT_INTERPRETATION_CACHE.pop(cache_key, None)
+        if len(_ASPECT_INTERPRETATION_CACHE) >= _ASPECT_INTERPRETATION_CACHE_MAXSIZE:
+            _ASPECT_INTERPRETATION_CACHE.pop(next(iter(_ASPECT_INTERPRETATION_CACHE)))
+        _ASPECT_INTERPRETATION_CACHE[cache_key] = dict(row)
 
 
 def reload_master_dataframes_if_changed(force: bool = False) -> bool:
@@ -896,8 +918,9 @@ def get_aspect_interpretation(
         bool(is_retrograde),
         _normalize_orb_status(orb_status),
     )
-    if cache_key in _ASPECT_INTERPRETATION_CACHE:
-        return dict(_ASPECT_INTERPRETATION_CACHE[cache_key])
+    cached = _cached_aspect_interpretation(cache_key)
+    if cached is not None:
+        return cached
 
     _ensure_aspect_master_indexes()
     candidates_by_key = _ASPECT_CANDIDATES_BY_KEY or {}
@@ -938,7 +961,7 @@ def get_aspect_interpretation(
         selected = _pick_highest_priority(candidates)
         if selected is not None:
             hydrated = _hydrate_aspect_interpretation_row(selected)
-            _ASPECT_INTERPRETATION_CACHE[cache_key] = dict(hydrated)
+            _remember_aspect_interpretation(cache_key, hydrated)
             return hydrated
     return {}
 
