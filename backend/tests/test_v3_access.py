@@ -28,6 +28,7 @@ class AccessContractTests(unittest.TestCase):
             (AccessContext("member", "active", self.now + timedelta(days=1)), "paid"),
             (AccessContext("member", "active", self.now), "free"),
             (AccessContext("member", "active", self.now - timedelta(seconds=1)), "free"),
+            (AccessContext("member", "owner"), "paid"),
             (AccessContext("member", "checking"), "checking"),
             (AccessContext("member", "unavailable"), "unavailable"),
         ]:
@@ -38,6 +39,9 @@ class AccessContractTests(unittest.TestCase):
                 self.assertEqual(result.capabilities.aspect_list, expected == "paid")
                 self.assertEqual(result.capabilities.compound_aspects, expected == "paid")
                 self.assertTrue(result.capabilities.single_chart_any_date)
+                if context.entitlement == "owner":
+                    self.assertEqual(result.access_source, "owner")
+                    self.assertIsNone(result.valid_until)
 
     def test_incomplete_expiry_fails_closed_without_claiming_no_contract(self):
         for expires in (None, datetime(2027, 1, 1)):

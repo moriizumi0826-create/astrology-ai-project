@@ -11,6 +11,7 @@ function priceLabel(subscription) {
 }
 
 export function billingMessage(billing) {
+  if (billing?.access_state === "owner") return "確認用アカウントです。有料機能に利用期限はありません。既存のStripe契約・請求は別途管理されます。";
   if (!billing?.configured) return "有料プランの申し込みは現在準備中です。";
   const subscription = billing.subscription;
   const until = formatUntil(subscription);
@@ -37,6 +38,7 @@ export function billingMessage(billing) {
 }
 
 export function canShowCheckoutPlan(billing) {
+  if (billing?.access_state === "owner") return false;
   const subscription = billing?.subscription;
   return !subscription || TERMINAL_STATUSES.has(subscription.status);
 }

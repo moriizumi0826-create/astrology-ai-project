@@ -422,20 +422,23 @@ def _service(request: Request) -> StripeBilling:
 @router.get("/status")
 def billing_status(request: Request, user_id=Depends(_identity)):
     service = _service(request)
+    owner = user_id == getattr(request.app.state, "owner_access_user_id", None)
     if not service.configured:
         return {"configured": False, "checkout_enabled": False, "mode": service.mode,
-                "customer": False, "subscription": None, "access_state": "none",
+                "customer": False, "subscription": None, "access_state": "owner" if owner else "none",
                 "checkout_available": False}
     subscription = service.store.status(user_id)
-    checkout_enabled = service.checkout_enabled_for(user_id)
+    checkout_enabled = not owner and service.checkout_enabled_for(user_id)
     return {"configured": True, "checkout_enabled": checkout_enabled, "mode": service.mode,
             "customer": bool(service.store.customer(user_id)), "subscription": subscription,
-            "access_state": subscription_access_state(subscription),
+            "access_state": "owner" if owner else subscription_access_state(subscription),
             "checkout_available": checkout_enabled and checkout_available(subscription)}
 
 
 @router.post("/checkout")
 def checkout(payload: CheckoutRequest, request: Request, user_id=Depends(_identity)):
+    if user_id == getattr(request.app.state, "owner_access_user_id", None):
+        raise HTTPException(403, "確認用アカウントは有料プランの申し込みが不要です。")
     origin = _origin(request)
     service = _service(request)
     return {"url": service.checkout(user_id, getattr(request.state, "supabase_email", ""), payload.currency, origin)}

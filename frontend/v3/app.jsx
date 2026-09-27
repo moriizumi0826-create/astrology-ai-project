@@ -149,7 +149,7 @@ function App() {
     return () => window.removeEventListener("v3-auth-changed", changed);
   }, []);
   useEffect(() => {
-    if (session?.state !== "paid") return;
+    if (session?.state !== "paid" || session.access_source === "owner") return;
     const remaining = Date.parse(session.valid_until) - Date.now();
     const timer = setTimeout(() => {
       const checking = { ...session, state: "checking", capabilities: {} };
@@ -158,7 +158,7 @@ function App() {
       refresh();
     }, Math.min(Math.max(Number.isFinite(remaining) ? remaining : 0, 0) + 1, 2147483647));
     return () => clearTimeout(timer);
-  }, [session?.state, session?.valid_until]);
+  }, [session?.state, session?.valid_until, session?.access_source]);
   if (error) return <section className="p-8"><p role="alert">{error}</p><button onClick={refresh}>再試行</button><a className="ml-5 underline" href="/login.html">ログイン画面へ</a></section>;
   if (!session) return <p className="p-8" role="status">利用状態を確認しています…</p>;
   return <AccessContext.Provider value={{ session }}><DeviceTimeBoundary key={`${session.user_id}:${session.state}`} refreshReading={postJson}><Workspace session={session} /></DeviceTimeBoundary></AccessContext.Provider>;

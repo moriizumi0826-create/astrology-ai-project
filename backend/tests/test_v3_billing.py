@@ -202,6 +202,52 @@ class BillingTests(unittest.TestCase):
         self.assertTrue(response.json()["capabilities"]["stellar_forecast"])
         self.assertEqual(response.json()["user_id"], f"supabase:test:{USER}")
 
+    def test_production_owner_grant_is_single_account_and_cannot_checkout(self):
+        production = {**CONFIG,
+            "V3_ENVIRONMENT": "production",
+            "V3_ALLOWED_ORIGINS": "https://atelier.example",
+            "V3_ALLOWED_HOSTS": "api.atelier.example",
+            "V3_SUPABASE_PROJECT_REF": "test",
+            "V3_STRIPE_SECRET_KEY": "sk_live_example",
+            "V3_BILLING_ENABLED": "true",
+            "V3_BILLING_ACCESS_MODE": "public",
+            "V3_OWNER_ACCESS_USER_ID": USER,
+        }
+        headers = {"Authorization": AUTH["Authorization"], "Origin": "https://atelier.example",
+                   "Host": "api.atelier.example"}
+        with patch.dict(os.environ, production, clear=True):
+            app = create_app()
+        app.state.billing.store = self.store
+        client = local_test_client(app, "192.0.2.5")
+        owner_session = client.get("/api/v3/session", headers=headers).json()
+        self.assertEqual(owner_session["state"], "paid")
+        self.assertEqual(owner_session["access_source"], "owner")
+        self.assertIsNone(owner_session["valid_until"])
+        self.assertTrue(owner_session["capabilities"]["stellar_forecast"])
+        self.store.entitlement.assert_not_called()
+        # The request reaches payload validation instead of being rejected by the paid gate.
+        self.assertEqual(client.post("/api/v3/paid-reading", headers=headers, json={}).status_code, 422)
+        billing = client.get("/api/v3/billing/status", headers=headers).json()
+        self.assertEqual(billing["access_state"], "owner")
+        self.assertFalse(billing["checkout_available"])
+        self.assertEqual(client.post("/api/v3/billing/checkout", headers=headers,
+            json={"currency": "jpy"}).status_code, 403)
+
+        self.auth_http.return_value = httpx.Response(200, json={"id": "00000000-0000-4000-8000-000000000002",
+            "email": "other@example.test", "email_confirmed_at": "2026-09-19T00:00:00Z"})
+        other_session = client.get("/api/v3/session", headers=headers).json()
+        self.assertEqual(other_session["state"], "free")
+        self.assertEqual(other_session["access_source"], "none")
+        self.assertEqual(client.post("/api/v3/paid-reading", headers=headers, json={}).status_code, 403)
+
+    def test_owner_grant_rejects_invalid_or_nonproduction_configuration(self):
+        with patch.dict(os.environ, {**CONFIG, "V3_OWNER_ACCESS_USER_ID": "not-a-uuid"}, clear=True):
+            with self.assertRaisesRegex(RuntimeError, "V3_OWNER_ACCESS_USER_ID"):
+                create_app()
+        with patch.dict(os.environ, {**CONFIG, "V3_OWNER_ACCESS_USER_ID": USER}, clear=True):
+            with self.assertRaisesRegex(RuntimeError, "production"):
+                create_app()
+
     def test_failed_or_expired_subscription_cannot_access_paid_api(self):
         store = BillingStore(CONFIG["V3_SUPABASE_URL"])
         self.app.state.billing.store = store

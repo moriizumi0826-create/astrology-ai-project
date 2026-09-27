@@ -46,6 +46,18 @@ def billing_checkout_access(deployment: str) -> tuple[str, str | None]:
     return mode, allowed_user_id
 
 
+def owner_access_user_id(deployment: str) -> str | None:
+    raw = os.environ.get("V3_OWNER_ACCESS_USER_ID", "").strip()
+    if not raw:
+        return None
+    if deployment != "production":
+        raise RuntimeError("V3_OWNER_ACCESS_USER_IDはproductionでのみ設定してください。")
+    try:
+        return str(UUID(raw))
+    except (ValueError, AttributeError):
+        raise RuntimeError("V3_OWNER_ACCESS_USER_IDには会員のUUIDを指定してください。") from None
+
+
 def _csv(name: str) -> set[str]:
     return {value.strip() for value in os.environ.get(name, "").split(",") if value.strip()}
 

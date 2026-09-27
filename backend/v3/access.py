@@ -12,7 +12,7 @@ from pydantic import BaseModel
 class AccessContext:
     # Future authentication adapter supplies a verified internal account ID.
     user_id: str | None = None
-    entitlement: Literal["none", "active", "checking", "unavailable"] = "none"
+    entitlement: Literal["none", "active", "owner", "checking", "unavailable"] = "none"
     valid_until: datetime | None = None
 
 
@@ -31,6 +31,7 @@ class AccessSnapshot(BaseModel):
     user_id: str | None
     checked_at: datetime
     valid_until: datetime | None = None
+    access_source: Literal["none", "subscription", "owner"] = "none"
     capabilities: Capabilities
 
 
@@ -40,6 +41,7 @@ def evaluate_access(context: AccessContext, now: datetime) -> AccessSnapshot:
     user_id = (context.user_id or "").strip() or None
     state = "anonymous" if user_id is None else "free"
     valid_until = None
+    access_source = "none"
     if user_id:
         if context.entitlement in ("checking", "unavailable"):
             state = context.entitlement
@@ -49,12 +51,17 @@ def evaluate_access(context: AccessContext, now: datetime) -> AccessSnapshot:
             elif context.valid_until > now:
                 state = "paid"
                 valid_until = context.valid_until
+                access_source = "subscription"
+        elif context.entitlement == "owner":
+            state = "paid"
+            access_source = "owner"
     paid = state == "paid"
     return AccessSnapshot(
         state=state,
         user_id=user_id,
         checked_at=now,
         valid_until=valid_until,
+        access_source=access_source,
         capabilities=Capabilities(
             aspect_list=paid,
             compound_aspects=paid,
@@ -71,6 +78,8 @@ def get_access_context(request: Request) -> AccessContext:
         user_id = provider.authenticate(request)
         if not user_id:
             return AccessContext()
+        if request.state.supabase_subject == getattr(request.app.state, "owner_access_user_id", None):
+            return AccessContext(user_id=user_id, entitlement="owner")
         billing = getattr(request.app.state, "billing", None)
         if billing is not None and billing.configured:
             try:

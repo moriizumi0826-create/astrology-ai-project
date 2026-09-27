@@ -22,6 +22,7 @@ from backend.v3.deployment import (
     billing_checkout_access,
     billing_enabled,
     environment,
+    owner_access_user_id,
     require_expected_supabase_project,
 )
 
@@ -42,6 +43,7 @@ def create_app(*, auth_mode: str | None = None) -> FastAPI:
     app = FastAPI(title=f"Celestial Atelier V3 — {deployment}", docs_url=None, redoc_url=None, lifespan=lifespan)
     app.state.v3_environment = deployment
     app.state.v3_allowed_origins = origins
+    app.state.owner_access_user_id = owner_access_user_id(deployment)
     provider = None if auth_mode == "local_test" else SupabaseAuth(deployment)
     if deployment != "local" and (provider is None or not provider.configured):
         raise RuntimeError("公開環境にはSupabase認証設定が必要です。")

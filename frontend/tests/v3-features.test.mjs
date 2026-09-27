@@ -13,6 +13,11 @@ test("only verified, unexpired capabilities enable paid features", () => {
     assert.deepEqual(featurePolicy(session,now), {aspectList:false,compoundAspects:false,stellarForecast:false,freePlayback:true});
   }
 });
+test("owner grant enables paid capabilities without an expiry", () => {
+  const owner = {...paid, valid_until: null, access_source: "owner"};
+  assert.deepEqual(featurePolicy(owner, now), {aspectList:true, compoundAspects:true, stellarForecast:true, freePlayback:false});
+  assert.equal(featurePolicy({...owner, state: "free"}, now).stellarForecast, false);
+});
 test("free mode locks only compound presets, leaving all ordinary presets usable", () => {
   const free = featurePolicy(null,now);
   for (const mode of ["none", "transitNatal", "transitTransit", "natalNatal", "custom"]) assert.equal(isLockedAspectMode(mode, free), false);

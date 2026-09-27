@@ -36,7 +36,8 @@ async function load() {
     if (billing.mode !== billingCopy.mode) throw new Error("決済環境の設定が一致しません。申し込みを停止しました。");
     state.textContent = billingMessage(billing);
     modeNote.textContent = billingCopy.note;
-    if (!billing.checkout_enabled) modeNote.textContent = "現在、新規の有料プラン申し込みを停止しています。既存契約の管理は引き続き利用できます。";
+    if (billing.access_state === "owner") modeNote.textContent = "確認用アカウントのため、新たな申し込みは不要です。";
+    else if (!billing.checkout_enabled) modeNote.textContent = "現在、新規の有料プラン申し込みを停止しています。既存契約の管理は引き続き利用できます。";
     checkoutReady = canStartCheckout(billing);
     plans.hidden = !canShowCheckoutPlan(billing);
     planButtons.forEach(button => {

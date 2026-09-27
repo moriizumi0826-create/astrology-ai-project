@@ -24,6 +24,13 @@ test("active and canceling states show the verified access deadline", () => {
   assert.match(billingMessage({...base, access_state: "active_canceling", subscription}), /解約予約済み.*有料機能/);
 });
 
+test("owner grant is unlimited and does not offer checkout", () => {
+  const owner = {...base, access_state: "owner", subscription: null};
+  assert.match(billingMessage(owner), /確認用アカウント.*利用期限はありません/);
+  assert.equal(canShowCheckoutPlan(owner), false);
+  assert.equal(canStartCheckout(owner), false);
+});
+
 test("only no-contract or terminal-contract users see a new checkout plan", () => {
   assert.equal(canShowCheckoutPlan({...base, subscription: null}), true);
   assert.equal(canShowCheckoutPlan({...base, subscription: {status: "canceled"}}), true);
