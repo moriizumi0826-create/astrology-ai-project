@@ -14,6 +14,9 @@ button.disabled = true;
 prepareSession().then(async session => {
   configureStorage(session);
   if (String(session.user_id || "").startsWith("supabase:")) {
+    const memberLink = document.querySelector("#member-link");
+    memberLink.textContent = "アカウント";
+    memberLink.href = "/account.html";
     const notice = document.createElement("p");
     notice.textContent = "計算完了時に、この出生情報をログイン中のアカウントへ保存します。";
     notice.className = "entry-member-notice";

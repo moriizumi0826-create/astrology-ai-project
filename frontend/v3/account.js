@@ -44,7 +44,7 @@ async function load() {
     subscriptionNote.textContent = blockedBySubscription
       ? "契約または支払い処理が残っています。先に契約管理画面で状態を確認し、利用期間終了後にアカウントを削除してください。"
       : "削除を進められる契約状態です。安全確認のため、現在のパスワードで再認証します。";
-    document.querySelector("#billing-link").hidden = !billing.customer;
+    document.querySelector("#billing-link").textContent = billing.customer ? "契約・支払い状態を確認する" : "有料プランを確認する";
     syncDeleteButton();
   } catch (error) {
     status.textContent = "保存状態を確認できません。";
