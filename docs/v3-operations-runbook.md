@@ -1,6 +1,6 @@
 # V3本番：監視・障害時の初動
 
-更新日：2026-09-27
+更新日：2026-09-28
 
 この手順は本番V3（`thecelestialatelier.com`／`api.thecelestialatelier.com`）用。現時点はURL非告知・新規課金停止中。2026-09-26に限定実決済を1件確認しており、既存契約の監視は必要。**状況確認の手順であり、障害訓練や復元テストを実施済みという意味ではない。**
 
@@ -11,7 +11,7 @@
 | 本番API | Render StarterのHTTP Health Check Pathは`/api/v3/health`。Renderワークスペースの通知先はEmail、既定は`Only failure notifications`で、APIサービスはその既定値を継承。2026-09-27に公開URLの応答`status=ok`・`environment=production`を確認 | Render自身の通知メールの実到達、アプリ内部のSupabase・Stripe依存状態 |
 | 本番フロント | 2026-09-27に`/entry.html`と`/index.html`、それぞれの画面用JavaScriptがHTTP 200で応答 | 画面の動作まで含む監視 |
 | 外部死活監視 | 2026-09-27にBetter Stack Freeでサイトトップと`https://api.thecelestialatelier.com/api/v3/health`の2件を登録。両方`Up`、3分間隔、メール通知オン。API監視のテスト通知がYahooメールに届いた。商用利用可能との公式記載を確認し継続利用を決定 | 実障害時の通知発火、ログイン・DB・Stripeまで含む監視 |
-| 決済・認証 | 有料アクセスはサーバー側で判定。契約照合コマンドは既定で読み取り専用 | Stripe Webhook失敗の通知・再送運用、Supabase Auth／DB障害時の通知、実額決済を含む復旧訓練 |
+| 決済・認証 | 有料アクセスはサーバー側で判定。契約照合コマンドは既定で読み取り専用。StripeライブのWebhook配信失敗メール通知はON | Stripe通知メールの実到達・再送運用、Supabase Auth／DBの個別障害通知、実額決済を含む復旧訓練 |
 
 APIの`/api/v3/health`はプロセスが応答することを示す軽量な検査であり、Supabaseへの接続やStripe決済の成功を保証しない。Renderは異常なサービス・デプロイ失敗を設定に応じて通知するが、フロントの内容や認証・決済の正常性まで監視するものではない。[Render Health Checks](https://render.com/docs/health-checks)／[Render Notifications](https://render.com/docs/notifications)
 
@@ -31,7 +31,7 @@ APIの`/api/v3/health`はプロセスが応答することを示す軽量な検�
 
 ### APIが正常でも登録・決済に異常があるとき
 
-当面の一次確認者は運営者本人。Better Stackの通知メールを起点とし、利用者からの報告や画面の異常でも同じ順に切り分ける。**Supabase Auth／DBとStripe Webhookの個別障害を自動通知する仕組みは未設定**なので、APIの監視が`Up`でも正常と判断しない。
+当面の一次確認者は運営者本人。Better Stackの通知メールを起点とし、利用者からの報告や画面の異常でも同じ順に切り分ける。StripeライブのWebhook配信失敗メール通知はONだが到達未実測。Supabase Auth／DBの個別障害通知は設定確認が取れていないので、APIの監視が`Up`でも正常と判断しない。
 
 | 症状 | 読み取り専用で確認する順番 | 注意点 |
 |---|---|---|
@@ -42,6 +42,16 @@ APIの`/api/v3/health`はプロセスが応答することを示す軽量な検�
 SupabaseのLogsはAuth・Postgresなどの種別と時刻で絞り込める。[Supabase公式説明](https://supabase.com/docs/guides/observability/logs)。Stripeのイベントは配信失敗・保留で絞り込めるが、実際の原因は対象Webhookの送信結果とアプリ側の記録を突き合わせる。[StripeイベントAPI](https://docs.stripe.com/api/events/list)。
 
 Stripeの具体的な確認場所は、本番アカウント（画面上部に「サンドボックス」の帯が**ない**状態）の「ワークベンチ → Webhook → `celestial-atelier-v3-production` → イベントの配信」。失敗をステータスで絞り、対象行のHTTPコード・レスポンス・発生時刻・イベントIDを控える。送信先の概要にある集計だけでは個別の決済を確認したことにならない。原因を特定する前に「再送する」は押さない。2026-09-26の限定決済ではこの画面で4件のHTTP 200を確認済みだが、失敗時の再送操作自体は未実施。
+
+### 2026-09-28の制限・通知設定確認
+
+| 対象 | 管理画面で確認した設定 | 残る確認 |
+|---|---|---|
+| Supabase Auth | 本番プロジェクトのサインアップ／サインインはIPごとに5分30回、トークン更新は5分150回、トークン検証は5分30回 | Auth／DBの個別障害メール通知は確認できていない。実際の上限到達テストは未実施 |
+| Render本番API | Starterインスタンス。サービス通知はワークスペース既定の「失敗時のみ」を継承し、Health Check Pathは`/api/v3/health` | Render通知メールの実到達は未実測。アプリの各APIへのアクセス頻度制限を意味する設定ではない |
+| Stripeライブ | 通信設定の「Webhook failures - Email」「API integration errors - Email」はON。Webhook event generation failures - EmailはOFF。本番Webhook送信先は有効で、管理画面の直近1週間の配信5件は失敗0件 | 失敗通知メールの到達とWebhook再送は未実測。イベント生成失敗の通知をONにするか判断が必要 |
+
+V3アプリのPythonコードに、公開API全体を対象とする独自のIP別レート制限は見当たらない（ローカル用テストログインの制限とは別）。一般告知前に必要性を判断する。上記は設定の読み取り結果であり、障害や429を意図的に発生させた試験ではない。
 
 ### ログ・イベントの調査期限
 

@@ -186,7 +186,7 @@ CAPTCHAはCloudflare Turnstileを本番ドメイン用に作成し、Renderの`V
 #### 負荷・運用
 
 - [ ] 30日／1年再生の計算時間、同時利用、RenderのCPU・メモリ・応答時間を測定する（ローカルで31日・365日と5件同時の参考値のみ取得。本番負荷・リソース測定は未実施）。
-- [ ] Supabase Auth・DB、Stripe Webhook、Renderのレート制限とアラートを確認する。
+- [ ] Supabase Auth・DB、Stripe Webhook、Renderのレート制限とアラートを確認する（9月28日に現設定を確認。[運用手順](v3-operations-runbook.md)参照。Stripe配信失敗メールON、Supabase個別通知と各通知の実到達は未確認。公開API全体の独自レート制限の要否も未判断）。
 - [ ] エラー監視、死活監視、ログ保存期間、問い合わせ対応者を決める。
 
 #### 2026-09-23の確認記録
