@@ -7,6 +7,7 @@ from backend.app import main as legacy
 from backend.app.schemas import LocationSearchResponse, ReadingRequest, TransitChartsRequest
 from backend.v3.access import AccessSnapshot, get_access_snapshot, require_paid_access
 from backend.v3.horoscope import generate_horoscope
+from backend.v3.location_search import normalize_prefecture
 
 router = APIRouter(prefix="/api/v3")
 
@@ -32,7 +33,7 @@ def horoscope(payload: ReadingRequest):
 def location_search(payload: LocationSearchPayload):
     return legacy.location_search(
         q=payload.q,
-        prefecture=payload.prefecture,
+        prefecture=normalize_prefecture(payload.prefecture, payload.country_code),
         country_code=payload.country_code,
         limit=payload.limit,
         birth_date=None,

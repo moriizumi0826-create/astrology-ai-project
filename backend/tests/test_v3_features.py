@@ -29,7 +29,7 @@ class FeatureBoundaryTests(unittest.TestCase):
             self.assertEqual(response.status_code, 200, response.text)
             self.assertEqual(response.json(), {"results": []})
             search.assert_called_once_with(
-                q="川口市", prefecture="Saitama", country_code="JP", limit=5,
+                q="川口市", prefecture="埼玉県", country_code="JP", limit=5,
                 birth_date=None, birth_time=None, birth_time_unknown=False,
             )
             self.assertEqual(self.client.get("/api/v3/location-search", params=payload).status_code, 405)
