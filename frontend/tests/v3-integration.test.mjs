@@ -28,6 +28,14 @@ test("one map implementation is shared and paid entry is lazy", () => {
   assert.match(map, /buildTransitPlaybackDates\(playbackStartDate, rangeOption.days\)/);
   assert.doesNotMatch(map, /setAspectInterpretationScope\(nextMode === "natalNatal" \? "all"/);
 });
+test("V3 paid daily view includes main yearly overview and refreshes older saved forecasts", () => {
+  const dashboard = readFileSync(new URL("../v3/dashboard-shared.jsx", import.meta.url), "utf8");
+  const paid = readFileSync(new URL("../v3/paid-forecast.jsx", import.meta.url), "utf8");
+  assert.match(dashboard, /\["monthly", "今月の運気"\],\s*\["yearly", "今年の運気"\]/);
+  assert.match(dashboard, /<YearlyOverviewContent overview=\{yearlyOverview\}/);
+  assert.match(paid, /activeYear === 2026 && Number\(forecast\?\.yearly_overview_schema \|\| 0\) < 1/);
+  assert.match(paid, /yearly_forecast: CAN_ACCESS_PREMIUM/);
+});
 test("V3 storage isolates owners and never persists paid dashboard or yearly results", async t => {
   const values = new Map([["celestial-atelier:last-reading-form", "legacy untouched"]]);
   const previousWindow = globalThis.window;

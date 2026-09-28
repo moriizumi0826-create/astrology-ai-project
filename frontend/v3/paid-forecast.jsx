@@ -2989,6 +2989,7 @@ function ForecastDetailPage({ onHoroscope }) {
     && (
       !forecast
       || !hasAnnualAspectGenreDescriptions(forecast)
+      || (activeYear === 2026 && Number(forecast?.yearly_overview_schema || 0) < 1)
     );
   useEffect(() => {
     if (!needsDeferredWidgets && !needsInitialForecast) {
@@ -3278,6 +3279,9 @@ function ForecastDetailPage({ onHoroscope }) {
         (needsInitialForecast || dailyMonthlyOverviewPending)
         && !deferredContentError
         && !forecastDetailError
+      ),
+      yearly_overview_loading: !readingStorageHydrated || (
+        needsInitialForecast && activeYear === 2026 && !deferredContentError
       ),
       reading_date:
         hasStoredDashboard
