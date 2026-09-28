@@ -32,9 +32,12 @@ test("free mode locks only compound presets, leaving all ordinary presets usable
 });
 test("all list surfaces are gated, while planet-click detail remains available", () => {
   const source = readFileSync(new URL("../v3/horoscope-map.jsx", import.meta.url), "utf8");
-  assert.equal((source.match(/\{canShowAspectList && \(/g)||[]).length, 3);
-  assert.match(source,/canShowAspectList && isMobileAspectListDetached/);
-  assert.equal((source.match(/disabled=\{isLockedAspectMode\(option.key, policy\)\}/g)||[]).length, 2);
+  assert.match(source, /disabled=\{!canShowAspectList\}/);
+  assert.match(source, /canShowAspectList && isAspectListPanelOpen/);
+  assert.doesNotMatch(source, /isMobileAspectListDetached/);
+  assert.equal((source.match(/disabled=\{isLockedAspectMode\(option.key, policy\)\}/g)||[]).length, 1);
+  assert.match(source, /isFreePlayback \? buildFreePlaybackDates\(currentLocalDate\(\)\)/);
+  assert.match(source, /playbackRangeControls = isFreePlayback \?/);
   assert.match(source, /request: requestPlaybackCharts/);
   assert.match(source, /if \(isLockedAspectMode\(mode, policy\)\) return/);
   assert.match(source, /canShowCompoundAspects && \(isCompoundAspectMode/);

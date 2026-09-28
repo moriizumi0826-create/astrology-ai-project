@@ -5,6 +5,8 @@ import { useAccess } from "./access-context.jsx";
 import { featurePolicy, isLockedAspectMode } from "./feature-policy.mjs";
 import { requestPlaybackCharts } from "./playback-request.mjs";
 import { buildFreePlaybackDates } from "./free-playback-window.mjs";
+import { TransitPlaybackControls } from "../src/transit-playback-controls.jsx";
+import { customPlaybackDates, samplePlaybackDates } from "../src/transit-playback-range.mjs";
 
 import { deviceTimezone } from "../src/device-time.mjs";
 
@@ -1962,6 +1964,7 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
   const isFreePlayback = policy.freePlayback;
   const TRANSIT_PLAYBACK_RANGE_OPTIONS = isFreePlayback
     ? [{ key: "month", label: "今日±15日", days: 31 }] : PAID_PLAYBACK_RANGE_OPTIONS;
+  const mapId = React.useId();
   const mountRef = React.useRef(null);
   const frameRef = React.useRef(null);
   const sceneStateRef = React.useRef(null);
@@ -1986,25 +1989,35 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
   const [transitPlaybackPreloadProgress, setTransitPlaybackPreloadProgress] = useState(0);
   const [transitPlaybackCursor, setTransitPlaybackCursor] = useState(null);
   const [transitPlaybackStepDays, setTransitPlaybackStepDays] = useState(1);
-  const [transitPlaybackRange, setTransitPlaybackRange] = useState("month");
-  const [isPlaybackPanelOpen, setIsPlaybackPanelOpen] = useState(false);
+  const [transitPlaybackRange, setTransitPlaybackRange] = useState(() => !isFreePlayback && isMobileViewport() ? "year" : "month");
+  const [customPlaybackStart, setCustomPlaybackStart] = useState("");
+  const [customPlaybackEnd, setCustomPlaybackEnd] = useState("");
+  const [isMapSettingsOpen, setIsMapSettingsOpen] = useState(false);
+  const [mapSettingsTab, setMapSettingsTab] = useState("playback");
+  const mapSettingsButtonRef = React.useRef(null);
+  const mapControlButtonClass = "inline-flex min-h-8 items-center gap-1.5 rounded-lg px-2.5 text-[11px] font-medium text-mist transition hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold/50 disabled:cursor-not-allowed disabled:opacity-40";
+  const closeMapSettings = () => { setIsMapSettingsOpen(false); mapSettingsButtonRef.current?.focus(); };
+  const handleMapPanelEscape = (event) => {
+    if (event.key !== "Escape") return;
+    event.stopPropagation();
+    setIsAspectListPanelOpen(false);
+    setIsMapControlsMenuOpen(false);
+    closeMapSettings();
+  };
   const natalLayerActive = true;
   const transitLayerActive = true;
   const [isTransitTableCollapsed, setIsTransitTableCollapsed] = useState(false);
   const [isNatalTableCollapsed, setIsNatalTableCollapsed] = useState(false);
   const [mobilePlanetTableTab, setMobilePlanetTableTab] = useState("transit");
   const [mapPlanetDisplayMode, setMapPlanetDisplayMode] = useState("both");
-  const [isMapPlanetDisplayPanelOpen, setIsMapPlanetDisplayPanelOpen] = useState(false);
   const [isMapControlsMenuOpen, setIsMapControlsMenuOpen] = useState(false);
   const [isMapFullscreen, setIsMapFullscreen] = useState(false);
-  const [isMapPositionPanelOpen, setIsMapPositionPanelOpen] = useState(false);
   const [mapZoom, setMapZoom] = useState(() => defaultMapZoom());
   const [mapOffset, setMapOffset] = useState(() => defaultMapOffset());
   const [isRotationPaused, setIsRotationPaused] = useState(false);
   const [isFlatMapView, setIsFlatMapView] = useState(false);
   const [aspectTooltip, setAspectTooltip] = useState(null);
   const [aspectLineFocus, setAspectLineFocus] = useState(null);
-  const [isAspectPanelOpen, setIsAspectPanelOpen] = useState(false);
   const [isAspectListPanelOpen, setIsAspectListPanelOpen] = useState(false);
   const [aspectLineSelections, setAspectLineSelections] = useState(EMPTY_ASPECT_SELECTIONS);
   const [aspectLineMode, setAspectLineMode] = useState("none");
@@ -2021,15 +2034,11 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
   const [aspectTooltipPanelPosition, setAspectTooltipPanelPosition] = useState(null);
   const [aspectListPanelPosition, setAspectListPanelPosition] = useState({ x: 520, y: 104 });
   const [mobileAspectListPanelPosition, setMobileAspectListPanelPosition] = useState({ x: 10, y: 132 });
-  const [isMobileAspectListDetached, setIsMobileAspectListDetached] = useState(false);
-  const [isMobileChartPanelDetached, setIsMobileChartPanelDetached] = useState(true);
-  const [isFullscreenMobileChartPanelOpen, setIsFullscreenMobileChartPanelOpen] = useState(false);
   const permissionVersionRef = React.useRef(0);
   useEffect(() => {
     permissionVersionRef.current += 1;
     if (!canShowAspectList) {
       setIsAspectListPanelOpen(false);
-      setIsMobileAspectListDetached(false);
     }
     if (!canShowCompoundAspects) {
       setAspectLineMode(mode => isCompoundAspectMode(mode) ? "none" : mode);
@@ -2071,6 +2080,32 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
   const minSelectableDate = selectableDates[0] || selectedDate || "";
   const maxSelectableDate = selectableDates[selectableDates.length - 1] || selectedDate || "";
   const hasDirectDateSelection = typeof onSelectDate === "function";
+  let customPlaybackError = "";
+  if (!isFreePlayback && transitPlaybackRange === "custom") {
+    try {
+      customPlaybackDates(customPlaybackStart, customPlaybackEnd, hasDirectDateSelection ? null : selectableDates);
+    } catch (error) {
+      customPlaybackError = error.message;
+    }
+  }
+  const changePlaybackRange = (range) => {
+    if (range === "custom" && !customPlaybackStart && !customPlaybackEnd) {
+      const start = displayedTransitDateTime.date || selectedDate;
+      const end = buildTransitPlaybackDates(start, 31).at(-1) || start;
+      setCustomPlaybackStart(start);
+      setCustomPlaybackEnd(!hasDirectDateSelection && maxSelectableDate < end ? maxSelectableDate : end);
+    }
+    setTransitPlaybackRange(range);
+  };
+  const playbackRangeControls = isFreePlayback ? <p className="text-xs text-mist">再生期間：今日±15日</p> : (
+    <TransitPlaybackControls range={transitPlaybackRange} onRangeChange={changePlaybackRange}
+      start={customPlaybackStart} end={customPlaybackEnd}
+      onStartChange={setCustomPlaybackStart} onEndChange={setCustomPlaybackEnd}
+      min={hasDirectDateSelection ? undefined : minSelectableDate}
+      max={hasDirectDateSelection ? undefined : maxSelectableDate}
+      disabled={isTransitPlaybackActive || isTransitPlaybackPreloading} error={customPlaybackError} />
+  );
+
   useEffect(() => {
     if (!isTransitCalendarOpen) {
       setTransitCalendarMonth(monthKey(selectedDate));
@@ -3954,10 +3989,6 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
     const updateFullscreenState = () => {
       const isFullscreen = document.fullscreenElement === frameRef.current;
       setIsMapFullscreen(isFullscreen);
-      if (isMobileViewport()) {
-        setIsMobileChartPanelDetached(!isFullscreen);
-        setIsFullscreenMobileChartPanelOpen(false);
-      }
     };
     document.addEventListener("fullscreenchange", updateFullscreenState);
     updateFullscreenState();
@@ -4130,54 +4161,7 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
       return next;
     });
   };
-  const beginAspectListDrag = (event) => {
-    if (event.button !== 0) return;
-    aspectListDragRef.current = {
-      offsetX: event.clientX - aspectListPanelPosition.x,
-      offsetY: event.clientY - aspectListPanelPosition.y,
-    };
-    event.currentTarget.setPointerCapture?.(event.pointerId);
-  };
-  const moveAspectListPanel = (event) => {
-    const drag = aspectListDragRef.current;
-    if (!drag) return;
-    const panelWidth = Math.min(520, Math.max(260, window.innerWidth - 170));
-    const panelHeight = 420;
-    setAspectListPanelPosition({
-      x: clamp(event.clientX - drag.offsetX, 8, Math.max(8, window.innerWidth - panelWidth - 8)),
-      y: clamp(event.clientY - drag.offsetY, 8, Math.max(8, window.innerHeight - panelHeight - 8)),
-    });
-  };
-  const endAspectListDrag = (event) => {
-    aspectListDragRef.current = null;
-    event.currentTarget.releasePointerCapture?.(event.pointerId);
-  };
-  const beginMobileAspectListDrag = (event) => {
-    if (event.button !== 0) return;
-    const rect = frameRef.current?.getBoundingClientRect();
-    if (!rect) return;
-    mobileAspectListDragRef.current = {
-      offsetX: event.clientX - rect.left - mobileAspectListPanelPosition.x,
-      offsetY: event.clientY - rect.top - mobileAspectListPanelPosition.y,
-    };
-    event.currentTarget.setPointerCapture?.(event.pointerId);
-  };
-  const moveMobileAspectListPanel = (event) => {
-    const drag = mobileAspectListDragRef.current;
-    const frame = frameRef.current;
-    if (!drag || !frame) return;
-    const rect = frame.getBoundingClientRect();
-    const panelWidth = Math.min(330, Math.max(280, rect.width - 24));
-    const panelHeight = 380;
-    setMobileAspectListPanelPosition({
-      x: clamp(event.clientX - rect.left - drag.offsetX, 8, Math.max(8, rect.width - panelWidth - 8)),
-      y: clamp(event.clientY - rect.top - drag.offsetY, 48, Math.max(48, rect.height - panelHeight - 8)),
-    });
-  };
-  const endMobileAspectListDrag = (event) => {
-    mobileAspectListDragRef.current = null;
-    event.currentTarget.releasePointerCapture?.(event.pointerId);
-  };
+
   const beginAspectTooltipDrag = (event) => {
     if (event.button !== 0) return;
     const frame = frameRef.current;
@@ -4237,26 +4221,27 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
       commitTransitPlaybackPosition(cursor);
       return;
     }
+    if (customPlaybackError) {
+      setTransitChartError(customPlaybackError);
+      return;
+    }
     try {
       setIsTransitPlaybackPreloading(true);
       setTransitPlaybackPreloadProgress(0);
       setTransitChartError("");
       const isMobilePlayback = isMobileViewport();
-      const playbackStartDate = displayedTransitDateTime.date || selectedDate;
+      const playbackStartDate = transitPlaybackRange === "custom"
+        ? customPlaybackStart : displayedTransitDateTime.date || selectedDate;
       const startIndex = Math.max(0, selectableDates.indexOf(playbackStartDate));
-      const rangeOption = isFreePlayback ? TRANSIT_PLAYBACK_RANGE_OPTIONS[0] : isMobilePlayback
-        ? TRANSIT_PLAYBACK_RANGE_OPTIONS.find((option) => option.key === "year")
-        : TRANSIT_PLAYBACK_RANGE_OPTIONS.find((option) => option.key === transitPlaybackRange) || TRANSIT_PLAYBACK_RANGE_OPTIONS[0];
-      const remainingDates = (isFreePlayback ? buildFreePlaybackDates(currentLocalDate()) : hasDirectDateSelection
-        ? buildTransitPlaybackDates(playbackStartDate, rangeOption.days)
-        : selectableDates.length ? selectableDates.slice(startIndex, startIndex + rangeOption.days) : [playbackStartDate]
-      ).filter(Boolean);
-      const playbackStepDays = isMobilePlayback ? 1 : transitPlaybackStepDays;
-      const playbackDates = remainingDates.filter((_, index) => index % playbackStepDays === 0);
-      const finalRemainingDate = remainingDates[remainingDates.length - 1];
-      if (finalRemainingDate && playbackDates.length === 1 && finalRemainingDate !== playbackDates[0]) {
-        playbackDates.push(finalRemainingDate);
-      }
+      const rangeOption = TRANSIT_PLAYBACK_RANGE_OPTIONS.find((option) => option.key === transitPlaybackRange) || TRANSIT_PLAYBACK_RANGE_OPTIONS[0];
+      const remainingDates = isFreePlayback ? buildFreePlaybackDates(currentLocalDate()) : transitPlaybackRange === "custom"
+        ? customPlaybackDates(customPlaybackStart, customPlaybackEnd, hasDirectDateSelection ? null : selectableDates)
+        : (hasDirectDateSelection
+          ? buildTransitPlaybackDates(playbackStartDate, rangeOption.days)
+          : selectableDates.length ? selectableDates.slice(startIndex, startIndex + rangeOption.days) : [playbackStartDate]
+        ).filter(Boolean);
+      const playbackStepDays = transitPlaybackStepDays;
+      const playbackDates = samplePlaybackDates(remainingDates, playbackStepDays);
       await preloadTransitChartsForDates(selectedTransitTime, playbackDates, (completed, total) => {
         setTransitPlaybackPreloadProgress(total ? Math.round((completed / total) * 100) : 100);
       });
@@ -4357,20 +4342,17 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
     setTransitPlaybackCursor(null);
     setPlaybackTransitChart(null);
     setTransitPlaybackStepDays(1);
-    setTransitPlaybackRange("month");
+    setIsMapSettingsOpen(false);
+    setMapSettingsTab("playback");
+    setTransitPlaybackRange(!isFreePlayback && isMobileViewport() ? "year" : "month");
+    setCustomPlaybackStart("");
+    setCustomPlaybackEnd("");
     setIsTransitTableCollapsed(false);
     setIsNatalTableCollapsed(false);
     setMobilePlanetTableTab("transit");
     setMapPlanetDisplayMode("both");
-    setIsMapPlanetDisplayPanelOpen(false);
     setIsMapControlsMenuOpen(false);
-    setIsMapPositionPanelOpen(false);
-    setIsPlaybackPanelOpen(false);
-    setIsAspectPanelOpen(false);
     setIsAspectListPanelOpen(false);
-    setIsMobileAspectListDetached(false);
-    setIsMobileChartPanelDetached(true);
-    setIsFullscreenMobileChartPanelOpen(false);
     setAspectLineMode("none");
     setAspectLineSelections(EMPTY_ASPECT_SELECTIONS);
     setAspectInterpretationScope("none");
@@ -4416,67 +4398,8 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
   const selectMapPlanetDisplayMode = (mode) => {
     if (!MAP_PLANET_DISPLAY_MODE_OPTIONS.some((option) => option.key === mode)) return;
     setMapPlanetDisplayMode(mode);
-    setIsMapPlanetDisplayPanelOpen(false);
   };
-  const MapPlanetDisplaySelector = ({ compact = false } = {}) => {
-    return (
-      <div className={cx("relative z-[120] rounded-xl border border-white/10 bg-[#121414]/78 shadow-[0_10px_26px_rgba(0,0,0,0.24)] backdrop-blur-md", compact ? "w-max p-1" : "p-1.5")}>
-        <button
-          type="button"
-          onClick={() => {
-            setIsMapPlanetDisplayPanelOpen((value) => {
-              const next = !value;
-              if (next) {
-                setIsPlaybackPanelOpen(false);
-                setIsAspectPanelOpen(false);
-              }
-              return next;
-            });
-          }}
-          className={cx("inline-flex items-center rounded-lg px-2 font-mono font-bold text-mist transition hover:bg-white/10 hover:text-gold focus:outline-none focus:ring-2 focus:ring-gold/45", compact ? "h-7 text-[8px]" : "h-8 w-max text-[9px] sm:text-[10px]")}
-          aria-expanded={isMapPlanetDisplayPanelOpen}
-          aria-controls={`map-planet-display-options-${compact ? "mobile" : "desktop"}`}
-          aria-label={`表示天体: ${selectedMapPlanetDisplayMode.label}`}
-          title="表示天体を切り替え"
-        >
-          <span>{selectedMapPlanetDisplayMode.label}</span>
-        </button>
-        <div
-          id={`map-planet-display-options-${compact ? "mobile" : "desktop"}`}
-          className={cx(
-            "absolute top-0 z-[110] flex w-max gap-1 rounded-xl border border-white/10 bg-[#121414]/94 font-mono font-bold shadow-[0_18px_42px_rgba(0,0,0,0.42)] backdrop-blur-md transition",
-            compact ? "left-full ml-1 p-1" : "right-full mr-1 p-1.5",
-            isMapPlanetDisplayPanelOpen ? "pointer-events-auto translate-x-0 opacity-100" : "pointer-events-none translate-x-1 opacity-0"
-          )}
-          aria-hidden={!isMapPlanetDisplayPanelOpen}
-        >
-          {MAP_PLANET_DISPLAY_MODE_OPTIONS.map((option) => (
-            <button
-              key={option.key}
-              type="button"
-              onPointerDown={(event) => {
-                event.stopPropagation();
-                selectMapPlanetDisplayMode(option.key);
-              }}
-              onPointerUp={(event) => {
-                event.stopPropagation();
-                selectMapPlanetDisplayMode(option.key);
-              }}
-              onClick={() => selectMapPlanetDisplayMode(option.key)}
-              className={cx(
-                "whitespace-nowrap rounded-lg px-2 text-left transition",
-                compact ? "h-7 text-[8px]" : "py-2 text-[9px] sm:text-[10px]",
-                mapPlanetDisplayMode === option.key ? "bg-gold/18 text-gold ring-1 ring-gold/35" : "text-mist/75 hover:bg-white/10 hover:text-starlight"
-              )}
-              aria-pressed={mapPlanetDisplayMode === option.key}
-            >
-              {option.label}
-            </button>
-            ))}
-            </div>
-          </div>
-    );
-  };
+
   const MobileChartDisplayPanel = () => (
     <>
       <div className="grid grid-cols-2 gap-1 rounded-xl border border-white/10 bg-white/[0.025] p-1 font-mono text-[9px] font-bold">
@@ -4502,18 +4425,7 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
         <div className="rounded-xl border border-white/10 bg-white/[0.025] p-1.5">
           <div className="mb-2 flex items-center justify-between gap-2">
             <span className={cx("font-mono text-[9px] font-bold", transitLayerActive ? "text-gold/80" : "text-mist/45")}>現行天体</span>
-            {isMapFullscreen ? (
-              <button
-                type="button"
-                onClick={() => setIsFullscreenMobileChartPanelOpen(false)}
-                onPointerDown={(event) => event.stopPropagation()}
-                className="inline-flex h-6 shrink-0 items-center justify-center whitespace-nowrap rounded-md border border-white/10 bg-white/[0.04] px-1.5 font-mono text-[8px] font-bold text-mist/80 transition hover:border-gold/35 hover:bg-gold/10 hover:text-gold focus:outline-none focus:ring-2 focus:ring-gold/35"
-                aria-label="現行天体チャートを最小化"
-                title="最小化"
-              >
-                最小化
-              </button>
-            ) : null}
+
           </div>
           <div className="mb-1 grid grid-cols-[0.5rem_2.45rem_2.7rem_1.45rem_2.45rem] items-center gap-1 px-1 font-mono text-[8px] font-bold text-mist/45">
             <span />
@@ -4545,18 +4457,7 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
         <div className="rounded-xl border border-white/10 bg-white/[0.025] p-1.5">
           <div className="mb-2 flex items-center justify-between gap-2">
             <span className={cx("font-mono text-[9px] font-bold", natalLayerActive ? "text-gold" : "text-mist/55")}>ネイタル</span>
-            {isMapFullscreen ? (
-              <button
-                type="button"
-                onClick={() => setIsFullscreenMobileChartPanelOpen(false)}
-                onPointerDown={(event) => event.stopPropagation()}
-                className="inline-flex h-6 shrink-0 items-center justify-center whitespace-nowrap rounded-md border border-white/10 bg-white/[0.04] px-1.5 font-mono text-[8px] font-bold text-mist/80 transition hover:border-gold/35 hover:bg-gold/10 hover:text-gold focus:outline-none focus:ring-2 focus:ring-gold/35"
-                aria-label="ネイタルチャートを最小化"
-                title="最小化"
-              >
-                最小化
-              </button>
-            ) : null}
+
           </div>
           <div className="mb-1 grid grid-cols-[0.5rem_2.45rem_2.7rem_1.45rem_2.45rem] items-center gap-1 px-1 font-mono text-[8px] font-bold text-mist/45">
             <span />
@@ -4587,109 +4488,6 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
       )}
     </>
   );
-  const MobileAspectDisplaySelector = () => (
-    <div className="relative z-[119] flex w-max items-start font-mono text-[8px] font-bold sm:hidden">
-      <div className="rounded-xl border border-white/10 bg-[#121414]/78 p-1 shadow-[0_10px_26px_rgba(0,0,0,0.24)] backdrop-blur-md">
-        <button
-          type="button"
-          onClick={() => {
-            setIsMapPlanetDisplayPanelOpen(false);
-            setIsPlaybackPanelOpen(false);
-            setIsAspectPanelOpen((value) => !value);
-          }}
-          className={cx(
-            "inline-flex h-7 items-center gap-1 rounded-lg px-2 text-mist transition hover:bg-white/10 hover:text-gold focus:outline-none focus:ring-2 focus:ring-gold/45",
-            isAspectPanelOpen && "bg-gold/15 text-gold"
-          )}
-          aria-expanded={isAspectPanelOpen}
-          aria-controls="mobile-aspect-display-options"
-        >
-          <span>{isAspectPanelOpen ? "<<" : ">>"}</span>
-          <span>{isAspectPanelOpen ? "アスペクト表示" : selectedAspectDisplayMode.label}</span>
-        </button>
-      </div>
-      <div
-        id="mobile-aspect-display-options"
-        className={cx(
-          "absolute left-full top-0 ml-1 max-h-[min(420px,calc(100dvh-170px))] overflow-y-auto rounded-xl border border-white/10 bg-[#121414]/94 font-mono font-bold text-mist shadow-[0_18px_42px_rgba(0,0,0,0.42)] backdrop-blur-md transition-all duration-300 ease-out [scrollbar-width:none] [&::-webkit-scrollbar]:hidden",
-          isAspectPanelOpen
-            ? "pointer-events-auto w-[min(300px,calc(100vw-110px))] translate-x-0 p-1.5 opacity-100"
-            : "pointer-events-none w-0 -translate-x-2 border-transparent p-0 opacity-0"
-        )}
-        aria-hidden={!isAspectPanelOpen}
-      >
-        <div className="grid grid-cols-2 gap-1">
-          {ASPECT_DISPLAY_MODE_OPTIONS.map((option) => (
-            <button
-              key={`mobile-map-aspect-mode-${option.key}`}
-              type="button"
-              data-aspect-mode={option.key}
-              disabled={isLockedAspectMode(option.key, policy)}
-              title={isLockedAspectMode(option.key, policy) ? "有料版で利用できます" : undefined}
-              onClick={() => selectAspectLineMode(option.key)}
-              className={cx(
-                "min-h-9 rounded-lg border px-1 py-1 text-left transition disabled:cursor-not-allowed disabled:opacity-40",
-                aspectLineMode === option.key
-                  ? "border-gold/50 bg-gold/18 text-gold ring-1 ring-gold/35"
-                  : "border-white/10 bg-white/[0.03] text-mist/65 hover:text-starlight"
-              )}
-              aria-pressed={aspectLineMode === option.key}
-            >
-              <span className="block text-[9px] leading-4">{option.label}</span>
-              <span className="block text-[7px] leading-3 text-mist/50">{option.description}</span>
-              {isLockedAspectMode(option.key, policy) && <span className="flex items-center gap-1 text-[7px]"><LockKeyhole size={9} />有料版</span>}
-            </button>
-          ))}
-        </div>
-        {aspectLineMode === "custom" ? (
-          <div className="mt-1.5 grid gap-1.5">
-            {ASPECT_LINE_SCOPE_OPTIONS.map((option) => (
-              <section key={`mobile-map-aspect-custom-${option.key}`} className="rounded-lg border border-white/10 bg-white/[0.025] p-1.5">
-                <div className="mb-1.5 flex items-center justify-between gap-1">
-                  <div className="min-w-0">
-                    <p className="truncate text-[9px] text-starlight">{option.label}</p>
-                    <p className="truncate text-[7px] text-mist/50">{option.shortLabel}</p>
-                  </div>
-                  <div className="flex shrink-0 gap-1">
-                    <button type="button" onClick={() => setAspectLineGroupSelection(option.key, "all")} className="h-6 rounded border border-white/10 bg-white/[0.03] px-1.5 text-[7px] text-mist/70">全選択</button>
-                    <button type="button" onClick={() => setAspectLineGroupSelection(option.key, "none")} className="h-6 rounded border border-white/10 bg-white/[0.03] px-1.5 text-[7px] text-mist/70">全解除</button>
-                  </div>
-                </div>
-                <div className="grid gap-1">
-                  {option.key !== "natalNatal" ? (
-                    <div className="grid grid-cols-5 gap-1" aria-label={`${option.title}の現行天体`}>
-                      {sky.transits.map((item) => {
-                        const checked = aspectLineSelections[option.key].transit.includes(item.planet);
-                        return (
-                          <label key={`mobile-map-aspect-${option.key}-transit-${item.planet}`} className={cx("flex h-7 cursor-pointer items-center justify-center rounded-md border text-[12px] transition", checked ? "border-sky-300/45 bg-sky-300/15 text-sky-100" : "border-white/10 bg-white/[0.03] text-mist/65")} title={`現行${planetLabel(item.planet)}`}>
-                            <input type="checkbox" checked={checked} onChange={() => toggleAspectLineSelection(option.key, "transit", item.planet)} className="sr-only" />
-                            {PLANET_SYMBOLS[item.planet] || item.label}
-                          </label>
-                        );
-                      })}
-                    </div>
-                  ) : null}
-                  {option.key !== "transitTransit" ? (
-                    <div className="grid grid-cols-6 gap-1" aria-label={`${option.title}のネイタル天体`}>
-                      {sky.natalPoints.map((item) => {
-                        const checked = aspectLineSelections[option.key].natal.includes(item.planet);
-                        return (
-                          <label key={`mobile-map-aspect-${option.key}-natal-${item.planet}`} className={cx("flex h-7 cursor-pointer items-center justify-center rounded-md border text-[11px] transition", checked ? "border-gold/50 bg-gold/15 text-gold" : "border-white/10 bg-white/[0.03] text-mist/65")} title={`ネイタル${planetLabel(item.planet)}`}>
-                            <input type="checkbox" checked={checked} onChange={() => toggleAspectLineSelection(option.key, "natal", item.planet)} className="sr-only" />
-                            {PLANET_SYMBOLS[item.planet] || planetLabel(item.planet)}
-                          </label>
-                        );
-                      })}
-                    </div>
-                  ) : null}
-                </div>
-              </section>
-            ))}
-          </div>
-        ) : null}
-      </div>
-    </div>
-  );
 
   return (
     <GlassPanel className="overflow-hidden border-gold/25 p-0">
@@ -4708,518 +4506,71 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
           }}
         >
           <div ref={mountRef} className="absolute inset-0" aria-label="現行天体とネイタル天体の3Dマップ" />
-          <div className="absolute bottom-2 left-2 z-30 h-9 w-[96px]">
-            <div
-              id="map-position-panel"
-              className={cx(
-                "absolute bottom-10 left-0 grid w-[120px] origin-bottom-left rounded-xl border border-white/10 bg-[#121414]/76 p-1.5 font-mono text-[12px] font-bold text-mist shadow-[0_18px_42px_rgba(0,0,0,0.32)] backdrop-blur-md transition-all duration-200",
-                isMapPositionPanelOpen ? "scale-100 opacity-100" : "pointer-events-none scale-95 opacity-0"
-              )}
-              aria-hidden={!isMapPositionPanelOpen}
-            >
-              <div className="grid grid-cols-[32px_32px_32px] justify-center gap-1.5">
-                <span />
-                <button type="button" onClick={() => nudgeMapPosition(0, 0.12)} className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-white/10 bg-white/[0.035] transition hover:border-gold/35 hover:text-gold" aria-label="3Dマップを上へ移動" title="上へ">↑</button>
-                <span />
-                <button type="button" onClick={() => nudgeMapPosition(-0.12, 0)} className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-white/10 bg-white/[0.035] transition hover:border-gold/35 hover:text-gold" aria-label="3Dマップを左へ移動" title="左へ">←</button>
-                <button type="button" onClick={() => nudgeMapPosition(0, -0.12)} className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-white/10 bg-white/[0.035] transition hover:border-gold/35 hover:text-gold" aria-label="3Dマップを下へ移動" title="下へ">↓</button>
-                <button type="button" onClick={() => nudgeMapPosition(0.12, 0)} className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-white/10 bg-white/[0.035] transition hover:border-gold/35 hover:text-gold" aria-label="3Dマップを右へ移動" title="右へ">→</button>
-              </div>
-            </div>
-            <button
-              type="button"
-              onClick={() => setIsMapPositionPanelOpen((value) => !value)}
-              onDoubleClick={resetMapPosition}
-              className={cx(
-                "absolute bottom-0 left-0 inline-flex h-9 w-[96px] items-center justify-center rounded-xl border px-2 font-mono text-[9px] font-bold shadow-[0_10px_26px_rgba(0,0,0,0.28)] backdrop-blur transition",
-                isMapPositionPanelOpen ? "border-gold/35 bg-gold/15 text-gold" : "border-white/10 bg-[#121414]/72 text-mist hover:bg-white/10 hover:text-gold"
-              )}
-              aria-expanded={isMapPositionPanelOpen}
-              aria-controls="map-position-panel"
-              aria-label="3Dマップの位置調整"
-              title="位置調整 / ダブルクリックでリセット"
-            >
-              位置調整
-            </button>
-          </div>
-          <div className="absolute left-2 top-2 z-[90] grid gap-1 text-shadow-sm sm:hidden">
-            <div className="flex items-center gap-0.5">
+
+          <div className="pointer-events-none absolute inset-x-3 top-3 z-[100] flex flex-wrap items-start justify-between gap-2 sm:inset-x-4 sm:top-4">
+            <div className="pointer-events-auto flex h-10 items-center gap-1.5 rounded-xl border border-white/10 bg-[#101827]/90 px-2 shadow-lg backdrop-blur-xl">
               <TransitDatePicker compact />
               <select
-                value={displayedTransitDateTime.time || selectedTransitTime}
-                onChange={(event) => {
-                  setIsTransitPlaybackActive(false);
-                  setTransitPlaybackCursor(null);
-                  setPlaybackTransitChart(null);
-                  setSelectedTransitTime(event.target.value);
-                }}
-                className="h-7 w-[66px] rounded-md border border-white/10 bg-[#121414]/70 px-1 font-mono text-[10px] font-bold text-starlight outline-none transition [color-scheme:dark] focus:border-gold/50 focus:ring-2 focus:ring-gold/25"
-                aria-label="現行天体の計算時刻"
-                title="現行天体の計算時刻"
-              >
-                {timeOptions.map((time) => (
-                  <option key={time} value={time}>{time}</option>
-                ))}
-              </select>
-              {transitChartLoading ? (
-                <span className="font-mono text-[9px] font-bold text-mist/70">計算中</span>
-              ) : null}
-            </div>
-            <div className="inline-flex w-max items-center gap-1">
-              <button
-                type="button"
-                onClick={resetMapSettings}
-                className="inline-flex h-8 items-center gap-1 rounded-xl border border-white/10 bg-[#121414]/72 px-2 font-mono text-[9px] font-bold text-mist shadow-[0_10px_26px_rgba(0,0,0,0.28)] backdrop-blur transition hover:bg-white/10 hover:text-gold focus:outline-none focus:ring-2 focus:ring-gold/45"
-                aria-label="3Dマップの設定を初期状態に戻す"
-                title="初期設定に戻す"
-              >
-                <RefreshCw size={13} />
-                <span>リセット</span>
-              </button>
-              <div className="inline-flex h-8 items-center gap-1 rounded-xl border border-white/10 bg-[#121414]/72 px-0.5 shadow-[0_10px_26px_rgba(0,0,0,0.28)] backdrop-blur">
-              <button type="button" onClick={zoomOutMap} disabled={mapZoom <= minimumMapZoom()} className="inline-flex h-7 w-8 items-center justify-center rounded-lg text-mist transition hover:bg-white/10 hover:text-gold disabled:opacity-35" aria-label="3Dマップを縮小" title="縮小"><Minus size={15} /></button>
-              <button type="button" onClick={zoomInMap} disabled={mapZoom >= 1.35} className="inline-flex h-7 w-8 items-center justify-center rounded-lg text-mist transition hover:bg-white/10 hover:text-gold disabled:opacity-35" aria-label="3Dマップを拡大" title="拡大"><Plus size={15} /></button>
-              <button type="button" onClick={() => setIsRotationPaused((value) => !value)} className="inline-flex h-7 w-9 items-center justify-center rounded-lg font-mono text-[7px] font-bold leading-[0.95] text-mist transition hover:bg-white/10 hover:text-gold" aria-label={isRotationPaused ? "3Dマップの回転を再開" : "3Dマップの回転を停止"} title={isRotationPaused ? "回転再開" : "回転停止"}>
-                <span>{isRotationPaused ? <>回転<br />再開</> : <>回転<br />停止</>}</span>
-              </button>
-              <button type="button" onClick={toggleFlatMapView} className="inline-flex h-7 w-8 items-center justify-center rounded-lg font-mono text-[9px] font-bold text-mist transition hover:bg-white/10 hover:text-gold" aria-label={isFlatMapView ? "3Dマップを立体表示に戻す" : "3Dマップを平面表示で見る"} title={isFlatMapView ? "3D表示" : "平面表示"}>{isFlatMapView ? "3D" : "2D"}</button>
-              <button
-                type="button"
-                onClick={toggleTransitPlayback}
-                className={cx(
-                  "relative inline-flex h-7 w-12 items-center justify-center overflow-hidden rounded-lg text-mist transition hover:bg-white/10 hover:text-gold disabled:cursor-wait disabled:opacity-90",
-                  isTransitPlaybackActive ? "text-gold" : "text-cyan-200/85 hover:text-cyan-100"
-                )}
-                disabled={isTransitPlaybackPreloading}
-                aria-pressed={isTransitPlaybackActive}
-                aria-label={isTransitPlaybackActive ? "現行天体の再生を停止" : "現行天体を再生"}
-                title={isTransitPlaybackPreloading ? "読込中" : isTransitPlaybackActive ? "再生停止" : "再生"}
-              >
-                {isTransitPlaybackPreloading ? (
-                  <>
-                    <span
-                      className="absolute inset-y-0 left-0 bg-cyan-300/25 transition-[width] duration-200"
-                      style={{ width: `${Math.max(4, transitPlaybackPreloadProgress)}%` }}
-                      aria-hidden="true"
-                    />
-                    <span className="relative z-10 whitespace-nowrap font-mono text-[8px] font-bold leading-none text-cyan-100">読込中</span>
-                  </>
-                ) : isTransitPlaybackActive ? <Pause size={14} /> : <Play size={14} />}
-              </button>
-              {isFreePlayback && <span className="whitespace-nowrap px-1 font-mono text-[8px] text-mist/75">今日±15日</span>}
-              </div>
-            </div>
-            <MapPlanetDisplaySelector compact />
-            <MobileAspectDisplaySelector />
-          </div>
-          <div className="absolute right-2 top-2 z-30 sm:hidden">
-            <button type="button" onClick={toggleMapFullscreen} className="inline-flex h-8 w-8 items-center justify-center rounded-xl border border-white/10 bg-[#121414]/72 text-mist shadow-[0_10px_26px_rgba(0,0,0,0.28)] backdrop-blur transition hover:bg-white/10 hover:text-gold" aria-label={isMapFullscreen ? "3Dマップの全画面を閉じる" : "3Dマップを全画面で表示"} title={isMapFullscreen ? "全画面を閉じる" : "全画面"}>{isMapFullscreen ? <Minimize2 size={15} /> : <Maximize2 size={15} />}</button>
-          </div>
-          {!isMobileChartPanelDetached && (!isMapFullscreen || isFullscreenMobileChartPanelOpen) ? (
-            <div
-              className={cx(
-                "absolute inset-x-2 z-30 overflow-y-auto rounded-2xl border border-white/10 bg-[#121414]/76 p-2 font-mono text-[9px] font-bold text-mist shadow-[0_18px_42px_rgba(0,0,0,0.28)] backdrop-blur-md sm:hidden",
-                isMapFullscreen ? "bottom-12 max-h-[calc(100%-6rem)]" : "bottom-2 max-h-[calc(100%-3.5rem)]"
-              )}
-              onPointerDown={(event) => event.stopPropagation()}
+              value={displayedTransitDateTime.time || selectedTransitTime}
+              onChange={(event) => {
+                setIsTransitPlaybackActive(false);
+                setTransitPlaybackCursor(null);
+                setPlaybackTransitChart(null);
+                setSelectedTransitTime(event.target.value);
+              }}
+              className="h-7 rounded-md border border-white/10 bg-[#121414]/70 px-2 font-mono text-[10px] font-bold text-starlight outline-none transition focus:border-gold/50 focus:ring-2 focus:ring-gold/25"
+              aria-label="現行天体の計算時刻"
+              title="現行天体の計算時刻"
             >
-              <MobileChartDisplayPanel />
-            </div>
-          ) : null}
-          {isMapFullscreen && !isMobileChartPanelDetached ? (
-            <div className="absolute bottom-2 left-1/2 z-30 -translate-x-1/2 sm:hidden">
-              <button
-                type="button"
-                onClick={() => setIsFullscreenMobileChartPanelOpen((value) => !value)}
-                className={cx(
-                  "inline-flex h-9 items-center gap-1 rounded-xl border px-2 font-mono text-[9px] font-bold shadow-[0_10px_26px_rgba(0,0,0,0.28)] backdrop-blur transition",
-                  isFullscreenMobileChartPanelOpen ? "border-gold/35 bg-gold/15 text-gold" : "border-white/10 bg-[#121414]/72 text-mist hover:bg-white/10 hover:text-gold"
-                )}
-                aria-expanded={isFullscreenMobileChartPanelOpen}
-                aria-label={isFullscreenMobileChartPanelOpen ? "チャートを最小化" : "チャートを表示"}
-              >
-                <span>{isFullscreenMobileChartPanelOpen ? "<<" : ">>"}</span>
-                <span>チャート</span>
-              </button>
-            </div>
-          ) : null}
-          {canShowAspectList && (<div className="absolute bottom-2 right-2 z-30 sm:hidden">
-            <button
-              type="button"
-              onClick={() => setIsAspectListPanelOpen((value) => !value)}
-              className={cx(
-                "inline-flex h-9 items-center gap-1 rounded-xl border px-2 font-mono text-[9px] font-bold shadow-[0_10px_26px_rgba(0,0,0,0.28)] backdrop-blur transition",
-                isAspectListPanelOpen ? "border-gold/35 bg-gold/15 text-gold" : "border-white/10 bg-[#121414]/72 text-mist hover:bg-white/10 hover:text-gold"
-              )}
-              aria-expanded={isAspectListPanelOpen}
-              aria-controls="mobile-aspect-interpretation-panel"
-            >
-              <span>{isAspectListPanelOpen ? "<<" : ">>"}</span>
-              <span>アスペクト一覧</span>
-            </button>
-          </div>)}
-          {canShowAspectList && (<div
-            id="mobile-aspect-interpretation-panel"
-            className={cx(
-              "z-[130] flex flex-col overflow-hidden rounded-xl border border-white/10 bg-[#121414]/48 p-2 font-mono text-[9px] font-bold text-mist shadow-[0_18px_42px_rgba(0,0,0,0.24)] backdrop-blur-sm transition-opacity duration-300 sm:hidden",
-              isMobileAspectListDetached ? "hidden" : "absolute h-[min(380px,calc(100%-6rem))]",
-              isAspectListPanelOpen ? "opacity-100" : "pointer-events-none border-transparent opacity-0"
-            )}
-            style={{
-              left: `${mobileAspectListPanelPosition.x}px`,
-              top: `${mobileAspectListPanelPosition.y}px`,
-              width: "min(330px, calc(100% - 24px))",
-            }}
-            aria-hidden={!isAspectListPanelOpen}
-          >
-            <button
-              type="button"
-              onClick={() => setIsAspectListPanelOpen(false)}
-              onPointerDown={(event) => event.stopPropagation()}
-              className="absolute right-1 top-1 z-10 inline-flex h-5 w-5 items-center justify-center rounded-md border border-white/10 bg-[#121414]/70 text-[11px] leading-none text-mist/70 transition hover:border-gold/35 hover:bg-gold/10 hover:text-gold focus:outline-none focus:ring-2 focus:ring-gold/35"
-              aria-label="アスペクト一覧を閉じる"
-              title="閉じる"
-            >
-              ×
-            </button>
-            <div
-              className="mb-2 flex cursor-move touch-none select-none flex-nowrap items-center gap-1.5 rounded-lg border border-white/10 bg-white/[0.055] px-2 py-1.5 pr-7 text-starlight"
-              onPointerDown={beginMobileAspectListDrag}
-              onPointerMove={moveMobileAspectListPanel}
-              onPointerUp={endMobileAspectListDrag}
-              onPointerCancel={endMobileAspectListDrag}
-              title="ドラッグで移動"
-            >
-              <span className="shrink-0 whitespace-nowrap text-[9px]">アスペクト一覧</span>
-              <span className="shrink-0 whitespace-nowrap rounded border border-white/10 bg-white/[0.035] px-1 py-0.5 text-[7px] text-mist/70">
-                {displayedTransitDateTime.date} {displayedTransitDateTime.time || selectedTransitTime}
-              </span>
-              <button
-                type="button"
-                onPointerDown={beginMobileAspectListDrag}
-                onPointerMove={moveMobileAspectListPanel}
-                onPointerUp={endMobileAspectListDrag}
-                onPointerCancel={endMobileAspectListDrag}
-                className="inline-flex h-5 shrink-0 items-center justify-center gap-0.5 whitespace-nowrap rounded border border-white/15 bg-white/[0.04] px-1 text-[7px] text-starlight/85 transition hover:border-gold/35 hover:bg-gold/10 hover:text-gold focus:outline-none focus:ring-2 focus:ring-gold/35"
-                aria-label="アスペクト一覧を移動"
-                title="移動"
-              >
-                <Move size={10} aria-hidden="true" />
-                <span>移動</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setIsMobileAspectListDetached((value) => !value)}
-                onPointerDown={(event) => event.stopPropagation()}
-                className="inline-flex h-5 shrink-0 items-center justify-center whitespace-nowrap rounded border border-white/10 bg-white/[0.04] px-1 text-[7px] text-mist/80 transition hover:border-gold/35 hover:bg-gold/10 hover:text-gold focus:outline-none focus:ring-2 focus:ring-gold/35"
-                aria-label={isMobileAspectListDetached ? "アスペクト一覧をマップ内表示に戻す" : "アスペクト一覧を画面外表示にする"}
-                title={isMobileAspectListDetached ? "マップ内表示" : "画面外表示"}
-              >
-                {isMobileAspectListDetached ? "マップ内表示" : "画面外表示"}
-              </button>
-            </div>
-            <div className="mb-2 flex flex-nowrap gap-1 rounded-lg border border-white/10 bg-white/[0.025] p-1">
-              {[
-                ["natalNatal", "ネイタル同士"],
-                ["transitNatal", "出生図との関係"],
-                ["transitTransit", "現行天体同士"],
-                ["composite", "複合アスペクト"],
-              ].map(([value, label]) => (
-                <button
-                  key={`mobile-map-interpretation-${value}`}
-                  type="button"
-                  onClick={() => setAspectInterpretationScope(value)}
-                  className={cx("h-7 min-w-0 flex-1 rounded-md px-1 text-[7px] leading-none transition", aspectInterpretationScope === value ? "bg-gold/18 text-gold ring-1 ring-gold/35" : "text-mist/65 hover:bg-white/10 hover:text-starlight")}
-                  aria-pressed={aspectInterpretationScope === value}
-                >
-                  {label}
-                </button>
+              {timeOptions.map((time) => (
+                <option key={time} value={time}>{time}</option>
               ))}
+            </select>
+              {transitChartLoading && <span role="status" className="text-[9px] text-mist/65">計算中</span>}
             </div>
-            {aspectInterpretationScope === "composite" ? (
-              <div className="mb-2 grid grid-cols-3 gap-1 rounded-lg border border-gold/15 bg-gold/[0.035] p-1">
-                {[
-                  ["mixed", "出生図絡み"],
-                  ["transitOnly", "現行天体同士"],
-                  ["natalOnly", "ネイタルのみ"],
-                ].map(([value, label]) => (
-                  <button
-                    key={`mobile-compound-category-${value}`}
-                    type="button"
-                    onClick={() => selectCompoundAspectListCategory(value)}
-                    className={cx(
-                      "h-7 rounded-md px-1 text-[7px] transition",
-                      compoundAspectListCategory === value
-                        ? "bg-gold/18 text-gold ring-1 ring-gold/35"
-                        : "text-mist/65 hover:bg-white/10 hover:text-starlight"
-                    )}
-                    aria-pressed={compoundAspectListCategory === value}
-                  >
-                    {label}
-                  </button>
-                ))}
-              </div>
-            ) : null}
-            <div className="grid min-h-0 flex-1 grid-cols-[24px_1fr] gap-2 overflow-y-auto overscroll-contain pb-3 pr-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-              <div className="flex self-stretch flex-col gap-0">
-                <p className="shrink-0 text-center text-[7px] leading-none text-mist/65">影響度</p>
-                <div className="relative flex min-h-0 flex-1 flex-col items-center justify-between rounded-full bg-gradient-to-b from-[#ff5c68] via-gold/45 to-white/10 py-0 text-[7px] leading-none text-gold shadow-[0_0_14px_rgba(255,92,104,0.22)]">
-                  <span className="writing-mode-vertical-rl [writing-mode:vertical-rl] text-[#ffb4ab]">高</span>
-                  <span className="writing-mode-vertical-rl [writing-mode:vertical-rl] text-mist/55">低</span>
-                </div>
-              </div>
-              <div className="grid gap-1.5">
-                {aspectInterpretationItems.length ? aspectInterpretationItems.map((aspect) => {
-                  const isOpen = openAspectInterpretationKeys.has(aspect.key);
-                  const isLineHighlighted = selectedAspectLineHighlightKey === aspectLineHighlightKey(aspect);
-                  const isCompoundAspectItem = aspect.scope === "composite";
-                  const toneClass = aspect.importance.tone === "high"
-                    ? "border-gold/35 bg-gold/[0.09] text-gold"
-                    : aspect.importance.tone === "mid"
-                      ? "border-sky-300/25 bg-sky-300/[0.07] text-sky-100"
-                      : "border-white/10 bg-white/[0.025] text-mist/70";
-                  return (
-                    <article
-                      key={`mobile-map-${aspect.key}`}
-                      className={cx("overflow-hidden rounded-lg border bg-white/[0.025] backdrop-blur-[2px]", isLineHighlighted ? "border-current" : "border-white/10")}
-                      style={isLineHighlighted ? { color: aspect.color, boxShadow: `0 0 18px ${aspect.color}44` } : undefined}
-                    >
-                      <button
-                        type="button"
-                        onClick={() => toggleAspectInterpretation(aspect.key, aspect)}
-                        className="flex w-full items-start gap-2 px-2.5 py-2 text-left transition hover:bg-white/[0.035] focus:outline-none focus:ring-2 focus:ring-gold/35"
-                        aria-expanded={isOpen}
-                      >
-                        <span className="mt-1 h-2.5 w-1.5 shrink-0 rounded-full" style={{ backgroundColor: aspect.color }} />
-                        <span className="min-w-0 flex-1">
-                          <span className="block truncate text-[10px] text-starlight">
-                            {isCompoundAspectItem ? `${compoundKindLabel(aspect.kind)}: ${aspect.detailText}` : aspect.title}
-                          </span>
-                          <span className="mt-0.5 block text-[8px] leading-4 text-mist/60">
-                            {isCompoundAspectItem ? aspect.labels?.join(" × ") : aspect.detailText || `実角度 ${Number.isFinite(aspect.liveAngle) ? aspect.liveAngle.toFixed(1) : "-"}°`}
-                            {!aspect.detailText && Number.isFinite(aspect.orb) ? ` / オーブ ${aspect.orb.toFixed(2)}°` : ""}
-                            {aspect.status ? ` / ${aspect.status}` : ""}
-                          </span>
-                        </span>
-                        <span className="shrink-0 text-right">
-                          <span className={cx("inline-flex rounded border px-1.5 py-0.5 text-[8px]", toneClass)}>{aspect.importance.label}</span>
-                          <span className="mt-1 block text-[8px] text-mist/60">{isOpen ? "閉じる" : ">>解釈"}</span>
-                        </span>
-                      </button>
-                      {isOpen ? <p className="border-t border-white/10 bg-white/[0.025] px-3 py-3 text-xs font-medium leading-6 text-mist">{aspect.description}</p> : null}
-                    </article>
-                  );
-                }) : <p className="rounded-lg border border-white/10 bg-white/[0.035] px-3 py-4 text-xs leading-6 text-mist">このタイミングの主要アスペクトはありません。</p>}
-              </div>
-            </div>
-          </div>)}
-          <div className="absolute right-4 top-4 z-30 hidden items-center gap-1.5 sm:flex">
-            <button
-              type="button"
-              onClick={resetMapSettings}
-              className="inline-flex h-8 items-center gap-1 rounded-xl border border-white/10 bg-[#121414]/72 px-2 font-mono text-[9px] font-bold text-mist shadow-[0_10px_26px_rgba(0,0,0,0.28)] backdrop-blur transition hover:bg-white/10 hover:text-gold focus:outline-none focus:ring-2 focus:ring-gold/45 sm:text-[10px]"
-              aria-label="3Dマップの設定を初期状態に戻す"
-              title="初期設定に戻す"
-            >
-              <RefreshCw size={14} />
-              <span>リセット</span>
-            </button>
-            <div className="flex items-center gap-1.5 rounded-xl border border-white/10 bg-[#121414]/72 p-1 shadow-[0_10px_26px_rgba(0,0,0,0.28)] backdrop-blur">
-            <button
-              type="button"
-              onClick={zoomOutMap}
-              className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-mist transition hover:bg-white/10 hover:text-gold focus:outline-none focus:ring-2 focus:ring-gold/45 disabled:cursor-not-allowed disabled:opacity-35"
-              aria-label="3Dマップを縮小"
-              title="縮小"
-                  disabled={mapZoom <= minimumMapZoom()}
-            >
-              <Minus size={16} />
-            </button>
-            <button
-              type="button"
-              onClick={zoomInMap}
-              className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-mist transition hover:bg-white/10 hover:text-gold focus:outline-none focus:ring-2 focus:ring-gold/45 disabled:cursor-not-allowed disabled:opacity-35"
-              aria-label="3Dマップを拡大"
-              title="拡大"
-              disabled={mapZoom >= 1.35}
-            >
-              <Plus size={16} />
-            </button>
-            <button
-              type="button"
-              onClick={() => setIsRotationPaused((value) => !value)}
-              className="inline-flex h-8 items-center rounded-lg px-2 font-mono text-[9px] font-bold text-mist transition hover:bg-white/10 hover:text-gold focus:outline-none focus:ring-2 focus:ring-gold/45 sm:text-[10px]"
-              aria-label={isRotationPaused ? "3Dマップの回転を再開" : "3Dマップの回転を停止"}
-              title={isRotationPaused ? "回転再開" : "回転停止"}
-            >
-              <span>{isRotationPaused ? "回転再開" : "回転停止"}</span>
-            </button>
-            <button
-              type="button"
-              onClick={toggleFlatMapView}
-              className="inline-flex h-8 items-center rounded-lg px-2 font-mono text-[9px] font-bold text-mist transition hover:bg-white/10 hover:text-gold focus:outline-none focus:ring-2 focus:ring-gold/45 sm:text-[10px]"
-              aria-label={isFlatMapView ? "3Dマップを立体表示に戻す" : "3Dマップを平面表示で見る"}
-              title={isFlatMapView ? "3D表示" : "平面表示"}
-            >
-              {isFlatMapView ? "3D表示" : "平面表示"}
-            </button>
-            <button
-              type="button"
-              onClick={toggleMapFullscreen}
-              className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-mist transition hover:bg-white/10 hover:text-gold focus:outline-none focus:ring-2 focus:ring-gold/45"
-              aria-label={isMapFullscreen ? "3Dマップの全画面を閉じる" : "3Dマップを全画面で表示"}
-              title={isMapFullscreen ? "全画面を閉じる" : "全画面"}
-            >
-              {isMapFullscreen ? <Minimize2 size={16} /> : <Maximize2 size={16} />}
-            </button>
+            <div className="pointer-events-auto ml-auto flex h-10 items-center gap-1 rounded-xl border border-white/10 bg-[#101827]/90 p-1 shadow-lg backdrop-blur-xl" role="toolbar" aria-label="3Dマップの操作">
+              <button type="button" onClick={toggleTransitPlayback} disabled={isTransitPlaybackPreloading}
+                aria-label={isTransitPlaybackActive ? "現行天体の再生を停止" : "現行天体を再生"} aria-pressed={isTransitPlaybackActive}
+                className={cx(mapControlButtonClass, isTransitPlaybackActive && "bg-gold/15 text-gold")}>
+                {isTransitPlaybackActive ? <Pause size={14} /> : <Play size={14} />}
+                <span>{isTransitPlaybackPreloading ? '読込 ' + transitPlaybackPreloadProgress + '%' : isTransitPlaybackActive ? "停止" : "再生"}</span>
+              </button>
+              <span className="mx-0.5 h-4 w-px bg-white/10" />
+              <button ref={mapSettingsButtonRef} type="button" onClick={() => { setIsMapSettingsOpen(value => !value); setIsAspectListPanelOpen(false); setIsMapControlsMenuOpen(false); }}
+                aria-expanded={isMapSettingsOpen} aria-controls={mapId + "-map-settings-panel"} aria-label="3Dマップの設定"
+                className={cx(mapControlButtonClass, isMapSettingsOpen && "bg-gold/15 text-gold")}><SlidersHorizontal size={14} /><span>設定</span></button>
+              <button type="button" onClick={toggleMapFullscreen} className={mapControlButtonClass}
+                aria-label={isMapFullscreen ? "3Dマップの全画面を閉じる" : "3Dマップを全画面で表示"}>
+                {isMapFullscreen ? <Minimize2 size={15} /> : <Maximize2 size={15} />}
+              </button>
             </div>
           </div>
-          <div
-            className={cx(
-              "absolute right-4 top-16 z-30 hidden justify-items-end gap-1.5 sm:grid"
-            )}
-          >
-            <MapPlanetDisplaySelector />
-            <div className="flex items-start gap-1.5">
-              <div className="flex items-center gap-1.5 rounded-xl border border-white/10 bg-[#121414]/68 p-1.5 shadow-[0_10px_26px_rgba(0,0,0,0.24)] backdrop-blur">
-                <button
-                  type="button"
-                  onClick={toggleTransitPlayback}
-                  className={cx(
-                    "relative inline-flex h-8 items-center gap-1.5 overflow-hidden rounded-lg px-2 font-mono text-[9px] font-bold transition focus:outline-none focus:ring-2 focus:ring-gold/45 disabled:cursor-wait disabled:opacity-90 sm:text-[10px]",
-                    isTransitPlaybackActive ? "bg-gold/15 text-gold" : "text-cyan-200/85 hover:bg-white/10 hover:text-cyan-100"
-                  )}
-                  aria-pressed={isTransitPlaybackActive}
-                  aria-label={isTransitPlaybackActive ? "現行天体の再生を停止" : "現行天体を再生"}
-                  title={isTransitPlaybackPreloading ? "読込中" : isTransitPlaybackActive ? "再生停止" : "再生"}
-                  disabled={isTransitPlaybackPreloading}
-                >
-                  {isTransitPlaybackPreloading ? (
-                    <>
-                      <span
-                        className="absolute inset-y-0 left-0 bg-cyan-300/25 transition-[width] duration-200"
-                        style={{ width: `${Math.max(4, transitPlaybackPreloadProgress)}%` }}
-                        aria-hidden="true"
-                      />
-                      <span className="relative z-10 whitespace-nowrap">読込中</span>
-                    </>
-                  ) : (
-                    <>
-                      {isTransitPlaybackActive ? <Pause size={14} /> : <Play size={14} />}
-                      <span>{isTransitPlaybackActive ? "停止" : "再生"}</span>
-                    </>
-                  )}
-                </button>
-                {isFreePlayback && <span className="whitespace-nowrap px-1 font-mono text-[9px] text-mist/75">今日±15日</span>}
-                <button
-                  type="button"
-                  onClick={() => {
-                    setIsMapPlanetDisplayPanelOpen(false);
-                    setIsPlaybackPanelOpen((value) => !value);
-                  }}
-                  className={cx(
-                    "inline-flex h-8 items-center gap-1 rounded-lg border px-2 font-mono text-[9px] font-bold transition sm:text-[10px]",
-                    isPlaybackPanelOpen
-                      ? "border-gold/35 bg-gold/15 text-gold"
-                      : "border-white/10 bg-[#121414]/60 text-mist hover:bg-white/10 hover:text-gold"
-                  )}
-                  aria-expanded={isPlaybackPanelOpen}
-                  aria-controls="transit-playback-panel"
-                >
-                  <span>{isPlaybackPanelOpen ? "<<" : ">>"}</span>
-                  <span>再生設定</span>
-                </button>
+          {isMapSettingsOpen && (
+            <section id={mapId + "-map-settings-panel"} aria-label="3Dマップ設定" onKeyDown={handleMapPanelEscape}
+              className="absolute inset-x-3 bottom-14 z-[110] flex max-h-[calc(100%-10rem)] flex-col overflow-hidden rounded-2xl border border-white/15 bg-[#101827]/95 text-mist shadow-[0_20px_60px_rgba(0,0,0,0.4)] backdrop-blur-xl sm:inset-x-auto sm:bottom-auto sm:right-4 sm:top-16 sm:max-h-[calc(100%-8rem)] sm:w-[340px]">
+              <div className="flex items-center justify-between border-b border-white/10 px-4 py-3"><span className="text-xs font-semibold tracking-widest">マップ設定</span><button type="button" onClick={closeMapSettings} aria-label="設定を閉じる" className={mapControlButtonClass}>×</button></div>
+              <div role="tablist" aria-label="設定カテゴリ" className="mx-3 mt-3 grid shrink-0 grid-cols-3 gap-1 rounded-xl bg-black/20 p-1">
+                {[["playback", "再生"], ["display", "表示"], ["view", "視点"]].map(([key,label]) => (
+                  <button key={key} id={mapId + '-map-settings-tab-' + key} type="button" role="tab" aria-selected={mapSettingsTab === key} aria-controls={mapId + "-map-settings-content"}
+                    onClick={() => setMapSettingsTab(key)} className={cx(mapControlButtonClass, "justify-center", mapSettingsTab === key && "bg-gold/15 text-gold")}>{label}</button>
+                ))}
               </div>
-              <div
-                id="transit-playback-panel"
-                className={cx(
-                  "flex h-[44px] origin-left items-center gap-2 overflow-hidden rounded-xl border border-white/10 bg-[#121414]/78 font-mono text-[9px] font-bold text-mist shadow-[0_18px_42px_rgba(0,0,0,0.32)] backdrop-blur-md transition-all duration-300 ease-out sm:text-[10px]",
-                  isPlaybackPanelOpen
-                    ? "w-max translate-x-0 px-2 opacity-100"
-                    : "pointer-events-none w-0 -translate-x-4 border-transparent px-0 opacity-0"
-                )}
-                aria-hidden={!isPlaybackPanelOpen}
-              >
-                <div className="flex shrink-0 items-center gap-1">
-                  <p className="shrink-0 text-[8px] uppercase tracking-[0.16em] text-mist">期間</p>
-                  <div className="flex gap-1">
-                    {TRANSIT_PLAYBACK_RANGE_OPTIONS.map((option) => (
-                      <button
-                        key={option.key}
-                        type="button"
-                        onClick={() => setTransitPlaybackRange(option.key)}
-                        className={cx(
-                          "h-7 whitespace-nowrap rounded-md border px-2 transition disabled:cursor-not-allowed disabled:opacity-60",
-                          transitPlaybackRange === option.key ? "border-gold/40 bg-gold/15 text-gold" : "border-white/10 bg-white/[0.03] text-mist/70 hover:text-starlight"
-                        )}
-                        aria-pressed={transitPlaybackRange === option.key}
-                        disabled={isTransitPlaybackActive || isTransitPlaybackPreloading}
-                      >
-                        {option.label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-                <div className="flex shrink-0 items-center gap-1">
-                  <p className="shrink-0 text-[8px] uppercase tracking-[0.16em] text-mist">速度</p>
-                  <div className="flex gap-1">
-                    {TRANSIT_PLAYBACK_STEP_OPTIONS.map((option) => (
-                      <button
-                        key={option.days}
-                        type="button"
-                        onClick={() => setTransitPlaybackStepDays(option.days)}
-                        className={cx(
-                          "h-7 whitespace-nowrap rounded-md border px-2 transition disabled:cursor-not-allowed disabled:opacity-60",
-                          transitPlaybackStepDays === option.days ? "border-gold/40 bg-gold/15 text-gold" : "border-white/10 bg-white/[0.03] text-mist/70 hover:text-starlight"
-                        )}
-                        aria-pressed={transitPlaybackStepDays === option.days}
-                        disabled={isTransitPlaybackActive || isTransitPlaybackPreloading}
-                      >
-                        {option.label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            </div>
-            <div className="flex items-start gap-1.5">
-              <div className="flex items-center gap-1.5 rounded-xl border border-white/10 bg-[#121414]/68 p-1.5 shadow-[0_10px_26px_rgba(0,0,0,0.24)] backdrop-blur">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setIsMapPlanetDisplayPanelOpen(false);
-                    setIsAspectPanelOpen((value) => !value);
-                  }}
-                  className={cx(
-                    "inline-flex h-8 items-center gap-1 rounded-lg border px-2 font-mono text-[9px] font-bold transition sm:text-[10px]",
-                    isAspectPanelOpen
-                      ? "border-gold/35 bg-gold/15 text-gold"
-                      : "border-white/10 bg-[#121414]/60 text-mist hover:bg-white/10 hover:text-gold"
-                  )}
-                  aria-expanded={isAspectPanelOpen}
-                  aria-controls="aspect-line-panel"
-                >
-                  <span>{isAspectPanelOpen ? "<<" : ">>"}</span>
-                  <span>{isAspectPanelOpen ? "アスペクト表示" : selectedAspectDisplayMode.label}</span>
-                </button>
-              </div>
-              <div
-                id="aspect-line-panel"
-                className={cx(
-                  "grid origin-left gap-1.5 overflow-hidden rounded-xl border border-white/10 bg-[#121414]/78 font-mono text-[9px] font-bold text-mist shadow-[0_18px_42px_rgba(0,0,0,0.32)] backdrop-blur-md transition-all duration-300 ease-out sm:text-[10px]",
-                  "[scrollbar-width:none] [&::-webkit-scrollbar]:hidden",
-                  isAspectPanelOpen
-                    ? "w-[min(640px,calc(100vw-170px))] translate-x-0 p-1.5 opacity-100"
-                    : "pointer-events-none w-0 -translate-x-4 border-transparent p-0 opacity-0"
-                )}
-                aria-hidden={!isAspectPanelOpen}
-              >
-                <div className="grid grid-cols-6 gap-1">
+              <div id={mapId + "-map-settings-content"} role="tabpanel" aria-labelledby={mapId + '-map-settings-tab-' + mapSettingsTab} className="min-h-0 space-y-4 overflow-y-auto overscroll-contain p-4">
+                {mapSettingsTab === "playback" && <>
+                  {playbackRangeControls}
+                  <div className="space-y-2"><p className="text-[10px] text-mist/60">再生速度</p><div className="flex gap-2">
+                    {TRANSIT_PLAYBACK_STEP_OPTIONS.map(option => <button key={option.days} type="button" disabled={isTransitPlaybackActive || isTransitPlaybackPreloading} onClick={() => setTransitPlaybackStepDays(option.days)} aria-pressed={transitPlaybackStepDays === option.days} className={cx(mapControlButtonClass, "border border-white/10", transitPlaybackStepDays === option.days && "bg-gold/15 text-gold")}>{option.label}</button>)}
+                  </div></div>
+                </>}
+                {mapSettingsTab === "display" && <>
+                  <div className="space-y-2"><p className="text-[10px] text-mist/60">表示する天体</p><div className="grid grid-cols-3 gap-1">
+                    {MAP_PLANET_DISPLAY_MODE_OPTIONS.map(option => <button key={option.key} type="button" onClick={() => selectMapPlanetDisplayMode(option.key)} aria-pressed={mapPlanetDisplayMode === option.key} className={cx(mapControlButtonClass, "justify-center border border-white/10 px-1", mapPlanetDisplayMode === option.key && "bg-gold/15 text-gold")}>{option.key === "natal" ? "ネイタル" : option.key === "transit" ? "現行天体" : "両方"}</button>)}
+                  </div></div>
+                  <div className="space-y-2"><p className="text-[10px] text-mist/60">アスペクト</p><div className="grid grid-cols-2 gap-1">
                   {ASPECT_DISPLAY_MODE_OPTIONS.map((option) => (
                     <button
                       key={option.key}
                       type="button"
-                      data-aspect-mode={option.key}
                       disabled={isLockedAspectMode(option.key, policy)}
                       title={isLockedAspectMode(option.key, policy) ? "有料版で利用できます" : undefined}
                       onClick={() => selectAspectLineMode(option.key)}
@@ -5233,12 +4584,11 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
                     >
                       <span className="text-[10px] leading-4">{option.label}</span>
                       <span className="text-[8px] leading-3 text-mist/55">{option.description}</span>
-                      {isLockedAspectMode(option.key, policy) && <span className="flex items-center gap-1 text-[8px]"><LockKeyhole size={10} />有料版</span>}
                     </button>
                   ))}
                 </div>
-                {aspectLineMode === "custom" ? (
-                  <div className="grid gap-1.5 sm:grid-cols-2">
+{aspectLineMode === "custom" ? (
+                  <div className="grid gap-1.5 ">
                     {ASPECT_LINE_SCOPE_OPTIONS.map((option) => (
                       <section key={option.key} className="rounded-lg border border-white/8 bg-white/[0.025] p-1.5">
                         <div className="mb-1 flex items-center justify-between gap-1">
@@ -5318,79 +4668,37 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
                       </section>
                     ))}
                   </div>
-                ) : null}
+                ) : null}</div>
+                </>}
+                {mapSettingsTab === "view" && <>
+                  <div className="flex items-center justify-between"><span className="text-[11px] text-mist/65">拡大・縮小</span><div className="flex gap-2">
+                    <button type="button" onClick={zoomOutMap} disabled={mapZoom <= minimumMapZoom()} aria-label="3Dマップを縮小" className={mapControlButtonClass}><Minus size={16} /></button>
+                    <button type="button" onClick={zoomInMap} disabled={mapZoom >= 1.35} aria-label="3Dマップを拡大" className={mapControlButtonClass}><Plus size={16} /></button>
+                  </div></div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button type="button" onClick={() => setIsRotationPaused(value => !value)} className={cx(mapControlButtonClass, "justify-center border border-white/10")} aria-pressed={!isRotationPaused}>{isRotationPaused ? "回転を再開" : "回転を停止"}</button>
+                    <button type="button" onClick={toggleFlatMapView} className={cx(mapControlButtonClass, "justify-center border border-white/10")} aria-pressed={isFlatMapView}>{isFlatMapView ? "3D表示に戻す" : "平面表示にする"}</button>
+                  </div>
+                  <div className="space-y-2"><p className="text-[10px] text-mist/60">表示位置</p><div className="grid grid-cols-3 justify-items-center gap-1 rounded-xl border border-white/10 p-2">
+                    <span /><button type="button" onClick={() => nudgeMapPosition(0,0.12)} aria-label="3Dマップを上へ移動" className={mapControlButtonClass}>↑</button><span />
+                    <button type="button" onClick={() => nudgeMapPosition(-0.12,0)} aria-label="3Dマップを左へ移動" className={mapControlButtonClass}>←</button>
+                    <button type="button" onClick={resetMapPosition} className={mapControlButtonClass}>中央へ</button>
+                    <button type="button" onClick={() => nudgeMapPosition(0.12,0)} aria-label="3Dマップを右へ移動" className={mapControlButtonClass}>→</button>
+                    <span /><button type="button" onClick={() => nudgeMapPosition(0,-0.12)} aria-label="3Dマップを下へ移動" className={mapControlButtonClass}>↓</button><span />
+                  </div></div>
+                  <button type="button" onClick={resetMapSettings} disabled={isTransitPlaybackPreloading} className={cx(mapControlButtonClass,"w-full justify-center border border-white/10")}><RefreshCw size={13} />設定をリセット</button>
+                </>}
               </div>
-            </div>
-            {canShowAspectList && (<div className="flex items-start gap-1.5">
-              <div className="flex items-center gap-1.5 rounded-xl border border-white/10 bg-[#121414]/68 p-1.5 shadow-[0_10px_26px_rgba(0,0,0,0.24)] backdrop-blur">
-                <button
-                  type="button"
-                  onClick={() => setIsAspectListPanelOpen((value) => !value)}
-                  className={cx(
-                    "inline-flex h-8 items-center gap-1 rounded-lg border px-2 font-mono text-[9px] font-bold transition sm:text-[10px]",
-                    isAspectListPanelOpen
-                      ? "border-gold/35 bg-gold/15 text-gold"
-                      : "border-white/10 bg-[#121414]/60 text-mist hover:bg-white/10 hover:text-gold"
-                  )}
-                  aria-expanded={isAspectListPanelOpen}
-                  aria-controls="aspect-interpretation-panel"
-                >
-                  <span>{isAspectListPanelOpen ? "<<" : ">>"}</span>
-                  <span>アスペクト一覧</span>
-                </button>
-              </div>
-              <div
-                id="aspect-interpretation-panel"
-                className={cx(
-                  "fixed z-50 origin-left overflow-hidden rounded-xl border border-white/10 bg-[#121414]/48 font-mono text-[9px] font-bold text-mist shadow-[0_18px_42px_rgba(0,0,0,0.24)] backdrop-blur-sm transition-[width,padding,opacity] duration-300 ease-out sm:text-[10px]",
-                  isAspectListPanelOpen
-                    ? "w-[min(520px,calc(100vw-170px))] p-2 opacity-100"
-                    : "pointer-events-none w-0 border-transparent p-0 opacity-0"
-                )}
-                style={{
-                  left: `${aspectListPanelPosition.x}px`,
-                  top: `${aspectListPanelPosition.y}px`,
-                }}
-                aria-hidden={!isAspectListPanelOpen}
-              >
-                <button
-                  type="button"
-                  onClick={() => setIsAspectListPanelOpen(false)}
-                  onPointerDown={(event) => event.stopPropagation()}
-                  className="absolute right-1 top-1 z-10 inline-flex h-5 w-5 items-center justify-center rounded-md border border-white/10 bg-[#121414]/70 text-[11px] leading-none text-mist/70 transition hover:border-gold/35 hover:bg-gold/10 hover:text-gold focus:outline-none focus:ring-2 focus:ring-gold/35"
-                  aria-label="アスペクト一覧を閉じる"
-                  title="閉じる"
-                >
-                  ×
-                </button>
-                <div
-                  className="mb-2 flex select-none items-center justify-between gap-3 rounded-lg border border-white/10 bg-white/[0.035] px-3 py-2 pr-14 text-starlight"
-                  onPointerDown={beginAspectListDrag}
-                  onPointerMove={moveAspectListPanel}
-                  onPointerUp={endAspectListDrag}
-                  onPointerCancel={endAspectListDrag}
-                  title="ドラッグで移動"
-                >
-                  <span className="text-[10px]">アスペクト一覧</span>
-                  <span className="truncate rounded border border-white/10 bg-white/[0.035] px-1.5 py-0.5 text-[8px] text-mist/65">
-                    {displayedTransitDateTime.date} {displayedTransitDateTime.time || selectedTransitTime}
-                  </span>
-                  <button
-                    type="button"
-                    className="inline-flex h-6 shrink-0 cursor-move items-center gap-1 rounded-md border border-white/15 bg-white/[0.04] px-1.5 text-[8px] text-starlight/85 transition hover:border-gold/40 hover:bg-gold/10 hover:text-gold focus:outline-none focus:ring-2 focus:ring-gold/35"
-                    onPointerDown={beginAspectListDrag}
-                    onPointerMove={moveAspectListPanel}
-                    onPointerUp={endAspectListDrag}
-                    onPointerCancel={endAspectListDrag}
-                    aria-label="アスペクト一覧を移動"
-                    title="移動"
-                  >
-                    <Move size={11} aria-hidden="true" />
-                    <span>移動</span>
-                  </button>
-                  <span className="ml-auto" />
-                </div>
-                <div className="mb-2 grid grid-cols-4 gap-1 rounded-lg border border-white/10 bg-white/[0.025] p-1">
+            </section>
+          )}
+          <div className="absolute inset-x-0 bottom-3 z-[100] flex justify-center gap-2" aria-label="マップの詳細情報">
+            <button type="button" disabled={!canShowAspectList} title={!canShowAspectList ? "有料版で利用できます" : undefined} onClick={() => {setIsAspectListPanelOpen(value => !value); setIsMapControlsMenuOpen(false); setIsMapSettingsOpen(false);}} aria-expanded={isAspectListPanelOpen} aria-controls={mapId + "-map-aspect-details"} className={cx(mapControlButtonClass,"border border-white/10 bg-[#101827]/90 shadow-lg backdrop-blur-xl",isAspectListPanelOpen && "text-gold")}><ChevronDown size={13} className={isAspectListPanelOpen ? "" : "rotate-180"} />アスペクト一覧</button>
+            <button type="button" onClick={() => {setIsMapControlsMenuOpen(value => !value); setIsAspectListPanelOpen(false); setIsMapSettingsOpen(false);}} aria-expanded={isMapControlsMenuOpen} aria-controls={mapId + "-map-chart-details"} className={cx(mapControlButtonClass,"border border-white/10 bg-[#101827]/90 shadow-lg backdrop-blur-xl",isMapControlsMenuOpen && "text-gold")}><ChevronDown size={13} className={isMapControlsMenuOpen ? "" : "rotate-180"} />天体データ</button>
+          </div>
+          {((canShowAspectList && isAspectListPanelOpen) || isMapControlsMenuOpen) && <section id={isAspectListPanelOpen ? mapId + "-map-aspect-details" : mapId + "-map-chart-details"} aria-label={isAspectListPanelOpen ? "アスペクト一覧" : "天体データ"} onKeyDown={handleMapPanelEscape}
+            className="absolute inset-x-3 bottom-14 z-[110] max-h-[calc(100%-10rem)] overflow-y-auto overscroll-contain rounded-2xl border border-white/15 bg-[#101827]/95 p-3 text-mist shadow-2xl backdrop-blur-xl sm:left-auto sm:right-4 sm:w-[min(520px,calc(100%-2rem))]">
+            <div className="mb-3 flex items-center justify-between border-b border-white/10 pb-2"><span className="text-xs">{isAspectListPanelOpen ? "アスペクト一覧" : "天体データ"}</span><button type="button" onClick={() => {setIsAspectListPanelOpen(false);setIsMapControlsMenuOpen(false);}} aria-label="詳細情報を閉じる" className={mapControlButtonClass}>×</button></div>
+            {isAspectListPanelOpen ? <><div className="mb-2 grid grid-cols-4 gap-1 rounded-lg border border-white/10 bg-white/[0.025] p-1">
                   {[
                     ["natalNatal", "ネイタル同士"],
                     ["transitNatal", "出生図との関係"],
@@ -5413,7 +4721,7 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
                     </button>
                   ))}
                 </div>
-                {aspectInterpretationScope === "composite" ? (
+{aspectInterpretationScope === "composite" ? (
                   <div className="mb-2 grid grid-cols-3 gap-1 rounded-lg border border-gold/15 bg-gold/[0.035] p-1">
                     {[
                       ["mixed", "出生図絡み"],
@@ -5437,7 +4745,7 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
                     ))}
                   </div>
                 ) : null}
-                <div className="grid max-h-[360px] grid-cols-[24px_1fr] gap-2 overflow-y-auto pr-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+<div className="grid max-h-[360px] grid-cols-[24px_1fr] gap-2 overflow-y-auto pr-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                   <div className="flex self-stretch flex-col gap-0">
                     <p className="shrink-0 text-center text-[7px] leading-none text-mist/65">影響度</p>
                     <div className="relative flex min-h-0 flex-1 flex-col items-center justify-between rounded-full bg-gradient-to-b from-[#ff5c68] via-gold/45 to-white/10 py-0 text-[7px] leading-none text-gold shadow-[0_0_14px_rgba(255,92,104,0.22)]">
@@ -5493,81 +4801,7 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
                       </p>
                     )}
                   </div>
-                </div>
-              </div>
-            </div>)}
-          </div>
-          <div className="absolute left-4 top-4 z-[90] hidden items-center gap-2 text-shadow-sm sm:flex">
-            <p className="font-mono text-[9px] font-bold uppercase tracking-[0.16em] text-gold">Transit Sky</p>
-            <TransitDatePicker />
-            <select
-              value={displayedTransitDateTime.time || selectedTransitTime}
-              onChange={(event) => {
-                setIsTransitPlaybackActive(false);
-                setTransitPlaybackCursor(null);
-                setPlaybackTransitChart(null);
-                setSelectedTransitTime(event.target.value);
-              }}
-              className="h-7 rounded-md border border-white/10 bg-[#121414]/70 px-2 font-mono text-[10px] font-bold text-starlight outline-none transition focus:border-gold/50 focus:ring-2 focus:ring-gold/25"
-              aria-label="現行天体の計算時刻"
-              title="現行天体の計算時刻"
-            >
-              {timeOptions.map((time) => (
-                <option key={time} value={time}>{time}</option>
-              ))}
-            </select>
-            {transitChartLoading ? (
-              <span className="pointer-events-none font-mono text-[9px] font-bold text-mist/70">計算中</span>
-            ) : null}
-          </div>
-          <div className="pointer-events-none absolute left-4 top-12 z-10 hidden w-[490px] space-y-2 sm:block">
-            <button
-              type="button"
-              onClick={() => setIsMapControlsMenuOpen((value) => !value)}
-              className={cx(
-                "pointer-events-auto inline-flex h-9 items-center gap-2 rounded-xl border border-white/10 bg-[#121414]/72 px-3 font-mono text-[9px] font-bold uppercase tracking-[0.16em] text-mist shadow-[0_10px_26px_rgba(0,0,0,0.22)] backdrop-blur-md transition hover:border-gold/30 hover:text-gold focus:outline-none focus:ring-2 focus:ring-gold/35 sm:text-[10px]",
-                isMapControlsMenuOpen && "border-gold/25 bg-[#121414]/82 text-gold"
-              )}
-              aria-expanded={isMapControlsMenuOpen}
-              aria-controls="map-layer-controls-menu"
-              aria-label={isMapControlsMenuOpen ? "チャートメニューを閉じる" : "チャートメニューを開く"}
-              title="チャート"
-            >
-              <SlidersHorizontal size={15} />
-              チャート
-            </button>
-            <div
-              id="map-layer-controls-menu"
-              className={cx(
-                "grid gap-2 overflow-hidden transition-all duration-300 ease-out",
-                isMapControlsMenuOpen
-                  ? "max-h-[760px] opacity-100"
-                  : "pointer-events-none max-h-0 opacity-0"
-              )}
-              aria-hidden={!isMapControlsMenuOpen}
-            >
-            <div className="pointer-events-auto grid grid-cols-2 gap-1 rounded-xl border border-white/10 bg-[#121414]/72 p-1 font-mono text-[9px] font-bold sm:hidden">
-              {[
-                ["transit", "現行天体"],
-                ["natal", "ネイタル天体"],
-              ].map(([value, label]) => (
-                <button
-                  key={value}
-                  type="button"
-                  onClick={() => setMobilePlanetTableTab(value)}
-                  className={cx(
-                    "h-8 rounded-lg transition",
-                    mobilePlanetTableTab === value
-                      ? "bg-gold/18 text-gold ring-1 ring-gold/35"
-                      : "text-mist/65 hover:bg-white/10 hover:text-starlight"
-                  )}
-                  aria-pressed={mobilePlanetTableTab === value}
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
-            <div
+                </div></> : <><div className="sm:hidden"><MobileChartDisplayPanel /></div><div className="hidden space-y-2 sm:block"><div
               className={cx(
                 "rounded-xl border p-2 backdrop-blur-md transition sm:block sm:p-2.5",
                 mobilePlanetTableTab !== "transit" && "hidden",
@@ -5647,7 +4881,7 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
                 </>
               )}
             </div>
-            <div
+<div
               className={cx(
                 "rounded-xl border p-2 backdrop-blur-md transition sm:block sm:p-2.5",
                 mobilePlanetTableTab !== "natal" && "hidden",
@@ -5726,9 +4960,9 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
                   </div>
                 </>
               )}
-            </div>
-            </div>
-          </div>
+            </div></div></>}
+          </section>}
+
           {aspectTooltip ? (
             <div
               ref={aspectTooltipPanelRef}
@@ -5853,139 +5087,7 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
             <p role="status" className="pointer-events-none absolute bottom-3 right-3 z-10 max-w-[320px] rounded bg-[#121414]/90 p-2 text-[10px] leading-5 text-gold">{transitChart.time_adjustment}</p>
           ) : null}
         </div>
-        {canShowAspectList && isMobileAspectListDetached && isAspectListPanelOpen ? (
-          <div
-            id="mobile-aspect-interpretation-panel-detached"
-            className="relative mx-0 mb-3 flex max-h-[46vh] min-h-[260px] flex-col overflow-hidden rounded-xl border border-white/10 bg-[#121414]/72 p-2 font-mono text-[9px] font-bold text-mist shadow-[0_18px_42px_rgba(0,0,0,0.24)] backdrop-blur-sm sm:hidden"
-          >
-            <button
-              type="button"
-              onClick={() => setIsAspectListPanelOpen(false)}
-              onPointerDown={(event) => event.stopPropagation()}
-              className="absolute right-1 top-1 z-10 inline-flex h-5 w-5 items-center justify-center rounded-md border border-white/10 bg-[#121414]/70 text-[11px] leading-none text-mist/70 transition hover:border-gold/35 hover:bg-gold/10 hover:text-gold focus:outline-none focus:ring-2 focus:ring-gold/35"
-              aria-label="アスペクト一覧を閉じる"
-              title="閉じる"
-            >
-              ×
-            </button>
-            <div className="relative mb-2 flex select-none flex-nowrap items-center gap-1.5 rounded-lg border border-white/10 bg-white/[0.055] px-2 py-1.5 pr-7 text-starlight">
-              <span className="shrink-0 whitespace-nowrap text-[9px]">アスペクト一覧</span>
-              <span className="shrink-0 whitespace-nowrap rounded border border-white/10 bg-white/[0.035] px-1 py-0.5 text-[7px] text-mist/70">
-                {displayedTransitDateTime.date} {displayedTransitDateTime.time || selectedTransitTime}
-              </span>
-              <button
-                type="button"
-                onClick={() => setIsMobileAspectListDetached(false)}
-                onPointerDown={(event) => event.stopPropagation()}
-                className="inline-flex h-5 shrink-0 items-center justify-center whitespace-nowrap rounded border border-white/10 bg-white/[0.04] px-1 text-[7px] text-mist/80 transition hover:border-gold/35 hover:bg-gold/10 hover:text-gold focus:outline-none focus:ring-2 focus:ring-gold/35"
-                aria-label="アスペクト一覧をマップ内表示に戻す"
-                title="マップ内表示"
-              >
-                マップ内表示
-              </button>
-            </div>
-            <div className="mb-2 flex flex-nowrap gap-1 rounded-lg border border-white/10 bg-white/[0.025] p-1">
-              {[
-                ["natalNatal", "ネイタル同士"],
-                ["transitNatal", "出生図との関係"],
-                ["transitTransit", "現行天体同士"],
-                ["composite", "複合アスペクト"],
-              ].map(([value, label]) => (
-                <button
-                  key={`mobile-detached-interpretation-${value}`}
-                  type="button"
-                  onClick={() => setAspectInterpretationScope(value)}
-                  className={cx("h-7 min-w-0 flex-1 rounded-md px-1 text-[7px] leading-none transition", aspectInterpretationScope === value ? "bg-gold/18 text-gold ring-1 ring-gold/35" : "text-mist/65 hover:bg-white/10 hover:text-starlight")}
-                  aria-pressed={aspectInterpretationScope === value}
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
-            {aspectInterpretationScope === "composite" ? (
-              <div className="mb-2 grid grid-cols-3 gap-1 rounded-lg border border-gold/15 bg-gold/[0.035] p-1">
-                {[
-                  ["mixed", "出生図絡み"],
-                  ["transitOnly", "現行天体同士"],
-                  ["natalOnly", "ネイタルのみ"],
-                ].map(([value, label]) => (
-                  <button
-                    key={`mobile-detached-compound-category-${value}`}
-                    type="button"
-                    onClick={() => selectCompoundAspectListCategory(value)}
-                    className={cx(
-                      "h-7 rounded-md px-1 text-[7px] transition",
-                      compoundAspectListCategory === value
-                        ? "bg-gold/18 text-gold ring-1 ring-gold/35"
-                        : "text-mist/65 hover:bg-white/10 hover:text-starlight"
-                    )}
-                    aria-pressed={compoundAspectListCategory === value}
-                  >
-                    {label}
-                  </button>
-                ))}
-              </div>
-            ) : null}
-            <div className="grid min-h-0 flex-1 grid-cols-[24px_1fr] gap-2 overflow-y-auto overscroll-contain pb-3 pr-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-              <div className="flex self-stretch flex-col gap-0">
-                <p className="shrink-0 text-center text-[7px] leading-none text-mist/65">影響度</p>
-                <div className="relative flex min-h-0 flex-1 flex-col items-center justify-between rounded-full bg-gradient-to-b from-[#ff5c68] via-gold/45 to-white/10 py-0 text-[7px] leading-none text-gold shadow-[0_0_14px_rgba(255,92,104,0.22)]">
-                  <span className="writing-mode-vertical-rl [writing-mode:vertical-rl] text-[#ffb4ab]">高</span>
-                  <span className="writing-mode-vertical-rl [writing-mode:vertical-rl] text-mist/55">低</span>
-                </div>
-              </div>
-              <div className="grid gap-1.5">
-                {aspectInterpretationItems.length ? aspectInterpretationItems.map((aspect) => {
-                  const isOpen = openAspectInterpretationKeys.has(aspect.key);
-                  const isLineHighlighted = selectedAspectLineHighlightKey === aspectLineHighlightKey(aspect);
-                  const isCompoundAspectItem = aspect.scope === "composite";
-                  const toneClass = aspect.importance.tone === "high"
-                    ? "border-gold/35 bg-gold/[0.09] text-gold"
-                    : aspect.importance.tone === "mid"
-                      ? "border-sky-300/25 bg-sky-300/[0.07] text-sky-100"
-                      : "border-white/10 bg-white/[0.025] text-mist/70";
-                  return (
-                    <article
-                      key={`mobile-detached-${aspect.key}`}
-                      className={cx("overflow-hidden rounded-lg border bg-white/[0.025] backdrop-blur-[2px]", isLineHighlighted ? "border-current" : "border-white/10")}
-                      style={isLineHighlighted ? { color: aspect.color, boxShadow: `0 0 18px ${aspect.color}44` } : undefined}
-                    >
-                      <button
-                        type="button"
-                        onClick={() => toggleAspectInterpretation(aspect.key, aspect)}
-                        className="flex w-full items-start gap-2 px-2.5 py-2 text-left transition hover:bg-white/[0.035] focus:outline-none focus:ring-2 focus:ring-gold/35"
-                        aria-expanded={isOpen}
-                      >
-                        <span className="mt-1 h-2.5 w-1.5 shrink-0 rounded-full" style={{ backgroundColor: aspect.color }} />
-                        <span className="min-w-0 flex-1">
-                          <span className="block truncate text-[10px] text-starlight">
-                            {isCompoundAspectItem ? `${compoundKindLabel(aspect.kind)}: ${aspect.detailText}` : aspect.title}
-                          </span>
-                          <span className="mt-0.5 block text-[8px] leading-4 text-mist/60">
-                            {isCompoundAspectItem ? aspect.labels?.join(" × ") : aspect.detailText || `実角度 ${Number.isFinite(aspect.liveAngle) ? aspect.liveAngle.toFixed(1) : "-"}°`}
-                            {!aspect.detailText && Number.isFinite(aspect.orb) ? ` / オーブ ${aspect.orb.toFixed(2)}°` : ""}
-                            {aspect.status ? ` / ${aspect.status}` : ""}
-                          </span>
-                        </span>
-                        <span className="shrink-0 text-right">
-                          <span className={cx("inline-flex rounded border px-1.5 py-0.5 text-[8px]", toneClass)}>{aspect.importance.label}</span>
-                          <span className="mt-1 block text-[8px] text-mist/60">{isOpen ? "閉じる" : ">>解釈"}</span>
-                        </span>
-                      </button>
-                      {isOpen ? <p className="border-t border-white/10 bg-white/[0.025] px-3 py-3 text-xs font-medium leading-6 text-mist">{aspect.description}</p> : null}
-                    </article>
-                  );
-                }) : <p className="rounded-lg border border-white/10 bg-white/[0.035] px-3 py-4 text-xs leading-6 text-mist">このタイミングの主要アスペクトはありません。</p>}
-              </div>
-            </div>
-          </div>
-        ) : null}
-        <section className={cx(
-          "mx-0 grid gap-3 rounded-2xl border border-white/10 bg-[#121414]/76 p-2 shadow-[0_18px_42px_rgba(0,0,0,0.28)] backdrop-blur-md sm:hidden",
-          !isMobileChartPanelDetached && "hidden"
-        )}>
-          <div className="grid gap-2"><MobileChartDisplayPanel /></div>
-        </section>
+
       </div>
     </GlassPanel>
   );
