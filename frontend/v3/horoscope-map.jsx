@@ -2000,6 +2000,7 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
   const [customPlaybackStart, setCustomPlaybackStart] = useState("");
   const [customPlaybackEnd, setCustomPlaybackEnd] = useState("");
   const [isMapSettingsOpen, setIsMapSettingsOpen] = useState(false);
+  const [isMapPositionPanelOpen, setIsMapPositionPanelOpen] = useState(false);
   const [mapSettingsTab, setMapSettingsTab] = useState("playback");
   const mapSettingsButtonRef = React.useRef(null);
   const mapControlButtonClass = "inline-flex min-h-8 items-center gap-1.5 rounded-lg px-2.5 text-[11px] font-medium text-mist transition hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold/50 disabled:cursor-not-allowed disabled:opacity-70";
@@ -4565,12 +4566,15 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
               </button>
             </div>
           </div>
-          <div role="group" aria-label="3Dマップの拡大縮小と位置調整" className="absolute right-2 top-1/2 z-[100] flex -translate-y-1/2 flex-col items-center gap-2 sm:right-4">
-            <div className="flex gap-1 rounded-xl border border-white/15 bg-[#101827]/55 p-1 shadow-lg">
+          <div role="group" aria-label="3Dマップの拡大縮小と位置調整" className="absolute bottom-14 right-2 z-[100] flex flex-row items-center gap-0 rounded-xl border border-white/15 bg-[#101827]/55 p-1 sm:flex-col sm:gap-2 sm:border-0 sm:bg-transparent sm:p-0 sm:bottom-auto sm:right-4 sm:top-1/2 sm:-translate-y-1/2">
+            <div className="flex gap-0 [&>button]:h-7 [&>button]:w-8 sm:gap-1 sm:rounded-xl sm:border sm:border-white/15 sm:bg-[#101827]/55 sm:p-1 sm:shadow-lg sm:[&>button]:h-10 sm:[&>button]:w-10">
               <button type="button" onClick={zoomInMap} disabled={mapZoom >= 1.35} aria-label="3Dマップを拡大" title="拡大" className={mapQuickControlClass}><Plus size={18} /></button>
               <button type="button" onClick={zoomOutMap} disabled={mapZoom <= minimumMapZoom()} aria-label="3Dマップを縮小" title="縮小" className={mapQuickControlClass}><Minus size={18} /></button>
             </div>
-            <div className="grid grid-cols-3 gap-0.5">
+            <button type="button" onClick={() => setIsMapPositionPanelOpen(value => !value)} onDoubleClick={resetMapPosition}
+              aria-label="3Dマップの位置調整" aria-expanded={isMapPositionPanelOpen} aria-controls={mapId + "-position-controls"}
+              className={cx("h-7 rounded-lg px-2 text-[10px] font-medium text-mist sm:hidden", isMapPositionPanelOpen && "bg-gold/15 text-gold")}>位置調整</button>
+            <div id={mapId + "-position-controls"} className={cx("absolute bottom-full right-0 mb-1 grid-cols-3 gap-0.5 rounded-xl border border-white/15 bg-[#101827]/70 p-1 [&>button]:h-8 [&>button]:w-8 sm:static sm:mb-0 sm:grid sm:rounded-none sm:border-0 sm:bg-transparent sm:p-0 sm:[&>button]:h-10 sm:[&>button]:w-10", isMapPositionPanelOpen ? "grid" : "hidden")}>
               <span /><button type="button" onClick={() => nudgeMapPosition(0,0.12)} aria-label="3Dマップを上へ移動" className={cx(mapQuickControlClass, "border border-white/15 bg-[#101827]/55")}>↑</button><span />
               <button type="button" onClick={() => nudgeMapPosition(-0.12,0)} aria-label="3Dマップを左へ移動" className={cx(mapQuickControlClass, "border border-white/15 bg-[#101827]/55")}>←</button>
               <button type="button" onClick={resetMapPosition} aria-label="3Dマップを中央へ戻す" title="中央へ戻す" className={cx(mapQuickControlClass, "border border-white/15 bg-[#101827]/55")}><CircleDot size={16} /></button>
@@ -4719,7 +4723,7 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
           )}
           <div className="absolute inset-x-0 bottom-3 z-[100] flex justify-center gap-2" aria-label="マップの詳細情報">
             <button type="button" disabled={!canShowAspectList} title={!canShowAspectList ? "有料版で利用できます" : undefined} onClick={() => {setIsAspectListPanelOpen(value => !value); setIsMapControlsMenuOpen(false); setIsMapSettingsOpen(false);}} aria-expanded={isAspectListPanelOpen} aria-controls={mapId + "-map-aspect-details"} className={cx(mapControlButtonClass,"border border-white/10 bg-[#101827]/90 shadow-lg backdrop-blur-xl",isAspectListPanelOpen && "text-gold")}><ChevronDown size={13} className={isAspectListPanelOpen ? "" : "rotate-180"} />アスペクト一覧</button>
-            <button type="button" onClick={() => {setIsMapControlsMenuOpen(value => !value); setIsAspectListPanelOpen(false); setIsMapSettingsOpen(false);}} aria-expanded={isMapControlsMenuOpen} aria-controls={mapId + "-map-chart-details"} className={cx(mapControlButtonClass,"hidden border border-white/10 bg-[#101827]/90 shadow-lg backdrop-blur-xl sm:inline-flex",isMapControlsMenuOpen && "text-gold")}><ChevronDown size={13} className={isMapControlsMenuOpen ? "" : "rotate-180"} />天体データ</button>
+            <button type="button" onClick={() => {setIsMapControlsMenuOpen(value => !value); setIsAspectListPanelOpen(false); setIsMapSettingsOpen(false);}} aria-expanded={isMapControlsMenuOpen} aria-controls={mapId + "-map-chart-details"} className={cx(mapControlButtonClass,"border border-white/10 bg-[#101827]/90 shadow-lg backdrop-blur-xl", !isMapFullscreen && "hidden sm:inline-flex",isMapControlsMenuOpen && "text-gold")}><ChevronDown size={13} className={isMapControlsMenuOpen ? "" : "rotate-180"} />天体データ</button>
           </div>
           {((canShowAspectList && isAspectListPanelOpen) || isMapControlsMenuOpen) && <section id={isAspectListPanelOpen ? mapId + "-map-aspect-details" : mapId + "-map-chart-details"} aria-label={isAspectListPanelOpen ? "アスペクト一覧" : "天体データ"} onKeyDown={handleMapPanelEscape}
             className="absolute inset-x-3 bottom-14 z-[110] max-h-[calc(100%-10rem)] overflow-y-auto overscroll-contain rounded-2xl border border-white/15 bg-[#101827]/55 p-3 text-mist shadow-lg backdrop-blur-none sm:bg-[#101827]/95 sm:shadow-2xl sm:backdrop-blur-xl sm:left-auto sm:right-4 sm:w-[min(520px,calc(100%-2rem))]">
@@ -4827,7 +4831,7 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
                       </p>
                     )}
                   </div>
-                </div></> : <><div className="hidden space-y-2 sm:block"><div
+                </div></> : <>{isMapFullscreen && <div className="space-y-3 sm:hidden"><MobileChartDisplayPanel /></div>}<div className="hidden space-y-2 sm:block"><div
               className={cx(
                 "rounded-xl border p-2 backdrop-blur-md transition sm:block sm:p-2.5",
                 mobilePlanetTableTab !== "transit" && "hidden",
