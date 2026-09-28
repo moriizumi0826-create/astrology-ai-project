@@ -1,4 +1,4 @@
-import React, { lazy, Suspense, useEffect, useState } from "react";
+import React, { lazy, Suspense, useEffect, useMemo, useState } from "react";
 import "./tailwind.css";
 import { Menu } from "lucide-react";
 import { createRoot } from "react-dom/client";
@@ -31,7 +31,7 @@ function Horoscope({ onForecast, session }) {
     setResult(freeResult(next));
     setRevision(value => value + 1);
   };
-  const data = { ...result, ...result.dashboard_data };
+  const data = useMemo(() => ({ ...result, ...result.dashboard_data }), [result]);
   return <div className="min-h-screen text-starlight">
     <header className="fixed left-0 top-0 z-40 w-full border-b border-slate-200/90 bg-[#f8fafc]/95 backdrop-blur-xl">
       <div className="flex w-full max-w-none flex-wrap items-center justify-between gap-2 px-3 py-2 sm:gap-6 sm:px-8 sm:py-6 lg:mx-auto lg:max-w-[1760px]">

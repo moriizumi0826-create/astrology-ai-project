@@ -288,6 +288,13 @@ const ASPECT_DISPLAY_MODE_OPTIONS = [
   { key: "custom", label: "カスタム", description: "表示対象を選択" },
 ];
 
+function isAspectModeVisible(mode, planetMode) {
+  if (planetMode === "both" || mode === "none" || mode === "custom") return true;
+  return planetMode === "transit"
+    ? ["transitTransit", "compositeTransit"].includes(mode)
+    : ["natalNatal", "compositeNatal"].includes(mode);
+}
+
 const EMPTY_ASPECT_SELECTIONS = {
   transitNatal: { natal: [], transit: [] },
   transitTransit: { natal: [], transit: [] },
@@ -1995,7 +2002,7 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
   const [isMapSettingsOpen, setIsMapSettingsOpen] = useState(false);
   const [mapSettingsTab, setMapSettingsTab] = useState("playback");
   const mapSettingsButtonRef = React.useRef(null);
-  const mapControlButtonClass = "inline-flex min-h-8 items-center gap-1.5 rounded-lg px-2.5 text-[11px] font-medium text-mist transition hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold/50 disabled:cursor-not-allowed disabled:opacity-40";
+  const mapControlButtonClass = "inline-flex min-h-8 items-center gap-1.5 rounded-lg px-2.5 text-[11px] font-medium text-mist transition hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold/50 disabled:cursor-not-allowed disabled:opacity-70";
   const closeMapSettings = () => { setIsMapSettingsOpen(false); mapSettingsButtonRef.current?.focus(); };
   const handleMapPanelEscape = (event) => {
     if (event.key !== "Escape") return;
@@ -2187,7 +2194,7 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
           className={cx(
             "inline-flex h-7 items-center gap-1 rounded-md border font-semibold text-starlight outline-none transition hover:border-gold/35 hover:bg-[#121414]/80 focus:border-gold/50 focus:bg-[#121414]/70 focus:ring-2 focus:ring-gold/25 disabled:pointer-events-none disabled:opacity-100",
             compact
-              ? "w-[112px] justify-between border-white/10 bg-[#121414]/70 px-2 font-mono text-[10px]"
+              ? "w-[100px] sm:w-[112px] justify-between border-white/10 bg-[#121414]/70 px-1 sm:px-2 font-mono text-[10px]"
               : "border-transparent bg-transparent px-1 text-xs sm:text-sm"
           )}
           aria-expanded={isTransitCalendarOpen}
@@ -3820,7 +3827,7 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
       const playbackFrame = state.playbackSequence.keyframes?.[state.playbackSequence.index];
       syncPlaybackAspectLines(state, playbackFrame, true);
     }
-  }, [sky, natalLayerActive, transitLayerActive, isFlatMapView, aspectLineFocus, selectedAspectLineHighlightKey, focusedNatalPlanets, activeAspectLineAspects, aspectLineSelections, aspectLineMode, mapPlanetDisplayMode]);
+  }, [sceneSky, sky, natalLayerActive, transitLayerActive, isFlatMapView, aspectLineFocus, selectedAspectLineHighlightKey, focusedNatalPlanets, activeAspectLineAspects, aspectLineSelections, aspectLineMode, mapPlanetDisplayMode]);
 
   useEffect(() => {
     const state = sceneStateRef.current;
@@ -3939,7 +3946,11 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
         object.visible = layoutShowTransit;
       });
       state.aspectGroup.children.forEach((line) => {
-        line.visible = showNatal && showTransit && line.userData?.aspectVisible !== false;
+        const link = line.userData?.aspectLink;
+        const needsNatal = Boolean(link?.natalPlanet || link?.natalPlanetB);
+        const needsTransit = Boolean(link?.transitPlanet || link?.transitPlanetB);
+        line.visible = (!needsNatal || showNatal) && (!needsTransit || showTransit)
+          && line.userData?.aspectVisible !== false;
       });
       updateAspectLinePositions(state);
     };
@@ -4405,6 +4416,7 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
   const selectMapPlanetDisplayMode = (mode) => {
     if (!MAP_PLANET_DISPLAY_MODE_OPTIONS.some((option) => option.key === mode)) return;
     setMapPlanetDisplayMode(mode);
+    if (!isAspectModeVisible(aspectLineMode, mode)) selectAspectLineMode("none");
   };
 
   const MobileChartDisplayPanel = () => (
@@ -4514,8 +4526,8 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
         >
           <div ref={mountRef} className="absolute inset-0" aria-label="現行天体とネイタル天体の3Dマップ" />
 
-          <div className="pointer-events-none absolute inset-x-3 top-3 z-[100] flex flex-wrap items-start justify-between gap-2 sm:inset-x-4 sm:top-4">
-            <div className="pointer-events-auto flex h-10 items-center gap-1.5 rounded-xl border border-white/10 bg-[#101827]/90 px-2 shadow-lg backdrop-blur-xl">
+          <div className="pointer-events-none absolute inset-x-2 top-3 z-[100] flex flex-nowrap items-start justify-between gap-1 sm:inset-x-4 sm:top-4 sm:gap-2">
+            <div className="pointer-events-auto relative flex h-10 shrink-0 items-center gap-1 rounded-xl border border-white/10 bg-[#101827]/90 px-1 sm:gap-1.5 sm:px-2 shadow-lg backdrop-blur-xl">
               <TransitDatePicker compact />
               <select
               value={displayedTransitDateTime.time || selectedTransitTime}
@@ -4525,7 +4537,7 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
                 setPlaybackTransitChart(null);
                 setSelectedTransitTime(event.target.value);
               }}
-              className="h-8 w-[82px] shrink-0 rounded-md border border-white/10 bg-[#121414]/70 py-0 pl-2 pr-6 font-mono text-[12px] font-bold leading-normal tabular-nums text-starlight outline-none transition [color-scheme:dark] focus:border-gold/50 focus:ring-2 focus:ring-gold/25"
+              className="h-8 w-[70px] sm:w-[82px] shrink-0 rounded-md border border-white/10 bg-[#121414]/70 py-0 pl-1 pr-5 sm:pl-2 sm:pr-6 font-mono text-[12px] font-bold leading-normal tabular-nums text-starlight outline-none transition [color-scheme:dark] focus:border-gold/50 focus:ring-2 focus:ring-gold/25"
               aria-label="現行天体の計算時刻"
               title="現行天体の計算時刻"
             >
@@ -4533,19 +4545,19 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
                 <option key={time} value={time}>{time}</option>
               ))}
             </select>
-              {transitChartLoading && <span role="status" className="text-[9px] text-mist/65">計算中</span>}
+              {transitChartLoading && <span role="status" className="absolute left-1 top-full text-[9px] text-mist/65">計算中</span>}
             </div>
-            <div className="pointer-events-auto ml-auto flex h-10 items-center gap-1 rounded-xl border border-white/10 bg-[#101827]/90 p-1 shadow-lg backdrop-blur-xl" role="toolbar" aria-label="3Dマップの操作">
+            <div className="pointer-events-auto ml-auto flex h-10 shrink-0 items-center gap-0 [&>button]:px-2 sm:[&>button]:px-2.5 sm:gap-1 rounded-xl border border-white/10 bg-[#101827]/90 p-1 shadow-lg backdrop-blur-xl" role="toolbar" aria-label="3Dマップの操作">
               <button type="button" onClick={toggleTransitPlayback} disabled={isTransitPlaybackPreloading}
                 aria-label={isTransitPlaybackActive ? "現行天体の再生を停止" : "現行天体を再生"} aria-pressed={isTransitPlaybackActive}
                 className={cx(mapControlButtonClass, isTransitPlaybackActive && "bg-gold/15 text-gold")}>
                 {isTransitPlaybackActive ? <Pause size={14} /> : <Play size={14} />}
-                <span>{isTransitPlaybackPreloading ? '読込 ' + transitPlaybackPreloadProgress + '%' : isTransitPlaybackActive ? "停止" : "再生"}</span>
+                <span className="hidden sm:inline">{isTransitPlaybackPreloading ? '読込 ' + transitPlaybackPreloadProgress + '%' : isTransitPlaybackActive ? "停止" : "再生"}</span>
               </button>
-              <span className="mx-0.5 h-4 w-px bg-white/10" />
+              <span className="hidden sm:mx-0.5 sm:block sm:h-4 sm:w-px sm:bg-white/10" />
               <button ref={mapSettingsButtonRef} type="button" onClick={() => { setIsMapSettingsOpen(value => !value); setIsAspectListPanelOpen(false); setIsMapControlsMenuOpen(false); }}
                 aria-expanded={isMapSettingsOpen} aria-controls={mapId + "-map-settings-panel"} aria-label="3Dマップの設定"
-                className={cx(mapControlButtonClass, isMapSettingsOpen && "bg-gold/15 text-gold")}><SlidersHorizontal size={14} /><span>設定</span></button>
+                className={cx(mapControlButtonClass, isMapSettingsOpen && "bg-gold/15 text-gold")}><SlidersHorizontal size={14} /><span className="hidden sm:inline">設定</span></button>
               <button type="button" onClick={toggleMapFullscreen} className={mapControlButtonClass}
                 aria-label={isMapFullscreen ? "3Dマップの全画面を閉じる" : "3Dマップを全画面で表示"}>
                 {isMapFullscreen ? <Minimize2 size={15} /> : <Maximize2 size={15} />}
@@ -4574,7 +4586,7 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
                     {MAP_PLANET_DISPLAY_MODE_OPTIONS.map(option => <button key={option.key} type="button" onClick={() => selectMapPlanetDisplayMode(option.key)} aria-pressed={mapPlanetDisplayMode === option.key} className={cx(mapControlButtonClass, "justify-center border border-white/10 px-1", mapPlanetDisplayMode === option.key && "bg-gold/15 text-gold")}>{option.key === "natal" ? "ネイタル" : option.key === "transit" ? "現行天体" : "両方"}</button>)}
                   </div></div>
                   <div className="space-y-2"><p className="text-[10px] text-mist/60">アスペクト</p><div className="grid grid-cols-2 gap-1">
-                  {ASPECT_DISPLAY_MODE_OPTIONS.map((option) => (
+                  {ASPECT_DISPLAY_MODE_OPTIONS.filter((option) => isAspectModeVisible(option.key, mapPlanetDisplayMode)).map((option) => (
                     <button
                       key={option.key}
                       type="button"
@@ -4589,14 +4601,18 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
                       )}
                       aria-pressed={aspectLineMode === option.key}
                     >
-                      <span className="text-[10px] leading-4">{option.label}</span>
+                      <span className="flex items-center gap-1 text-[10px] leading-4">
+                        {isLockedAspectMode(option.key, policy) && <LockKeyhole size={11} aria-hidden="true" className="shrink-0 text-gold" />}
+                        {option.label}
+                      </span>
                       <span className="text-[8px] leading-3 text-mist/55">{option.description}</span>
+                      {isLockedAspectMode(option.key, policy) && <span className="text-[9px] leading-4 text-gold">有料版で利用できます</span>}
                     </button>
                   ))}
                 </div>
 {aspectLineMode === "custom" ? (
                   <div className="grid gap-1.5 ">
-                    {ASPECT_LINE_SCOPE_OPTIONS.map((option) => (
+                    {ASPECT_LINE_SCOPE_OPTIONS.filter((option) => isAspectModeVisible(option.key, mapPlanetDisplayMode)).map((option) => (
                       <section key={option.key} className="rounded-lg border border-white/8 bg-white/[0.025] p-1.5">
                         <div className="mb-1 flex items-center justify-between gap-1">
                           <div className="min-w-0">
@@ -4700,7 +4716,7 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
           )}
           <div className="absolute inset-x-0 bottom-3 z-[100] flex justify-center gap-2" aria-label="マップの詳細情報">
             <button type="button" disabled={!canShowAspectList} title={!canShowAspectList ? "有料版で利用できます" : undefined} onClick={() => {setIsAspectListPanelOpen(value => !value); setIsMapControlsMenuOpen(false); setIsMapSettingsOpen(false);}} aria-expanded={isAspectListPanelOpen} aria-controls={mapId + "-map-aspect-details"} className={cx(mapControlButtonClass,"border border-white/10 bg-[#101827]/90 shadow-lg backdrop-blur-xl",isAspectListPanelOpen && "text-gold")}><ChevronDown size={13} className={isAspectListPanelOpen ? "" : "rotate-180"} />アスペクト一覧</button>
-            <button type="button" onClick={() => {setIsMapControlsMenuOpen(value => !value); setIsAspectListPanelOpen(false); setIsMapSettingsOpen(false);}} aria-expanded={isMapControlsMenuOpen} aria-controls={mapId + "-map-chart-details"} className={cx(mapControlButtonClass,"border border-white/10 bg-[#101827]/90 shadow-lg backdrop-blur-xl",isMapControlsMenuOpen && "text-gold")}><ChevronDown size={13} className={isMapControlsMenuOpen ? "" : "rotate-180"} />天体データ</button>
+            <button type="button" onClick={() => {setIsMapControlsMenuOpen(value => !value); setIsAspectListPanelOpen(false); setIsMapSettingsOpen(false);}} aria-expanded={isMapControlsMenuOpen} aria-controls={mapId + "-map-chart-details"} className={cx(mapControlButtonClass,"hidden border border-white/10 bg-[#101827]/90 shadow-lg backdrop-blur-xl sm:inline-flex",isMapControlsMenuOpen && "text-gold")}><ChevronDown size={13} className={isMapControlsMenuOpen ? "" : "rotate-180"} />天体データ</button>
           </div>
           {((canShowAspectList && isAspectListPanelOpen) || isMapControlsMenuOpen) && <section id={isAspectListPanelOpen ? mapId + "-map-aspect-details" : mapId + "-map-chart-details"} aria-label={isAspectListPanelOpen ? "アスペクト一覧" : "天体データ"} onKeyDown={handleMapPanelEscape}
             className="absolute inset-x-3 bottom-14 z-[110] max-h-[calc(100%-10rem)] overflow-y-auto overscroll-contain rounded-2xl border border-white/15 bg-[#101827]/55 p-3 text-mist shadow-lg backdrop-blur-none sm:bg-[#101827]/95 sm:shadow-2xl sm:backdrop-blur-xl sm:left-auto sm:right-4 sm:w-[min(520px,calc(100%-2rem))]">
@@ -4808,7 +4824,7 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
                       </p>
                     )}
                   </div>
-                </div></> : <><div className="sm:hidden"><MobileChartDisplayPanel /></div><div className="hidden space-y-2 sm:block"><div
+                </div></> : <><div className="hidden space-y-2 sm:block"><div
               className={cx(
                 "rounded-xl border p-2 backdrop-blur-md transition sm:block sm:p-2.5",
                 mobilePlanetTableTab !== "transit" && "hidden",
@@ -5094,7 +5110,10 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
             <p role="status" className="pointer-events-none absolute bottom-3 right-3 z-10 max-w-[320px] rounded bg-[#121414]/90 p-2 text-[10px] leading-5 text-gold">{transitChart.time_adjustment}</p>
           ) : null}
         </div>
-
+        <section aria-label="天体データ" className="min-h-[300px] space-y-3 border-t border-white/10 bg-[#101827]/90 px-3 py-4 text-mist sm:hidden">
+          <h3 className="text-xs font-semibold tracking-widest">天体データ</h3>
+          <MobileChartDisplayPanel />
+        </section>
       </div>
     </GlassPanel>
   );
@@ -5147,23 +5166,25 @@ function Horoscope3DMap({ data }) {
       ? data.natalHouseCusps
       : [];
 
-  if (!natalPoints.length) return null;
-
-  const mapDay = {
+  // Session polling must not recreate the WebGL scene when chart inputs are unchanged.
+  const mapDay = useMemo(() => ({
     date: selectedDate,
     all_aspects: [],
-  };
-  const mapForecast = {
+  }), [selectedDate]);
+  const mapForecast = useMemo(() => ({
     natal_points: natalPoints,
     natal_house_cusps: natalHouseCusps,
-  };
+  }), [natalPoints, natalHouseCusps]);
+  const availableMapDays = useMemo(() => [mapDay], [mapDay]);
+
+  if (!natalPoints.length) return null;
 
   return (
     <div className="mb-5">
       <TransitNatalSunMap
         day={mapDay}
         forecast={mapForecast}
-        availableDays={[mapDay]}
+        availableDays={availableMapDays}
         selectedDayIndex={0}
         onSelectDate={setSelectedDate}
       />
