@@ -12,13 +12,16 @@ function priceLabel(subscription) {
 
 export function billingMessage(billing) {
   if (billing?.access_state === "owner") return "確認用アカウントです。有料機能に利用期限はありません。既存のStripe契約・請求は別途管理されます。";
+  if (billing?.access_state === "invite") return "招待特典で有料機能を利用中です。利用期限・月額請求はありません。";
   if (!billing?.configured) return "有料プランの申し込みは現在準備中です。";
   const subscription = billing.subscription;
   const until = formatUntil(subscription);
   switch (billing.access_state) {
     case "active":
+      if (subscription?.status === "trialing") return `30日間の無料お試し中です。${until}に月額400円の初回請求が予定されています。期間中に解約すれば請求されません。`;
       return `有料プラン（${priceLabel(subscription)}）を利用中です。現在の利用期限は${until}です。`;
     case "active_canceling":
+      if (subscription?.status === "trialing") return `お試しの解約予約済みです。${until}までは有料機能を利用でき、月額請求は発生しません。`;
       return `解約予約済みです。${until}までは有料機能を利用でき、その後は無料版に切り替わります。`;
     case "payment_required":
       return "お支払いを確認できないため、有料機能を一時停止しています。契約・支払い方法を管理し、完了後に状態を再確認してください。";
@@ -29,6 +32,7 @@ export function billingMessage(billing) {
     case "expired":
       return "有料版の利用期間が終了しています。現在は無料版を利用できます。";
     case "canceled":
+      if (billing.trial_rejected) return "登録されたカードは無料お試しの対象外でした。試用の申込みは取り消され、請求は発生しません。通常の月額プランは申し込めます。";
       return "契約は終了しています。現在は無料版を利用できます。";
     case "unknown":
       return "契約状態を確認できないため、有料機能を停止しています。契約管理画面で確認してください。";
@@ -38,7 +42,7 @@ export function billingMessage(billing) {
 }
 
 export function canShowCheckoutPlan(billing) {
-  if (billing?.access_state === "owner") return false;
+  if (["owner", "invite"].includes(billing?.access_state)) return false;
   const subscription = billing?.subscription;
   return !subscription || TERMINAL_STATUSES.has(subscription.status);
 }

@@ -16,6 +16,8 @@ from backend.v3.deployment import require_allowed_origin
 
 ACTIVE_STATUSES = {"active", "trialing"}
 TERMINAL_STATUSES = {"canceled", "incomplete_expired"}
+TRIAL_DAYS = 30
+GENERAL_LAUNCH_AT = datetime(2026, 10, 31, 15, 0, tzinfo=timezone.utc)
 
 
 def subscription_access_state(subscription: dict | None, now: datetime | None = None) -> str:
@@ -64,6 +66,13 @@ def _plain_dict(value):
 
 def _env(name: str, local: dict) -> str:
     return (os.environ.get(name, local.get(name)) or "").strip()
+
+
+def _enabled(name: str, local: dict) -> bool:
+    value = _env(name, local).lower()
+    if value not in {"", "true", "false"}:
+        raise RuntimeError(f"{name}はtrueまたはfalseを指定してください。")
+    return value == "true"
 
 
 class BillingStore:
@@ -136,6 +145,39 @@ class BillingStore:
             return "unavailable", None
         return ("active", valid_until) if valid_until > datetime.now(timezone.utc) else ("none", None)
 
+    def invite(self, user_id: str) -> bool:
+        rows = self.request("GET", "v3_invite_grants", params={
+            "user_id": f"eq.{user_id}", "select": "user_id", "limit": "1"})
+        return bool(rows)
+
+    def claim_campaign_invite(self, user_id: str) -> bool:
+        return bool(self.request("POST", "rpc/v3_claim_campaign_invite",
+                                 json={"p_user_id": user_id}))
+
+    def trial_used_or_denied(self, user_id: str) -> bool:
+        for table in ("v3_trial_users", "v3_trial_denials"):
+            rows = self.request("GET", table, params={
+                "user_id": f"eq.{user_id}", "select": "user_id", "limit": "1"})
+            if rows:
+                return True
+        return False
+
+    def trial_denied(self, user_id: str) -> bool:
+        rows = self.request("GET", "v3_trial_denials", params={
+            "user_id": f"eq.{user_id}", "select": "user_id", "limit": "1"})
+        return bool(rows)
+
+    def trial_verified(self, user_id: str, subscription_id: str) -> bool:
+        rows = self.request("GET", "v3_trial_users", params={
+            "user_id": f"eq.{user_id}", "stripe_subscription_id": f"eq.{subscription_id}",
+            "select": "user_id", "limit": "1"})
+        return bool(rows)
+
+    def claim_trial_card(self, user_id: str, fingerprint: str, subscription_id: str) -> bool:
+        return bool(self.request("POST", "rpc/v3_claim_trial_card",
+                                 json={"p_user_id": user_id, "p_fingerprint": fingerprint,
+                                       "p_subscription_id": subscription_id}))
+
     def save_subscription(self, record: dict, event_created: int):
         existing = self.subscription(record["stripe_subscription_id"])
         if existing and int(existing.get("latest_event_created") or 0) > event_created:
@@ -195,6 +237,8 @@ class StripeBilling:
         self.checkout_enabled = checkout_enabled
         self.checkout_access_mode = checkout_access_mode or ("single_user" if self.live_mode else "public")
         self.checkout_allowed_user_id = checkout_allowed_user_id
+        self.invite_access_enabled = _enabled("V3_INVITE_ACCESS_ENABLED", local)
+        self.trial_enabled = _enabled("V3_TRIAL_ENABLED", local)
         self.secret_key = _env("V3_STRIPE_SECRET_KEY", local)
         self.webhook_secret = _env("V3_STRIPE_WEBHOOK_SECRET", local)
         jpy_price = _env("V3_STRIPE_PRICE_JPY", local)
@@ -231,9 +275,25 @@ class StripeBilling:
     def checkout_enabled_for(self, user_id: str) -> bool:
         if not self.checkout_enabled:
             return False
+        if (self.live_mode and self.checkout_access_mode == "public" and self.trial_enabled
+                and datetime.now(timezone.utc) < GENERAL_LAUNCH_AT):
+            return False
         if self.checkout_access_mode == "public":
             return True
         return bool(self.checkout_allowed_user_id and user_id == self.checkout_allowed_user_id)
+
+    def access_entitlement(self, user_id: str):
+        if self.invite_access_enabled:
+            if self.store.invite(user_id):
+                return "invite", None
+            if self.store.claim_campaign_invite(user_id):
+                return "invite", None
+        return self.store.entitlement(user_id)
+
+    def trial_available_for(self, user_id: str) -> bool:
+        return (self.trial_enabled and (not self.live_mode or datetime.now(timezone.utc) >= GENERAL_LAUNCH_AT)
+                and not self.store.customer(user_id)
+                and not self.store.trial_used_or_denied(user_id))
 
     def ensure_customer(self, user_id: str, email: str):
         self._require()
@@ -274,20 +334,28 @@ class StripeBilling:
             raise HTTPException(503, "現在、新規の有料プラン申し込みを停止しています。")
         if not self.checkout_enabled_for(user_id):
             raise HTTPException(403, "このアカウントでは現在、有料プランの申し込みを受け付けていません。")
+        if self.invite_access_enabled and self.store.invite(user_id):
+            raise HTTPException(409, "招待特典で有料機能を利用できます。新たな契約は不要です。")
         if currency not in self.prices:
             raise HTTPException(422, "選択した通貨の決済は現在利用できません。")
         self.validate_prices()
         current = self.store.status(user_id)
         if not checkout_available(current):
             raise HTTPException(409, "既存の契約は契約管理画面から確認してください。")
+        trial = self.trial_available_for(user_id)
         customer_id = self.ensure_customer(user_id, email)
         try:
+            subscription_data = {"metadata": {"v3_user_id": user_id}}
+            if trial:
+                subscription_data["trial_period_days"] = TRIAL_DAYS
+                subscription_data["metadata"]["v3_trial_offer"] = "30d"
             session = stripe.checkout.Session.create(api_key=self.secret_key, mode="subscription",
                 customer=customer_id, client_reference_id=user_id,
+                payment_method_collection="always",
                 line_items=[{"price": self.prices[currency], "quantity": 1}],
                 success_url=f"{origin}/billing.html?checkout=success",
                 cancel_url=f"{origin}/billing.html?checkout=cancel",
-                subscription_data={"metadata": {"v3_user_id": user_id}},
+                subscription_data=subscription_data,
                 metadata={"v3_user_id": user_id, "currency_choice": currency})
         except stripe.StripeError:
             raise HTTPException(503, "Stripe Checkoutを開始できません。") from None
@@ -324,6 +392,30 @@ class StripeBilling:
         except stripe.StripeError:
             raise HTTPException(503, "Stripeの契約状態を確認できません。") from None
 
+    def _verify_trial_card(self, subscription: dict, user_id: str) -> bool:
+        method = subscription.get("default_payment_method")
+        if isinstance(method, dict):
+            method = method.get("id")
+        if not method:
+            try:
+                customer = _plain_dict(stripe.Customer.retrieve(subscription["customer"],
+                                                                  api_key=self.secret_key))
+                method = (customer.get("invoice_settings") or {}).get("default_payment_method")
+            except stripe.StripeError:
+                raise HTTPException(503, "試用のカード登録を確認できません。") from None
+        if isinstance(method, dict):
+            method = method.get("id")
+        if not isinstance(method, str) or not method.startswith("pm_"):
+            raise HTTPException(503, "試用のカード登録を確認できません。")
+        try:
+            payment = _plain_dict(stripe.PaymentMethod.retrieve(method, api_key=self.secret_key))
+        except stripe.StripeError:
+            raise HTTPException(503, "試用のカード登録を確認できません。") from None
+        fingerprint = (payment.get("card") or {}).get("fingerprint") if payment.get("type") == "card" else None
+        if not fingerprint:
+            raise HTTPException(503, "試用にはカード登録が必要です。")
+        return self.store.claim_trial_card(user_id, fingerprint, subscription["id"])
+
     def _record(self, subscription: dict, event_type: str):
         customer_id = subscription.get("customer")
         user_id = self.store.user_for_customer(customer_id) if isinstance(customer_id, str) else None
@@ -341,7 +433,11 @@ class StripeBilling:
                   # while cancel_at_period_end remains false.
                   "cancel_at_period_end": bool(subscription.get("cancel_at_period_end")
                                                or subscription.get("cancel_at"))}
-        if event_type == "invoice.paid" and period_end:
+        if record["status"] == "trialing" and subscription.get("metadata", {}).get("v3_trial_offer") == "30d":
+            trial_end = subscription.get("trial_end")
+            if trial_end:
+                record["access_until"] = datetime.fromtimestamp(int(trial_end), timezone.utc).isoformat()
+        elif event_type == "invoice.paid" and period_end:
             record["access_until"] = datetime.fromtimestamp(int(period_end), timezone.utc).isoformat()
         elif event_type == "customer.subscription.deleted":
             record["access_until"] = datetime.now(timezone.utc).isoformat()
@@ -352,11 +448,17 @@ class StripeBilling:
         record = self._record(subscription, "reconcile")
         if not record:
             return None
+        if (record["status"] == "trialing" and subscription.get("metadata", {}).get("v3_trial_offer") == "30d"
+                and not self.store.trial_verified(record["user_id"], record["stripe_subscription_id"])):
+            # Read-only reconciliation must not bypass card verification.
+            return None
         observed_at = observed_at or datetime.now(timezone.utc)
         items = subscription.get("items", {}).get("data", [])
         period_end = subscription.get("current_period_end") or (items[0].get("current_period_end") if items else None)
         if record["status"] in {"canceled", "incomplete_expired"}:
             record["access_until"] = observed_at.isoformat()
+        elif record["status"] == "trialing" and record.get("access_until"):
+            pass
         elif period_end:
             record["access_until"] = datetime.fromtimestamp(int(period_end), timezone.utc).isoformat()
         return record
@@ -383,9 +485,22 @@ class StripeBilling:
                 subscription_id = self._subscription_id(obj)
                 if subscription_id:
                     subscription = self._retrieve_subscription(subscription_id)
+            elif event_type == "checkout.session.completed" and obj.get("subscription"):
+                subscription = self._retrieve_subscription(obj["subscription"])
             if subscription:
                 record = self._record(subscription, event_type)
                 if record:
+                    if (record["status"] == "trialing"
+                            and subscription.get("metadata", {}).get("v3_trial_offer") == "30d"):
+                        if not self._verify_trial_card(subscription, record["user_id"]):
+                            try:
+                                canceled = _plain_dict(stripe.Subscription.delete(subscription["id"],
+                                                                                   api_key=self.secret_key))
+                            except stripe.StripeError:
+                                raise HTTPException(503, "重複試用の契約を停止できません。") from None
+                            record = self._record(canceled, "customer.subscription.deleted")
+                            if not record:
+                                raise HTTPException(503, "停止した契約を記録できません。")
                     self.store.save_subscription(record, created)
             self.store.finish_event(event_id)
         except Exception as exc:
@@ -428,11 +543,15 @@ def billing_status(request: Request, user_id=Depends(_identity)):
                 "customer": False, "subscription": None, "access_state": "owner" if owner else "none",
                 "checkout_available": False}
     subscription = service.store.status(user_id)
-    checkout_enabled = not owner and service.checkout_enabled_for(user_id)
+    invited = service.invite_access_enabled and service.store.invite(user_id)
+    checkout_enabled = not owner and not invited and service.checkout_enabled_for(user_id)
+    trial_days = TRIAL_DAYS if checkout_enabled and service.trial_available_for(user_id) else 0
+    trial_rejected = bool(service.trial_enabled and service.store.trial_denied(user_id))
     return {"configured": True, "checkout_enabled": checkout_enabled, "mode": service.mode,
             "customer": bool(service.store.customer(user_id)), "subscription": subscription,
-            "access_state": "owner" if owner else subscription_access_state(subscription),
-            "checkout_available": checkout_enabled and checkout_available(subscription)}
+            "access_state": "owner" if owner else "invite" if invited else subscription_access_state(subscription),
+            "checkout_available": checkout_enabled and checkout_available(subscription),
+            "trial_days": trial_days, "trial_rejected": trial_rejected}
 
 
 @router.post("/checkout")

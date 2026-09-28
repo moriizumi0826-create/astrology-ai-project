@@ -18,6 +18,10 @@ test("owner grant enables paid capabilities without an expiry", () => {
   assert.deepEqual(featurePolicy(owner, now), {aspectList:true, compoundAspects:true, stellarForecast:true, freePlayback:false});
   assert.equal(featurePolicy({...owner, state: "free"}, now).stellarForecast, false);
 });
+test("invite grant enables paid capabilities without an expiry", () => {
+  const invited = {...paid, valid_until: null, access_source: "invite"};
+  assert.deepEqual(featurePolicy(invited, now), {aspectList:true, compoundAspects:true, stellarForecast:true, freePlayback:false});
+});
 test("free mode locks only compound presets, leaving all ordinary presets usable", () => {
   const free = featurePolicy(null,now);
   for (const mode of ["none", "transitNatal", "transitTransit", "natalNatal", "custom"]) assert.equal(isLockedAspectMode(mode, free), false);

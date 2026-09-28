@@ -1,7 +1,7 @@
 // Server capabilities control UI availability. They never authorize an API call.
 export function featurePolicy(session, now = Date.now()) {
   const paid = session?.state === "paid" && (
-    session.access_source === "owner" || Date.parse(session.valid_until) > now
+    session.access_source === "owner" || session.access_source === "invite" || Date.parse(session.valid_until) > now
   );
   const caps = session?.capabilities || {};
   return {

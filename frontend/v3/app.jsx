@@ -149,7 +149,7 @@ function App() {
     return () => window.removeEventListener("v3-auth-changed", changed);
   }, []);
   useEffect(() => {
-    if (session?.state !== "paid" || session.access_source === "owner") return;
+    if (session?.state !== "paid" || ["owner", "invite"].includes(session.access_source)) return;
     const remaining = Date.parse(session.valid_until) - Date.now();
     const timer = setTimeout(() => {
       const checking = { ...session, state: "checking", capabilities: {} };

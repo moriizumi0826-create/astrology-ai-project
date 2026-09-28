@@ -22,7 +22,9 @@ let client;
   history.replaceState(null, "", location.pathname + (recovery ? "?mode=recovery" : ""));
   const session = await getJson("/api/v3/session");
   if (failedLink || !session.user_id) throw new Error("確認リンクが無効または期限切れです。ログイン画面からメールを再送してください。");
-  $("#status").textContent = recovery ? "新しいパスワードを設定してください（12文字以上）。" : "メールを確認しました。会員登録は無料です。";
+  $("#status").textContent = recovery ? "新しいパスワードを設定してください（12文字以上）。"
+    : session.access_source === "invite" ? "メールを確認しました。招待特典で有料機能を利用できます。"
+    : "メールを確認しました。会員登録は無料です。";
   $("#heading").textContent = recovery ? "パスワード再設定" : "メール確認完了";
   $("#password-row").hidden = !recovery;
   $("#new-password").required = recovery;

@@ -7,13 +7,14 @@ export function mountAuthControls(session) {
   bar.setAttribute("aria-label", "会員メニュー");
   bar.style.cssText = "position:sticky;top:0;z-index:260;display:flex;align-items:center;justify-content:flex-end;flex-wrap:wrap;gap:12px;padding:8px 16px;background:#121414;color:#eee9dd;font:12px sans-serif;border-bottom:1px solid #ffffff22";
   const label = document.createElement("span");
-  label.textContent = isMemberMode() ? (session.user_id ? `ログイン中 · ${session.state === "paid" ? "有料会員" : "無料会員"}` : "未ログイン · 無料版") : session.state === "paid" ? "ローカル検証 · テストユーザー（有料）" : "ローカル検証 · 無料";
+  const memberLabel = session.access_source === "invite" ? "招待特典" : session.state === "paid" ? "有料会員" : "無料会員";
+  label.textContent = isMemberMode() ? (session.user_id ? `ログイン中 · ${memberLabel}` : "未ログイン · 無料版") : session.state === "paid" ? "ローカル検証 · テストユーザー（有料）" : "ローカル検証 · 無料";
   bar.append(label);
   if (session.user_id) {
     if (isMemberMode()) {
       const billing = document.createElement("a");
       billing.href = "/billing.html";
-      billing.textContent = session.state === "paid" ? "契約管理" : "有料プラン";
+      billing.textContent = session.access_source === "invite" ? "招待特典" : session.state === "paid" ? "契約管理" : "有料プラン";
       billing.style.color = "#e9c349";
       bar.append(billing);
     }

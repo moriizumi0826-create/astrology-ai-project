@@ -12,7 +12,7 @@ from pydantic import BaseModel
 class AccessContext:
     # Future authentication adapter supplies a verified internal account ID.
     user_id: str | None = None
-    entitlement: Literal["none", "active", "owner", "checking", "unavailable"] = "none"
+    entitlement: Literal["none", "active", "invite", "owner", "checking", "unavailable"] = "none"
     valid_until: datetime | None = None
 
 
@@ -31,7 +31,7 @@ class AccessSnapshot(BaseModel):
     user_id: str | None
     checked_at: datetime
     valid_until: datetime | None = None
-    access_source: Literal["none", "subscription", "owner"] = "none"
+    access_source: Literal["none", "subscription", "invite", "owner"] = "none"
     capabilities: Capabilities
 
 
@@ -55,6 +55,9 @@ def evaluate_access(context: AccessContext, now: datetime) -> AccessSnapshot:
         elif context.entitlement == "owner":
             state = "paid"
             access_source = "owner"
+        elif context.entitlement == "invite":
+            state = "paid"
+            access_source = "invite"
     paid = state == "paid"
     return AccessSnapshot(
         state=state,
@@ -83,7 +86,7 @@ def get_access_context(request: Request) -> AccessContext:
         billing = getattr(request.app.state, "billing", None)
         if billing is not None and billing.configured:
             try:
-                entitlement, valid_until = billing.store.entitlement(request.state.supabase_subject)
+                entitlement, valid_until = billing.access_entitlement(request.state.supabase_subject)
             except HTTPException as exc:
                 if exc.status_code != 503:
                     raise

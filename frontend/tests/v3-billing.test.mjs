@@ -31,6 +31,23 @@ test("owner grant is unlimited and does not offer checkout", () => {
   assert.equal(canStartCheckout(owner), false);
 });
 
+test("invite grants never offer a paid checkout", () => {
+  const invite = {...base, access_state: "invite", subscription: null};
+  assert.match(billingMessage(invite), /招待特典.*月額請求はありません/);
+  assert.equal(canShowCheckoutPlan(invite), false);
+  assert.equal(canStartCheckout(invite), false);
+});
+
+test("trial status distinguishes upcoming payment from trial cancellation", () => {
+  const subscription = {status: "trialing", access_until: "2026-12-01T00:00:00Z"};
+  assert.match(billingMessage({...base, access_state: "active", subscription}), /30日間の無料お試し中.*初回請求/);
+  assert.match(billingMessage({...base, access_state: "active_canceling", subscription}), /お試しの解約予約済み.*請求は発生しません/);
+});
+test("reused card explains why a trial was canceled", () => {
+  assert.match(billingMessage({...base, access_state: "canceled", trial_rejected: true,
+    subscription: {status: "canceled"}}), /無料お試しの対象外.*申込みは取り消され/);
+});
+
 test("only no-contract or terminal-contract users see a new checkout plan", () => {
   assert.equal(canShowCheckoutPlan({...base, subscription: null}), true);
   assert.equal(canShowCheckoutPlan({...base, subscription: {status: "canceled"}}), true);
