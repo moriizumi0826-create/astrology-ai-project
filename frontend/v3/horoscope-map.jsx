@@ -4554,7 +4554,7 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
           </div>
           {isMapSettingsOpen && (
             <section id={mapId + "-map-settings-panel"} aria-label="3Dマップ設定" onKeyDown={handleMapPanelEscape}
-              className="absolute inset-x-3 bottom-14 z-[110] flex max-h-[calc(100%-10rem)] flex-col overflow-hidden rounded-2xl border border-white/15 bg-[#101827]/95 text-mist shadow-[0_20px_60px_rgba(0,0,0,0.4)] backdrop-blur-xl sm:inset-x-auto sm:bottom-auto sm:right-4 sm:top-16 sm:max-h-[calc(100%-8rem)] sm:w-[340px]">
+              className="absolute inset-x-3 bottom-14 z-[110] flex max-h-[calc(100%-10rem)] flex-col overflow-hidden rounded-2xl border border-white/15 bg-[#101827]/55 text-mist shadow-[0_8px_24px_rgba(0,0,0,0.2)] backdrop-blur-none sm:bg-[#101827]/95 sm:shadow-[0_20px_60px_rgba(0,0,0,0.4)] sm:backdrop-blur-xl sm:inset-x-auto sm:bottom-auto sm:right-4 sm:top-16 sm:max-h-[calc(100%-8rem)] sm:w-[340px]">
               <div className="flex items-center justify-between border-b border-white/10 px-4 py-3"><span className="text-xs font-semibold tracking-widest">マップ設定</span><button type="button" onClick={closeMapSettings} aria-label="設定を閉じる" className={mapControlButtonClass}>×</button></div>
               <div role="tablist" aria-label="設定カテゴリ" className="mx-3 mt-3 grid shrink-0 grid-cols-3 gap-1 rounded-xl bg-black/20 p-1">
                 {[["playback", "再生"], ["display", "表示"], ["view", "視点"]].map(([key,label]) => (
@@ -4703,7 +4703,7 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
             <button type="button" onClick={() => {setIsMapControlsMenuOpen(value => !value); setIsAspectListPanelOpen(false); setIsMapSettingsOpen(false);}} aria-expanded={isMapControlsMenuOpen} aria-controls={mapId + "-map-chart-details"} className={cx(mapControlButtonClass,"border border-white/10 bg-[#101827]/90 shadow-lg backdrop-blur-xl",isMapControlsMenuOpen && "text-gold")}><ChevronDown size={13} className={isMapControlsMenuOpen ? "" : "rotate-180"} />天体データ</button>
           </div>
           {((canShowAspectList && isAspectListPanelOpen) || isMapControlsMenuOpen) && <section id={isAspectListPanelOpen ? mapId + "-map-aspect-details" : mapId + "-map-chart-details"} aria-label={isAspectListPanelOpen ? "アスペクト一覧" : "天体データ"} onKeyDown={handleMapPanelEscape}
-            className="absolute inset-x-3 bottom-14 z-[110] max-h-[calc(100%-10rem)] overflow-y-auto overscroll-contain rounded-2xl border border-white/15 bg-[#101827]/95 p-3 text-mist shadow-2xl backdrop-blur-xl sm:left-auto sm:right-4 sm:w-[min(520px,calc(100%-2rem))]">
+            className="absolute inset-x-3 bottom-14 z-[110] max-h-[calc(100%-10rem)] overflow-y-auto overscroll-contain rounded-2xl border border-white/15 bg-[#101827]/55 p-3 text-mist shadow-lg backdrop-blur-none sm:bg-[#101827]/95 sm:shadow-2xl sm:backdrop-blur-xl sm:left-auto sm:right-4 sm:w-[min(520px,calc(100%-2rem))]">
             <div className="mb-3 flex items-center justify-between border-b border-white/10 pb-2"><span className="text-xs">{isAspectListPanelOpen ? "アスペクト一覧" : "天体データ"}</span><button type="button" onClick={() => {setIsAspectListPanelOpen(false);setIsMapControlsMenuOpen(false);}} aria-label="詳細情報を閉じる" className={mapControlButtonClass}>×</button></div>
             {isAspectListPanelOpen ? <><div className="mb-2 grid grid-cols-4 gap-1 rounded-lg border border-white/10 bg-white/[0.025] p-1">
                   {[
