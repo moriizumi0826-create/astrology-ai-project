@@ -2003,6 +2003,7 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
   const [mapSettingsTab, setMapSettingsTab] = useState("playback");
   const mapSettingsButtonRef = React.useRef(null);
   const mapControlButtonClass = "inline-flex min-h-8 items-center gap-1.5 rounded-lg px-2.5 text-[11px] font-medium text-mist transition hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold/50 disabled:cursor-not-allowed disabled:opacity-70";
+  const mapQuickControlClass = "inline-flex h-10 w-10 touch-manipulation items-center justify-center rounded-lg text-base text-starlight transition hover:bg-white/15 active:bg-gold/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold/50 disabled:cursor-not-allowed disabled:opacity-35";
   const closeMapSettings = () => { setIsMapSettingsOpen(false); mapSettingsButtonRef.current?.focus(); };
   const handleMapPanelEscape = (event) => {
     if (event.key !== "Escape") return;
@@ -4564,6 +4565,19 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
               </button>
             </div>
           </div>
+          <div role="group" aria-label="3Dマップの拡大縮小と位置調整" className="absolute right-2 top-1/2 z-[100] flex -translate-y-1/2 flex-col items-center gap-2 sm:right-4">
+            <div className="flex gap-1 rounded-xl border border-white/15 bg-[#101827]/55 p-1 shadow-lg">
+              <button type="button" onClick={zoomInMap} disabled={mapZoom >= 1.35} aria-label="3Dマップを拡大" title="拡大" className={mapQuickControlClass}><Plus size={18} /></button>
+              <button type="button" onClick={zoomOutMap} disabled={mapZoom <= minimumMapZoom()} aria-label="3Dマップを縮小" title="縮小" className={mapQuickControlClass}><Minus size={18} /></button>
+            </div>
+            <div className="grid grid-cols-3 gap-0.5">
+              <span /><button type="button" onClick={() => nudgeMapPosition(0,0.12)} aria-label="3Dマップを上へ移動" className={cx(mapQuickControlClass, "border border-white/15 bg-[#101827]/55")}>↑</button><span />
+              <button type="button" onClick={() => nudgeMapPosition(-0.12,0)} aria-label="3Dマップを左へ移動" className={cx(mapQuickControlClass, "border border-white/15 bg-[#101827]/55")}>←</button>
+              <button type="button" onClick={resetMapPosition} aria-label="3Dマップを中央へ戻す" title="中央へ戻す" className={cx(mapQuickControlClass, "border border-white/15 bg-[#101827]/55")}><CircleDot size={16} /></button>
+              <button type="button" onClick={() => nudgeMapPosition(0.12,0)} aria-label="3Dマップを右へ移動" className={cx(mapQuickControlClass, "border border-white/15 bg-[#101827]/55")}>→</button>
+              <span /><button type="button" onClick={() => nudgeMapPosition(0,-0.12)} aria-label="3Dマップを下へ移動" className={cx(mapQuickControlClass, "border border-white/15 bg-[#101827]/55")}>↓</button><span />
+            </div>
+          </div>
           {isMapSettingsOpen && (
             <section id={mapId + "-map-settings-panel"} aria-label="3Dマップ設定" onKeyDown={handleMapPanelEscape}
               className="absolute inset-x-3 bottom-14 z-[110] flex max-h-[calc(100%-10rem)] flex-col overflow-hidden rounded-2xl border border-white/15 bg-[#101827]/55 text-mist shadow-[0_8px_24px_rgba(0,0,0,0.2)] backdrop-blur-none sm:bg-[#101827]/95 sm:shadow-[0_20px_60px_rgba(0,0,0,0.4)] sm:backdrop-blur-xl sm:inset-x-auto sm:bottom-auto sm:right-4 sm:top-16 sm:max-h-[calc(100%-8rem)] sm:w-[340px]">
@@ -4694,21 +4708,10 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
                 ) : null}</div>
                 </>}
                 {mapSettingsTab === "view" && <>
-                  <div className="flex items-center justify-between"><span className="text-[11px] text-mist/65">拡大・縮小</span><div className="flex gap-2">
-                    <button type="button" onClick={zoomOutMap} disabled={mapZoom <= minimumMapZoom()} aria-label="3Dマップを縮小" className={mapControlButtonClass}><Minus size={16} /></button>
-                    <button type="button" onClick={zoomInMap} disabled={mapZoom >= 1.35} aria-label="3Dマップを拡大" className={mapControlButtonClass}><Plus size={16} /></button>
-                  </div></div>
                   <div className="grid grid-cols-2 gap-2">
                     <button type="button" onClick={() => setIsRotationPaused(value => !value)} className={cx(mapControlButtonClass, "justify-center border border-white/10")} aria-pressed={!isRotationPaused}>{isRotationPaused ? "回転を再開" : "回転を停止"}</button>
                     <button type="button" onClick={toggleFlatMapView} className={cx(mapControlButtonClass, "justify-center border border-white/10")} aria-pressed={isFlatMapView}>{isFlatMapView ? "3D表示に戻す" : "平面表示にする"}</button>
                   </div>
-                  <div className="space-y-2"><p className="text-[10px] text-mist/60">表示位置</p><div className="grid grid-cols-3 justify-items-center gap-1 rounded-xl border border-white/10 p-2">
-                    <span /><button type="button" onClick={() => nudgeMapPosition(0,0.12)} aria-label="3Dマップを上へ移動" className={mapControlButtonClass}>↑</button><span />
-                    <button type="button" onClick={() => nudgeMapPosition(-0.12,0)} aria-label="3Dマップを左へ移動" className={mapControlButtonClass}>←</button>
-                    <button type="button" onClick={resetMapPosition} className={mapControlButtonClass}>中央へ</button>
-                    <button type="button" onClick={() => nudgeMapPosition(0.12,0)} aria-label="3Dマップを右へ移動" className={mapControlButtonClass}>→</button>
-                    <span /><button type="button" onClick={() => nudgeMapPosition(0,-0.12)} aria-label="3Dマップを下へ移動" className={mapControlButtonClass}>↓</button><span />
-                  </div></div>
                   <button type="button" onClick={resetMapSettings} disabled={isTransitPlaybackPreloading} className={cx(mapControlButtonClass,"w-full justify-center border border-white/10")}><RefreshCw size={13} />設定をリセット</button>
                 </>}
               </div>
