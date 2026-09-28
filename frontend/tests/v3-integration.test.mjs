@@ -24,7 +24,7 @@ test("one map implementation is shared and paid entry is lazy", () => {
   assert.match(app, /<div hidden=\{view !== "forecast"\}>/);
   assert.doesNotMatch(app, /const navigate = next => \{ setPaidReady\(false\)/);
   const map = readFileSync(new URL("../v3/horoscope-map.jsx", import.meta.url), "utf8");
-  assert.match(map, /isFreePlayback \? buildFreePlaybackDates\(currentLocalDate\(\)\)/);
+  assert.match(map, /freePlaybackDates = buildFreePlaybackDates\(currentLocalDate\(\)\)/);
   assert.match(map, /buildTransitPlaybackDates\(playbackStartDate, rangeOption.days\)/);
   assert.doesNotMatch(map, /setAspectInterpretationScope\(nextMode === "natalNatal" \? "all"/);
 });

@@ -1963,7 +1963,7 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
   const canShowCompoundAspects = policy.compoundAspects;
   const isFreePlayback = policy.freePlayback;
   const TRANSIT_PLAYBACK_RANGE_OPTIONS = isFreePlayback
-    ? [{ key: "month", label: "今日±15日", days: 31 }] : PAID_PLAYBACK_RANGE_OPTIONS;
+    ? [{ key: "month", label: "今日±30日", days: 61 }] : PAID_PLAYBACK_RANGE_OPTIONS;
   const mapId = React.useId();
   const mountRef = React.useRef(null);
   const frameRef = React.useRef(null);
@@ -2080,29 +2080,36 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
   const minSelectableDate = selectableDates[0] || selectedDate || "";
   const maxSelectableDate = selectableDates[selectableDates.length - 1] || selectedDate || "";
   const hasDirectDateSelection = typeof onSelectDate === "function";
+  const freePlaybackDates = buildFreePlaybackDates(currentLocalDate());
+  const playbackAllowedDates = isFreePlayback ? freePlaybackDates : hasDirectDateSelection ? null : selectableDates;
+  const playbackMinDate = isFreePlayback ? freePlaybackDates[0] : hasDirectDateSelection ? undefined : minSelectableDate;
+  const playbackMaxDate = isFreePlayback ? freePlaybackDates.at(-1) : hasDirectDateSelection ? undefined : maxSelectableDate;
   let customPlaybackError = "";
-  if (!isFreePlayback && transitPlaybackRange === "custom") {
+  if (transitPlaybackRange === "custom") {
     try {
-      customPlaybackDates(customPlaybackStart, customPlaybackEnd, hasDirectDateSelection ? null : selectableDates);
+      customPlaybackDates(customPlaybackStart, customPlaybackEnd, playbackAllowedDates);
     } catch (error) {
       customPlaybackError = error.message;
     }
   }
   const changePlaybackRange = (range) => {
     if (range === "custom" && !customPlaybackStart && !customPlaybackEnd) {
-      const start = displayedTransitDateTime.date || selectedDate;
+      const selectedStart = displayedTransitDateTime.date || selectedDate;
+      const start = isFreePlayback && !freePlaybackDates.includes(selectedStart) ? currentLocalDate() : selectedStart;
       const end = buildTransitPlaybackDates(start, 31).at(-1) || start;
       setCustomPlaybackStart(start);
-      setCustomPlaybackEnd(!hasDirectDateSelection && maxSelectableDate < end ? maxSelectableDate : end);
+      setCustomPlaybackEnd(playbackMaxDate && playbackMaxDate < end ? playbackMaxDate : end);
     }
     setTransitPlaybackRange(range);
   };
-  const playbackRangeControls = isFreePlayback ? <p className="text-xs text-mist">再生期間：今日±15日</p> : (
+  const playbackRangeControls = (
     <TransitPlaybackControls range={transitPlaybackRange} onRangeChange={changePlaybackRange}
       start={customPlaybackStart} end={customPlaybackEnd}
       onStartChange={setCustomPlaybackStart} onEndChange={setCustomPlaybackEnd}
-      min={hasDirectDateSelection ? undefined : minSelectableDate}
-      max={hasDirectDateSelection ? undefined : maxSelectableDate}
+      min={playbackMinDate}
+      max={playbackMaxDate}
+      options={isFreePlayback ? [["month", "今日±30日"], ["custom", "期間指定"]] : undefined}
+      rangeHint={isFreePlayback ? "今日の30日前〜30日後の範囲で指定できます" : undefined}
       disabled={isTransitPlaybackActive || isTransitPlaybackPreloading} error={customPlaybackError} />
   );
 
@@ -4234,9 +4241,9 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
         ? customPlaybackStart : displayedTransitDateTime.date || selectedDate;
       const startIndex = Math.max(0, selectableDates.indexOf(playbackStartDate));
       const rangeOption = TRANSIT_PLAYBACK_RANGE_OPTIONS.find((option) => option.key === transitPlaybackRange) || TRANSIT_PLAYBACK_RANGE_OPTIONS[0];
-      const remainingDates = isFreePlayback ? buildFreePlaybackDates(currentLocalDate()) : transitPlaybackRange === "custom"
-        ? customPlaybackDates(customPlaybackStart, customPlaybackEnd, hasDirectDateSelection ? null : selectableDates)
-        : (hasDirectDateSelection
+      const remainingDates = transitPlaybackRange === "custom"
+        ? customPlaybackDates(customPlaybackStart, customPlaybackEnd, playbackAllowedDates)
+        : isFreePlayback ? freePlaybackDates : (hasDirectDateSelection
           ? buildTransitPlaybackDates(playbackStartDate, rangeOption.days)
           : selectableDates.length ? selectableDates.slice(startIndex, startIndex + rangeOption.days) : [playbackStartDate]
         ).filter(Boolean);
@@ -4286,7 +4293,7 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
         };
         syncPlaybackAspectLines(sceneStateRef.current, keyframes[0], true);
       }
-      setTransitPlaybackCursor({ date: playbackStartDate, time: selectedTransitTime });
+      setTransitPlaybackCursor({ date: keyframes[0].date, time: selectedTransitTime });
       if (playbackUiUpdateEnabledRef.current) {
         setPlaybackTransitChart(keyframes[0].chart);
       }
@@ -4518,7 +4525,7 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
                 setPlaybackTransitChart(null);
                 setSelectedTransitTime(event.target.value);
               }}
-              className="h-7 rounded-md border border-white/10 bg-[#121414]/70 px-2 font-mono text-[10px] font-bold text-starlight outline-none transition focus:border-gold/50 focus:ring-2 focus:ring-gold/25"
+              className="h-8 w-[82px] shrink-0 rounded-md border border-white/10 bg-[#121414]/70 py-0 pl-2 pr-6 font-mono text-[12px] font-bold leading-normal tabular-nums text-starlight outline-none transition [color-scheme:dark] focus:border-gold/50 focus:ring-2 focus:ring-gold/25"
               aria-label="現行天体の計算時刻"
               title="現行天体の計算時刻"
             >

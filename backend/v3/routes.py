@@ -63,9 +63,9 @@ def single_chart(payload: TransitChartRequest, request: Request):
 def playback_charts(payload: TransitChartsRequest, request: Request, access: AccessSnapshot = Depends(get_access_snapshot)):
     if access.capabilities.playback_policy != "paid_existing":
         today = access.checked_at.astimezone(ZoneInfo(payload.display_timezone_name or "Asia/Tokyo")).date()
-        first, last = today - timedelta(days=15), today + timedelta(days=15)
+        first, last = today - timedelta(days=30), today + timedelta(days=30)
         if any(day < first or day > last for day in payload.target_dates):
-            raise HTTPException(403, f"無料版の連続再生は今日±15日（{first}〜{last}）です。単日のチャートは自由に選択できます。")
+            raise HTTPException(403, f"無料版の連続再生は今日±30日（{first}〜{last}）です。単日のチャートは自由に選択できます。")
     category = "year" if len(set(payload.target_dates)) > 31 else "month"
     check_request_limit(request, category, access.user_id)
     return legacy.create_transit_charts(payload)

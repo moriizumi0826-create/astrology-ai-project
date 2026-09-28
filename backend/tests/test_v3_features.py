@@ -18,6 +18,9 @@ class FeatureBoundaryTests(unittest.TestCase):
         clock = self.clock.start()
         clock.now.return_value = self.now
         self.addCleanup(self.clock.stop)
+        limiter = patch("backend.v3.routes.check_request_limit")
+        limiter.start()
+        self.addCleanup(limiter.stop)
 
     def context(self, context):
         self.app.dependency_overrides[get_access_context] = lambda: context
@@ -48,11 +51,11 @@ class FeatureBoundaryTests(unittest.TestCase):
             self.context(context)
             for zone in ["Asia/Tokyo", "America/Los_Angeles", "Pacific/Kiritimati"]:
                 today = self.now.astimezone(ZoneInfo(zone)).date()
-                dates = [(today + timedelta(days=i)).isoformat() for i in range(-15, 16)]
+                dates = [(today + timedelta(days=i)).isoformat() for i in range(-30, 31)]
                 with patch("backend.v3.routes.legacy.create_transit_charts", return_value={"charts": []}) as calculate:
                     self.assertEqual(self.batch(dates, zone).status_code, 200)
                     calculate.assert_called_once()
-                for distance in [-16, 16]:
+                for distance in [-31, 31]:
                     with patch("backend.v3.routes.legacy.create_transit_charts") as calculate:
                         response = self.batch([dates[0], (today + timedelta(days=distance)).isoformat()], zone,
                                               target_date="2000-01-01", today="2000-01-01", plan="paid")
@@ -63,8 +66,8 @@ class FeatureBoundaryTests(unittest.TestCase):
         self.now = datetime(2026, 11, 1, 6, 30, tzinfo=timezone.utc)
         with patch("backend.v3.access.datetime") as clock, patch("backend.v3.routes.legacy.create_transit_charts", return_value={}):
             clock.now.return_value = self.now
-            self.assertEqual(self.batch(["2026-10-17", "2026-11-16"], "America/New_York").status_code, 200)
-            self.assertEqual(self.batch(["2026-11-17"], "America/New_York").status_code, 403)
+            self.assertEqual(self.batch(["2026-10-02", "2026-12-01"], "America/New_York").status_code, 200)
+            self.assertEqual(self.batch(["2026-12-02"], "America/New_York").status_code, 403)
 
     def test_paid_range_and_single_date_are_preserved(self):
         self.context(AccessContext("member", "active", self.now + timedelta(days=1)))

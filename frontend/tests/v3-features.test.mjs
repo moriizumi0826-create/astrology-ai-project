@@ -36,8 +36,8 @@ test("all list surfaces are gated, while planet-click detail remains available",
   assert.match(source, /canShowAspectList && isAspectListPanelOpen/);
   assert.doesNotMatch(source, /isMobileAspectListDetached/);
   assert.equal((source.match(/disabled=\{isLockedAspectMode\(option.key, policy\)\}/g)||[]).length, 1);
-  assert.match(source, /isFreePlayback \? buildFreePlaybackDates\(currentLocalDate\(\)\)/);
-  assert.match(source, /playbackRangeControls = isFreePlayback \?/);
+  assert.match(source, /freePlaybackDates = buildFreePlaybackDates\(currentLocalDate\(\)\)/);
+  assert.match(source, /playbackAllowedDates = isFreePlayback \? freePlaybackDates/);
   assert.match(source, /request: requestPlaybackCharts/);
   assert.match(source, /if \(isLockedAspectMode\(mode, policy\)\) return/);
   assert.match(source, /canShowCompoundAspects && \(isCompoundAspectMode/);

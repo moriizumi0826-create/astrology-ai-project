@@ -23,7 +23,7 @@ class Capabilities(BaseModel):
     aspect_list: bool = False
     compound_aspects: bool = False
     stellar_forecast: bool = False
-    playback_policy: Literal["today_plus_minus_15", "paid_existing"] = "today_plus_minus_15"
+    playback_policy: Literal["today_plus_minus_30", "paid_existing"] = "today_plus_minus_30"
 
 
 class AccessSnapshot(BaseModel):
@@ -69,7 +69,7 @@ def evaluate_access(context: AccessContext, now: datetime) -> AccessSnapshot:
             aspect_list=paid,
             compound_aspects=paid,
             stellar_forecast=paid,
-            playback_policy="paid_existing" if paid else "today_plus_minus_15",
+            playback_policy="paid_existing" if paid else "today_plus_minus_30",
         ),
     )
 
