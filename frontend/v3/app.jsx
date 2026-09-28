@@ -114,7 +114,7 @@ function Workspace({ session }) {
     <div hidden={view !== "horoscope"}>
       <Horoscope session={session} onForecast={() => navigate("forecast")} />
     </div>
-    {stellarForecast && paidRequested && <div hidden={view !== "forecast"}>
+    {stellarForecast && paidRequested && <div hidden={view !== "forecast"} className="min-h-screen min-h-[100svh]">
       {error
         ? <section className="p-8"><p role="alert">{error}</p><button onClick={() => setRetry(value => value + 1)}>再試行</button><button className="ml-5" onClick={() => navigate("horoscope")}>Horoscopeへ戻る</button></section>
         : paidReady

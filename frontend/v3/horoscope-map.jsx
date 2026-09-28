@@ -2004,7 +2004,7 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
   const [mapSettingsTab, setMapSettingsTab] = useState("playback");
   const mapSettingsButtonRef = React.useRef(null);
   const mapControlButtonClass = "inline-flex min-h-8 items-center gap-1.5 rounded-lg px-2.5 text-[11px] font-medium text-mist transition hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold/50 disabled:cursor-not-allowed disabled:opacity-70";
-  const mapQuickControlClass = "inline-flex h-10 w-10 touch-manipulation items-center justify-center rounded-lg text-base text-starlight transition hover:bg-white/15 active:bg-gold/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold/50 disabled:cursor-not-allowed disabled:opacity-35";
+  const mapQuickControlClass = "inline-flex h-8 w-8 shrink-0 touch-manipulation items-center justify-center rounded-lg text-base text-starlight transition hover:bg-white/15 active:bg-gold/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold/50 disabled:cursor-not-allowed disabled:opacity-35";
   const closeMapSettings = () => { setIsMapSettingsOpen(false); mapSettingsButtonRef.current?.focus(); };
   const handleMapPanelEscape = (event) => {
     if (event.key !== "Escape") return;
@@ -4566,15 +4566,13 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
               </button>
             </div>
           </div>
-          <div role="group" aria-label="3Dマップの拡大縮小と位置調整" className="absolute bottom-14 right-2 z-[100] flex flex-row items-center gap-0 rounded-xl border border-white/15 bg-[#101827]/55 p-1 sm:flex-col sm:gap-2 sm:border-0 sm:bg-transparent sm:p-0 sm:bottom-auto sm:right-4 sm:top-1/2 sm:-translate-y-1/2">
-            <div className="flex gap-0 [&>button]:h-7 [&>button]:w-8 sm:gap-1 sm:rounded-xl sm:border sm:border-white/15 sm:bg-[#101827]/55 sm:p-1 sm:shadow-lg sm:[&>button]:h-10 sm:[&>button]:w-10">
+          <div role="group" aria-label="3Dマップの拡大縮小と位置調整" className="absolute bottom-14 right-2 z-[100] grid w-max grid-cols-[2rem_2rem_auto] grid-rows-[2rem] items-center gap-1 rounded-xl border border-white/15 bg-[#101827]/55 p-1 shadow-lg sm:right-4">
               <button type="button" onClick={zoomInMap} disabled={mapZoom >= 1.35} aria-label="3Dマップを拡大" title="拡大" className={mapQuickControlClass}><Plus size={18} /></button>
               <button type="button" onClick={zoomOutMap} disabled={mapZoom <= minimumMapZoom()} aria-label="3Dマップを縮小" title="縮小" className={mapQuickControlClass}><Minus size={18} /></button>
-            </div>
             <button type="button" onClick={() => setIsMapPositionPanelOpen(value => !value)} onDoubleClick={resetMapPosition}
               aria-label="3Dマップの位置調整" aria-expanded={isMapPositionPanelOpen} aria-controls={mapId + "-position-controls"}
-              className={cx("h-7 rounded-lg px-2 text-[10px] font-medium text-mist sm:hidden", isMapPositionPanelOpen && "bg-gold/15 text-gold")}>位置調整</button>
-            <div id={mapId + "-position-controls"} className={cx("absolute bottom-full right-0 mb-1 grid-cols-3 gap-0.5 rounded-xl border border-white/15 bg-[#101827]/70 p-1 [&>button]:h-8 [&>button]:w-8 sm:static sm:mb-0 sm:grid sm:rounded-none sm:border-0 sm:bg-transparent sm:p-0 sm:[&>button]:h-10 sm:[&>button]:w-10", isMapPositionPanelOpen ? "grid" : "hidden")}>
+              className={cx("inline-flex h-8 shrink-0 touch-manipulation items-center justify-center whitespace-nowrap rounded-lg px-2 text-[10px] font-medium leading-none text-mist hover:bg-white/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold/50", isMapPositionPanelOpen && "bg-gold/15 text-gold")}>位置調整</button>
+            <div id={mapId + "-position-controls"} className={cx("absolute bottom-full right-0 mb-1 grid-cols-3 gap-0.5 rounded-xl border border-white/15 bg-[#101827]/70 p-1", isMapPositionPanelOpen ? "grid" : "hidden")}>
               <span /><button type="button" onClick={() => nudgeMapPosition(0,0.12)} aria-label="3Dマップを上へ移動" className={cx(mapQuickControlClass, "border border-white/15 bg-[#101827]/55")}>↑</button><span />
               <button type="button" onClick={() => nudgeMapPosition(-0.12,0)} aria-label="3Dマップを左へ移動" className={cx(mapQuickControlClass, "border border-white/15 bg-[#101827]/55")}>←</button>
               <button type="button" onClick={resetMapPosition} aria-label="3Dマップを中央へ戻す" title="中央へ戻す" className={cx(mapQuickControlClass, "border border-white/15 bg-[#101827]/55")}><CircleDot size={16} /></button>
@@ -4587,7 +4585,7 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
               className="absolute inset-x-3 bottom-14 z-[110] flex max-h-[calc(100%-10rem)] flex-col overflow-hidden rounded-2xl border border-white/15 bg-[#101827]/55 text-mist shadow-[0_8px_24px_rgba(0,0,0,0.2)] backdrop-blur-none sm:bg-[#101827]/95 sm:shadow-[0_20px_60px_rgba(0,0,0,0.4)] sm:backdrop-blur-xl sm:inset-x-auto sm:bottom-auto sm:right-4 sm:top-16 sm:max-h-[calc(100%-8rem)] sm:w-[340px]">
               <div className="flex items-center justify-between border-b border-white/10 px-4 py-3"><span className="text-xs font-semibold tracking-widest">マップ設定</span><button type="button" onClick={closeMapSettings} aria-label="設定を閉じる" className={mapControlButtonClass}>×</button></div>
               <div role="tablist" aria-label="設定カテゴリ" className="mx-3 mt-3 grid shrink-0 grid-cols-3 gap-1 rounded-xl bg-black/20 p-1">
-                {[["playback", "再生"], ["display", "表示"], ["view", "視点"]].map(([key,label]) => (
+                {[["playback", "再生"], ["display", "表示"], ["view", "その他"]].map(([key,label]) => (
                   <button key={key} id={mapId + '-map-settings-tab-' + key} type="button" role="tab" aria-selected={mapSettingsTab === key} aria-controls={mapId + "-map-settings-content"}
                     onClick={() => setMapSettingsTab(key)} className={cx(mapControlButtonClass, "justify-center", mapSettingsTab === key && "bg-gold/15 text-gold")}>{label}</button>
                 ))}
