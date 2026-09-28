@@ -26,6 +26,7 @@ from backend.v3.deployment import (
     require_expected_supabase_project,
 )
 from backend.v3.location_search import database_ready
+from backend.v3.rate_limit import SlidingWindowLimiter
 
 
 API_SECURITY_HEADERS = {
@@ -45,6 +46,7 @@ def create_app(*, auth_mode: str | None = None) -> FastAPI:
     app.state.v3_environment = deployment
     app.state.v3_allowed_origins = origins
     app.state.owner_access_user_id = owner_access_user_id(deployment)
+    app.state.v3_rate_limiter = SlidingWindowLimiter()
     provider = None if auth_mode == "local_test" else SupabaseAuth(deployment)
     if deployment != "local" and (provider is None or not provider.configured):
         raise RuntimeError("公開環境にはSupabase認証設定が必要です。")

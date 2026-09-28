@@ -51,7 +51,9 @@ Stripeの具体的な確認場所は、本番アカウント（画面上部に�
 | Render本番API | Starterインスタンス。サービス通知はワークスペース既定の「失敗時のみ」を継承し、Health Check Pathは`/api/v3/health` | Render通知メールの実到達は未実測。アプリの各APIへのアクセス頻度制限を意味する設定ではない |
 | Stripeライブ | 通信設定の「Webhook failures - Email」「API integration errors - Email」はON。Webhook event generation failures - EmailはOFF。本番Webhook送信先は有効で、管理画面の直近1週間の配信5件は失敗0件 | 失敗通知メールの到達とWebhook再送は未実測。イベント生成失敗の通知をONにするか判断が必要 |
 
-V3アプリのPythonコードに、公開API全体を対象とする独自のIP別レート制限は見当たらない（ローカル用テストログインの制限とは別）。一般告知前に必要性を判断する。上記は設定の読み取り結果であり、障害や429を意図的に発生させた試験ではない。
+9月28日にV3専用の制限をローカル実装：出生地検索はIPごとに1分30回、単日マップはIPごとに1分60回、31日以下の再生一括読み込みは1分12回、32日以上は1分4回・1時間24回。再生はログイン中なら確認済みの会員ID単位、未ログインならIP単位。上限超過はHTTP 429と`Retry-After`を返す。Render公開環境の匿名IPはRenderが上書きする`CF-Connecting-IP`を使い、利用者が指定できる`X-Forwarded-For`は信用しない。[Renderの接続元IP説明](https://render.com/articles/host-pocketbase-on-render)。Health Check、契約・Checkout、Stripe Webhookにはこの制限を適用しない。
+
+この制限はV3 APIの各プロセス内で数え、デプロイ・再起動でリセットされる。複数インスタンス間の共有や、100人が同時に正当に使う場合の負荷制御にはならない。関連するローカルテストは成功したが、公開環境への反映と実画面での429表示は未確認。上記の9月28日時点の管理画面確認では、障害や429を意図的に発生させていない。
 
 ### ログ・イベントの調査期限
 

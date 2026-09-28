@@ -14,5 +14,7 @@ test("replaces fetch network errors with page-local retry guidance", () => {
 
 test("preserves specific server errors and fallbacks", () => {
   assert.equal(readableErrorMessage(new Error("HTTP 500: detail"), "fallback"), "HTTP 500: detail");
+  assert.equal(readableErrorMessage(Object.assign(new Error("操作が続いています。少し待ってから再試行してください。"), { status: 429 }), "fallback"),
+    "操作が続いています。少し待ってから再試行してください。");
   assert.equal(readableErrorMessage(null, "fallback"), "fallback");
 });

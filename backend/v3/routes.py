@@ -2,13 +2,14 @@
 from datetime import timedelta
 import sqlite3
 from zoneinfo import ZoneInfo
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, ConfigDict, Field
 from backend.app import main as legacy
-from backend.app.schemas import LocationSearchResponse, ReadingRequest, TransitChartsRequest
+from backend.app.schemas import LocationSearchResponse, ReadingRequest, TransitChartRequest, TransitChartsRequest
 from backend.v3.access import AccessSnapshot, get_access_snapshot, require_paid_access
 from backend.v3.horoscope import generate_horoscope
 from backend.v3.location_search import search_locations
+from backend.v3.rate_limit import check_request_limit
 
 router = APIRouter(prefix="/api/v3")
 
@@ -31,7 +32,8 @@ def horoscope(payload: ReadingRequest):
 
 
 @router.post("/location-search", response_model=LocationSearchResponse)
-def location_search(payload: LocationSearchPayload):
+def location_search(payload: LocationSearchPayload, request: Request):
+    check_request_limit(request, "location")
     try:
         return LocationSearchResponse(results=search_locations(
             query=payload.q,
@@ -51,19 +53,21 @@ for path, endpoint in [
 ]:
     router.add_api_route(path, endpoint, methods=["GET"])
 
-for path, endpoint in [
-    ("/transit-chart", legacy.create_transit_chart),
-]:
-    router.add_api_route(path, endpoint, methods=["POST"])
+@router.post("/transit-chart")
+def single_chart(payload: TransitChartRequest, request: Request):
+    check_request_limit(request, "single")
+    return legacy.create_transit_chart(payload)
 
 
 @router.post("/transit-charts")
-def playback_charts(payload: TransitChartsRequest, access: AccessSnapshot = Depends(get_access_snapshot)):
+def playback_charts(payload: TransitChartsRequest, request: Request, access: AccessSnapshot = Depends(get_access_snapshot)):
     if access.capabilities.playback_policy != "paid_existing":
         today = access.checked_at.astimezone(ZoneInfo(payload.display_timezone_name or "Asia/Tokyo")).date()
         first, last = today - timedelta(days=15), today + timedelta(days=15)
         if any(day < first or day > last for day in payload.target_dates):
             raise HTTPException(403, f"無料版の連続再生は今日±15日（{first}〜{last}）です。単日のチャートは自由に選択できます。")
+    category = "year" if len(set(payload.target_dates)) > 31 else "month"
+    check_request_limit(request, category, access.user_id)
     return legacy.create_transit_charts(payload)
 
 for path, endpoint in [
