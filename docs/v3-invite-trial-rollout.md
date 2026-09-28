@@ -23,12 +23,20 @@
 4. 11月1日以降、通常申込を開始する承認が出たら、Stripe本番Webhookが `checkout.session.completed`、`customer.subscription.created`、`customer.subscription.updated`、`customer.subscription.deleted`、`invoice.paid`、`invoice.payment_failed` を送る設定か確認する。Customer Portalの解約が無料期間の終了時に効く設定も確認する。次に `V3_TRIAL_ENABLED=true`、`V3_BILLING_ACCESS_MODE=public`、`V3_BILLING_ALLOWED_USER_ID` を空、`V3_BILLING_ENABLED=true` にする。**これらを10月中に切り替えない。**
 5. テスト環境でカード登録→試用資格→期間内の解約予約→初回請求なし、期間経過後の初回請求、同じカードでの再試用拒否を確認してから一般向け導線を開く。実カード決済や本番の契約変更は別途承認を得る。
 
+## 本番反映状況（2026-09-28）
+
+- V3本番Supabase（`sxkhgczqvsewtsrcnbbe`）へ`006_invites_and_trials.sql`を適用。**開始前に実行した**`007_verify_invites_and_trials.sql`の7項目はすべて`OK`。同検証SQLの「campaign configuration exists and is inactive」は開始後に再実行すると`FAIL`になる仕様。
+- `cdee5c5`を`codex/v3-integration`へpushし、Render本番API・フロントの両方でLiveを確認。
+- Render本番APIの`V3_INVITE_ACCESS_ENABLED=true`、`V3_TRIAL_ENABLED=false`、`V3_BILLING_ENABLED=false`を保存・再デプロイし、保存値と`/api/v3/health`のHTTP 200を確認。
+- 招待キャンペーンを2026-09-28 23:17:49 JSTに開始。期限は2026-10-31 23:59:59 JSTまで、先着25枠、開始直後の使用数は0。開始前に作成された既存会員は自動対象外。
+- 30日トライアルの本番有効化、一般向け新規課金、本番での登録・招待付与・カード重複の実動作確認は未実施。これらは通常申込開始前または最終確認で扱う。
+
 ## 手動招待枠
 
 リポジトリのルートで、設定済みのV3環境変数を利用して `python -m scripts.v3.manage_invite --user-id UUID` で読み取り確認する。付与は `--grant --confirm UUID`、解除は `--revoke --confirm UUID` を追加する。対象にはメールではなく、Supabase AuthのUUIDを指定する。**試用中・課金中を含め、Stripe顧客が存在するアカウントへの付与は拒否する。** その場合は契約の終了時期・返金要否を先に個別判断する。手動付与は先着25枠を消費しない。
 
-## 未実施・注意
+## 注意
 
-- この文書の作成時点で、SQLの本番適用、招待キャンペーン有効化、招待の実付与、Stripe本番設定の変更、本番決済は行っていない。
-- 新しいSQL関数・auth確認トリガーは本番DBで未検証。適用後に読み取り検証と限定登録テストが必要。
+- SQL関数・auth確認トリガーの存在と権限は本番DBで読み取り検証済み。ただし新規会員登録から実際に招待資格が付く一連の実動作確認は、ユーザー方針に従い後回し。
+- 11月1日の一般向け30日トライアル・課金は自動でONにならない。運用判断のうえで上記手順4の設定変更が必要。
 - カード識別値はStripe由来の値をサーバー専用テーブルに保存し、カード番号は保存しない。アカウント削除後も、再試用防止のためカード識別値は利用者との紐付けを外して残る。利用者向けのプライバシー表示は更新したが、公開前の法務確認は別途必要。
