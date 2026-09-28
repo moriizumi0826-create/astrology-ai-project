@@ -1301,7 +1301,7 @@ function setTransitVisualsFromCharts(state, fromFrame, toFrame, progress) {
   if (fromCusps.length >= 12 && toCusps.length >= 12) {
     const currentCusps = fromCusps.map((longitude, index) => interpolateLongitude(longitude, toCusps[index], progress));
     state.transitHouseLines.forEach(({ line, index }) => {
-      const inner = longitudePosition(currentCusps[index], transitHouseInnerRadius, -0.03);
+      const inner = longitudePosition(currentCusps[index], Math.max(transitHouseInnerRadius, radii.natalOrbitRadius ?? 2.05), -0.03);
       const outer = longitudePosition(currentCusps[index], transitOrbitRadius, -0.03);
       const position = line.geometry?.attributes?.position;
       if (position && position.count >= 2) {
@@ -2686,10 +2686,10 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
     const natalHouseOuterRadiusBase = isMobileMapCanvas ? 2.92 : 3.28;
     const transitHouseInnerRadiusBase = isMobileMapCanvas ? 2.92 : 3.28;
     const transitOrbitRadiusBase = isMobileMapCanvas ? 3.66 : 4.15;
-    const natalHouseLabelRadiusBase = isMobileMapCanvas ? 2.26 : 2.58;
+    const natalHouseLabelRadiusBase = isMobileMapCanvas ? 1.90 : 2.18;
     const transitHouseLabelRadiusBase = isMobileMapCanvas ? 3.28 : 3.72;
-    const natalOrbitRadiusValue = isMobileMapCanvas ? 1.76 : 2.05;
-    const natalPlanetRadiusValue = natalHouseLabelRadiusBase;
+    const natalOrbitRadiusValue = (isMobileMapCanvas ? 1.76 : 2.05) * 0.88;
+    const natalPlanetRadiusValue = isMobileMapCanvas ? 2.26 : 2.58;
     const transitPlanetRadiusValue = isMobileMapCanvas ? 3.42 : 3.88;
     const mapRadii = {
       natalOrbitRadius: natalOrbitRadiusValue,
@@ -2719,14 +2719,14 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
     } = mapRadii;
 
     [
-      { role: "natalOrbit", radius: natalOrbitRadius, color: 0xe9c349, opacity: 0.2, visible: true },
-      { role: "natalOuter", radius: natalHouseOuterRadius, color: 0xffffff, opacity: 0.08, visible: true },
-      { role: "transitInner", radius: transitHouseInnerRadius, color: 0x8bd3ff, opacity: 0.14, visible: false },
-      { role: "transitOrbit", radius: transitOrbitRadius, color: 0x8bd3ff, opacity: 0.18, visible: true },
-      { role: "zodiacOuter", radius: zodiacOuterRadius, color: 0xe9c349, opacity: 0.12, visible: true },
+      { role: "natalOrbit", radius: natalOrbitRadius, color: 0xb2a995, opacity: 0.24, width: 0.012, visible: true },
+      { role: "natalOuter", radius: natalHouseOuterRadius, color: 0xb2a995, opacity: 0.08, width: 0.006, visible: true },
+      { role: "transitInner", radius: transitHouseInnerRadius, color: 0x8da5bc, opacity: 0.10, width: 0.006, visible: false },
+      { role: "transitOrbit", radius: transitOrbitRadius, color: 0x8da5bc, opacity: 0.22, width: 0.012, visible: true },
+      { role: "zodiacOuter", radius: zodiacOuterRadius, color: 0xe9c349, opacity: 0.20, width: 0.012, visible: true },
     ].forEach((item) => {
       const ring = new THREE.Mesh(
-        new THREE.TorusGeometry(item.radius, 0.01, 10, 160),
+        new THREE.TorusGeometry(item.radius, item.width, 10, 160),
         new THREE.MeshBasicMaterial({ color: item.color, transparent: true, opacity: item.opacity })
       );
       ring.rotation.x = Math.PI / 2;
@@ -2803,14 +2803,14 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
     group.add(earthAtmosphere);
 
     sceneSky.natalHouseCusps.forEach((longitude, index) => {
-        const inner = longitudePosition(longitude, natalHouseInnerRadius, -0.03);
+        const inner = longitudePosition(longitude, natalOrbitRadius, -0.03);
         const outer = longitudePosition(longitude, natalHouseOuterRadius, -0.03);
         const line = new THREE.Line(
           new THREE.BufferGeometry().setFromPoints([inner, outer]),
           new THREE.LineBasicMaterial({
-            color: 0xe9c349,
+            color: 0xb2a995,
             transparent: true,
-            opacity: index === 0 ? 0.24 : 0.13,
+            opacity: index === 0 ? 0.26 : 0.16,
           })
         );
         natalHouseLines.push({ line, index });
@@ -2819,20 +2819,20 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
     sceneSky.natalHouseCusps.forEach((longitude, index) => {
         const nextLongitude = sceneSky.natalHouseCusps[(index + 1) % sceneSky.natalHouseCusps.length];
         const { mesh, texture } = orbitTextPlane(index + 1, {
-          color: "#f4d66f",
-          font: "800 114px JetBrains Mono, monospace",
-          scaleX: index + 1 >= 10 ? 0.66 : 0.495,
-          scaleY: 0.375,
-          opacity: index === 0 ? 0.86 : 0.68,
-          glowColor: index === 0 ? "rgba(255,224,96,0.95)" : "rgba(233,195,73,0.82)",
-          glowBlur: index === 0 ? 34 : 28,
+          color: "#ddd4bf",
+          font: "600 114px JetBrains Mono, monospace",
+          scaleX: index + 1 >= 10 ? 0.53 : 0.40,
+          scaleY: 0.30,
+          opacity: index === 0 ? 0.70 : 0.58,
+          glowColor: "rgba(221,212,191,0.28)",
+          glowBlur: index === 0 ? 10 : 8,
         });
         textures.push(texture);
         setOrbitTextPlaneTransform(mesh, midpointLongitude(longitude, nextLongitude), natalHouseLabelRadius, 0.07);
         natalHouseLabels.push({
           mesh,
           index,
-          brightOpacity: index === 0 ? 0.98 : 0.84,
+          brightOpacity: index === 0 ? 0.70 : 0.58,
           dimOpacity: index === 0 ? 0.11 : 0.07,
         });
         group.add(mesh);
@@ -2843,35 +2843,35 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
         const line = new THREE.Line(
           new THREE.BufferGeometry().setFromPoints([inner, outer]),
           new THREE.LineBasicMaterial({
-            color: 0x8bd3ff,
+            color: 0x8da5bc,
             transparent: true,
-            opacity: index === 0 ? 0.22 : 0.12,
+            opacity: index === 0 ? 0.26 : 0.17,
           })
         );
         transitHouseLines.push({
           line,
           index,
-          brightOpacity: index === 0 ? 0.22 : 0.12,
+          brightOpacity: index === 0 ? 0.26 : 0.17,
         });
         group.add(line);
     });
     sceneSky.transitHouseCusps.forEach((longitude, index) => {
         const nextLongitude = sceneSky.transitHouseCusps[(index + 1) % sceneSky.transitHouseCusps.length];
         const { mesh, texture } = orbitTextPlane(index + 1, {
-          color: index === 0 ? "#bfeaff" : "#d7d6dc",
-          font: "800 126px JetBrains Mono, monospace",
-          scaleX: index + 1 >= 10 ? 0.75 : 0.555,
-          scaleY: 0.42,
-          opacity: index === 0 ? 0.46 : 0.36,
-          glowColor: "rgba(139,211,255,0.26)",
-          glowBlur: 14,
+          color: index === 0 ? "#c9d9e6" : "#b4c8da",
+          font: "600 126px JetBrains Mono, monospace",
+          scaleX: index + 1 >= 10 ? 0.60 : 0.445,
+          scaleY: 0.336,
+          opacity: index === 0 ? 0.42 : 0.32,
+          glowColor: "rgba(159,182,205,0.20)",
+          glowBlur: 6,
         });
         textures.push(texture);
         setOrbitTextPlaneTransform(mesh, midpointLongitude(longitude, nextLongitude), transitHouseLabelRadius, 0.07);
         transitHouseLabels.push({
           mesh,
           index,
-          brightOpacity: index === 0 ? 0.46 : 0.36,
+          brightOpacity: index === 0 ? 0.42 : 0.32,
         });
         group.add(mesh);
     });
@@ -2882,9 +2882,9 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
         const line = new THREE.Line(
           new THREE.BufferGeometry().setFromPoints([inner, outer]),
           new THREE.LineBasicMaterial({
-            color: 0x8bd3ff,
+            color: 0x8da5bc,
             transparent: true,
-            opacity: index % 3 === 0 ? 0.2 : 0.12,
+            opacity: index % 3 === 0 ? 0.18 : 0.12,
           })
         );
         transitZodiacLines.push(line);
@@ -2900,9 +2900,9 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
       const line = new THREE.Line(
         new THREE.BufferGeometry().setFromPoints([inner, outer]),
         new THREE.LineBasicMaterial({
-          color: 0xe9c349,
+          color: 0x9da8b5,
           transparent: true,
-          opacity: isSignBoundary ? 0.5 : 0.34,
+          opacity: isSignBoundary ? 0.24 : 0.10,
         })
       );
       zodiacDegreeTickLines.push(line);
@@ -2926,8 +2926,8 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
       group.add(mesh);
     });
     [
-      { label: "ネイタル天体", longitude: 262, radius: natalOrbitRadius, color: "#e9c349", opacity: 0.74 },
-      { label: "現行天体", longitude: 262, radius: transitOrbitRadius, color: "#8bd3ff", opacity: 0.72 },
+      { label: "ネイタル天体", longitude: 262, radius: natalOrbitRadius, color: "#ddd4bf", opacity: 0.74 },
+      { label: "現行天体", longitude: 262, radius: transitOrbitRadius, color: "#b4c8da", opacity: 0.72 },
     ].forEach((item) => {
       const { mesh, texture } = orbitTextPlane(item.label, {
         color: item.color,
@@ -2937,7 +2937,7 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
         scaleX: 1.08,
         scaleY: 0.34,
         opacity: item.opacity,
-        glowColor: item.label === "ネイタル天体" ? "rgba(255,224,96,0.9)" : "rgba(139,211,255,0.86)",
+        glowColor: item.label === "ネイタル天体" ? "rgba(221,212,191,0.28)" : "rgba(159,182,205,0.20)",
         glowBlur: 30,
       });
       textures.push(texture);
@@ -3793,7 +3793,7 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
     const targetRadii = {
       ...base,
       natalHouseOuterRadius: natalOnly ? base.transitOrbitRadius : base.natalHouseOuterRadius,
-      natalHouseLabelRadius: natalOnly ? expandedPlanetRadius : base.natalHouseLabelRadius,
+      natalHouseLabelRadius: natalOnly ? expandedPlanetRadius - (base.natalPlanetRadius - base.natalHouseLabelRadius) : base.natalHouseLabelRadius,
       natalPlanetRadius: natalOnly ? expandedPlanetRadius : base.natalPlanetRadius,
       transitHouseInnerRadius: transitOnly ? base.natalHouseInnerRadius : base.transitHouseInnerRadius,
       transitHouseLabelRadius: transitOnly ? expandedPlanetRadius : base.transitHouseLabelRadius,
@@ -3817,7 +3817,7 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
         if (longitude === undefined) return;
         updateLine(
           line,
-          longitudePosition(longitude, radii.natalHouseInnerRadius, -0.03),
+          longitudePosition(longitude, radii.natalOrbitRadius, -0.03),
           longitudePosition(longitude, radii.natalHouseOuterRadius, -0.03)
         );
         line.visible = layoutShowNatal;
@@ -3835,7 +3835,7 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
         if (longitude === undefined) return;
         updateLine(
           line,
-          longitudePosition(longitude, radii.transitHouseInnerRadius, -0.03),
+          longitudePosition(longitude, Math.max(radii.transitHouseInnerRadius, radii.natalOrbitRadius), -0.03),
           longitudePosition(longitude, radii.transitOrbitRadius, -0.03)
         );
         line.visible = layoutShowTransit;
@@ -3857,7 +3857,7 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
       state.mapRings.forEach(({ mesh, role, radius }) => {
         const desiredRadius = role === "natalOuter"
           ? radii.natalHouseOuterRadius
-          : role === "transitInner" ? radii.transitHouseInnerRadius : radius;
+          : role === "transitInner" ? Math.max(radii.transitHouseInnerRadius, radii.natalOrbitRadius) : radius;
         mesh.visible = role === "zodiacOuter"
           || (role === "transitInner" ? revealBothLayers || transitOnly : false)
           || (role.startsWith("natal") && layoutShowNatal)

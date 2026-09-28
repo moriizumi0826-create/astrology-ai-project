@@ -766,7 +766,7 @@ function DashboardV2DailyThemeCard({ data, displayDate = "", onDateShift = () =>
 function DashboardV2CountdownCard({ data, onSelectAspect = () => {} }) {
   const displayDate = dashboardDisplayDate(data);
   const [activeEventIndex, setActiveEventIndex] = useState(0);
-  const [isCalendarOpen, setIsCalendarOpen] = useState(false);
+
   const [calendarFilter, setCalendarFilter] = useState("all");
   const [personalGenreFilter, setPersonalGenreFilter] = useState("all");
   const [calendarMonth, setCalendarMonth] = useState(() => calendarMonthStart(displayDate));
@@ -840,18 +840,14 @@ function DashboardV2CountdownCard({ data, onSelectAspect = () => {} }) {
     setActiveEventIndex(0);
   }, [candidateKeys]);
   useEffect(() => {
-    if (!isCalendarOpen) return undefined;
+    if (!selectedCalendarDate) return undefined;
     const handleKeyDown = (event) => {
       if (event.key !== "Escape") return;
-      if (selectedCalendarDate) {
-        setSelectedCalendarDate("");
-      } else {
-        setIsCalendarOpen(false);
-      }
+      setSelectedCalendarDate("");
     };
     document.addEventListener("keydown", handleKeyDown);
     return () => document.removeEventListener("keydown", handleKeyDown);
-  }, [isCalendarOpen, selectedCalendarDate]);
+  }, [selectedCalendarDate]);
   useEffect(() => {
     setCalendarMonth(calendarMonthStart(displayDate));
     setSelectedCalendarDate("");
@@ -977,16 +973,7 @@ function DashboardV2CountdownCard({ data, onSelectAspect = () => {} }) {
           <div className="flex items-center justify-between gap-3">
             <p className="font-mono text-xs font-black uppercase tracking-[0.28em] text-[#e9c349]">Next Stellar Event</p>
             <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => setIsCalendarOpen(true)}
-                disabled={!eventCount}
-                className="inline-flex h-7 items-center gap-1.5 rounded-full border border-[#e9c349]/35 px-2.5 font-mono text-[9px] font-black text-[#e9c349] transition hover:border-[#e9c349] hover:bg-[#e9c349]/10 disabled:cursor-not-allowed disabled:opacity-35"
-                aria-label="天体イベントカレンダーを開く"
-              >
-                <CalendarDays size={13} />
-                <span className="hidden sm:inline">30 DAYS</span>
-              </button>
+
               {eventCount > 1 ? (
                 <div className="flex items-center gap-1">
                 <button
@@ -1063,21 +1050,9 @@ function DashboardV2CountdownCard({ data, onSelectAspect = () => {} }) {
         </div>
       </div>
     </DashboardV2Card>
-    {isCalendarOpen && typeof document !== "undefined" ? createPortal(
-      <div
-        className="fixed inset-0 z-[90] flex items-center justify-center bg-[#050607]/80 px-1.5 py-5 backdrop-blur-md sm:px-3"
-        role="presentation"
-        onMouseDown={(event) => {
-          if (event.target === event.currentTarget) {
-            setSelectedCalendarDate("");
-            setIsCalendarOpen(false);
-          }
-        }}
-      >
+    <div className="col-span-full lg:row-start-3">
         <section
-          className="flex max-h-[90vh] w-full max-w-6xl flex-col overflow-hidden rounded-[28px] border border-[#e9c349]/25 bg-[#111313] text-[#e2e2e2] shadow-[0_30px_100px_rgba(0,0,0,0.7)]"
-          role="dialog"
-          aria-modal="true"
+          className="flex w-full flex-col overflow-hidden rounded-[28px] border border-[#e9c349]/25 bg-[#111313] text-[#e2e2e2] shadow-[0_30px_100px_rgba(0,0,0,0.7)]"
           aria-labelledby="celestial-event-calendar-title"
         >
           <header className="shrink-0 border-b border-white/10 px-4 py-4 sm:px-6 sm:py-5">
@@ -1087,17 +1062,7 @@ function DashboardV2CountdownCard({ data, onSelectAspect = () => {} }) {
                 <h2 id="celestial-event-calendar-title" className="mt-1 font-notoSerif text-xl font-black text-[#f3f3f0] sm:text-2xl">天体イベントカレンダー</h2>
                 <p className="mt-1 text-[11px] text-[#909096]">過去7日〜今後30日に発生するイベント / {calendarItems.length}件</p>
               </div>
-              <button
-                type="button"
-                onClick={() => {
-                  setSelectedCalendarDate("");
-                  setIsCalendarOpen(false);
-                }}
-                className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-white/10 text-[#c7c6cc] transition hover:border-[#e9c349]/60 hover:text-[#e9c349]"
-                aria-label="天体イベントカレンダーを閉じる"
-              >
-                <X size={17} />
-              </button>
+
             </div>
             <div className="mt-4 flex flex-wrap gap-2">
               {[
@@ -1308,9 +1273,7 @@ function DashboardV2CountdownCard({ data, onSelectAspect = () => {} }) {
             </div>
           ) : null}
         </section>
-      </div>,
-      document.body
-    ) : null}
+      </div>
     </>
   );
 }
@@ -2456,7 +2419,7 @@ function DashboardDailyDetailLayerBase({
 
   return (
     <div className={cx("grid gap-3 lg:grid-cols-[0.92fr_1.08fr]", className)}>
-      <div className="grid gap-3">
+      <div className="grid gap-3 lg:contents">
         {dailyDateError ? (
           <p className="rounded-xl border border-rose-300/30 bg-rose-300/10 px-4 py-3 text-xs font-bold leading-5 text-rose-100">
             {dailyDateError}
@@ -2476,7 +2439,9 @@ function DashboardDailyDetailLayerBase({
           onSelectAspect={(key) => setFocusedAspect(key ? { key, token: Date.now() } : null)}
         />
       </div>
-      <DashboardV2DailyFlowCard data={activeDailyData} displayDate={displayDate} />
+      <div className="grid lg:col-start-2 lg:row-start-1 lg:row-span-2">
+        <DashboardV2DailyFlowCard data={activeDailyData} displayDate={displayDate} />
+      </div>
     </div>
   );
 }
