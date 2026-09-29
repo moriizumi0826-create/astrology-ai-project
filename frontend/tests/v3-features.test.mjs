@@ -44,6 +44,13 @@ test("all list surfaces are gated, while planet-click detail remains available",
   assert.match(source, /if \(permissionVersion !== permissionVersionRef.current\) return/);
   assert.match(source, /setAspectTooltip\(nextFocus/);
 });
+test("public map assistant shows a layout preview without calling the API", () => {
+  const map = readFileSync(new URL("../v3/horoscope-map.jsx", import.meta.url), "utf8");
+  const panel = readFileSync(new URL("../v3/map-assistant-panel.jsx", import.meta.url), "utf8");
+  assert.match(map, /<MapAssistantPanel[^>]*previewOnly=\{__APP_ENVIRONMENT__ !== "local"\}/);
+  assert.match(panel, /画面確認用・AI未接続/);
+  assert.ok(panel.indexOf("if (previewOnly)") < panel.indexOf('postJson("/api/map-assistant"'));
+});
 test("V3 batch failures never fall back to unrestricted single requests", async t => {
   const previousFetch = globalThis.fetch;
   t.after(() => {globalThis.fetch = previousFetch;});

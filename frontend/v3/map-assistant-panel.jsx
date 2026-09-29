@@ -8,7 +8,7 @@ const SUGGESTED_QUESTIONS = [
   "連続再生はどう使う？",
 ];
 
-export function MapAssistantPanel({ id, context, onClose }) {
+export function MapAssistantPanel({ id, context, onClose, previewOnly = false }) {
   const [messages, setMessages] = useState([]);
   const [draft, setDraft] = useState("");
   const [pending, setPending] = useState(false);
@@ -23,6 +23,10 @@ export function MapAssistantPanel({ id, context, onClose }) {
     setError("");
     setPending(true);
     try {
+      if (previewOnly) {
+        setMessages((current) => [...current, { role: "assistant", content: "現在は画面レイアウトの確認用です。AI回答はまだ有効化していません。", demo: true }]);
+        return;
+      }
       const result = await postJson("/api/map-assistant", { question, context, history });
       setMessages((current) => [...current, { role: "assistant", content: result.answer, demo: result.mode === "demo" }]);
     } catch (cause) {
@@ -33,15 +37,15 @@ export function MapAssistantPanel({ id, context, onClose }) {
   }
 
   return (
-    <section id={id} aria-label="3Dマップ AIガイド（ローカル試作）" className="absolute inset-x-3 bottom-14 z-[230] flex max-h-[min(75%,560px)] flex-col rounded-2xl border border-gold/30 bg-[#101827]/95 text-mist shadow-2xl backdrop-blur-xl sm:inset-x-auto sm:right-4 sm:w-[min(400px,calc(100%-2rem))]">
+    <section id={id} aria-label="3Dマップ AIガイド" className="absolute inset-x-3 bottom-14 z-[230] flex max-h-[min(75%,560px)] flex-col rounded-2xl border border-gold/30 bg-[#101827]/95 text-mist shadow-2xl backdrop-blur-xl sm:inset-x-auto sm:right-4 sm:w-[min(400px,calc(100%-2rem))]">
       <div className="flex items-center justify-between border-b border-white/10 px-4 py-3">
-        <div><h3 className="text-sm font-semibold text-starlight">3Dマップ AIガイド</h3><p className="text-[10px] text-mist/65">ローカル試作・質問時のみ送信</p></div>
+        <div><h3 className="text-sm font-semibold text-starlight">3Dマップ AIガイド</h3><p className="text-[10px] text-mist/65">{previewOnly ? "画面確認用・AI未接続" : "ローカル試作・質問時のみ送信"}</p></div>
         <button type="button" onClick={onClose} aria-label="AIガイドを閉じる" className="rounded-lg px-2 py-1 text-lg hover:bg-white/10">×</button>
       </div>
       <div className="min-h-0 flex-1 space-y-3 overflow-y-auto overscroll-contain px-4 py-3" role="log" aria-live="polite">
-        {messages.length === 0 && <p className="text-xs leading-relaxed text-mist/80">下の質問を選ぶか、自分の言葉で入力できます。表示日時・選択中の天体・表示モードだけを質問と一緒に送ります。出生情報フォームの内容は自動送信しません。</p>}
+        {messages.length === 0 && <p className="text-xs leading-relaxed text-mist/80">{previewOnly ? "レイアウト確認用です。質問の選択・入力は試せますが、内容は送信されず、AI回答も生成されません。" : "下の質問を選ぶか、自分の言葉で入力できます。表示日時・選択中の天体・表示モードだけを質問と一緒に送ります。出生情報フォームの内容は自動送信しません。"}</p>}
         {messages.map((message, index) => <div key={index} className={message.role === "user" ? "ml-6 rounded-xl bg-gold/15 px-3 py-2 text-xs text-starlight" : "mr-6 rounded-xl bg-white/10 px-3 py-2 text-xs leading-relaxed text-mist"}>
-          {message.demo && <span className="mb-1 block text-[10px] text-gold">デモ回答（GPT未接続）</span>}
+          {message.demo && <span className="mb-1 block text-[10px] text-gold">デモ回答（AI未接続）</span>}
           <span className="whitespace-pre-wrap">{message.content}</span>
         </div>)}
         {pending && <p className="text-xs text-mist/60">回答を読み込み中…</p>}
