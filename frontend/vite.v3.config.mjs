@@ -45,7 +45,7 @@ export default defineConfig(({ mode }) => {
     strictPort: true,
     cors: false,
     fs: { strict: true, allow: [directory] },
-    proxy: { "/api/v3": { target: "http://127.0.0.1:8103", changeOrigin: true } },
+    proxy: { "/api/v3": { target: rootEnv.V3_LOCAL_API_PROXY_TARGET || "http://127.0.0.1:8103", changeOrigin: true } },
   },
   resolve: { alias: [{ find: /^\.\/reading-storage\.js$/, replacement: path.join(directory, "v3", "reading-storage.js") }] },
   build: { outDir: path.join(directory, "dist", "v3"), emptyOutDir: true,

@@ -27,6 +27,7 @@ from backend.v3.deployment import (
 )
 from backend.v3.location_search import database_ready
 from backend.v3.rate_limit import SlidingWindowLimiter
+from backend.v3.map_assistant import router as map_assistant_router
 
 
 API_SECURITY_HEADERS = {
@@ -109,6 +110,8 @@ def create_app(*, auth_mode: str | None = None) -> FastAPI:
     app.include_router(profile_router)
     app.include_router(billing_router)
     app.include_router(account_router)
+    if deployment == "local":
+        app.include_router(map_assistant_router)
     if deployment == "local" and not hasattr(app.state, "supabase_auth"):
         app.include_router(test_auth_router)
     return app
