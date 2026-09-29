@@ -4565,7 +4565,7 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
               </button>
             </div>
           </div>
-          <div role="group" aria-label="3Dマップの拡大縮小と位置調整" className="absolute bottom-14 right-2 z-[100] grid w-max grid-cols-[2rem_2rem_auto] grid-rows-[2rem] items-center gap-1 rounded-xl border border-white/15 bg-[#101827]/55 p-1 shadow-lg sm:right-4">
+          <div role="group" aria-label="3Dマップの拡大縮小と位置調整" className="absolute bottom-3 right-2 z-[100] grid w-max grid-cols-[2rem_2rem_auto] grid-rows-[2rem] items-center gap-1 rounded-xl border border-white/15 bg-[#101827]/55 p-1 shadow-lg sm:right-4">
               <button type="button" onClick={zoomInMap} disabled={mapZoom >= 1.35} aria-label="3Dマップを拡大" title="拡大" className={mapQuickControlClass}><Plus size={18} /></button>
               <button type="button" onClick={zoomOutMap} disabled={mapZoom <= minimumMapZoom()} aria-label="3Dマップを縮小" title="縮小" className={mapQuickControlClass}><Minus size={18} /></button>
             <button type="button" onClick={() => setIsMapPositionPanelOpen(value => !value)} onDoubleClick={resetMapPosition}
@@ -4718,7 +4718,7 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
               </div>
             </section>
           )}
-          <div className="absolute inset-x-0 bottom-3 z-[100] flex justify-center gap-2" aria-label="マップの詳細情報">
+          <div className="absolute bottom-3 left-2 right-[152px] z-[100] flex h-[42px] items-center justify-start gap-1 [&>button]:min-w-0 [&>button]:gap-0 [&>button]:px-1 [&>button]:text-[9px] [&>button>svg]:hidden sm:left-4 sm:gap-2 sm:[&>button]:gap-1.5 sm:[&>button]:px-2.5 sm:[&>button]:text-[11px] sm:[&>button>svg]:block" aria-label="マップの詳細情報">
             <button type="button" disabled={!canShowAspectList} title={!canShowAspectList ? "有料版で利用できます" : undefined} onClick={() => {setIsAspectListPanelOpen(value => !value); setIsMapControlsMenuOpen(false); setIsMapSettingsOpen(false);}} aria-expanded={isAspectListPanelOpen} aria-controls={mapId + "-map-aspect-details"} className={cx(mapControlButtonClass,"border border-white/10 bg-[#101827]/90 shadow-lg backdrop-blur-xl",isAspectListPanelOpen && "text-gold")}><ChevronDown size={13} className={isAspectListPanelOpen ? "" : "rotate-180"} />アスペクト一覧</button>
             <button type="button" onClick={() => {setIsMapControlsMenuOpen(value => !value); setIsAspectListPanelOpen(false); setIsMapSettingsOpen(false);}} aria-expanded={isMapControlsMenuOpen} aria-controls={mapId + "-map-chart-details"} className={cx(mapControlButtonClass,"border border-white/10 bg-[#101827]/90 shadow-lg backdrop-blur-xl", !isMapFullscreen && "hidden sm:inline-flex",isMapControlsMenuOpen && "text-gold")}><ChevronDown size={13} className={isMapControlsMenuOpen ? "" : "rotate-180"} />天体データ</button>
           </div>
