@@ -2029,12 +2029,12 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
   const [aspectLineFocus, setAspectLineFocus] = useState(null);
   const [isAspectListPanelOpen, setIsAspectListPanelOpen] = useState(false);
   const [aspectLineSelections, setAspectLineSelections] = useState(EMPTY_ASPECT_SELECTIONS);
-  const [aspectLineMode, setAspectLineMode] = useState("none");
+  const [aspectLineMode, setAspectLineMode] = useState("transitTransit");
   const selectedAspectDisplayMode = useMemo(
     () => ASPECT_DISPLAY_MODE_OPTIONS.find((option) => option.key === aspectLineMode) || ASPECT_DISPLAY_MODE_OPTIONS[0],
     [aspectLineMode]
   );
-  const [aspectInterpretationScope, setAspectInterpretationScope] = useState("none");
+  const [aspectInterpretationScope, setAspectInterpretationScope] = useState("transitTransit");
   const [compoundAspectListCategory, setCompoundAspectListCategory] = useState("mixed");
   const [tooltipCompositeTab, setTooltipCompositeTab] = useState("compound");
   const [openTooltipAspectKeys, setOpenTooltipAspectKeys] = useState(() => new Set());
@@ -4372,9 +4372,9 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
     setMapPlanetDisplayMode("both");
     setIsMapControlsMenuOpen(false);
     setIsAspectListPanelOpen(false);
-    setAspectLineMode("none");
+    setAspectLineMode("transitTransit");
     setAspectLineSelections(EMPTY_ASPECT_SELECTIONS);
-    setAspectInterpretationScope("none");
+    setAspectInterpretationScope("transitTransit");
     setCompoundAspectListCategory("mixed");
     setTooltipCompositeTab("compound");
     setAspectTooltip(null);
