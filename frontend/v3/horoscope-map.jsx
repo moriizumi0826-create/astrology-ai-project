@@ -2497,7 +2497,6 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
     } else {
       setAspectInterpretationScope(mode);
     }
-    setIsAspectListPanelOpen(canShowAspectList);
   };
   const selectCompoundAspectListCategory = (category) => {
     const mode = ({
