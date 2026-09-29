@@ -4,6 +4,7 @@ import { deleteMemberProfile } from "./profile.mjs";
 import { configureStorage } from "./reading-storage.js";
 
 const status = document.querySelector("#status");
+const accountEmail = document.querySelector("#account-email");
 const errorBox = document.querySelector("#error");
 const deleteProfileButton = document.querySelector("#delete-profile");
 const deleteAccountButton = document.querySelector("#delete-account");
@@ -34,6 +35,7 @@ async function load() {
     const { data, error } = await client.auth.getUser();
     if (error || !data.user?.email) { location.replace("/login.html"); return; }
     email = data.user.email;
+    accountEmail.textContent = email;
     const [{ saved }, billing] = await Promise.all([
       getJson("/api/v3/profile"),
       getJson("/api/v3/billing/status"),

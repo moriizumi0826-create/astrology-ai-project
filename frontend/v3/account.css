@@ -1,4 +1,6 @@
 .management-panel{margin:28px 0;padding:20px;border:1px solid #ffffff24;border-radius:12px;background:#ffffff08}
+.account-identity{margin:18px 0;padding:14px 16px;border:1px solid #e9c34955;border-radius:10px;background:#e9c3490d}
+.account-identity strong{display:inline-block;margin-top:4px;color:#f3f3f0;font-size:16px;overflow-wrap:anywhere}
 .management-panel h2{margin-top:0;font-size:19px}
 .danger-zone{border-color:#ff8f8f66}
 .danger{background:#b84141;color:white}

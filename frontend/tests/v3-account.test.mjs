@@ -7,6 +7,8 @@ const script = fs.readFileSync(new URL("../v3/account.js", import.meta.url), "ut
 const controls = fs.readFileSync(new URL("../v3/account-controls.jsx", import.meta.url), "utf8");
 
 test("account management separates birth-profile deletion from account deletion", () => {
+  assert.match(html, /ログイン中のメールアドレス<br><strong id="account-email"/);
+  assert.match(script, /accountEmail\.textContent = email/);
   assert.match(html, /id="delete-profile"/);
   assert.match(html, /id="delete-account"/);
   assert.match(html, /現在のパスワード/);
