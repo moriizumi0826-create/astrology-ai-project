@@ -9,6 +9,7 @@ import { TransitPlaybackControls } from "../src/transit-playback-controls.jsx";
 import { customPlaybackDates, samplePlaybackDates } from "../src/transit-playback-range.mjs";
 import { MapAssistantPanel } from "./map-assistant-panel.jsx";
 import { buildMapAssistantContext } from "./map-assistant-context.mjs";
+import { MapAspectDescription } from "./map-aspect-description.jsx";
 
 import { deviceTimezone } from "../src/device-time.mjs";
 
@@ -4843,7 +4844,7 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
                           </button>
                           {isOpen ? (
                             <p className="border-t border-white/10 bg-white/[0.025] px-3 py-3 text-xs font-medium leading-6 text-mist sm:text-sm sm:leading-7">
-                              {aspect.description}
+                              <MapAspectDescription aspect={aspect} house={houseForLongitude(aspectLineSky.natalPoints.find(p=>p.planet===aspect.natalPlanet)?.longitude,aspectLineSky.natalHouseCusps)} retrograde={aspectLineSky.transits.find(p=>p.planet===aspect.transitPlanet)?.retrograde} />
                             </p>
                           ) : null}
                         </article>
@@ -5118,7 +5119,7 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
                       </button>
                       {isOpen ? (
                         <p className="border-t border-white/10 bg-black/10 px-3 py-3 text-xs leading-6 text-mist sm:text-sm sm:leading-7">
-                          {aspect.description || "解釈文がありません。"}
+                          <MapAspectDescription aspect={aspect} house={houseForLongitude(aspectLineSky.natalPoints.find(p=>p.planet===aspect.natalPlanet)?.longitude,aspectLineSky.natalHouseCusps)} retrograde={aspectLineSky.transits.find(p=>p.planet===aspect.transitPlanet)?.retrograde} />
                         </p>
                       ) : null}
                     </article>

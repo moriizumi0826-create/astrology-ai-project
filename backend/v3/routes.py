@@ -2,6 +2,7 @@
 from datetime import timedelta
 import sqlite3
 from zoneinfo import ZoneInfo
+from typing import Literal
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, ConfigDict, Field
 from backend.app import main as legacy
@@ -10,8 +11,31 @@ from backend.v3.access import AccessSnapshot, get_access_snapshot, require_paid_
 from backend.v3.horoscope import generate_horoscope
 from backend.v3.location_search import search_locations
 from backend.v3.rate_limit import check_request_limit
+from backend.v3.deployment import require_allowed_origin
 
 router = APIRouter(prefix="/api/v3")
+
+
+class AspectDetailRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    transit_planet: str = Field(pattern=r"^[A-Z_]{1,24}$")
+    natal_planet: str = Field(pattern=r"^[A-Z_]{1,24}$")
+    angle: int = Field(ge=0, le=180)
+    natal_house: int = Field(ge=1, le=12)
+    retrograde: bool
+    orb_status: Literal["Applying", "Separating", "Exact"] = "Applying"
+
+
+@router.post("/aspect-interpretation-detail")
+def aspect_interpretation_detail(payload: AspectDetailRequest, request: Request,
+                                 access: AccessSnapshot = Depends(require_paid_access)):
+    require_allowed_origin(request)
+    row = legacy.reading_service.get_aspect_interpretation(
+        t_planet=payload.transit_planet, n_planet=payload.natal_planet,
+        angle=payload.angle, house=payload.natal_house,
+        is_retrograde=payload.retrograde, orb_status=payload.orb_status,
+    )
+    return {"description": legacy.reading_service._safe_text(row, "Text_Description")}
 
 
 class LocationSearchPayload(BaseModel):
