@@ -2,28 +2,38 @@
 <html lang="ja"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex,nofollow"><meta name="referrer" content="no-referrer">
-<title>会員ログイン | The Celestial Atelier</title><link rel="stylesheet" href="/member.css">
+<title>ログイン | The Celestial Atelier</title><link rel="stylesheet" href="/auth.css">
 </head><body><main>
-<p>The Celestial Atelier · V3</p><h1 id="heading">ログイン</h1>
-<p>会員登録は無料です。出生情報を保存して、次回も同じチャートを利用できます。登録だけで有料機能は開放されません。</p>
-<nav aria-label="認証操作"><button type="button" data-mode="login" aria-pressed="true">ログイン</button><button type="button" data-mode="signup" aria-pressed="false">新規登録</button><button type="button" data-mode="reset" aria-pressed="false">パスワードを忘れた場合</button></nav>
+<a class="brand" href="/entry.html">The Celestial Atelier</a>
+<section class="auth-card" aria-labelledby="heading" data-loading>
+<h1 id="heading" tabindex="-1">ログイン</h1>
+<p id="description">アカウントにログインして、続きを楽しみましょう。</p>
+<div id="loading" role="status"><div class="skeleton" aria-hidden="true"></div><p>ログイン状態を確認しています…</p><button id="retry" type="button" hidden>再読み込み</button></div>
+<div id="auth-content" hidden>
+<nav aria-label="認証操作"><button type="button" data-mode="login" aria-pressed="true">ログイン</button><button type="button" data-mode="signup" aria-pressed="false">新規登録</button></nav>
 <form id="member-form">
-<label>メールアドレス<input id="email" type="email" autocomplete="username" maxlength="254" required></label>
-<label id="password-row">パスワード<input id="password" type="password" autocomplete="current-password" maxlength="128" required></label>
-<label id="transfer-row" hidden><input id="transfer" type="checkbox"> この端末で入力済みの出生情報をアカウントに保存する<br>※アカウントに保存済みの出生情報がある場合は上書きしません。</label>
-<div id="captcha" class="captcha" aria-label="不正アクセス防止の確認" hidden></div>
-<p id="signup-note" hidden>12文字以上のパスワードを設定してください。確認メールのリンクは、受信した端末やブラウザから開けます。</p>
-<button id="submit" type="submit" disabled>ログイン</button>
-</form>
-<p id="error" role="alert" hidden></p><p id="status" role="status">接続を確認しています…</p>
-<button id="resend" type="button" hidden>確認メールを再送</button>
+<div id="fields">
+<label for="email">メールアドレス</label><input id="email" type="email" autocomplete="username" inputmode="email" autocapitalize="none" spellcheck="false" maxlength="254" required>
+<div id="password-row"><label for="password">パスワード</label><div class="password-input"><input id="password" type="password" autocomplete="current-password" maxlength="128" required><button id="show-password" type="button" aria-label="パスワードを表示" aria-pressed="false">表示</button></div><p id="signup-note" class="hint" hidden>12文字以上で設定してください。</p></div>
+<button id="forgot" class="text-button" type="button" data-mode="reset">パスワードを忘れた場合</button>
+<label id="transfer-row" class="transfer" hidden><input id="transfer" type="checkbox"><span>入力済みの出生情報を保存する<small>保存済みの情報は上書きしません。</small></span></label>
+</div>
+<section id="email-sent" hidden><p>入力したメールアドレス</p><strong id="sent-email"></strong><p id="sent-note"></p><p class="hint">見つからない場合は、迷惑メールフォルダもご確認ください。</p></section>
+<div class="captcha-space"><div id="captcha" aria-label="不正アクセス防止の確認" hidden></div></div>
+<button id="submit" class="primary" type="submit" disabled>ログイン</button>
+<button id="resend" class="primary" type="button" hidden>確認メールを再送</button>
+<button id="edit-email" class="text-button" type="button" hidden>メールアドレスを修正</button>
+<button id="back-login" class="text-button" type="button" data-mode="login" hidden>ログインへ戻る</button>
+</form></div>
 <section id="signed-in" hidden>
-  <p>ログイン済みです。</p>
-  <p><a href="/index.html#horoscope">ホロスコープへ進む</a></p>
+  <p>ログイン中のメールアドレス</p><strong id="account-email"></strong>
+  <p><a class="primary" href="/index.html#horoscope">ホロスコープへ進む</a></p>
   <p><a href="/account.html">アカウント・出生情報の管理</a></p>
   <p><a href="/billing.html">有料プラン・契約管理</a></p>
-  <button id="signout" type="button">ログアウト</button>
+  <button id="signout" class="text-button" type="button">ログアウト</button>
 </section>
-<p><a href="/entry.html">出生入力へ戻る</a></p>
+<div class="feedback"><p id="error" role="alert"></p><p id="status" role="status"></p></div>
+</section>
+<p class="return-link"><a href="/entry.html">出生入力へ戻る</a></p>
 <footer aria-label="法務情報" style="display:flex;flex-wrap:wrap;gap:8px 16px;margin-top:32px;padding-top:20px;border-top:1px solid #ffffff20;font-size:12px"><a href="/legal/terms.html">利用規約</a><a href="/legal/privacy.html">プライバシーポリシー</a><a href="/legal/commerce.html">特定商取引法に基づく表記</a><a href="/legal/disclaimer.html">免責事項</a><a href="/legal/contact.html">お問い合わせ</a></footer>
 </main><script type="module" src="/login.js"></script></body></html>
