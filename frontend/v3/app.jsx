@@ -77,7 +77,13 @@ function Horoscope({ onForecast, session }) {
         <Horoscope3DMap key={`map-${revision}`} data={data} birthForm={chartForm} />
       </>} />
     </div>
-    {locked && <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/75 p-5"><section role="dialog" aria-modal="true" aria-label="有料版のご案内" className="max-w-md rounded-2xl border border-gold/30 bg-midnight p-7"><h2 className="text-xl text-gold">星の見通しは有料版限定です</h2><p className="my-4 text-sm leading-7">{isMemberMode() ? "月額プランに登録すると、星の見通しと有料版の3Dマップ機能を利用できます。" : "ログインすると有料版を確認できます。"}</p>{isMemberMode() ? <a className="mr-4 text-gold underline" href="/billing.html">有料プランを見る</a> : <a className="mr-4 text-gold underline" href="/login.html">ログイン</a>}<button className="rounded border px-4 py-2" onClick={() => setLocked(false)}>閉じる</button></section></div>}
+    {locked && <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/75 p-5"><section role="dialog" aria-modal="true" aria-label="有料版のご案内" className="max-h-[calc(100dvh-2.5rem)] w-full max-w-md overflow-y-auto rounded-2xl border border-gold/30 bg-midnight p-7"><h2 className="text-xl text-gold">星の見通しは有料版限定です</h2><p className="my-4 text-sm leading-7">{isMemberMode() ? "月額プランに登録すると、星の見通しと有料版の3Dマップ機能を利用できます。" : "ログインすると有料版を確認できます。"}</p>{Date.now() < Date.parse("2026-11-01T00:00:00+09:00") && (
+      <aside aria-label="新規登録キャンペーン" className="mb-5 space-y-3 rounded-xl border border-gold/30 bg-gold/5 p-4">
+        <h3 className="text-base font-semibold leading-7 text-gold">10月末までの新規登録で、有料機能をずっと無料に</h3>
+        <p className="text-sm leading-7">2026年10月31日まで（日本時間）に新規登録とメール認証を完了すると、招待会員として有料プランの機能を期限なく無料でご利用いただけます。</p>
+        <p className="text-sm leading-7">カード登録不要・月額料金は発生しません。一定の人数に達し次第終了します。</p>
+      </aside>
+    )}{isMemberMode() ? <a className="mr-4 text-gold underline" href="/billing.html">有料プランを見る</a> : <a className="mr-4 text-gold underline" href="/login.html">ログイン</a>}<button className="rounded border px-4 py-2" onClick={() => setLocked(false)}>閉じる</button></section></div>}
   </div>;
 }
 
