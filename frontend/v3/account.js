@@ -13,6 +13,8 @@ const confirmation = document.querySelector("#delete-confirmation");
 const subscriptionNote = document.querySelector("#subscription-note");
 let email = "";
 let blockedBySubscription = true;
+let birthEditor;
+let profileBusy = false;
 
 function showError(error) {
   errorBox.textContent = error?.message || "処理を完了できませんでした。";
@@ -20,7 +22,7 @@ function showError(error) {
 }
 
 function syncDeleteButton() {
-  deleteAccountButton.disabled = blockedBySubscription || !password.value || confirmation.value !== "アカウントを削除";
+  deleteAccountButton.disabled = profileBusy || blockedBySubscription || !password.value || confirmation.value !== "アカウントを削除";
 }
 
 function blockingSubscription(subscription) {
@@ -48,22 +50,43 @@ async function load() {
       : "削除を進められる契約状態です。安全確認のため、現在のパスワードで再認証します。";
     document.querySelector("#billing-link").textContent = billing.customer ? "契約・支払い状態を確認する" : "有料プランを確認する";
     syncDeleteButton();
+    const { mountBirthEditor } = await import("./account-birth-editor.jsx");
+    birthEditor = await mountBirthEditor(document.querySelector("#profile-editor"), {
+      onSaved() {
+        status.textContent = "出生情報をアカウントに保存しました。";
+        deleteProfileButton.dataset.saved = "true";
+        errorBox.hidden = true;
+      },
+      onBusyChange(busy) {
+        profileBusy = busy;
+        deleteProfileButton.disabled = busy || deleteProfileButton.dataset.saved !== "true";
+        syncDeleteButton();
+      },
+    });
+    deleteProfileButton.dataset.saved = String(Boolean(saved));
   } catch (error) {
     status.textContent = "保存状態を確認できません。";
     showError(error);
+    document.querySelector("#profile-editor").textContent = "編集フォームを表示できません。再読み込みしてください。";
   }
 }
 
 deleteProfileButton.addEventListener("click", async () => {
+  if (profileBusy) return;
   if (!confirm("アカウントに保存済みの出生情報を削除しますか？")) return;
   deleteProfileButton.disabled = true;
+  document.querySelector("#profile-editor").inert = true;
   errorBox.hidden = true;
   try {
     const result = await deleteMemberProfile();
+    deleteProfileButton.dataset.saved = "false";
+    birthEditor?.reset();
     status.textContent = result.deleted ? "保存済みの出生情報を削除しました。" : "保存済みの出生情報はありません。";
   } catch (error) {
     showError(error);
     deleteProfileButton.disabled = false;
+  } finally {
+    document.querySelector("#profile-editor").inert = false;
   }
 });
 

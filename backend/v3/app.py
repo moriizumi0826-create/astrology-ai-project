@@ -110,8 +110,7 @@ def create_app(*, auth_mode: str | None = None) -> FastAPI:
     app.include_router(profile_router)
     app.include_router(billing_router)
     app.include_router(account_router)
-    if deployment == "local":
-        app.include_router(map_assistant_router)
+    app.include_router(map_assistant_router)
     if deployment == "local" and not hasattr(app.state, "supabase_auth"):
         app.include_router(test_auth_router)
     return app

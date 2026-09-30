@@ -5,7 +5,7 @@ import vm from "node:vm";
 
 const script = fs.readFileSync(new URL("../v3/login.js", import.meta.url), "utf8").replace(/^import .*;\r?\n/gm, "");
 const html = fs.readFileSync(new URL("../v3/login.html", import.meta.url), "utf8");
-async function setup({ member = false, failInit = false } = {}) {
+async function setup({ member = false, failInit = false, now = "2026-09-30T12:00:00+09:00" } = {}) {
   const elements = new Map();
   const el = selector => {
     if (!elements.has(selector)) elements.set(selector, { value: "", hidden: false, dataset: {}, attrs: {}, handlers: {},
@@ -18,7 +18,7 @@ async function setup({ member = false, failInit = false } = {}) {
   const initial = new Promise(resolve => { resolveInit = resolve; });
   const auth = Object.fromEntries(["signInWithPassword", "signUp", "resetPasswordForEmail", "resend", "signOut"].map(name => [name, async args => { calls.push({ name, args }); return { error: failure }; }]));
   auth.getUser = async () => ({ data: { user: { email: "test@example.com" } } });
-  const context = vm.createContext({ document: { querySelector: el, querySelectorAll: selector => selector.includes("[data-mode]") ? modes : [...elements.values()] },
+  const context = vm.createContext({ Date: { now: () => Date.parse(now), parse: Date.parse }, document: { querySelector: el, querySelectorAll: selector => selector.includes("[data-mode]") ? modes : [...elements.values()] },
     initializeAuth: async () => { await initial; if (failInit) throw Error("offline"); return { mode: "supabase" }; }, authClient: async () => ({ auth }),
     getJson: async () => member ? { user_id: "test" } : {}, configureStorage() {}, getStoredReadingForm: () => ({ test: true }),
     finishMemberLogin: async () => {}, initializeCaptcha: async () => {}, resetCaptcha() {}, captchaTokenForRequest: () => "captcha-test",
@@ -59,4 +59,13 @@ test("signed-in account and initialization errors have explicit states", async (
 });
 test("successful login keeps controls locked until navigation", async () => {
   const ui = await setup(); await ui.submit(); assert.equal(ui.calls.at(-1).name, "navigate"); assert.equal(ui.el("#submit").disabled, true);
+});
+test("campaign notice is signup-only and ends at November 1 JST", async () => {
+  const ui = await setup({ now: "2026-10-31T23:59:59+09:00" });
+  assert.equal(ui.el("#signup-campaign").hidden, true);
+  ui.mode("signup"); assert.equal(ui.el("#signup-campaign").hidden, false);
+  ui.mode("reset"); assert.equal(ui.el("#signup-campaign").hidden, true);
+  const ended = await setup({ now: "2026-11-01T00:00:00+09:00" });
+  ended.mode("signup"); assert.equal(ended.el("#signup-campaign").hidden, true);
+  assert.doesNotMatch(html, /先着25名/); assert.match(html, /メール認証/); assert.match(html, /一定の人数に達し次第終了/);
 });

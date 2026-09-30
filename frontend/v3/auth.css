@@ -18,5 +18,7 @@ button:disabled{opacity:.55;cursor:wait}a:focus-visible,button:focus-visible,inp
 #sent-email,#account-email{display:block;overflow-wrap:anywhere;font-size:16px}#email-sent p,#signed-in p{font-size:14px;color:#c7c6cc}#edit-email,#back-login{display:block;margin:8px auto 0}
 #loading{position:absolute;top:140px;left:24px;right:24px;color:#b9bdc8;font-size:14px}.skeleton{height:270px;background:linear-gradient(#ffffff08 0 48px,transparent 48px 78px,#ffffff08 78px 126px,transparent 126px 155px,#ffffff08 155px 203px,transparent 203px);border-radius:8px}#retry{padding:10px 20px;background:#e9c349}
 .return-link{text-align:center;font-size:13px;margin:20px 0}footer{justify-content:center}footer a{color:#b9bdc8}
+.campaign-notice{margin:0 0 20px;padding:14px 16px;border:1px solid #e9c34955;border-radius:10px;background:#e9c34909;font-size:13px}
+.campaign-notice strong{display:block;color:#ead17c;font-size:15px;line-height:1.6}.campaign-notice p{margin:8px 0 0;color:#d1d2d7}.campaign-notice .hint{font-size:12px;color:#b9bdc8}
 @media(max-width:540px){main{margin:24px auto}.auth-card{padding:20px 16px}.brand{margin-bottom:18px}h1{font-size:24px}}
 @media(max-width:380px){.captcha-space{min-height:160px}}

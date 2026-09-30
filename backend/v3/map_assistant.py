@@ -1,16 +1,20 @@
-"""Local-only prototype for asking about the V3 map."""
+"""Member-only V3 map guidance with API-free fixed answers."""
 
 import json
 import os
+from pathlib import Path
 
 import httpx
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, ConfigDict, Field
 
 from backend.v3.rate_limit import check_request_limit
+from backend.v3.access import AccessSnapshot, require_paid_access
+from backend.v3.deployment import require_allowed_origin
 
 
 router = APIRouter(prefix="/api/v3")
+FAQ = json.loads((Path(__file__).resolve().parents[2] / "frontend/v3/map-assistant-faq.json").read_text(encoding="utf-8"))
 
 
 class MapContext(BaseModel):
@@ -59,18 +63,25 @@ def _demo_answer(question: str, context: MapContext) -> str:
 
 
 @router.post("/map-assistant")
-def map_assistant(payload: MapAssistantRequest, request: Request):
-    # The router is mounted only by the local V3 app. Fail closed if reused elsewhere.
-    if request.app.state.v3_environment != "local":
-        raise HTTPException(404, "Not found")
-    check_request_limit(request, "map_assistant")
+def map_assistant(payload: MapAssistantRequest, request: Request,
+                  access: AccessSnapshot = Depends(require_paid_access)):
+    require_allowed_origin(request)
     question = payload.question.strip()
     if not question:
         raise HTTPException(422, "質問を入力してください。")
+    if question in FAQ:
+        return {"answer": FAQ[question], "mode": "fixed"}
+
+    local = request.app.state.v3_environment == "local"
+    if not local and os.getenv("V3_MAP_ASSISTANT_ENABLED", "").lower() != "true":
+        raise HTTPException(503, "AIガイドは現在準備中です。固定質問をご利用ください。")
+    check_request_limit(request, "map_assistant", user_id=access.user_id)
 
     key = os.getenv("OPENAI_API_KEY", "").strip()
     if not key:
-        return {"answer": _demo_answer(question, payload.context), "mode": "demo"}
+        if local:
+            return {"answer": _demo_answer(question, payload.context), "mode": "demo"}
+        raise HTTPException(503, "AIガイドは現在利用できません。固定質問をご利用ください。")
 
     user_data = {
         "screen": payload.context.model_dump(),

@@ -79,6 +79,12 @@ export function initialBirthData(saved = {}, meta = {}) {
 
 
 
+// Editors require an explicit time; legacy unknown-time profiles must not become noon silently.
+export function editableBirthData(saved = {}, meta = {}) {
+  const form = initialBirthData(saved, meta);
+  return { ...form, birth_time_unknown: false };
+}
+
 export function birthFormSnapshot(form) {
   return {
     full_name: String(form.full_name || ""),

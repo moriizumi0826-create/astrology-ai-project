@@ -5,6 +5,7 @@ export function featurePolicy(session, now = Date.now()) {
   );
   const caps = session?.capabilities || {};
   return {
+    mapAssistant: paid,
     aspectList: paid && caps.aspect_list === true,
     compoundAspects: paid && caps.compound_aspects === true,
     stellarForecast: paid && caps.stellar_forecast === true,

@@ -15,7 +15,6 @@ const FORECAST_DETAIL_PATH = "/index.html#horoscope";
 const form = document.querySelector("#reading-form");
 const birthDateInput = form.querySelector('input[name="birth_date"]');
 const birthTimeInput = document.querySelector("#birth-time-input");
-const birthTimeUnknownCheckbox = document.querySelector("#birth-time-unknown");
 const birthPrefectureSelect = document.querySelector("#birth-prefecture");
 const birthCountrySelect = document.querySelector("#birth-country");
 const timezoneNameInput = document.querySelector("#birth-timezone");
@@ -68,7 +67,7 @@ function collectFormSnapshot() {
     full_name: form.querySelector('input[name="full_name"]').value || "",
     birth_date: form.querySelector('input[name="birth_date"]').value || "",
     birth_time: birthTimeInput.value || "",
-    birth_time_unknown: birthTimeUnknownCheckbox.checked,
+    birth_time_unknown: false,
     birth_prefecture: birthPrefectureSelect.value || "",
     birth_country: birthCountrySelect.value,
     birth_time_fold: birthTimeFoldSelect.value === "" ? null : Number(birthTimeFoldSelect.value),
@@ -94,8 +93,7 @@ function restoreFormSnapshot() {
 
   form.querySelector('input[name="full_name"]').value = saved.full_name || "";
   birthDateInput.value = normalizeBirthDateInput(saved.birth_date || "");
-  birthTimeInput.value = normalizeBirthTimeInput(saved.birth_time || "") || "";
-  birthTimeUnknownCheckbox.checked = Boolean(saved.birth_time_unknown);
+  birthTimeInput.value = saved.birth_time_unknown ? "" : normalizeBirthTimeInput(saved.birth_time || "") || "";
   birthPrefectureSelect.value = saved.birth_prefecture || "";
   birthCountrySelect.value = birthSearchScope(saved);
   birthTimeFoldSelect.value = String(saved.birth_time_fold ?? "");
@@ -259,17 +257,10 @@ function clearError() {
 
 
 function syncBirthTimeState() {
-  const isUnknown = birthTimeUnknownCheckbox.checked;
-  birthTimeInput.disabled = isUnknown;
-  birthTimeInput.required = !isUnknown;
-
-  if (isUnknown) {
-    birthTimeInput.value = "";
-  }
+  birthTimeInput.disabled = false;
+  birthTimeInput.required = true;
 }
 
-birthTimeUnknownCheckbox.addEventListener("change", syncBirthTimeState);
-birthTimeUnknownCheckbox.addEventListener("change", resetBirthTimeConfirmation);
 restoreFormSnapshot();
 syncBirthCountry();
 ensureTimezoneFallback();

@@ -4,7 +4,7 @@ import { ChevronDown, MapPin, PencilLine, Search, Sparkles } from "lucide-react"
 import {
   birthFormSnapshot,
   buildReadingRequest,
-  initialBirthData,
+  editableBirthData,
   PREFECTURE_OPTIONS,
 } from "./birth-data.mjs";
 
@@ -15,10 +15,11 @@ function cx(...values) {
 const fieldClass = "w-full rounded-xl border border-white/10 bg-white/[0.035] px-3 py-3 text-sm text-[#f3f3f0] outline-none transition placeholder:text-[#c7c6cc]/35 focus:border-[#e9c349]/55 focus:ring-2 focus:ring-[#e9c349]/15 disabled:cursor-not-allowed disabled:opacity-45";
 const labelClass = "mb-2 block font-mono text-[9px] font-black uppercase tracking-[0.2em] text-[#e9c349]";
 
-export function BirthDataEditor({ initialForm = {}, meta = {}, onSearchLocations, onRecalculate }) {
+export function BirthDataEditor({ initialForm = {}, meta = {}, onSearchLocations, onRecalculate, purpose = "chart", onBusyChange }) {
+  const accountMode = purpose === "account";
   const hasBirthData = Boolean(initialForm?.birth_date || meta?.birth_date);
-  const [open, setOpen] = useState(!hasBirthData);
-  const [form, setForm] = useState(() => initialBirthData(initialForm, meta));
+  const [open, setOpen] = useState(accountMode || !hasBirthData);
+  const [form, setForm] = useState(() => editableBirthData(initialForm, meta));
   const [locationResults, setLocationResults] = useState([]);
   const [locationMessage, setLocationMessage] = useState("");
   const [locationError, setLocationError] = useState(false);
@@ -61,7 +62,7 @@ export function BirthDataEditor({ initialForm = {}, meta = {}, onSearchLocations
   const resetAndToggle = () => {
     if (!open) {
       setAmbiguousTimeKey(null);
-      setForm(initialBirthData(initialForm, meta));
+      setForm(editableBirthData(initialForm, meta));
       setLocationResults([]);
       setLocationMessage("");
       setError("");
@@ -114,6 +115,7 @@ export function BirthDataEditor({ initialForm = {}, meta = {}, onSearchLocations
 
   const submit = async (event) => {
     event.preventDefault();
+    if (submitting) return;
     setError("");
     setSuccess("");
     let request;
@@ -125,19 +127,21 @@ export function BirthDataEditor({ initialForm = {}, meta = {}, onSearchLocations
     }
 
     setSubmitting(true);
+    onBusyChange?.(true);
     try {
       await onRecalculate({ request, snapshot: birthFormSnapshot(form) });
-      setSuccess("出生情報を更新し、ホロスコープを再計算しました。");
+      setSuccess(accountMode ? "出生情報をアカウントに保存しました。" : "別の出生データでチャートを表示しました。アカウントの出生情報は変更していません。");
       setOpen(false);
     } catch (submitError) {
       if (isAmbiguousBirthTimeError(submitError)) {
         setAmbiguousTimeKey(birthTimeKey(form));
-        setError("出生時刻の確認欄で選択してから、もう一度再計算してください。");
+        setError(`出生時刻の確認欄で選択してから、もう一度${accountMode ? "保存" : "表示"}してください。`);
       } else {
-        setError(submitError?.message || "ホロスコープの再計算に失敗しました。");
+        setError(submitError?.message || (accountMode ? "出生情報の保存に失敗しました。" : "ホロスコープの再計算に失敗しました。"));
       }
     } finally {
       setSubmitting(false);
+      onBusyChange?.(false);
     }
   };
 
@@ -145,6 +149,7 @@ export function BirthDataEditor({ initialForm = {}, meta = {}, onSearchLocations
     <section className="mb-5 overflow-hidden rounded-2xl border border-white/10 bg-[#121414]/80 shadow-[0_18px_42px_rgba(0,0,0,0.22)] backdrop-blur-md">
       <button
         type="button"
+        disabled={submitting}
         onClick={resetAndToggle}
         className="flex w-full items-center justify-between gap-4 px-5 py-4 text-left transition hover:bg-white/[0.035] focus:outline-none focus:ring-2 focus:ring-inset focus:ring-[#e9c349]/30"
         aria-expanded={open}
@@ -155,7 +160,7 @@ export function BirthDataEditor({ initialForm = {}, meta = {}, onSearchLocations
           </span>
           <span className="min-w-0">
             <span className="block font-mono text-[9px] font-black uppercase tracking-[0.24em] text-[#e9c349]">Birth Data</span>
-            <span className="mt-1 block text-sm font-semibold text-[#f3f3f0]">出生情報を編集して再計算</span>
+            <span className="mt-1 block text-sm font-semibold text-[#f3f3f0]">{accountMode ? "自分の出生情報を編集・保存" : "別の出生データでチャートを見る"}</span>
           </span>
         </span>
         <ChevronDown size={18} className={cx("shrink-0 text-[#c7c6cc] transition", open && "rotate-180")} aria-hidden="true" />
@@ -167,6 +172,8 @@ export function BirthDataEditor({ initialForm = {}, meta = {}, onSearchLocations
 
       {open ? (
         <form onSubmit={submit} className="border-t border-white/10 px-5 py-5">
+          <p className="mb-4 text-xs leading-5 text-[#c7c6cc]">{accountMode ? "ここで保存した出生情報を、次回から自分のチャートに使用します。" : "この画面のチャートだけを変更します。自分の出生情報の修正・保存はアカウント管理から行えます。"}</p>
+          <fieldset disabled={submitting} className="min-w-0 border-0 p-0 m-0">
           <div className="grid gap-5 md:grid-cols-2">
             <label className="md:col-span-2">
               <span className={labelClass}>Full Name / 氏名</span>
@@ -199,24 +206,10 @@ export function BirthDataEditor({ initialForm = {}, meta = {}, onSearchLocations
                   step="60"
                   value={form.birth_time}
                   onChange={(event) => updateField("birth_time", event.target.value)}
-                  disabled={form.birth_time_unknown}
-                  required={!form.birth_time_unknown}
+                  required
                 />
               </label>
-              <label className="mt-3 flex cursor-pointer items-start gap-2 text-xs leading-5 text-[#c7c6cc]">
-                <input
-                  className="mt-0.5 h-4 w-4 rounded border-white/20 bg-white/5 text-[#e9c349] focus:ring-[#e9c349]/35"
-                  type="checkbox"
-                  checked={form.birth_time_unknown}
-                  onChange={(event) => { setAmbiguousTimeKey(null); setForm((current) => ({
-                    ...current,
-                    birth_time_unknown: event.target.checked,
-                    birth_time: event.target.checked ? "" : current.birth_time,
-                    birth_time_fold: "",
-                  })); }}
-                />
-                <span>出生時間不明（12:00を仮時刻として計算し、ASC・MC・ハウスは表示しません）</span>
-              </label>
+              <p className="mt-3 text-xs leading-5 text-[#c7c6cc]">出生時刻が分からない場合は、仮に12:00と入力してください。時刻によって変わるアセンダント・ハウスなどの結果は参考値となります。</p>
             </div>
           </div>
 
@@ -341,9 +334,10 @@ export function BirthDataEditor({ initialForm = {}, meta = {}, onSearchLocations
               className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#e9c349] px-6 py-3 text-xs font-black text-[#121414] transition hover:bg-[#f2d76b] disabled:cursor-wait disabled:opacity-60"
             >
               <Sparkles size={15} aria-hidden="true" />
-              {submitting ? "再計算しています…" : "この出生情報で再計算"}
+              {submitting ? (accountMode ? "保存しています…" : "再計算しています…") : (accountMode ? "出生情報を保存" : "この出生データでチャートを見る")}
             </button>
           </div>
+          </fieldset>
         </form>
       ) : null}
     </section>

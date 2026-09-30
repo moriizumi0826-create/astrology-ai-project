@@ -17,10 +17,6 @@ prepareSession().then(async session => {
     const memberLink = document.querySelector("#member-link");
     memberLink.textContent = "アカウント";
     memberLink.href = "/account.html";
-    const notice = document.createElement("p");
-    notice.textContent = "計算完了時に、この出生情報をログイン中のアカウントへ保存します。";
-    notice.className = "entry-member-notice";
-    button.before(notice);
   }
   window.addEventListener("v3-auth-changed", () => { configureStorage(null); location.replace("/login.html"); });
   await import("./entry-form.js");

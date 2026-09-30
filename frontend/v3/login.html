@@ -13,6 +13,11 @@
 <nav aria-label="認証操作"><button type="button" data-mode="login" aria-pressed="true">ログイン</button><button type="button" data-mode="signup" aria-pressed="false">新規登録</button></nav>
 <form id="member-form">
 <div id="fields">
+<aside id="signup-campaign" class="campaign-notice" aria-label="新規登録キャンペーン" hidden>
+<strong>10月末までの新規登録で、有料機能をずっと無料に</strong>
+<p>2026年10月31日まで（日本時間）に新規登録とメール認証を完了すると、招待会員として有料プランの機能を期限なく無料でご利用いただけます。</p>
+<p class="hint">カード登録不要・月額料金は発生しません。一定の人数に達し次第終了します。</p>
+</aside>
 <label for="email">メールアドレス</label><input id="email" type="email" autocomplete="username" inputmode="email" autocapitalize="none" spellcheck="false" maxlength="254" required>
 <div id="password-row"><label for="password">パスワード</label><div class="password-input"><input id="password" type="password" autocomplete="current-password" maxlength="128" required><button id="show-password" type="button" aria-label="パスワードを表示" aria-pressed="false">表示</button></div><p id="signup-note" class="hint" hidden>12文字以上で設定してください。</p></div>
 <button id="forgot" class="text-button" type="button" data-mode="reset">パスワードを忘れた場合</button>

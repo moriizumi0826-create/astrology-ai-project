@@ -1,0 +1,14 @@
+/* Utilities only: do not apply Tailwind's global reset to the account page. */
+@tailwind utilities;
+#profile-editor{margin:20px 0}
+#profile-editor label{margin:0}
+#profile-editor button{width:auto}
+#profile-editor section>button{width:100%;background:transparent;color:inherit}
+#profile-editor input:not([type=checkbox]),#profile-editor select{width:100%;margin-top:0;font-size:16px;color:#f3f3f0;background:#161a20;border:1px solid #ffffff33;border-radius:8px;padding:12px}
+#profile-editor p{margin-top:0}
+#profile-editor fieldset{min-width:0}
+#profile-editor option{background:#161a20}
+#profile-editor .grid{grid-template-columns:minmax(0,1fr)}
+#profile-editor .grid>*{grid-column:auto;min-width:0}
+#profile-editor label>span.block{font-size:12px;letter-spacing:.03em}
+@media(max-width:540px){#profile-editor form{padding:16px 12px}}

@@ -1964,7 +1964,7 @@ function transitSkyMapData(day, forecast, selectedNatalPlanet = "SUN") {
   };
 }
 
-function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayIndex = 0, onSelectDayIndex = null, onSelectDate = null }) {
+function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayIndex = 0, onSelectDayIndex = null, onSelectDate = null, birthForm = null }) {
   const { session } = useAccess();
   const policy = featurePolicy(session);
   const canShowAspectList = policy.aspectList;
@@ -2597,7 +2597,7 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
   useEffect(() => {
     if (isTransitPlaybackActive) return;
     if (!selectedDate) return;
-    const formPayload = getQueryReadingForm() || getStoredReadingForm();
+    const formPayload = birthForm || getQueryReadingForm() || getStoredReadingForm();
     if (!formPayload) return;
     const cacheKey = transitChartCacheKey(selectedDate, selectedTransitTime);
     const cachedChart = transitChartCacheRef.current.get(cacheKey);
@@ -2634,7 +2634,7 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
     return () => {
       active = false;
     };
-  }, [selectedDate, selectedTransitTime, isTransitPlaybackActive]);
+  }, [selectedDate, selectedTransitTime, isTransitPlaybackActive, birthForm]);
 
   const preloadTransitChartsForDates = React.useCallback(async (targetTime, targetDates = null, onProgress = null) => {
     const dates = Array.isArray(targetDates) && targetDates.length
@@ -2642,9 +2642,9 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
       : selectableDates.length ? selectableDates : [selectedDate].filter(Boolean);
     await preloadTransitCharts({
       dates, targetTime, cache: transitChartCacheRef.current, cacheKey: transitChartCacheKey,
-      request: requestPlaybackCharts, formPayload: getQueryReadingForm() || getStoredReadingForm(), onProgress,
+      request: requestPlaybackCharts, formPayload: birthForm || getQueryReadingForm() || getStoredReadingForm(), onProgress,
     });
-  }, [selectableDates, selectedDate]);
+  }, [selectableDates, selectedDate, birthForm]);
 
   useEffect(() => {
     const mount = mountRef.current;
@@ -4725,7 +4725,7 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
             <button type="button" onClick={() => {setIsMapControlsMenuOpen(value => !value); setIsAspectListPanelOpen(false); setIsMapSettingsOpen(false);}} aria-expanded={isMapControlsMenuOpen} aria-controls={mapId + "-map-chart-details"} className={cx(mapControlButtonClass,"border border-white/10 bg-[#101827]/90 shadow-lg backdrop-blur-xl", !isMapFullscreen && "hidden sm:inline-flex",isMapControlsMenuOpen && "text-gold")}><ChevronDown size={13} className={isMapControlsMenuOpen ? "" : "rotate-180"} />天体データ</button>
             <button type="button" onClick={() => { setIsMapAssistantOpen(value => !value); setIsAspectListPanelOpen(false); setIsMapControlsMenuOpen(false); setIsMapSettingsOpen(false); }} aria-expanded={isMapAssistantOpen} aria-controls={mapId + "-map-assistant"} className={cx(mapControlButtonClass, "border border-gold/30 bg-[#101827]/90 text-gold shadow-lg backdrop-blur-xl")}><Sparkles size={13} />AIに聞く</button>
           </div>
-          {isMapAssistantOpen && <MapAssistantPanel id={mapId + "-map-assistant"} previewOnly={__APP_ENVIRONMENT__ !== "local"} onClose={() => setIsMapAssistantOpen(false)} context={{ date: displayedTransitDateTime.date || "", time: displayedTransitDateTime.time || "", selected_planet: aspectTooltip ? `${aspectTooltip.type === "natal" ? "ネイタル" : "現行"}${planetLabel(aspectTooltip.planet)}` : "", aspect_mode: selectedAspectDisplayMode.label || "", selected_aspect: "" }} />}
+          {isMapAssistantOpen && <MapAssistantPanel id={mapId + "-map-assistant"} canAsk={policy.mapAssistant} onClose={() => setIsMapAssistantOpen(false)} context={{ date: displayedTransitDateTime.date || "", time: displayedTransitDateTime.time || "", selected_planet: aspectTooltip ? `${aspectTooltip.type === "natal" ? "ネイタル" : "現行"}${planetLabel(aspectTooltip.planet)}` : "", aspect_mode: selectedAspectDisplayMode.label || "", selected_aspect: "" }} />}
           {((canShowAspectList && isAspectListPanelOpen) || isMapControlsMenuOpen) && <section id={isAspectListPanelOpen ? mapId + "-map-aspect-details" : mapId + "-map-chart-details"} aria-label={isAspectListPanelOpen ? "アスペクト一覧" : "天体データ"} onKeyDown={handleMapPanelEscape}
             className="absolute inset-x-3 bottom-14 z-[110] max-h-[calc(100%-10rem)] overflow-y-auto overscroll-contain rounded-2xl border border-white/15 bg-[#101827]/55 p-3 text-mist shadow-lg backdrop-blur-none sm:bg-[#101827]/95 sm:shadow-2xl sm:backdrop-blur-xl sm:left-auto sm:right-4 sm:w-[min(520px,calc(100%-2rem))]">
             <div className="mb-3 flex items-center justify-between border-b border-white/10 pb-2"><span className="text-xs">{isAspectListPanelOpen ? "アスペクト一覧" : "天体データ"}</span><button type="button" onClick={() => {setIsAspectListPanelOpen(false);setIsMapControlsMenuOpen(false);}} aria-label="詳細情報を閉じる" className={mapControlButtonClass}>×</button></div>
@@ -5159,7 +5159,7 @@ function GlassPanel({ children, className = "", variant = "default" }) {
   );
 }
 
-function Horoscope3DMap({ data }) {
+function Horoscope3DMap({ data, birthForm = null }) {
   const readingDate = dateKey(data?.reading_date) || currentLocalDate();
   const [selectedDate, setSelectedDate] = useState(readingDate);
   useEffect(() => setSelectedDate(readingDate), [readingDate]);
@@ -5190,6 +5190,7 @@ function Horoscope3DMap({ data }) {
   return (
     <div className="mb-5">
       <TransitNatalSunMap
+        birthForm={birthForm}
         day={mapDay}
         forecast={mapForecast}
         availableDays={availableMapDays}

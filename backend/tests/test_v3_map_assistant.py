@@ -3,11 +3,58 @@ from unittest.mock import patch
 
 from backend.tests.test_v3_access import local_test_client
 from backend.v3.app import create_app
+from backend.v3.access import AccessContext, get_access_context
+from backend.v3.map_assistant import FAQ
+from datetime import datetime, timedelta, timezone
 
 
 class MapAssistantPrototypeTests(unittest.TestCase):
     def setUp(self):
-        self.client = local_test_client(create_app(auth_mode="local_test"))
+        self.app = create_app(auth_mode="local_test")
+        self.app.dependency_overrides[get_access_context] = lambda: AccessContext(user_id="member", entitlement="owner")
+        self.client = local_test_client(self.app)
+        self.client.headers["origin"] = "http://127.0.0.1:5176"
+
+    def test_free_anonymous_and_expired_cannot_call_openai(self):
+        for context, status in [(AccessContext(), 401), (AccessContext(user_id="free"), 403),
+                (AccessContext(user_id="expired", entitlement="active", valid_until=datetime.now(timezone.utc)-timedelta(days=1)),403)]:
+            with self.subTest(status=status), patch("backend.v3.map_assistant.httpx.post") as post:
+                self.app.dependency_overrides[get_access_context] = lambda: context
+                response = self.client.post("/api/v3/map-assistant", json={"question":"質問"})
+                self.assertEqual(response.status_code,status)
+                post.assert_not_called()
+
+    def test_fixed_answers_never_call_openai(self):
+        with patch.dict("os.environ", {"OPENAI_API_KEY":"test-key"}), patch("backend.v3.map_assistant.httpx.post") as post:
+            for question,answer in FAQ.items():
+                response=self.client.post("/api/v3/map-assistant",json={"question":question})
+                self.assertEqual(response.json(),{"answer":answer,"mode":"fixed"})
+            post.assert_not_called()
+
+    def test_production_disabled_or_missing_key_fails_closed(self):
+        self.app.state.v3_environment="production"
+        for enabled,key in [("false","test-key"),("true","")]:
+            with patch.dict("os.environ", {"V3_MAP_ASSISTANT_ENABLED":enabled,"OPENAI_API_KEY":key}), patch("backend.v3.map_assistant.httpx.post") as post:
+                response=self.client.post("/api/v3/map-assistant",json={"question":"質問"})
+                self.assertEqual(response.status_code,503)
+                post.assert_not_called()
+
+    def test_untrusted_origin_is_rejected(self):
+        with patch("backend.v3.map_assistant.httpx.post") as post:
+            response=self.client.post("/api/v3/map-assistant",headers={"origin":"https://example.com"},json={"question":"質問"})
+            self.assertEqual(response.status_code,403)
+            post.assert_not_called()
+
+    def test_production_owner_invite_and_subscription_can_call(self):
+        import httpx
+        self.app.state.v3_environment="production"
+        upstream=httpx.Response(200,request=httpx.Request("POST","https://api.openai.com/v1/responses"),json={"output":[{"type":"message","content":[{"type":"output_text","text":"回答"}]}]})
+        for entitlement in ["owner","invite","active"]:
+            self.app.dependency_overrides[get_access_context]=lambda: AccessContext(user_id="member",entitlement=entitlement,valid_until=datetime.now(timezone.utc)+timedelta(days=1))
+            with patch.dict("os.environ", {"V3_MAP_ASSISTANT_ENABLED":"true","OPENAI_API_KEY":"test-key"}), patch("backend.v3.map_assistant.httpx.post",return_value=upstream) as post:
+                response=self.client.post("/api/v3/map-assistant",json={"question":"質問"})
+                self.assertEqual(response.status_code,200)
+                post.assert_called_once()
 
     def test_without_key_returns_explicit_demo_answer(self):
         with patch.dict("os.environ", {"OPENAI_API_KEY": ""}):

@@ -8,11 +8,11 @@ import { BirthDataEditor } from "./birth-data-editor.jsx";
 import { FreeHoroscopeContent } from "./free-horoscope-content.jsx";
 import { Horoscope3DMap } from "./horoscope-map.jsx";
 import { DeviceTimeBoundary } from "../src/device-time-boundary.jsx";
-import { configureStorage, freeResult, getStoredReadingForm, getStoredReadingResult, storeReadingForm, storeReadingResult } from "./reading-storage.js";
+import { configureStorage, freeResult, getStoredReadingForm, getStoredReadingResult, storeReadingResult } from "./reading-storage.js";
 import { getJson, postJson, searchBirthLocations } from "./api.mjs";
 import background from "../src/assets/daily-detail-galaxy-bg.jpg";
 import { featurePolicy } from "./feature-policy.mjs";
-import { prepareSession, saveMemberProfile } from "./profile.mjs";
+import { prepareSession } from "./profile.mjs";
 import { isMemberMode } from "./auth-client.mjs";
 
 const PaidForecast = lazy(() => import("./paid-forecast.jsx"));
@@ -21,13 +21,13 @@ function Horoscope({ onForecast, session }) {
   const { stellarForecast } = featurePolicy(session);
   const [result, setResult] = useState(() => freeResult(getStoredReadingResult({ allowStale: true })));
   const [revision, setRevision] = useState(0);
+  const [chartForm, setChartForm] = useState(() => getStoredReadingForm() || {});
   const [locked, setLocked] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const recalculate = async ({ request, snapshot }) => {
     const next = await postJson("/api/readings", request);
-    await saveMemberProfile(snapshot);
-    storeReadingForm(snapshot);
-    await storeReadingResult(next);
+    // Another person's chart is local to this Horoscope view, not the member profile or forecast.
+    setChartForm(snapshot);
     setResult(freeResult(next));
     setRevision(value => value + 1);
   };
@@ -68,9 +68,8 @@ function Horoscope({ onForecast, session }) {
     </header>
     <div className="pt-[56px] sm:pt-36" style={{ backgroundImage: `linear-gradient(#05070f66,#05070f99),url(${background})`, backgroundSize: "cover", backgroundAttachment: "fixed" }}>
       <FreeHoroscopeContent data={data} belowMetaContent={<>
-        {isMemberMode() && session.user_id && <p className="px-4 text-xs text-white/60">再計算の完了時に、変更した出生情報をアカウントへ保存します。</p>}
-        <BirthDataEditor initialForm={getStoredReadingForm() || {}} meta={result.meta} onSearchLocations={searchBirthLocations} onRecalculate={recalculate} />
-        <Horoscope3DMap key={`map-${revision}`} data={data} />
+        <BirthDataEditor initialForm={chartForm} meta={result.meta} onSearchLocations={searchBirthLocations} onRecalculate={recalculate} />
+        <Horoscope3DMap key={`map-${revision}`} data={data} birthForm={chartForm} />
       </>} />
     </div>
     {locked && <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/75 p-5"><section role="dialog" aria-modal="true" aria-label="有料版のご案内" className="max-w-md rounded-2xl border border-gold/30 bg-midnight p-7"><h2 className="text-xl text-gold">星の見通しは有料版限定です</h2><p className="my-4 text-sm leading-7">{isMemberMode() ? "月額プランに登録すると、星の見通しと有料版の3Dマップ機能を利用できます。" : "ログインすると有料版を確認できます。"}</p>{isMemberMode() ? <a className="mr-4 text-gold underline" href="/billing.html">有料プランを見る</a> : <a className="mr-4 text-gold underline" href="/login.html">ログイン</a>}<button className="rounded border px-4 py-2" onClick={() => setLocked(false)}>閉じる</button></section></div>}

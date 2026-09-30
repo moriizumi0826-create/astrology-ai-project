@@ -9,6 +9,7 @@ services:
     buildFilter:
       paths:
         - backend/**
+        - frontend/v3/map-assistant-faq.json
         - database/**
         - scripts/build_v3_geonames.py
         - requirements.txt
