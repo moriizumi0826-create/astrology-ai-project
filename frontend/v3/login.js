@@ -9,12 +9,11 @@ const form = $("#member-form"), button = $("#submit"), status = $("#status"), er
 let mode = "login", client, busy = false, ready = false, sent = false, sentEmail = "";
 const labels = { login: "ログイン", signup: "新規登録", reset: "再設定メールを送信" };
 configureStorage(null);
-const anonymousForm = getStoredReadingForm();
-const destination = () => getStoredReadingForm() ? "/index.html#horoscope" : "/entry.html";
+const destination = () => getStoredReadingForm() ? "/index.html#horoscope" : "/auth-callback.html?mode=onboarding";
 function clearFeedback() { errorBox.textContent = ""; status.textContent = ""; }
 function setBusy(value) {
   busy = value;
-  document.querySelectorAll("button:not(#retry), #email, #password, #transfer").forEach(item => { item.disabled = value || !ready; });
+  document.querySelectorAll("button:not(#retry), #email, #password").forEach(item => { item.disabled = value || !ready; });
   form.setAttribute("aria-busy", String(value));
   button.textContent = value ? (mode === "login" ? "ログイン中…" : "送信中…") : labels[mode];
   $("#resend").textContent = value ? "送信中…" : "確認メールを再送";
@@ -40,7 +39,6 @@ function setMode(next) {
   $("#signup-note").hidden = next !== "signup";
   $("#signup-campaign").hidden = next !== "signup" || Date.now() >= Date.parse("2026-11-01T00:00:00+09:00");
   $("#forgot").hidden = next !== "login";
-  $("#transfer-row").hidden = next !== "login" || !anonymousForm;
   $("#back-login").hidden = next !== "reset";
   button.hidden = false; $("#resend").hidden = true; $("#edit-email").hidden = true;
   document.querySelectorAll("nav [data-mode]").forEach(item => item.setAttribute("aria-pressed", String(item.dataset.mode === next)));
@@ -72,6 +70,9 @@ async function initialize() {
       await client.auth.signOut({ scope: "local" }); session = {};
     }
     if (session.user_id) {
+      await finishMemberLogin(null, false);
+      $("#continue").href = destination();
+      $("#continue").textContent = getStoredReadingForm() ? "ホロスコープへ進む" : "出生データを入力して始める";
       const { data, error } = await client.auth.getUser();
       if (error) throw error;
       $("#account-email").textContent = data.user?.email || "メールアドレスを取得できませんでした。";
@@ -115,7 +116,7 @@ form.addEventListener("submit", async event => {
     if (mode === "login") {
       const { error } = await client.auth.signInWithPassword({ email, password, options: { captchaToken } });
       if (error) throw error;
-      await finishMemberLogin(anonymousForm, $("#transfer").checked);
+      await finishMemberLogin(null, false);
       $("#password").value = "";
       location.assign(destination());
       navigating = true;

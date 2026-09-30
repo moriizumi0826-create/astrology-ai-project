@@ -10,11 +10,25 @@ export function MapAssistantPanel({ id, context, getContext, onClose, canAsk = f
   const [messages, setMessages] = useState([]);
   const [draft, setDraft] = useState("");
   const [questionsOpen, setQuestionsOpen] = useState(true);
+  const questionStripRef = useRef(null);
+  const logRef = useRef(null);
+  const latestMessageRef = useRef(null);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState("");
   const [usage, setUsage] = useState(null);
   const [usageError, setUsageError] = useState('');
   const usageRequest = useRef(0);
+  useEffect(() => {
+    const log = logRef.current, latest = latestMessageRef.current;
+    if (!open || !log || !latest) return;
+    // Scroll only the conversation, not the map or the surrounding page.
+    const top = pending ? log.scrollHeight : log.scrollTop + latest.getBoundingClientRect().top - log.getBoundingClientRect().top - 12;
+    log.scrollTo({ top, behavior: 'auto' });
+  }, [messages, pending, open]);
+  function scrollQuestions(direction) {
+    const strip = questionStripRef.current;
+    strip?.scrollBy({ left: direction * strip.clientWidth * 0.8, behavior: 'smooth' });
+  }
   async function refreshUsage() {
     const version=++usageRequest.current;
     try {
@@ -87,7 +101,7 @@ export function MapAssistantPanel({ id, context, getContext, onClose, canAsk = f
 
   return (
     <section id={id} hidden={!open} style={open ? undefined : { display: "none" }} aria-label="3Dマップ AIガイド" className="absolute inset-x-3 bottom-14 z-[230] flex max-h-[min(75%,560px)] flex-col rounded-2xl border border-gold/30 bg-[#101827]/95 text-mist shadow-2xl backdrop-blur-xl sm:inset-x-auto sm:right-4 sm:w-[min(400px,calc(100%-2rem))]">
-      <div className="flex items-center justify-between border-b border-white/10 px-4 py-3">
+      <div className="flex shrink-0 items-center justify-between border-b border-white/10 px-4 py-3">
         <div><div className="flex items-center gap-1"><h3 className="text-sm font-semibold text-starlight">3Dマップ AIガイド</h3><button ref={infoButtonRef} type="button" aria-label="AIへ送られる情報" aria-expanded={infoOpen} aria-controls={id+'-info'} onClick={()=>setInfoOpen(value=>!value)} className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-full text-base text-gold hover:bg-white/10">ⓘ</button></div><p className="text-[10px] text-mist/65">固定質問はAIを使わずに回答します</p></div>
         <button type="button" onClick={onClose} aria-label="AIガイドを閉じる" className="rounded-lg px-2 py-1 text-lg hover:bg-white/10">×</button>
       </div>
@@ -97,21 +111,30 @@ export function MapAssistantPanel({ id, context, getContext, onClose, canAsk = f
         <p>氏名・メールアドレス・出生地は自動送信されません。質問にご自身で入力した情報は送信対象となります。</p>
         <p>固定質問ではAIへの送信は行われません。</p>
       </div>}
-      <div className="min-h-0 flex-1 space-y-3 overflow-y-auto overscroll-contain px-4 py-3" role="log" aria-live="polite">
+      <div ref={logRef} className="min-h-0 flex-1 space-y-3 overflow-y-auto overscroll-contain px-4 py-3" role="log" aria-live="polite">
         {messages.length === 0 && <p className="text-xs leading-relaxed text-mist/80">「固定質問」から使い方を確認できます。</p>}
-        {messages.map((message, index) => <div key={index} className={message.role === "user" ? "ml-6 rounded-xl bg-gold/15 px-3 py-2 text-xs text-starlight" : "mr-6 rounded-xl bg-white/10 px-3 py-2 text-xs leading-relaxed text-mist"}>
+        {messages.map((message, index) => <div key={index} ref={index === messages.length - 1 ? latestMessageRef : null} className={message.role === "user" ? "ml-6 rounded-xl bg-gold/15 px-3 py-2 text-xs text-starlight" : "mr-6 rounded-xl bg-white/10 px-3 py-2 text-xs leading-relaxed text-mist"}>
           {message.demo && <span className="mb-1 block text-[10px] text-gold">デモ回答（AI未接続）</span>}
           <span className="whitespace-pre-wrap">{message.content}</span>
           {message.role === "assistant" && calendarNotes?.canWrite && <button type="button" className="mt-2 block text-[10px] text-gold underline" onClick={()=>calendarNotes.edit({content:message.content,...(context?.date ? {note_date:context.date} : {})})}>カレンダーに保存</button>}
         </div>)}
         {pending && <p className="text-xs text-mist/60">回答を読み込み中…</p>}
       </div>
-      <div className="space-y-2 border-t border-white/10 p-3">
-        <button type="button" aria-expanded={questionsOpen} aria-controls={id + '-questions'} onClick={() => setQuestionsOpen(value => !value)} className="flex min-h-11 w-full items-center justify-between rounded-lg px-1 text-xs text-gold hover:bg-white/5">
-          <span>固定質問</span><span>{questionsOpen ? '閉じる ▴' : '開く ▾'}</span>
-        </button>
-        <div id={id + '-questions'} hidden={!questionsOpen} style={questionsOpen ? undefined : { display: 'none' }} className="flex max-h-32 flex-wrap gap-1.5 overflow-y-auto overscroll-contain" aria-label="質問の候補">
-          {SUGGESTED_QUESTIONS.map((question) => <button key={question} type="button" disabled={pending} onClick={() => ask(question)} className="rounded-full border border-gold/25 px-2.5 py-1 text-[10px] text-gold transition hover:bg-gold/10 disabled:opacity-50">{question}</button>)}
+      <div className="shrink-0 space-y-2 border-t border-white/10 p-3">
+        <div className="flex items-center gap-1">
+          <button type="button" aria-expanded={questionsOpen} aria-controls={id + '-questions'} onClick={() => setQuestionsOpen(value => !value)} className="flex min-h-8 flex-1 items-center justify-between rounded-lg px-1 text-xs text-gold hover:bg-white/5">
+            <span>固定質問{questionsOpen && <span className="ml-2 text-[10px] text-mist/65 sm:hidden">横にスワイプ</span>}</span><span>{questionsOpen ? '閉じる ▴' : '開く ▾'}</span>
+          </button>
+          {questionsOpen && <div className="hidden gap-1 sm:flex">
+            <button type="button" aria-label="固定質問を左へ" aria-controls={id + '-questions'} onClick={()=>scrollQuestions(-1)} className="h-8 w-8 rounded-lg border border-gold/25 text-gold hover:bg-white/10">‹</button>
+            <button type="button" aria-label="固定質問を右へ" aria-controls={id + '-questions'} onClick={()=>scrollQuestions(1)} className="h-8 w-8 rounded-lg border border-gold/25 text-gold hover:bg-white/10">›</button>
+          </div>}
+        </div>
+        <div hidden={!questionsOpen} style={questionsOpen ? undefined : { display: 'none' }} className="relative min-w-0">
+          <div ref={questionStripRef} id={id + '-questions'} className="flex flex-nowrap gap-1.5 overflow-x-auto overscroll-x-contain pb-1 pr-5" style={{scrollbarWidth:'thin'}} aria-label="質問の候補">
+            {SUGGESTED_QUESTIONS.map((question) => <button key={question} type="button" disabled={pending} onClick={() => ask(question)} className="min-h-11 shrink-0 whitespace-nowrap rounded-full border border-gold/25 px-2.5 py-1 text-[10px] text-gold transition hover:bg-gold/10 disabled:opacity-50">{question}</button>)}
+          </div>
+          <div aria-hidden="true" className="pointer-events-none absolute inset-y-0 right-0 w-5 bg-gradient-to-l from-[#101827] to-transparent" />
         </div>
         <form onSubmit={(event) => { event.preventDefault(); ask(draft); }} className="flex gap-2">
           <label htmlFor={id + "-question"} className="sr-only">質問を自由に入力</label>

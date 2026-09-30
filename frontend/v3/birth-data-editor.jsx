@@ -16,7 +16,8 @@ const fieldClass = "w-full rounded-xl border border-white/10 bg-white/[0.035] px
 const labelClass = "mb-2 block font-mono text-[9px] font-black uppercase tracking-[0.2em] text-[#e9c349]";
 
 export function BirthDataEditor({ initialForm = {}, meta = {}, onSearchLocations, onRecalculate, purpose = "chart", onBusyChange }) {
-  const accountMode = purpose === "account";
+  const onboarding = purpose === "onboarding";
+  const accountMode = purpose === "account" || onboarding;
   const hasBirthData = Boolean(initialForm?.birth_date || meta?.birth_date);
   const [open, setOpen] = useState(accountMode || !hasBirthData);
   const [form, setForm] = useState(() => editableBirthData(initialForm, meta));
@@ -160,7 +161,7 @@ export function BirthDataEditor({ initialForm = {}, meta = {}, onSearchLocations
           </span>
           <span className="min-w-0">
             <span className="block font-mono text-[9px] font-black uppercase tracking-[0.24em] text-[#e9c349]">Birth Data</span>
-            <span className="mt-1 block text-sm font-semibold text-[#f3f3f0]">{accountMode ? "自分の出生情報を編集・保存" : "別の出生データでチャートを見る"}</span>
+            <span className="mt-1 block text-sm font-semibold text-[#f3f3f0]">{onboarding ? "あなたの出生データを登録" : accountMode ? "自分の出生情報を編集・保存" : "別の出生データでチャートを見る"}</span>
           </span>
         </span>
         <ChevronDown size={18} className={cx("shrink-0 text-[#c7c6cc] transition", open && "rotate-180")} aria-hidden="true" />
@@ -334,7 +335,7 @@ export function BirthDataEditor({ initialForm = {}, meta = {}, onSearchLocations
               className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#e9c349] px-6 py-3 text-xs font-black text-[#121414] transition hover:bg-[#f2d76b] disabled:cursor-wait disabled:opacity-60"
             >
               <Sparkles size={15} aria-hidden="true" />
-              {submitting ? (accountMode ? "保存しています…" : "再計算しています…") : (accountMode ? "出生情報を保存" : "この出生データでチャートを見る")}
+              {submitting ? (accountMode ? "保存しています…" : "再計算しています…") : (onboarding ? "保存してホロスコープへ" : accountMode ? "出生情報を保存" : "この出生データでチャートを見る")}
             </button>
           </div>
           </fieldset>

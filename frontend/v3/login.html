@@ -21,7 +21,6 @@
 <label for="email">メールアドレス</label><input id="email" type="email" autocomplete="username" inputmode="email" autocapitalize="none" spellcheck="false" maxlength="254" required>
 <div id="password-row"><label for="password">パスワード</label><div class="password-input"><input id="password" type="password" autocomplete="current-password" maxlength="128" required><button id="show-password" type="button" aria-label="パスワードを表示" aria-pressed="false">表示</button></div><p id="signup-note" class="hint" hidden>12文字以上で設定してください。</p></div>
 <button id="forgot" class="text-button" type="button" data-mode="reset">パスワードを忘れた場合</button>
-<label id="transfer-row" class="transfer" hidden><input id="transfer" type="checkbox"><span>入力済みの出生情報を保存する<small>保存済みの情報は上書きしません。</small></span></label>
 </div>
 <section id="email-sent" hidden><p>入力したメールアドレス</p><strong id="sent-email"></strong><p id="sent-note"></p><p class="hint">見つからない場合は、迷惑メールフォルダもご確認ください。</p></section>
 <div class="captcha-space"><div id="captcha" aria-label="不正アクセス防止の確認" hidden></div></div>
@@ -32,7 +31,7 @@
 </form></div>
 <section id="signed-in" hidden>
   <p>ログイン中のメールアドレス</p><strong id="account-email"></strong>
-  <p><a class="primary" href="/index.html#horoscope">ホロスコープへ進む</a></p>
+  <p><a id="continue" class="primary" href="/auth-callback.html?mode=onboarding">出生データを入力して始める</a></p>
   <p><a href="/account.html">アカウント・出生情報の管理</a></p>
   <p><a href="/billing.html">有料プラン・契約管理</a></p>
   <button id="signout" class="text-button" type="button">ログアウト</button>

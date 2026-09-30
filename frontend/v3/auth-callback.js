@@ -9,8 +9,6 @@ const tokenHash = query.get("token_hash");
 const tokenType = query.get("type");
 const recovery = tokenType === "recovery" || query.get("mode") === "recovery";
 const failedLink = query.has("error") || hash.has("error");
-configureStorage(null);
-const anonymousForm = getStoredReadingForm();
 let client;
 (async () => {
   client = await authClient();
@@ -28,8 +26,23 @@ let client;
   $("#heading").textContent = recovery ? "パスワード再設定" : "メール確認完了";
   $("#password-row").hidden = !recovery;
   $("#new-password").required = recovery;
-  $("#transfer-row").hidden = recovery || !anonymousForm;
   $("#submit").textContent = recovery ? "パスワードを更新" : "ホロスコープへ進む";
+  if (!recovery) {
+    await finishMemberLogin(null, false);
+    if (!getStoredReadingForm()) {
+      $("#heading").textContent = "出生データの登録";
+      $("#status").textContent = "あなたの出生データを登録します。保存後、ホロスコープを表示します。";
+      const container = $("#profile-editor");
+      container.hidden = false;
+      container.textContent = "入力フォームを読み込んでいます…";
+      const { mountBirthEditor } = await import("./account-birth-editor.jsx");
+      await mountBirthEditor(container, {
+        purpose: "onboarding",
+        onSaved() { location.replace("/index.html#horoscope"); },
+      });
+      return;
+    }
+  }
   $("#callback-form").hidden = false;
 })().catch(error => { history.replaceState(null, "", location.pathname); $("#status").hidden = true; $("#error").textContent = error.message; $("#error").hidden = false; });
 $("#callback-form").addEventListener("submit", async event => {
@@ -43,8 +56,8 @@ $("#callback-form").addEventListener("submit", async event => {
       if (logoutError) throw logoutError;
       configureStorage(null); location.replace("/login.html");
     } else {
-      await finishMemberLogin(anonymousForm, $("#transfer").checked);
-      location.replace(getStoredReadingForm() ? "/index.html#horoscope" : "/entry.html");
+      await finishMemberLogin(null, false);
+      location.replace(getStoredReadingForm() ? "/index.html#horoscope" : "/auth-callback.html?mode=onboarding");
     }
   } catch (error) { $("#error").textContent = error?.status ? error.message : authMessage(error); $("#error").hidden = false; $("#submit").disabled = false; }
 });

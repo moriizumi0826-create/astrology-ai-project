@@ -5,7 +5,7 @@ import vm from "node:vm";
 
 const script = fs.readFileSync(new URL("../v3/login.js", import.meta.url), "utf8").replace(/^import .*;\r?\n/gm, "");
 const html = fs.readFileSync(new URL("../v3/login.html", import.meta.url), "utf8");
-async function setup({ member = false, failInit = false, now = "2026-09-30T12:00:00+09:00" } = {}) {
+async function setup({ member = false, saved = true, failInit = false, now = "2026-09-30T12:00:00+09:00" } = {}) {
   const elements = new Map();
   const el = selector => {
     if (!elements.has(selector)) elements.set(selector, { value: "", hidden: false, dataset: {}, attrs: {}, handlers: {},
@@ -20,7 +20,7 @@ async function setup({ member = false, failInit = false, now = "2026-09-30T12:00
   auth.getUser = async () => ({ data: { user: { email: "test@example.com" } } });
   const context = vm.createContext({ Date: { now: () => Date.parse(now), parse: Date.parse }, document: { querySelector: el, querySelectorAll: selector => selector.includes("[data-mode]") ? modes : [...elements.values()] },
     initializeAuth: async () => { await initial; if (failInit) throw Error("offline"); return { mode: "supabase" }; }, authClient: async () => ({ auth }),
-    getJson: async () => member ? { user_id: "test" } : {}, configureStorage() {}, getStoredReadingForm: () => ({ test: true }),
+    getJson: async () => member ? { user_id: "test" } : {}, configureStorage() {}, getStoredReadingForm: () => saved ? ({ test: true }) : null,
     finishMemberLogin: async () => {}, initializeCaptcha: async () => {}, resetCaptcha() {}, captchaTokenForRequest: () => "captcha-test",
     authMessage: () => "入力・通信状態を確認してください。", __APP_ENVIRONMENT__: "local", location: { origin: "http://localhost", assign(url) { calls.push({ name: "navigate", url }); }, replace() {}, reload() {} } });
   vm.runInContext(script, context);
@@ -59,6 +59,12 @@ test("signed-in account and initialization errors have explicit states", async (
 });
 test("successful login keeps controls locked until navigation", async () => {
   const ui = await setup(); await ui.submit(); assert.equal(ui.calls.at(-1).name, "navigate"); assert.equal(ui.el("#submit").disabled, true);
+});
+
+test('missing profile goes to registration from login or signed-in continuation',async()=>{
+  const ui=await setup({saved:false});await ui.submit();assert.equal(ui.calls.at(-1).url,'/auth-callback.html?mode=onboarding');
+  const member=await setup({member:true,saved:false});assert.equal(member.el('#continue').href,'/auth-callback.html?mode=onboarding');
+  assert.equal(member.el('#continue').textContent,'出生データを入力して始める');
 });
 test("campaign notice is signup-only and ends at November 1 JST", async () => {
   const ui = await setup({ now: "2026-10-31T23:59:59+09:00" });
