@@ -9,6 +9,7 @@ export function MapAssistantPanel({ id, context, getContext, onClose, canAsk = f
   const calendarNotes=useCalendarNotes();
   const [messages, setMessages] = useState([]);
   const [draft, setDraft] = useState("");
+  const [questionsOpen, setQuestionsOpen] = useState(true);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState("");
 
@@ -53,7 +54,10 @@ export function MapAssistantPanel({ id, context, getContext, onClose, canAsk = f
         {pending && <p className="text-xs text-mist/60">回答を読み込み中…</p>}
       </div>
       <div className="space-y-2 border-t border-white/10 p-3">
-        <div className="flex flex-wrap gap-1.5" aria-label="質問の候補">
+        <button type="button" aria-expanded={questionsOpen} aria-controls={id + '-questions'} onClick={() => setQuestionsOpen(value => !value)} className="flex min-h-11 w-full items-center justify-between rounded-lg px-1 text-xs text-gold hover:bg-white/5">
+          <span>固定質問</span><span>{questionsOpen ? '閉じる ▴' : '開く ▾'}</span>
+        </button>
+        <div id={id + '-questions'} hidden={!questionsOpen} style={questionsOpen ? undefined : { display: 'none' }} className="flex max-h-32 flex-wrap gap-1.5 overflow-y-auto overscroll-contain" aria-label="質問の候補">
           {SUGGESTED_QUESTIONS.map((question) => <button key={question} type="button" disabled={pending} onClick={() => ask(question)} className="rounded-full border border-gold/25 px-2.5 py-1 text-[10px] text-gold transition hover:bg-gold/10 disabled:opacity-50">{question}</button>)}
         </div>
         <form onSubmit={(event) => { event.preventDefault(); ask(draft); }} className="flex gap-2">
