@@ -49,7 +49,12 @@ def quota(request,user,action='status',token=None):
     store=getattr(getattr(request.app.state,'billing',None),'store',None)
     if not store or not store.configured or not str(user).startswith('supabase:'):
         raise HTTPException(503,'AIの回数管理を確認できません。時間をおいて再試行してください。')
-    try: subject=str(UUID(user.split(':',1)[1]))
+    # SupabaseAuth returns supabase:<project>:<uuid>, not supabase:<uuid>.
+    try:
+        namespace, project, subject = user.split(':')
+        if namespace != 'supabase' or not project:
+            raise ValueError()
+        subject = str(UUID(subject))
     except ValueError: raise HTTPException(401,'ログインを確認してください。') from None
     result=store.request('POST','rpc/v3_map_chat_quota',json={'p_user_id':subject,'p_action':action,'p_token':token,'p_limit':limit})
     if not isinstance(result,dict) or 'remaining' not in result:

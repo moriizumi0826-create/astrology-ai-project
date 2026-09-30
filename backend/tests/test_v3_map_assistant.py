@@ -56,7 +56,7 @@ class MapAssistantPrototypeTests(unittest.TestCase):
         self.app.state.billing=SimpleNamespace(store=SimpleNamespace(configured=True,request=rpc))
         upstream=httpx.Response(200,request=httpx.Request("POST","https://api.openai.com/v1/responses"),json={"output":[{"type":"message","content":[{"type":"output_text","text":"回答"}]}]})
         for entitlement in ["owner","invite","active"]:
-            self.app.dependency_overrides[get_access_context]=lambda: AccessContext(user_id="supabase:11111111-1111-1111-1111-111111111111",entitlement=entitlement,valid_until=datetime.now(timezone.utc)+timedelta(days=1))
+            self.app.dependency_overrides[get_access_context]=lambda: AccessContext(user_id="supabase:testproject:11111111-1111-1111-1111-111111111111",entitlement=entitlement,valid_until=datetime.now(timezone.utc)+timedelta(days=1))
             with patch.dict("os.environ", {"V3_MAP_ASSISTANT_ENABLED":"true","OPENAI_API_KEY":"test-key"}), patch("backend.v3.map_assistant.httpx.post",return_value=upstream) as post:
                 response=self.client.post("/api/v3/map-assistant",json={"question":"質問"})
                 self.assertEqual(response.status_code,200)

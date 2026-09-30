@@ -2,7 +2,39 @@ import unittest
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta, timezone
 from uuid import uuid4
-from backend.v3.map_chat_quota import LocalChatQuota
+from types import SimpleNamespace
+from unittest.mock import Mock
+from starlette.requests import Request
+from fastapi import HTTPException
+from backend.v3.map_chat_quota import LocalChatQuota, quota
+from backend.v3.supabase_auth import SupabaseAuth
+
+
+class SupabaseQuotaIdentityTests(unittest.TestCase):
+    def test_actual_auth_identity_reaches_rpc_as_uuid(self):
+        subject = str(uuid4())
+        auth = SupabaseAuth.__new__(SupabaseAuth)
+        auth.project = 'productionproject'
+        auth.request = Mock(return_value={'id': subject, 'email_confirmed_at': '2026-10-01'})
+        store = SimpleNamespace(configured=True, request=Mock(return_value={'remaining': 20}))
+        app = SimpleNamespace(state=SimpleNamespace(v3_environment='production', billing=SimpleNamespace(store=store)))
+        request = Request({'type': 'http', 'app': app, 'headers': [(b'authorization', b'Bearer test-token')]})
+        user = auth.authenticate(request)
+        for action in ('status', 'reserve', 'success', 'failure'):
+            token = str(uuid4()) if action != 'status' else None
+            self.assertEqual(quota(request, user, action, token)['remaining'], 20)
+            store.request.assert_called_with('POST', 'rpc/v3_map_chat_quota',
+                json={'p_user_id': subject, 'p_action': action, 'p_token': token, 'p_limit': 20})
+
+    def test_malformed_identity_does_not_call_store(self):
+        store = SimpleNamespace(configured=True, request=Mock())
+        request = SimpleNamespace(app=SimpleNamespace(state=SimpleNamespace(
+            v3_environment='production', billing=SimpleNamespace(store=store))))
+        for user in ('supabase:not-a-uuid', 'supabase:project:not-a-uuid', 'supabase::' + str(uuid4())):
+            with self.assertRaises(HTTPException) as error:
+                quota(request, user)
+            self.assertEqual(error.exception.status_code, 401)
+        store.request.assert_not_called()
 
 
 class ChatQuotaTests(unittest.TestCase):
