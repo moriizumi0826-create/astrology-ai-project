@@ -5,7 +5,7 @@ import {useCalendarNotes} from './calendar-workspace.jsx';
 
 const SUGGESTED_QUESTIONS = Object.keys(FAQ);
 
-export function MapAssistantPanel({ id, context, onClose, canAsk = false, open = true }) {
+export function MapAssistantPanel({ id, context, getContext, onClose, canAsk = false, open = true }) {
   const calendarNotes=useCalendarNotes();
   const [messages, setMessages] = useState([]);
   const [draft, setDraft] = useState("");
@@ -28,7 +28,7 @@ export function MapAssistantPanel({ id, context, onClose, canAsk = false, open =
     setError("");
     setPending(true);
     try {
-      const result = await postJson("/api/map-assistant", { question, context, history });
+      const result = await postJson("/api/map-assistant", { question, context: getContext ? getContext() : context, history });
       setMessages((current) => [...current, { role: "assistant", content: result.answer, demo: result.mode === "demo" }]);
     } catch (cause) {
       setError(cause.message || "回答を取得できませんでした。");
@@ -44,7 +44,7 @@ export function MapAssistantPanel({ id, context, onClose, canAsk = false, open =
         <button type="button" onClick={onClose} aria-label="AIガイドを閉じる" className="rounded-lg px-2 py-1 text-lg hover:bg-white/10">×</button>
       </div>
       <div className="min-h-0 flex-1 space-y-3 overflow-y-auto overscroll-contain px-4 py-3" role="log" aria-live="polite">
-        {messages.length === 0 && <p className="text-xs leading-relaxed text-mist/80">下の固定質問から使い方を確認できます。自由入力では質問・直近の会話・表示日時・選択中の天体・表示モードをAIに送ります。出生情報フォームの内容は自動送信しません。</p>}
+        {messages.length === 0 && <p className="text-xs leading-relaxed text-mist/80">下の固定質問から使い方を確認できます。自由入力では質問・直近の会話と、表示中の天体位置・アスペクト（最大24件）、本人と表示中のチャートの出生日時をOpenAIへ送信します。氏名・メール・出生地は送信しません。</p>}
         {messages.map((message, index) => <div key={index} className={message.role === "user" ? "ml-6 rounded-xl bg-gold/15 px-3 py-2 text-xs text-starlight" : "mr-6 rounded-xl bg-white/10 px-3 py-2 text-xs leading-relaxed text-mist"}>
           {message.demo && <span className="mb-1 block text-[10px] text-gold">デモ回答（AI未接続）</span>}
           <span className="whitespace-pre-wrap">{message.content}</span>

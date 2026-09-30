@@ -1,4 +1,5 @@
 import unittest
+import json
 from unittest.mock import patch
 
 from backend.tests.test_v3_access import local_test_client
@@ -82,6 +83,32 @@ class MapAssistantPrototypeTests(unittest.TestCase):
     def test_input_limits(self):
         response = self.client.post("/api/v3/map-assistant", json={"question": "a" * 501})
         self.assertEqual(response.status_code, 422)
+
+    def test_compact_screen_context_reaches_openai(self):
+        import httpx
+        screen = {"member_birth":{"date":"2000-01-01","time":"12:00","timezone":"Asia/Tokyo"},
+                  "chart_birth":{"date":"1990-02-03"},
+                  "aspects":[["T:SUN","N:MOON",90,0.24]], "aspects_total":25,"aspects_omitted":1,
+                  "positions":[["T:SUN",120.5]]}
+        upstream = httpx.Response(200,request=httpx.Request("POST","https://api.openai.com/v1/responses"),
+                                 json={"output":[{"type":"message","content":[{"type":"output_text","text":"回答"}]}]})
+        with patch.dict("os.environ",{"OPENAI_API_KEY":"test-key"}), patch("backend.v3.map_assistant.httpx.post",return_value=upstream) as post:
+            response=self.client.post("/api/v3/map-assistant",json={"question":"表示中のアスペクトを説明して","context":screen})
+        self.assertEqual(response.status_code,200)
+        forwarded=json.loads(post.call_args.kwargs['json']['input'])['screen']
+        self.assertEqual(forwarded,screen)
+
+    def test_context_limits_and_private_extra_fields_rejected(self):
+        for context in [
+            {"aspects":[["T:SUN","N:MOON",90,1]]*25},
+            {"positions":[["T:SUN",20]]*33},
+            {"aspects":[["T:SUN","N:MOON",999,1]]},
+            {"member_birth":{"date":"2000-01-01","full_name":"not allowed"}},
+            {"member_birth":{"date":"invalid"}},
+        ]:
+            with patch("backend.v3.map_assistant.httpx.post") as post:
+                self.assertEqual(self.client.post("/api/v3/map-assistant",json={"question":"test","context":context}).status_code,422)
+                post.assert_not_called()
         response = self.client.post("/api/v3/map-assistant", json={"question": "test", "context": {"birth_date": "2000-01-01"}})
         self.assertEqual(response.status_code, 422)
 

@@ -8,6 +8,7 @@ import { buildFreePlaybackDates } from "./free-playback-window.mjs";
 import { TransitPlaybackControls } from "../src/transit-playback-controls.jsx";
 import { customPlaybackDates, samplePlaybackDates } from "../src/transit-playback-range.mjs";
 import { MapAssistantPanel } from "./map-assistant-panel.jsx";
+import { buildMapAssistantContext } from "./map-assistant-context.mjs";
 
 import { deviceTimezone } from "../src/device-time.mjs";
 
@@ -1047,6 +1048,12 @@ function aspectLineRenderSignature(state, aspects = [], showAll, transitLayerAct
 
 function renderAspectLines(state, aspects, showAll, transitLayerActive) {
   if (!state?.aspectGroup) return;
+  // Capture the same filtered lines the renderer can draw, including playback frames.
+  // Update before the signature shortcut: orb values can change without line geometry changes.
+  state.assistantAspects = aspects.filter(a => a.scope === "transitTransit"
+    ? state.transitPositions.has(a.transitPlanet) && state.transitPositions.has(a.transitPlanetB)
+    : state.natalMeshes.has(a.natalPlanet) && (a.scope === "natalNatal"
+      ? state.natalMeshes.has(a.natalPlanetB) : state.transitPositions.has(a.transitPlanet)));
   const nextSignature = aspectLineRenderSignature(state, aspects, showAll, transitLayerActive);
   if (state.aspectLineRenderSignature === nextSignature) {
     updateAspectLinePositions(state);
@@ -4725,7 +4732,22 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
             <button type="button" onClick={() => {setIsMapControlsMenuOpen(value => !value); setIsAspectListPanelOpen(false); setIsMapSettingsOpen(false);}} aria-expanded={isMapControlsMenuOpen} aria-controls={mapId + "-map-chart-details"} className={cx(mapControlButtonClass,"border border-white/10 bg-[#101827]/90 shadow-lg backdrop-blur-xl", !isMapFullscreen && "hidden sm:inline-flex",isMapControlsMenuOpen && "text-gold")}><ChevronDown size={13} className={isMapControlsMenuOpen ? "" : "rotate-180"} />天体データ</button>
             <button type="button" onClick={() => { setIsMapAssistantOpen(value => !value); setIsAspectListPanelOpen(false); setIsMapControlsMenuOpen(false); setIsMapSettingsOpen(false); }} aria-expanded={isMapAssistantOpen} aria-controls={mapId + "-map-assistant"} className={cx(mapControlButtonClass, "border border-gold/30 bg-[#101827]/90 text-gold shadow-lg backdrop-blur-xl")}><Sparkles size={13} />AIに聞く</button>
           </div>
-          <MapAssistantPanel open={isMapAssistantOpen} id={mapId + "-map-assistant"} canAsk={policy.mapAssistant} onClose={() => setIsMapAssistantOpen(false)} context={{ date: displayedTransitDateTime.date || "", time: displayedTransitDateTime.time || "", selected_planet: aspectTooltip ? `${aspectTooltip.type === "natal" ? "ネイタル" : "現行"}${planetLabel(aspectTooltip.planet)}` : "", aspect_mode: selectedAspectDisplayMode.label || "", selected_aspect: "" }} />
+          <MapAssistantPanel open={isMapAssistantOpen} id={mapId + "-map-assistant"} canAsk={policy.mapAssistant} onClose={() => setIsMapAssistantOpen(false)} context={{ date: displayedTransitDateTime.date || "" }} getContext={() => {
+            const state = sceneStateRef.current;
+            const sequence = state?.playbackSequence;
+            const frame = sequence?.active ? sequence.keyframes?.[sequence.index] : null;
+            const memberForm = session?.user_id ? getStoredReadingForm() : null;
+            return buildMapAssistantContext({
+              date: frame?.date || displayedTransitDateTime.date || "", time: frame?.time || displayedTransitDateTime.time || "",
+              timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+              mode: selectedAspectDisplayMode.label || "",
+              planet: aspectTooltip ? `${aspectTooltip.type === "natal" ? "ネイタル" : "現行"}${planetLabel(aspectTooltip.planet)}` : "",
+              aspects: state?.assistantAspects || [], natal: aspectLineSky.natalPoints,
+              transits: frame?.chart?.transits || aspectLineSky.transits,
+              memberForm, chartForm: birthForm || getStoredReadingForm(),
+              isSelected: a => aspectMatchesLineHighlight(a, selectedAspectLineHighlightKey),
+            });
+          }} />
           {((canShowAspectList && isAspectListPanelOpen) || isMapControlsMenuOpen) && <section id={isAspectListPanelOpen ? mapId + "-map-aspect-details" : mapId + "-map-chart-details"} aria-label={isAspectListPanelOpen ? "アスペクト一覧" : "天体データ"} onKeyDown={handleMapPanelEscape}
             className="absolute inset-x-3 bottom-14 z-[110] max-h-[calc(100%-10rem)] overflow-y-auto overscroll-contain rounded-2xl border border-white/15 bg-[#101827]/55 p-3 text-mist shadow-lg backdrop-blur-none sm:bg-[#101827]/95 sm:shadow-2xl sm:backdrop-blur-xl sm:left-auto sm:right-4 sm:w-[min(520px,calc(100%-2rem))]">
             <div className="mb-3 flex items-center justify-between border-b border-white/10 pb-2"><span className="text-xs">{isAspectListPanelOpen ? "アスペクト一覧" : "天体データ"}</span><button type="button" onClick={() => {setIsAspectListPanelOpen(false);setIsMapControlsMenuOpen(false);}} aria-label="詳細情報を閉じる" className={mapControlButtonClass}>×</button></div>
