@@ -5,7 +5,7 @@ import {useCalendarNotes} from './calendar-workspace.jsx';
 
 const SUGGESTED_QUESTIONS = Object.keys(FAQ);
 
-export function MapAssistantPanel({ id, context, onClose, canAsk = false }) {
+export function MapAssistantPanel({ id, context, onClose, canAsk = false, open = true }) {
   const calendarNotes=useCalendarNotes();
   const [messages, setMessages] = useState([]);
   const [draft, setDraft] = useState("");
@@ -38,7 +38,7 @@ export function MapAssistantPanel({ id, context, onClose, canAsk = false }) {
   }
 
   return (
-    <section id={id} aria-label="3Dマップ AIガイド" className="absolute inset-x-3 bottom-14 z-[230] flex max-h-[min(75%,560px)] flex-col rounded-2xl border border-gold/30 bg-[#101827]/95 text-mist shadow-2xl backdrop-blur-xl sm:inset-x-auto sm:right-4 sm:w-[min(400px,calc(100%-2rem))]">
+    <section id={id} hidden={!open} style={open ? undefined : { display: "none" }} aria-label="3Dマップ AIガイド" className="absolute inset-x-3 bottom-14 z-[230] flex max-h-[min(75%,560px)] flex-col rounded-2xl border border-gold/30 bg-[#101827]/95 text-mist shadow-2xl backdrop-blur-xl sm:inset-x-auto sm:right-4 sm:w-[min(400px,calc(100%-2rem))]">
       <div className="flex items-center justify-between border-b border-white/10 px-4 py-3">
         <div><h3 className="text-sm font-semibold text-starlight">3Dマップ AIガイド</h3><p className="text-[10px] text-mist/65">固定質問はAIを使わずに回答します</p></div>
         <button type="button" onClick={onClose} aria-label="AIガイドを閉じる" className="rounded-lg px-2 py-1 text-lg hover:bg-white/10">×</button>

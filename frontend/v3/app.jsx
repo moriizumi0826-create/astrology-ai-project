@@ -1,4 +1,4 @@
-import React, { lazy, Suspense, useEffect, useMemo, useState } from "react";
+import React, { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import "./tailwind.css";
 import { Menu } from "lucide-react";
 import { createRoot } from "react-dom/client";
@@ -9,7 +9,8 @@ import { BirthDataEditor } from "./birth-data-editor.jsx";
 import { FreeHoroscopeContent } from "./free-horoscope-content.jsx";
 import { Horoscope3DMap } from "./horoscope-map.jsx";
 import { DeviceTimeBoundary } from "../src/device-time-boundary.jsx";
-import { configureStorage, freeResult, getStoredReadingForm, getStoredReadingResult, storeReadingResult } from "./reading-storage.js";
+import { configureStorage, storageOwner, freeResult, getStoredReadingForm, getStoredReadingResult, storeReadingResult } from "./reading-storage.js";
+import { canRetainSession } from "./session-refresh.mjs";
 import { getJson, postJson, searchBirthLocations } from "./api.mjs";
 import background from "../src/assets/daily-detail-galaxy-bg.jpg";
 import { featurePolicy } from "./feature-policy.mjs";
@@ -144,17 +145,34 @@ function Workspace({ session }) {
 function App() {
   const [session, setSession] = useState(null);
   const [error, setError] = useState("");
+  const [connectionWarning, setConnectionWarning] = useState(false);
+  const currentSession = useRef(null);
+  const refreshing = useRef(false);
+  const generation = useRef(0);
   const refresh = async () => {
+    if (refreshing.current) return;
+    refreshing.current = true;
+    const started = generation.current;
     try {
       const next = await prepareSession();
+      if (started !== generation.current) return;
       configureStorage(next);
       if (!getStoredReadingForm()) { location.replace("/entry.html"); return; }
-      setSession(next); setError("");
-    } catch (failure) { configureStorage(null); setSession(null); setError(failure.message); }
+      currentSession.current = next;
+      setSession(next); setError(""); setConnectionWarning(false);
+    } catch (failure) {
+      if (started !== generation.current) return;
+      if (canRetainSession(failure, currentSession.current, storageOwner())) {
+        setConnectionWarning(true);
+      } else {
+        currentSession.current = null;
+        configureStorage(null); setSession(null); setConnectionWarning(false); setError(failure.message);
+      }
+    } finally { refreshing.current = false; }
   };
-  useEffect(() => { refresh(); const timer = setInterval(refresh, 30000); window.addEventListener("focus", refresh); return () => { clearInterval(timer); window.removeEventListener("focus", refresh); }; }, []);
+  useEffect(() => { refresh(); const timer = setInterval(refresh, 30000); window.addEventListener("focus", refresh); window.addEventListener("online", refresh); return () => { generation.current += 1; clearInterval(timer); window.removeEventListener("focus", refresh); window.removeEventListener("online", refresh); }; }, []);
   useEffect(() => {
-    const changed = () => { configureStorage(null); setSession(null); location.replace("/login.html"); };
+    const changed = () => { generation.current += 1; currentSession.current = null; configureStorage(null); setSession(null); location.replace("/login.html"); };
     window.addEventListener("v3-auth-changed", changed);
     return () => window.removeEventListener("v3-auth-changed", changed);
   }, []);
@@ -163,6 +181,7 @@ function App() {
     const remaining = Date.parse(session.valid_until) - Date.now();
     const timer = setTimeout(() => {
       const checking = { ...session, state: "checking", capabilities: {} };
+      currentSession.current = checking;
       configureStorage(checking);
       setSession(checking); // remove paid UI/caches before asynchronous revalidation
       refresh();
@@ -171,7 +190,10 @@ function App() {
   }, [session?.state, session?.valid_until, session?.access_source]);
   if (error) return <section className="p-8"><p role="alert">{error}</p><button onClick={refresh}>再試行</button><a className="ml-5 underline" href="/login.html">ログイン画面へ</a></section>;
   if (!session) return <p className="p-8" role="status">利用状態を確認しています…</p>;
-  return <AccessContext.Provider value={{ session }}><CalendarWorkspace key={session.user_id || 'anonymous'}><DeviceTimeBoundary key={`${session.user_id}:${session.state}`} refreshReading={postJson}><Workspace session={session} /></DeviceTimeBoundary></CalendarWorkspace></AccessContext.Provider>;
+  return <AccessContext.Provider value={{ session }}>
+    {connectionWarning && <div role="status" className="fixed bottom-3 left-1/2 z-[8000] w-[min(92vw,36rem)] -translate-x-1/2 rounded-xl border border-gold/30 bg-midnight px-4 py-3 text-sm text-starlight shadow-lg">通信が不安定なため、接続を再確認しています。<button type="button" className="ml-3 text-gold underline" onClick={refresh}>再試行</button></div>}
+    <CalendarWorkspace key={session.user_id || 'anonymous'}><DeviceTimeBoundary key={`${session.user_id}:${session.state}`} refreshReading={postJson}><Workspace session={session} /></DeviceTimeBoundary></CalendarWorkspace>
+  </AccessContext.Provider>;
 }
 
 const root = import.meta.hot?.data.root || createRoot(document.getElementById("forecast-detail-root"));
