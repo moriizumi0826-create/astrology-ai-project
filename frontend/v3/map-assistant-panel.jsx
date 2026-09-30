@@ -1,10 +1,12 @@
 import React, { useState } from "react";
 import { postJson } from "./api.mjs";
 import FAQ from "./map-assistant-faq.json";
+import {useCalendarNotes} from './calendar-workspace.jsx';
 
 const SUGGESTED_QUESTIONS = Object.keys(FAQ);
 
 export function MapAssistantPanel({ id, context, onClose, canAsk = false }) {
+  const calendarNotes=useCalendarNotes();
   const [messages, setMessages] = useState([]);
   const [draft, setDraft] = useState("");
   const [pending, setPending] = useState(false);
@@ -46,6 +48,7 @@ export function MapAssistantPanel({ id, context, onClose, canAsk = false }) {
         {messages.map((message, index) => <div key={index} className={message.role === "user" ? "ml-6 rounded-xl bg-gold/15 px-3 py-2 text-xs text-starlight" : "mr-6 rounded-xl bg-white/10 px-3 py-2 text-xs leading-relaxed text-mist"}>
           {message.demo && <span className="mb-1 block text-[10px] text-gold">デモ回答（AI未接続）</span>}
           <span className="whitespace-pre-wrap">{message.content}</span>
+          {message.role === "assistant" && calendarNotes?.canWrite && <button type="button" className="mt-2 block text-[10px] text-gold underline" onClick={()=>calendarNotes.edit({content:message.content,...(context?.date ? {note_date:context.date} : {})})}>カレンダーに保存</button>}
         </div>)}
         {pending && <p className="text-xs text-mist/60">回答を読み込み中…</p>}
       </div>

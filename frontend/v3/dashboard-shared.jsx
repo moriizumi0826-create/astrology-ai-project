@@ -1,4 +1,5 @@
 import { postJson } from "./api.mjs";
+import { CalendarNotesDay, useCalendarNotes } from "./calendar-workspace.jsx";
 import React, { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { deviceTimezone } from "../src/device-time.mjs";
@@ -763,7 +764,10 @@ function DashboardV2DailyThemeCard({ data, displayDate = "", onDateShift = () =>
   );
 }
 
-function DashboardV2CountdownCard({ data, onSelectAspect = () => {} }) {
+export function DashboardV2CountdownCard({ data, onSelectAspect = () => {}, calendarOnly = false }) {
+  const calendarNotes = useCalendarNotes();
+  const calendarTitleId = React.useId();
+  useEffect(() => { if (calendarNotes && !calendarNotes.loaded) calendarNotes.reload(); }, []);
   const displayDate = dashboardDisplayDate(data);
   const [activeEventIndex, setActiveEventIndex] = useState(0);
 
@@ -959,7 +963,7 @@ function DashboardV2CountdownCard({ data, onSelectAspect = () => {} }) {
   };
   return (
     <>
-    <DashboardV2Card
+    {!calendarOnly && <DashboardV2Card
       className={cx(
         "h-[225px]",
         isCompletedEvent && "border-white/10 bg-[#111313]/75 opacity-70"
@@ -1049,17 +1053,17 @@ function DashboardV2CountdownCard({ data, onSelectAspect = () => {} }) {
           />
         </div>
       </div>
-    </DashboardV2Card>
+    </DashboardV2Card>}
     <div className="col-span-full lg:row-start-3">
         <section
           className="flex w-full flex-col overflow-hidden rounded-[28px] border border-[#e9c349]/25 bg-[#111313] text-[#e2e2e2] shadow-[0_30px_100px_rgba(0,0,0,0.7)]"
-          aria-labelledby="celestial-event-calendar-title"
+          aria-labelledby={calendarTitleId}
         >
           <header className="shrink-0 border-b border-white/10 px-4 py-4 sm:px-6 sm:py-5">
             <div className="flex items-start justify-between gap-4">
               <div>
                 <p className="font-mono text-[10px] font-black uppercase tracking-[0.28em] text-[#e9c349]">Celestial Event Calendar</p>
-                <h2 id="celestial-event-calendar-title" className="mt-1 font-notoSerif text-xl font-black text-[#f3f3f0] sm:text-2xl">天体イベントカレンダー</h2>
+                <h2 id={calendarTitleId} className="mt-1 font-notoSerif text-xl font-black text-[#f3f3f0] sm:text-2xl">天体イベントカレンダー</h2>
                 <p className="mt-1 text-[11px] text-[#909096]">過去7日〜今後30日に発生するイベント / {calendarItems.length}件</p>
               </div>
 
@@ -1159,7 +1163,8 @@ function DashboardV2CountdownCard({ data, onSelectAspect = () => {} }) {
                   const isBeforeHorizon = Number.isFinite(daysFromDisplay) && daysFromDisplay < -7;
                   const isPastCalendarDay = Number.isFinite(daysFromDisplay) && daysFromDisplay < 0;
                   const isToday = cell.dateKey === displayDate;
-                  const canOpen = items.length > 0 && !isBeyondHorizon && !isBeforeHorizon;
+                  const noteCount = calendarNotes?.notes.filter(note => note.note_date === cell.dateKey).length || 0;
+                  const canOpen = Boolean(calendarNotes) || (items.length > 0 && !isBeyondHorizon && !isBeforeHorizon);
                   const visibleItems = items.slice(0, 2);
                   const hiddenItemCount = Math.max(0, items.length - visibleItems.length);
                   return (
@@ -1174,7 +1179,7 @@ function DashboardV2CountdownCard({ data, onSelectAspect = () => {} }) {
                         cell.isCurrentMonth ? "bg-transparent" : "bg-black/10",
                         isToday ? "ring-1 ring-inset ring-[#e9c349]/80" : "",
                         canOpen ? "cursor-pointer hover:bg-white/[0.08]" : "cursor-default",
-                        isBeyondHorizon || isBeforeHorizon ? "bg-black/45 opacity-45" : "",
+                        (isBeyondHorizon || isBeforeHorizon) && !noteCount ? "bg-black/45 opacity-45" : "",
                         isPastCalendarDay && !isBeforeHorizon ? "bg-black/30 opacity-70" : "",
                         !cell.isCurrentMonth ? "text-[#55565c]" : "text-[#c7c6cc]"
                       )}
@@ -1186,6 +1191,7 @@ function DashboardV2CountdownCard({ data, onSelectAspect = () => {} }) {
                         {cell.date.getDate()}
                       </span>
                       <div className="grid gap-0.5">
+                        {noteCount > 0 && <span className="text-[9px] text-gold">メモ {noteCount}件</span>}
                         {visibleItems.map((item) => {
                           const typeMeta = celestialEventTypeMeta[item.event_type] || { label: item.event_type || "Event" };
                           return (
@@ -1212,9 +1218,9 @@ function DashboardV2CountdownCard({ data, onSelectAspect = () => {} }) {
               </div>
             </div>
           </div>
-          {selectedCalendarDate && selectedCalendarItems.length ? (
+          {selectedCalendarDate ? (
             <div
-              className="fixed inset-0 z-[110] flex items-center justify-center bg-[#050607]/70 px-3 py-5 backdrop-blur-sm sm:px-6"
+              className="fixed inset-0 z-[5100] flex items-center justify-center bg-[#050607]/70 px-3 py-5 backdrop-blur-sm sm:px-6"
               role="presentation"
               onMouseDown={(event) => {
                 if (event.target === event.currentTarget) setSelectedCalendarDate("");
@@ -1224,12 +1230,12 @@ function DashboardV2CountdownCard({ data, onSelectAspect = () => {} }) {
                 className="flex max-h-[82vh] w-full max-w-xl flex-col overflow-hidden rounded-3xl border border-[#e9c349]/30 bg-[#151717] shadow-[0_30px_100px_rgba(0,0,0,0.75)]"
                 role="dialog"
                 aria-modal="true"
-                aria-labelledby="selected-celestial-event-title"
+                aria-labelledby={`${calendarTitleId}-day`}
               >
                 <header className="flex items-start justify-between gap-4 border-b border-white/10 px-4 py-4 sm:px-5">
                   <div>
                     <p className="font-mono text-[9px] font-black uppercase tracking-[0.22em] text-[#e9c349]">Daily Events</p>
-                    <h3 id="selected-celestial-event-title" className="mt-1 font-notoSerif text-lg font-black text-[#f3f3f0]">
+                    <h3 id={`${calendarTitleId}-day`} className="mt-1 font-notoSerif text-lg font-black text-[#f3f3f0]">
                       {selectedCalendarDateObject ? `${selectedCalendarDateObject.getMonth() + 1}月${selectedCalendarDateObject.getDate()}日` : selectedCalendarDate}
                     </h3>
                     <p className="mt-1 text-[10px] text-[#909096]">この日の天体イベント {selectedCalendarItems.length}件</p>
@@ -1244,6 +1250,7 @@ function DashboardV2CountdownCard({ data, onSelectAspect = () => {} }) {
                   </button>
                 </header>
                 <div className="min-h-0 overflow-y-auto px-4 py-4 sm:px-5">
+                  <CalendarNotesDay date={selectedCalendarDate} />
                   <div className="grid gap-3">
                     {selectedCalendarItems.map((item) => {
                       const typeMeta = celestialEventTypeMeta[item.event_type] || { label: item.event_type || "Event" };

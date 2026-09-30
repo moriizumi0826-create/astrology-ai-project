@@ -3,6 +3,7 @@ import "./tailwind.css";
 import { Menu } from "lucide-react";
 import { createRoot } from "react-dom/client";
 import { AccountControls } from "./account-controls.jsx";
+import { CalendarWorkspace, useCalendarNotes } from "./calendar-workspace.jsx";
 import { AccessContext } from "./access-context.jsx";
 import { BirthDataEditor } from "./birth-data-editor.jsx";
 import { FreeHoroscopeContent } from "./free-horoscope-content.jsx";
@@ -18,6 +19,7 @@ import { isMemberMode } from "./auth-client.mjs";
 const PaidForecast = lazy(() => import("./paid-forecast.jsx"));
 
 function Horoscope({ onForecast, session }) {
+  const calendarNotes = useCalendarNotes();
   const { stellarForecast } = featurePolicy(session);
   const [result, setResult] = useState(() => freeResult(getStoredReadingResult({ allowStale: true })));
   const [revision, setRevision] = useState(0);
@@ -69,6 +71,9 @@ function Horoscope({ onForecast, session }) {
     <div className="pt-[56px] sm:pt-36" style={{ backgroundImage: `linear-gradient(#05070f66,#05070f99),url(${background})`, backgroundSize: "cover", backgroundAttachment: "fixed" }}>
       <FreeHoroscopeContent data={data} belowMetaContent={<>
         <BirthDataEditor initialForm={chartForm} meta={result.meta} onSearchLocations={searchBirthLocations} onRecalculate={recalculate} />
+        <button type="button" className="mb-3 rounded border border-gold/30 px-4 py-2 text-sm text-gold" onClick={()=>calendarNotes.openCalendar()} disabled={!session?.user_id}>
+          {stellarForecast ? "天体イベントカレンダー・メモ" : session?.user_id ? "保存済みメモ（閲覧・削除）" : "🔒 カレンダー・メモ"}
+        </button>
         <Horoscope3DMap key={`map-${revision}`} data={data} birthForm={chartForm} />
       </>} />
     </div>
@@ -160,7 +165,7 @@ function App() {
   }, [session?.state, session?.valid_until, session?.access_source]);
   if (error) return <section className="p-8"><p role="alert">{error}</p><button onClick={refresh}>再試行</button><a className="ml-5 underline" href="/login.html">ログイン画面へ</a></section>;
   if (!session) return <p className="p-8" role="status">利用状態を確認しています…</p>;
-  return <AccessContext.Provider value={{ session }}><DeviceTimeBoundary key={`${session.user_id}:${session.state}`} refreshReading={postJson}><Workspace session={session} /></DeviceTimeBoundary></AccessContext.Provider>;
+  return <AccessContext.Provider value={{ session }}><CalendarWorkspace key={session.user_id || 'anonymous'}><DeviceTimeBoundary key={`${session.user_id}:${session.state}`} refreshReading={postJson}><Workspace session={session} /></DeviceTimeBoundary></CalendarWorkspace></AccessContext.Provider>;
 }
 
 const root = import.meta.hot?.data.root || createRoot(document.getElementById("forecast-detail-root"));
