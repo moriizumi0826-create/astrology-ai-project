@@ -28,6 +28,7 @@ from backend.v3.deployment import (
 from backend.v3.location_search import database_ready
 from backend.v3.rate_limit import SlidingWindowLimiter
 from backend.v3.map_assistant import router as map_assistant_router
+from backend.v3.map_chat_quota import LocalChatQuota
 from backend.v3.calendar_notes import router as calendar_notes_router
 
 
@@ -65,6 +66,7 @@ def create_app(*, auth_mode: str | None = None) -> FastAPI:
         )
     else:
         app.state.local_test_auth = LocalTestAuth()
+        app.state.map_chat_local_quota = LocalChatQuota()
     app.add_middleware(GZipMiddleware, minimum_size=1000)
     app.add_middleware(TrustedHostMiddleware, allowed_hosts=sorted(hosts))
     app.add_middleware(

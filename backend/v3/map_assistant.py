@@ -5,6 +5,8 @@ import os
 from pathlib import Path
 from datetime import date as CalendarDate
 from typing import Annotated
+from typing import Literal
+from uuid import uuid4
 
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, Request
@@ -13,6 +15,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from backend.v3.rate_limit import check_request_limit
 from backend.v3.access import AccessSnapshot, require_paid_access
 from backend.v3.deployment import require_allowed_origin
+from backend.v3.map_chat_quota import quota
 
 
 router = APIRouter(prefix="/api/v3")
@@ -23,6 +26,8 @@ PointId = Annotated[str, Field(pattern=r"^[NT]:[A-Z_0-9]{1,24}$")]
 Angle = Annotated[float, Field(ge=0, le=180, allow_inf_nan=False)]
 Orb = Annotated[float, Field(ge=0, le=180, allow_inf_nan=False)]
 Longitude = Annotated[float, Field(ge=0, le=360, allow_inf_nan=False)]
+House = Annotated[int, Field(ge=1, le=12)]
+Sign = Annotated[int, Field(ge=0, le=11)]
 
 
 class BirthContext(BaseModel):
@@ -48,6 +53,10 @@ class MapContext(BaseModel):
     aspects_total: int = Field(default=0, ge=0, le=10000)
     aspects_omitted: int = Field(default=0, ge=0, le=10000)
     positions: list[tuple[PointId, Longitude]] = Field(default_factory=list, max_length=32)
+    planet_mode: Literal['natal', 'transit', 'both'] = 'both'
+    # [point, zodiac sign (Aries=0), natal house, chart-time house, solar house]
+    houses: list[tuple[PointId, Sign, House | None, House | None, House | None]] = Field(default_factory=list, max_length=32)
+    chart_natal_sun_sign: Sign | None = None
     patterns: list[Annotated[str, Field(max_length=200)]] = Field(default_factory=list, max_length=8)
 
 
@@ -70,6 +79,12 @@ INSTRUCTIONS = (
     "あなたはThe Celestial Atelierの3Dマップ操作ガイドです。日本語で簡潔に答えてください。"
     "screenは質問送信時のマップデータです。N:はネイタル、T:は現行天体。"
     "aspects各行は[天体1,天体2,角度°,オーブ°]、positions各行は[天体,黄経°]です。"
+    "planet_modeは表示天体(natal=内側のみ、transit=外側のみ、both=両方)。ライン端点の補足天体も含みます。"
+    "houses各行は[天体,星座番号(牡羊座0〜魚座11),出生図基準ハウス,選択日時チャート基準ハウス,ソーラーハウス]。nullは不明です。"
+    "内側は出生図基準、外側は選択日時基準であり、ハウス基準を混同しないでください。"
+    "ソーラーハウスは表示チャートの出生太陽星座(chart_natal_sun_sign)を1としたサイン単位のハウスで、通常の出生ハウスとは別です。"
+    "世の中全体の傾向は現行天体の星座・現行同士のアスペクト、個人への影響は出生図との関係や出生・ソーラーハウスを使います。"
+    "選択日時のハウスは地点依存なので世界共通の運気の根拠にしないでください。未提供データを捏造せず、ある範囲で解釈してください。"
     "表示中のラインについて聞かれたらaspectsを根拠に具体的に説明してください。"
     "aspects_omitted>0なら一部省略されており、未収録を不存在と扱わないでください。patternsは複合配置です。"
     "member_birthは本人、chart_birthは表示中のチャートの出生日時です。別人の場合があるので混同しないでください。"
@@ -88,6 +103,11 @@ def _demo_answer(question: str, context: MapContext) -> str:
     if context.selected_planet:
         return f"現在は{context.selected_planet}が選択されています。個別の読み解きにはAPIキーを設定してください。"
     return "これはチャット操作を確かめるための仮回答です。実際のGPT回答にはOPENAI_API_KEYが必要です。"
+
+
+@router.get("/map-assistant/usage")
+def map_assistant_usage(request: Request, access: AccessSnapshot = Depends(require_paid_access)):
+    return quota(request, access.user_id)
 
 
 @router.post("/map-assistant")
@@ -111,6 +131,31 @@ def map_assistant(payload: MapAssistantRequest, request: Request,
             return {"answer": _demo_answer(question, payload.context), "mode": "demo"}
         raise HTTPException(503, "AIガイドは現在利用できません。固定質問をご利用ください。")
 
+    token = str(uuid4())
+    reserved = quota(request, access.user_id, 'reserve', token)
+    if reserved.get('error') == 'limit':
+        raise HTTPException(429, '本日のAI質問枠を使い切ったか、他の回答が処理中です。固定質問は引き続き利用できます。回数は日本時間0時に更新されます。')
+    if reserved.get('error'):
+        raise HTTPException(503, 'AIの回数管理を確認できません。')
+    committed = False
+    try:
+        answer = _request_answer(payload, question, key)
+        usage = quota(request, access.user_id, 'success', token)
+        if usage.get('error'):
+            raise HTTPException(503, '回答の利用回数を確定できませんでした。再試行してください。')
+        committed = True
+        return {'answer': answer, 'mode': 'openai', 'usage': usage}
+    finally:
+        if not committed:
+            try:
+                quota(request, access.user_id, 'failure', token)
+            except Exception:
+                # A disconnected database must not mask the original error.
+                # Pending reservations expire automatically; completed ones are never removed.
+                pass
+
+
+def _request_answer(payload, question, key):
     user_data = {
         "screen": payload.context.model_dump(mode="json", exclude_none=True, exclude_defaults=True),
         "recent_chat": [turn.model_dump() for turn in payload.history],
@@ -151,4 +196,4 @@ def map_assistant(payload: MapAssistantRequest, request: Request,
     ).strip()
     if not answer:
         raise HTTPException(503, "AIの回答を取得できませんでした。")
-    return {"answer": answer, "mode": "openai"}
+    return answer

@@ -1,5 +1,6 @@
 import unittest
 import json
+from types import SimpleNamespace
 from unittest.mock import patch
 
 from backend.tests.test_v3_access import local_test_client
@@ -49,9 +50,13 @@ class MapAssistantPrototypeTests(unittest.TestCase):
     def test_production_owner_invite_and_subscription_can_call(self):
         import httpx
         self.app.state.v3_environment="production"
+        def rpc(method,path,*,json):
+            self.assertEqual((method,path),('POST','rpc/v3_map_chat_quota'))
+            return self.app.state.map_chat_local_quota.call(json['p_user_id'],json['p_action'],json['p_token'],json['p_limit'])
+        self.app.state.billing=SimpleNamespace(store=SimpleNamespace(configured=True,request=rpc))
         upstream=httpx.Response(200,request=httpx.Request("POST","https://api.openai.com/v1/responses"),json={"output":[{"type":"message","content":[{"type":"output_text","text":"回答"}]}]})
         for entitlement in ["owner","invite","active"]:
-            self.app.dependency_overrides[get_access_context]=lambda: AccessContext(user_id="member",entitlement=entitlement,valid_until=datetime.now(timezone.utc)+timedelta(days=1))
+            self.app.dependency_overrides[get_access_context]=lambda: AccessContext(user_id="supabase:11111111-1111-1111-1111-111111111111",entitlement=entitlement,valid_until=datetime.now(timezone.utc)+timedelta(days=1))
             with patch.dict("os.environ", {"V3_MAP_ASSISTANT_ENABLED":"true","OPENAI_API_KEY":"test-key"}), patch("backend.v3.map_assistant.httpx.post",return_value=upstream) as post:
                 response=self.client.post("/api/v3/map-assistant",json={"question":"質問"})
                 self.assertEqual(response.status_code,200)
@@ -75,7 +80,9 @@ class MapAssistantPrototypeTests(unittest.TestCase):
         with patch.dict("os.environ", {"OPENAI_API_KEY": "test-key"}), patch("backend.v3.map_assistant.httpx.post", return_value=FakeResponse()) as post:
             response = self.client.post("/api/v3/map-assistant", json={"question": "この地図の見方は？", "context": {"selected_planet": "現行太陽"}})
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.json(), {"answer": "天体を選んでください。", "mode": "openai"})
+        self.assertEqual(response.json()['answer'], "天体を選んでください。")
+        self.assertEqual(response.json()['mode'], 'openai')
+        self.assertEqual(response.json()['usage']['remaining'], 19)
         self.assertEqual(post.call_args.args[0], "https://api.openai.com/v1/responses")
         self.assertFalse(post.call_args.kwargs["json"]["store"])
         self.assertEqual(post.call_args.kwargs["json"]["max_output_tokens"], 450)
@@ -89,7 +96,8 @@ class MapAssistantPrototypeTests(unittest.TestCase):
         screen = {"member_birth":{"date":"2000-01-01","time":"12:00","timezone":"Asia/Tokyo"},
                   "chart_birth":{"date":"1990-02-03"},
                   "aspects":[["T:SUN","N:MOON",90,0.24]], "aspects_total":25,"aspects_omitted":1,
-                  "positions":[["T:SUN",120.5]]}
+                  "positions":[["T:SUN",120.5]],"planet_mode":"transit",
+                  "houses":[["T:SUN",4,3,1,12]],"chart_natal_sun_sign":5}
         upstream = httpx.Response(200,request=httpx.Request("POST","https://api.openai.com/v1/responses"),
                                  json={"output":[{"type":"message","content":[{"type":"output_text","text":"回答"}]}]})
         with patch.dict("os.environ",{"OPENAI_API_KEY":"test-key"}), patch("backend.v3.map_assistant.httpx.post",return_value=upstream) as post:
@@ -97,6 +105,7 @@ class MapAssistantPrototypeTests(unittest.TestCase):
         self.assertEqual(response.status_code,200)
         forwarded=json.loads(post.call_args.kwargs['json']['input'])['screen']
         self.assertEqual(forwarded,screen)
+        self.assertNotIn('tools',post.call_args.kwargs['json'])
 
     def test_context_limits_and_private_extra_fields_rejected(self):
         for context in [
@@ -105,6 +114,9 @@ class MapAssistantPrototypeTests(unittest.TestCase):
             {"aspects":[["T:SUN","N:MOON",999,1]]},
             {"member_birth":{"date":"2000-01-01","full_name":"not allowed"}},
             {"member_birth":{"date":"invalid"}},
+            {"houses":[["T:SUN",12,1,1,1]]},
+            {"houses":[["T:SUN",1,0,1,1]]},
+            {"planet_mode":"unknown"},
         ]:
             with patch("backend.v3.map_assistant.httpx.post") as post:
                 self.assertEqual(self.client.post("/api/v3/map-assistant",json={"question":"test","context":context}).status_code,422)
@@ -124,6 +136,43 @@ class MapAssistantPrototypeTests(unittest.TestCase):
         self.assertEqual(response.status_code, 503)
         self.assertIn("APIキー", response.json()["detail"])
         self.assertNotIn("test-secret", str(response.json()))
+        self.assertEqual(self.client.get('/api/v3/map-assistant/usage').json()['remaining'],20)
+
+    def test_twenty_successes_then_fixed_still_allowed(self):
+        with patch.dict('os.environ',{'OPENAI_API_KEY':'test-key'}), patch('backend.v3.map_assistant.check_request_limit'), patch('backend.v3.map_assistant._request_answer',return_value='回答') as answer:
+            for n in range(20):
+                response=self.client.post('/api/v3/map-assistant',json={'question':'自由質問'})
+                self.assertEqual(response.status_code,200)
+                self.assertEqual(response.json()['usage']['remaining'],19-n)
+            self.assertEqual(self.client.post('/api/v3/map-assistant',json={'question':'自由質問'}).status_code,429)
+            self.assertEqual(self.client.post('/api/v3/map-assistant',json={'question':next(iter(FAQ))}).json()['mode'],'fixed')
+            self.assertEqual(answer.call_count,20)
+
+    def test_failure_and_empty_answer_release_reservation(self):
+        import httpx
+        for result in [httpx.ConnectError('offline'),httpx.Response(200,request=httpx.Request('POST','https://api.openai.com/v1/responses'),json={'output':[]})]:
+            kwargs={'side_effect':result} if isinstance(result,Exception) else {'return_value':result}
+            with patch.dict('os.environ',{'OPENAI_API_KEY':'test-key'}), patch('backend.v3.map_assistant.httpx.post',**kwargs):
+                self.assertEqual(self.client.post('/api/v3/map-assistant',json={'question':'自由質問'}).status_code,503)
+                self.assertEqual(self.client.get('/api/v3/map-assistant/usage').json()['remaining'],20)
+
+    def test_production_without_quota_store_fails_closed(self):
+        self.app.state.v3_environment='production'
+        with patch.dict('os.environ',{'V3_MAP_ASSISTANT_ENABLED':'true','OPENAI_API_KEY':'test-key'}), patch('backend.v3.map_assistant.httpx.post') as post:
+            self.assertEqual(self.client.post('/api/v3/map-assistant',json={'question':'自由質問'}).status_code,503)
+            post.assert_not_called()
+
+    def test_usage_requires_paid_access(self):
+        for context,status in [(AccessContext(),401),(AccessContext(user_id='free'),403)]:
+            self.app.dependency_overrides[get_access_context]=lambda:context
+            self.assertEqual(self.client.get('/api/v3/map-assistant/usage').status_code,status)
+
+    def test_expired_reservation_never_returns_a_free_answer(self):
+        with patch.dict('os.environ',{'OPENAI_API_KEY':'test-key'}), patch('backend.v3.map_assistant._request_answer',return_value='must not be returned'), patch('backend.v3.map_assistant.quota',side_effect=[{'error':None},{'error':'expired'},{'error':'expired'}]) as quota:
+            response=self.client.post('/api/v3/map-assistant',json={'question':'自由質問'})
+            self.assertEqual(response.status_code,503)
+            self.assertNotIn('must not be returned',response.text)
+            self.assertEqual([call.args[2] for call in quota.call_args_list],['reserve','success','failure'])
 
 
 if __name__ == "__main__":

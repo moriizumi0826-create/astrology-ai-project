@@ -2,7 +2,7 @@
 import {createServer} from 'vite';
 import config from '../../vite.v3.config.mjs';
 const base=config({mode:'development'});
-const api=`let notes=[];export const getJson=async()=>({notes:[...notes]});
+const api=`let notes=[];export const getJson=async path=>path.endsWith('/usage')?{limit:20,remaining:20,reset_at:new Date(Date.now()+86400000).toISOString()}:{notes:[...notes]};
 export const postJson=async()=>({dashboard_data:{}});
 export const putJson=async(path,payload)=>{const saved={...payload,id:payload.id||crypto.randomUUID(),revision:(payload.revision||0)+1};notes=[...notes.filter(n=>n.id!==saved.id),saved];return {saved};};
 export const deleteJson=async path=>{notes=notes.filter(n=>!path.endsWith(n.id));return {deleted:true};};`;

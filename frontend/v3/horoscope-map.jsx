@@ -4733,15 +4733,20 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
             <button type="button" onClick={() => {setIsMapControlsMenuOpen(value => !value); setIsAspectListPanelOpen(false); setIsMapSettingsOpen(false);}} aria-expanded={isMapControlsMenuOpen} aria-controls={mapId + "-map-chart-details"} className={cx(mapControlButtonClass,"border border-white/10 bg-[#101827]/90 shadow-lg backdrop-blur-xl", !isMapFullscreen && "hidden sm:inline-flex",isMapControlsMenuOpen && "text-gold")}><ChevronDown size={13} className={isMapControlsMenuOpen ? "" : "rotate-180"} />天体データ</button>
             <button type="button" onClick={() => { setIsMapAssistantOpen(value => !value); setIsAspectListPanelOpen(false); setIsMapControlsMenuOpen(false); setIsMapSettingsOpen(false); }} aria-expanded={isMapAssistantOpen} aria-controls={mapId + "-map-assistant"} className={cx(mapControlButtonClass, "border border-gold/30 bg-[#101827]/90 text-gold shadow-lg backdrop-blur-xl")}><Sparkles size={13} />AIに聞く</button>
           </div>
-          <MapAssistantPanel open={isMapAssistantOpen} id={mapId + "-map-assistant"} canAsk={policy.mapAssistant} onClose={() => setIsMapAssistantOpen(false)} context={{ date: displayedTransitDateTime.date || "" }} getContext={() => {
+          <MapAssistantPanel key={session?.user_id || 'anonymous'} open={isMapAssistantOpen} id={mapId + "-map-assistant"} canAsk={policy.mapAssistant} onClose={() => setIsMapAssistantOpen(false)} context={{ date: displayedTransitDateTime.date || "" }} getContext={() => {
             const state = sceneStateRef.current;
             const sequence = state?.playbackSequence;
             const frame = sequence?.active ? sequence.keyframes?.[sequence.index] : null;
             const memberForm = session?.user_id ? getStoredReadingForm() : null;
+            const chart = frame?.chart || tableDay?.transit_chart || tableDay?.transitChart;
             return buildMapAssistantContext({
               date: frame?.date || displayedTransitDateTime.date || "", time: frame?.time || displayedTransitDateTime.time || "",
               timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
               mode: selectedAspectDisplayMode.label || "",
+              planetMode: mapPlanetDisplayMode,
+              // Pass only real chart cusps, never the map's equal-house visual fallback.
+              natalCusps: forecast?.natal_house_cusps ?? forecast?.natalHouseCusps ?? forecast?.house_cusps ?? forecast?.houseCusps,
+              transitCusps: chart?.house_cusps ?? chart?.houseCusps,
               planet: aspectTooltip ? `${aspectTooltip.type === "natal" ? "ネイタル" : "現行"}${planetLabel(aspectTooltip.planet)}` : "",
               aspects: state?.assistantAspects || [], natal: aspectLineSky.natalPoints,
               transits: frame?.chart?.transits || aspectLineSky.transits,
