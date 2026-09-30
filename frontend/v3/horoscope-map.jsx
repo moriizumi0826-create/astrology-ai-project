@@ -4591,7 +4591,7 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
           </div>
           {isMapSettingsOpen && (
             <section id={mapId + "-map-settings-panel"} aria-label="3Dマップ設定" onKeyDown={handleMapPanelEscape}
-              className="absolute inset-x-3 bottom-14 z-[110] flex max-h-[calc(100%-10rem)] flex-col overflow-hidden rounded-2xl border border-white/15 bg-[#101827]/55 text-mist shadow-[0_8px_24px_rgba(0,0,0,0.2)] backdrop-blur-none sm:bg-[#101827]/95 sm:shadow-[0_20px_60px_rgba(0,0,0,0.4)] sm:backdrop-blur-xl sm:inset-x-auto sm:bottom-auto sm:right-4 sm:top-16 sm:max-h-[calc(100%-8rem)] sm:w-[340px]">
+              className="absolute inset-x-3 top-16 z-[110] flex max-h-[calc(100%-10rem)] flex-col overflow-hidden rounded-2xl border border-white/15 bg-[#101827]/55 text-mist shadow-[0_8px_24px_rgba(0,0,0,0.2)] backdrop-blur-none sm:bg-[#101827]/95 sm:shadow-[0_20px_60px_rgba(0,0,0,0.4)] sm:backdrop-blur-xl sm:inset-x-auto sm:right-4 sm:max-h-[calc(100%-8rem)] sm:w-[340px]">
               <div className="flex items-center justify-between border-b border-white/10 px-4 py-3"><span className="text-xs font-semibold tracking-widest">マップ設定</span><button type="button" onClick={closeMapSettings} aria-label="設定を閉じる" className={mapControlButtonClass}>×</button></div>
               <div role="tablist" aria-label="設定カテゴリ" className="mx-3 mt-3 grid shrink-0 grid-cols-3 gap-1 rounded-xl bg-black/20 p-1">
                 {[["playback", "再生"], ["display", "表示"], ["view", "その他"]].map(([key,label]) => (
