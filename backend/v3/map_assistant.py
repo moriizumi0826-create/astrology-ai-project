@@ -28,6 +28,8 @@ Orb = Annotated[float, Field(ge=0, le=180, allow_inf_nan=False)]
 Longitude = Annotated[float, Field(ge=0, le=360, allow_inf_nan=False)]
 House = Annotated[int, Field(ge=1, le=12)]
 Sign = Annotated[int, Field(ge=0, le=11)]
+SIGN_NAMES = ('牡羊座', '牡牛座', '双子座', '蟹座', '獅子座', '乙女座',
+              '天秤座', '蠍座', '射手座', '山羊座', '水瓶座', '魚座')
 
 
 class BirthContext(BaseModel):
@@ -80,8 +82,11 @@ INSTRUCTIONS = (
     "screenは質問送信時のマップデータです。N:はネイタル、T:は現行天体。"
     "aspects各行は[天体1,天体2,角度°,オーブ°]、positions各行は[天体,黄経°]です。"
     "planet_modeは表示天体(natal=内側のみ、transit=外側のみ、both=両方)。ライン端点の補足天体も含みます。"
-    "houses各行は[天体,星座番号(牡羊座0〜魚座11),出生図基準ハウス,選択日時チャート基準ハウス,ソーラーハウス]。nullは不明です。"
-    "内側は出生図基準、外側は選択日時基準であり、ハウス基準を混同しないでください。"
+    "housesは項目名付きの計算済み配置です。pointは天体、signは星座名、natal_houseは出生図基準、chart_time_houseは選択日時チャート基準、solar_houseはソーラーハウスです。"
+    "N/Tは天体位置の出所であり、ハウスの基準とは別です。Tの現行天体にもnatal_houseがあります。"
+    "ハウス番号は対応する専用項目の値だけを引用してください。nullまたは未提供の項目は不明で、別基準の値・太陽星座・会話履歴から補ってはいけません。"
+    "例:natal_house=null,chart_time_house=2,solar_house=12なら、出生図基準は不明、選択日時基準は2、ソーラー基準は12です。出生図基準が2や12とは言えません。"
+    "質問や以前の回答と異なる場合も、現在のscreenの計算済み配置を優先し、誤った前提には同意しないでください。解釈はできますが配置の事実を推測・変更しないでください。"
     "ソーラーハウスは表示チャートの出生太陽星座(chart_natal_sun_sign)を1としたサイン単位のハウスで、通常の出生ハウスとは別です。"
     "世の中全体の傾向は現行天体の星座・現行同士のアスペクト、個人への影響は出生図との関係や出生・ソーラーハウスを使います。"
     "選択日時のハウスは地点依存なので世界共通の運気の根拠にしないでください。未提供データを捏造せず、ある範囲で解釈してください。"
@@ -159,9 +164,21 @@ def map_assistant(payload: MapAssistantRequest, request: Request,
                 pass
 
 
+def _model_screen(context: MapContext):
+    """Name each house basis for the model without changing the browser API schema."""
+    screen = context.model_dump(mode="json", exclude_none=True, exclude_defaults=True)
+    if context.houses:
+        screen['houses'] = [
+            {'point': point, 'sign': SIGN_NAMES[sign], 'natal_house': natal_house,
+             'chart_time_house': chart_house, 'solar_house': solar_house}
+            for point, sign, natal_house, chart_house, solar_house in context.houses
+        ]
+    return screen
+
+
 def _request_answer(payload, question, key):
     user_data = {
-        "screen": payload.context.model_dump(mode="json", exclude_none=True, exclude_defaults=True),
+        "screen": _model_screen(payload.context),
         "recent_chat": [turn.model_dump() for turn in payload.history],
         "question": question,
     }

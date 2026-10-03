@@ -6,7 +6,7 @@ from unittest.mock import patch
 from backend.tests.test_v3_access import local_test_client
 from backend.v3.app import create_app
 from backend.v3.access import AccessContext, get_access_context
-from backend.v3.map_assistant import FAQ
+from backend.v3.map_assistant import FAQ, MapContext, _model_screen
 from datetime import datetime, timedelta, timezone
 
 
@@ -104,8 +104,27 @@ class MapAssistantPrototypeTests(unittest.TestCase):
             response=self.client.post("/api/v3/map-assistant",json={"question":"表示中のアスペクトを説明して","context":screen})
         self.assertEqual(response.status_code,200)
         forwarded=json.loads(post.call_args.kwargs['json']['input'])['screen']
-        self.assertEqual(forwarded,screen)
+        expected = {**screen, 'houses': [{'point': 'T:SUN', 'sign': '獅子座',
+                                         'natal_house': 3, 'chart_time_house': 1, 'solar_house': 12}]}
+        self.assertEqual(forwarded,expected)
         self.assertNotIn('tools',post.call_args.kwargs['json'])
+
+    def test_named_house_bases_preserve_unknowns_and_do_not_mutate_input(self):
+        context = MapContext(houses=[('T:MARS', 4, None, 2, 12), ('N:SUN', 5, 6, None, None)])
+        before = context.model_dump()
+        self.assertEqual(_model_screen(context)['houses'], [
+            {'point': 'T:MARS', 'sign': '獅子座', 'natal_house': None, 'chart_time_house': 2, 'solar_house': 12},
+            {'point': 'N:SUN', 'sign': '乙女座', 'natal_house': 6, 'chart_time_house': None, 'solar_house': None},
+        ])
+        self.assertEqual(context.model_dump(), before)
+
+    def test_named_house_bases_preserve_distinct_numbers_and_all_signs(self):
+        context = MapContext(houses=[('T:MARS', sign, 6, 2, 12) for sign in range(12)])
+        rows = _model_screen(context)['houses']
+        self.assertEqual(len({row['sign'] for row in rows}), 12)
+        for row in rows:
+            self.assertEqual((row['natal_house'], row['chart_time_house'], row['solar_house']), (6, 2, 12))
+        self.assertNotIn('houses', _model_screen(MapContext()))
 
     def test_context_limits_and_private_extra_fields_rejected(self):
         for context in [
@@ -147,6 +166,17 @@ class MapAssistantPrototypeTests(unittest.TestCase):
             self.assertEqual(self.client.post('/api/v3/map-assistant',json={'question':'自由質問'}).status_code,429)
             self.assertEqual(self.client.post('/api/v3/map-assistant',json={'question':next(iter(FAQ))}).json()['mode'],'fixed')
             self.assertEqual(answer.call_count,20)
+
+    def test_local_test_account_can_exceed_twenty_without_quota_rows(self):
+        self.app.dependency_overrides[get_access_context] = lambda: AccessContext(user_id='local-test-user', entitlement='owner')
+        self.assertTrue(self.client.get('/api/v3/map-assistant/usage').json()['unlimited'])
+        with patch.dict('os.environ', {'OPENAI_API_KEY': 'test-key'}), patch('backend.v3.map_assistant.check_request_limit'), patch('backend.v3.map_assistant._request_answer', return_value='回答') as answer:
+            for _ in range(25):
+                response = self.client.post('/api/v3/map-assistant', json={'question': '自由質問'})
+                self.assertEqual(response.status_code, 200)
+                self.assertTrue(response.json()['usage']['unlimited'])
+            self.assertEqual(answer.call_count, 25)
+        self.assertEqual(self.app.state.map_chat_local_quota.rows, {})
 
     def test_failure_and_empty_answer_release_reservation(self):
         import httpx

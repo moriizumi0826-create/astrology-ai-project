@@ -33,7 +33,7 @@ export function MapAssistantPanel({ id, context, getContext, onClose, canAsk = f
     const version=++usageRequest.current;
     try {
       const next=await getJson('/api/map-assistant/usage');
-      if (!Number.isInteger(next.remaining) || !Number.isFinite(Date.parse(next.reset_at))) throw new Error('invalid usage');
+      if (next.unlimited !== true && (!Number.isInteger(next.remaining) || !Number.isFinite(Date.parse(next.reset_at)))) throw new Error('invalid usage');
       if(version===usageRequest.current){setUsage(next);setUsageError('');}
     } catch {
       if(version===usageRequest.current){setUsage(null);setUsageError('残り回数を取得できませんでした。');}
@@ -80,7 +80,7 @@ export function MapAssistantPanel({ id, context, getContext, onClose, canAsk = f
       setError("");
       return;
     }
-    if (!canAsk || !usage || usage.remaining<=0) return;
+    if (!canAsk || !usage || (usage.unlimited !== true && usage.remaining<=0)) return;
     const history = messages.slice(-6).map(({ role, content }) => ({ role, content: content.slice(0, 600) }));
     setMessages((current) => [...current, { role: "user", content: question }]);
     setDraft("");
@@ -139,10 +139,10 @@ export function MapAssistantPanel({ id, context, getContext, onClose, canAsk = f
         <form onSubmit={(event) => { event.preventDefault(); ask(draft); }} className="flex gap-2">
           <label htmlFor={id + "-question"} className="sr-only">質問を自由に入力</label>
           <input id={id + "-question"} disabled={!canAsk || pending} value={draft} maxLength={500} onChange={(event) => setDraft(event.target.value)} placeholder={canAsk ? "質問を自由に入力" : "自由入力は有料・招待会員限定"} className="min-w-0 flex-1 rounded-lg border border-white/15 bg-[#0a1120] px-3 py-2 text-xs text-starlight outline-none placeholder:text-mist/50 focus:border-gold/50 disabled:opacity-50" />
-          <button type="submit" disabled={!canAsk || pending || !draft.trim() || (!Object.hasOwn(FAQ,draft.trim()) && (!usage || usage.remaining<=0))} className="rounded-lg bg-gold/20 px-3 py-2 text-xs text-gold disabled:opacity-40">送信</button>
+          <button type="submit" disabled={!canAsk || pending || !draft.trim() || (!Object.hasOwn(FAQ,draft.trim()) && (!usage || (usage.unlimited !== true && usage.remaining<=0)))} className="rounded-lg bg-gold/20 px-3 py-2 text-xs text-gold disabled:opacity-40">送信</button>
         </form>
         {canAsk && <div className="text-[10px] text-mist/65" aria-live="polite">
-          {usage ? <><p>AIへの質問：本日あと{usage.remaining}回／{usage.limit}回（日本時間0時更新）</p>{usage.remaining===0 && <p>本日の質問枠がありません。固定質問は引き続き利用できます。</p>}</> : usageError ? <p>{usageError}<button type="button" className="ml-2 text-gold underline" onClick={refreshUsage}>再試行</button></p> : <p>残り回数を確認中…</p>}
+          {usage ? usage.unlimited === true ? <p>AIへの質問：回数制限なし（ローカルテスト用）</p> : <><p>AIへの質問：本日あと{usage.remaining}回／{usage.limit}回（日本時間0時更新）</p>{usage.remaining===0 && <p>本日の質問枠がありません。固定質問は引き続き利用できます。</p>}</> : usageError ? <p>{usageError}<button type="button" className="ml-2 text-gold underline" onClick={refreshUsage}>再試行</button></p> : <p>残り回数を確認中…</p>}
         </div>}
         {!canAsk && <p className="text-[10px] text-mist/65">🔒 AIへの自由な質問は有料・招待会員限定です。固定質問は無料で利用できます。</p>}
         {error && <p role="alert" className="text-xs text-red-300">{error}</p>}

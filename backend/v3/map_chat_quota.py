@@ -45,6 +45,9 @@ def quota(request,user,action='status',token=None):
     limit=daily_limit()
     # Only the explicit local-test auth backend may use process memory.
     if request.app.state.v3_environment=='local' and hasattr(request.app.state,'local_test_auth'):
+        if user == 'local-test-user':
+            return {'error': None, 'unlimited': True, 'limit': None, 'remaining': None,
+                    'reset_at': None}
         return request.app.state.map_chat_local_quota.call(user,action,token,limit)
     store=getattr(getattr(request.app.state,'billing',None),'store',None)
     if not store or not store.configured or not str(user).startswith('supabase:'):

@@ -36,6 +36,14 @@ class SupabaseQuotaIdentityTests(unittest.TestCase):
             self.assertEqual(error.exception.status_code, 401)
         store.request.assert_not_called()
 
+    def test_production_never_accepts_local_test_quota_exemption(self):
+        store = SimpleNamespace(configured=True, request=Mock())
+        request = SimpleNamespace(app=SimpleNamespace(state=SimpleNamespace(
+            v3_environment='production', local_test_auth=object(), billing=SimpleNamespace(store=store))))
+        with self.assertRaises(HTTPException):
+            quota(request, 'local-test-user')
+        store.request.assert_not_called()
+
 
 class ChatQuotaTests(unittest.TestCase):
     def setUp(self):
