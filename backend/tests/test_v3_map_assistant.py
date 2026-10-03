@@ -85,7 +85,7 @@ class MapAssistantPrototypeTests(unittest.TestCase):
         self.assertEqual(response.json()['usage']['remaining'], 19)
         self.assertEqual(post.call_args.args[0], "https://api.openai.com/v1/responses")
         self.assertFalse(post.call_args.kwargs["json"]["store"])
-        self.assertEqual(post.call_args.kwargs["json"]["max_output_tokens"], 450)
+        self.assertEqual(post.call_args.kwargs["json"]["max_output_tokens"], 750)
 
     def test_input_limits(self):
         response = self.client.post("/api/v3/map-assistant", json={"question": "a" * 501})
