@@ -5,7 +5,7 @@ import vm from "node:vm";
 
 const script = fs.readFileSync(new URL("../v3/login.js", import.meta.url), "utf8").replace(/^import .*;\r?\n/gm, "");
 const html = fs.readFileSync(new URL("../v3/login.html", import.meta.url), "utf8");
-async function setup({ member = false, saved = true, failInit = false, now = "2026-09-30T12:00:00+09:00" } = {}) {
+async function setup({ member = false, saved = true, failInit = false, hash = "", now = "2026-09-30T12:00:00+09:00" } = {}) {
   const elements = new Map();
   const el = selector => {
     if (!elements.has(selector)) elements.set(selector, { value: "", hidden: false, dataset: {}, attrs: {}, handlers: {},
@@ -22,7 +22,7 @@ async function setup({ member = false, saved = true, failInit = false, now = "20
     initializeAuth: async () => { await initial; if (failInit) throw Error("offline"); return { mode: "supabase" }; }, authClient: async () => ({ auth }),
     getJson: async () => member ? { user_id: "test" } : {}, configureStorage() {}, getStoredReadingForm: () => saved ? ({ test: true }) : null,
     finishMemberLogin: async () => {}, initializeCaptcha: async () => {}, resetCaptcha() {}, captchaTokenForRequest: () => "captcha-test",
-    authMessage: () => "入力・通信状態を確認してください。", __APP_ENVIRONMENT__: "local", location: { origin: "http://localhost", assign(url) { calls.push({ name: "navigate", url }); }, replace() {}, reload() {} } });
+    authMessage: () => "入力・通信状態を確認してください。", __APP_ENVIRONMENT__: "local", location: { hash, origin: "http://localhost", assign(url) { calls.push({ name: "navigate", url }); }, replace() {}, reload() {} } });
   context.requireGoogleProvider = async () => {};
   context.signInWithGoogle = async () => { calls.push({ name: "google" }); if (failure) throw failure; };
   context.googleLoginError = () => "Googleログインを開始できませんでした。";
@@ -32,6 +32,12 @@ async function setup({ member = false, saved = true, failInit = false, now = "20
   return { el, calls, mode: next => vm.runInContext(`setMode('${next}')`, context), fail: value => { failure = value; },
     submit: () => el("#member-form").handlers.submit({ preventDefault() {} }) };
 }
+test("preview signup link opens the signup form directly", async () => {
+  const ui = await setup({ hash: "#signup" });
+  assert.equal(ui.el("#submit").textContent, "新規登録");
+  assert.equal(ui.el("#signup-campaign").hidden, false);
+});
+
 test("login starts hidden until session check; separate auth stylesheet", () => {
   assert.match(html, /id="auth-content" hidden/);
   assert.match(html, /href="\/auth.css"/);

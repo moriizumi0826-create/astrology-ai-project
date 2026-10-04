@@ -7,7 +7,7 @@ import { signInWithGoogle, googleLoginError, requireGoogleProvider } from "./goo
 
 const $ = selector => document.querySelector(selector);
 const form = $("#member-form"), button = $("#submit"), status = $("#status"), errorBox = $("#error");
-let mode = "login", client, authConfig, busy = false, ready = false, sent = false, sentEmail = "";
+let mode = location.hash === "#signup" ? "signup" : "login", client, authConfig, busy = false, ready = false, sent = false, sentEmail = "";
 const labels = { login: "ログイン", signup: "新規登録", reset: "再設定メールを送信" };
 configureStorage(null);
 const destination = () => getStoredReadingForm() ? "/index.html#horoscope" : "/auth-callback.html?mode=onboarding";
@@ -97,7 +97,7 @@ async function initialize() {
     $(".feedback").append($("#retry"));
   }
 }
-setMode("login");
+setMode(mode);
 initialize();
 $("#retry").addEventListener("click", () => location.reload());
 $("#google-login").addEventListener("click", async () => {

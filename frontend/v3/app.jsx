@@ -9,6 +9,7 @@ import { CalendarWorkspace, useCalendarNotes } from "./calendar-workspace.jsx";
 import { AccessContext } from "./access-context.jsx";
 import { BirthDataEditor } from "./birth-data-editor.jsx";
 import { FreeHoroscopeContent } from "./free-horoscope-content.jsx";
+import { ForecastPreview } from "./forecast-preview.jsx";
 import { Horoscope3DMap } from "./horoscope-map.jsx";
 import { DeviceTimeBoundary } from "../src/device-time-boundary.jsx";
 import { configureStorage, storageOwner, freeResult, getStoredReadingForm, getStoredReadingResult, storeReadingResult } from "./reading-storage.js";
@@ -17,7 +18,6 @@ import { getJson, postJson, searchBirthLocations } from "./api.mjs";
 import background from "../src/assets/daily-detail-galaxy-bg.jpg";
 import { featurePolicy } from "./feature-policy.mjs";
 import { prepareSession } from "./profile.mjs";
-import { isMemberMode } from "./auth-client.mjs";
 
 const PaidForecast = lazy(() => import("./paid-forecast.jsx"));
 
@@ -27,7 +27,7 @@ function Horoscope({ onForecast, session }) {
   const [result, setResult] = useState(() => freeResult(getStoredReadingResult({ allowStale: true })));
   const [revision, setRevision] = useState(0);
   const [chartForm, setChartForm] = useState(() => getStoredReadingForm() || {});
-  const [locked, setLocked] = useState(false);
+  const [previewOpen, setPreviewOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const recalculate = async ({ request, snapshot }) => {
     const next = await postJson("/api/readings", request);
@@ -64,17 +64,18 @@ function Horoscope({ onForecast, session }) {
         >
           <button
             type="button"
-            className={`pb-2 transition sm:pb-3 ${stellarForecast ? "hover:text-[#D4AF37]" : "text-[#0A192F]/45"}`}
-            onClick={() => { setMenuOpen(false); stellarForecast ? onForecast() : setLocked(true); }}
-            aria-disabled={!stellarForecast}
+            className={`pb-2 transition sm:pb-3 ${previewOpen && !stellarForecast ? "border-b-2 border-[#D4AF37] text-[#0A192F]" : stellarForecast ? "hover:text-[#D4AF37]" : "text-[#0A192F]/45"}`}
+            onClick={() => { setMenuOpen(false); if (stellarForecast) onForecast(); else { setPreviewOpen(true); window.scrollTo({ top: 0, behavior: "instant" }); } }}
           >
             星の見通し{!stellarForecast ? " 🔒" : ""}
           </button>
-          <button type="button" className="border-b-2 border-[#D4AF37] pb-2 text-[#0A192F] sm:pb-3" onClick={() => setMenuOpen(false)}>Horoscope</button>
+          <button type="button" className={`pb-2 text-[#0A192F] sm:pb-3 ${!previewOpen || stellarForecast ? "border-b-2 border-[#D4AF37]" : ""}`} onClick={() => { setMenuOpen(false); setPreviewOpen(false); }}>Horoscope</button>
         </nav>
       </div>
     </header>
     <div className="pt-[56px] sm:pt-36" style={{ backgroundImage: `linear-gradient(#05070f66,#05070f99),url(${background})`, backgroundSize: "cover", backgroundAttachment: "fixed" }}>
+      {previewOpen && !stellarForecast && <ForecastPreview session={session} onHoroscope={() => setPreviewOpen(false)} />}
+      <div hidden={previewOpen && !stellarForecast}>
       <FreeHoroscopeContent data={data} belowMetaContent={<>
         <BirthDataEditor initialForm={chartForm} meta={result.meta} onSearchLocations={searchBirthLocations} onRecalculate={recalculate} />
         <button type="button" className="mb-3 rounded border border-gold/30 px-4 py-2 text-sm text-gold" onClick={()=>calendarNotes.openCalendar()} disabled={!session?.user_id}>
@@ -82,14 +83,8 @@ function Horoscope({ onForecast, session }) {
         </button>
         <Horoscope3DMap key={`map-${revision}`} data={data} birthForm={chartForm} />
       </>} />
+      </div>
     </div>
-    {locked && <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/75 p-5"><section role="dialog" aria-modal="true" aria-label="有料版のご案内" className="max-h-[calc(100dvh-2.5rem)] w-full max-w-md overflow-y-auto rounded-2xl border border-gold/30 bg-midnight p-7"><h2 className="text-xl text-gold">星の見通しは有料版限定です</h2><p className="my-4 text-sm leading-7">{isMemberMode() ? "月額プランに登録すると、星の見通しと有料版の3Dマップ機能を利用できます。" : "ログインすると有料版を確認できます。"}</p>{Date.now() < Date.parse("2026-11-01T00:00:00+09:00") && (
-      <aside aria-label="新規登録キャンペーン" className="mb-5 space-y-3 rounded-xl border border-gold/30 bg-gold/5 p-4">
-        <h3 className="text-base font-semibold leading-7 text-gold">10月末までの新規登録で、有料機能をずっと無料に</h3>
-        <p className="text-sm leading-7">2026年10月31日まで（日本時間）に新規登録とメール認証を完了すると、招待会員として有料プランの機能を期限なく無料でご利用いただけます。</p>
-        <p className="text-sm leading-7">カード登録不要・月額料金は発生しません。一定の人数に達し次第終了します。</p>
-      </aside>
-    )}{isMemberMode() ? <a className="mr-4 text-gold underline" href="/billing.html">有料プランを見る</a> : <a className="mr-4 text-gold underline" href="/login.html">ログイン</a>}<button className="rounded border px-4 py-2" onClick={() => setLocked(false)}>閉じる</button></section></div>}
   </div>;
 }
 
