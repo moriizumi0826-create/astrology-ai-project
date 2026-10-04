@@ -17,6 +17,7 @@ import { canRetainSession } from "./session-refresh.mjs";
 import { getJson, postJson, searchBirthLocations } from "./api.mjs";
 import background from "../src/assets/daily-detail-galaxy-bg.jpg";
 import { featurePolicy } from "./feature-policy.mjs";
+import { calendarMapNavigation } from "./calendar-map-navigation.mjs";
 import { prepareSession } from "./profile.mjs";
 
 const PaidForecast = lazy(() => import("./paid-forecast.jsx"));
@@ -29,6 +30,16 @@ function Horoscope({ onForecast, session }) {
   const [chartForm, setChartForm] = useState(() => getStoredReadingForm() || {});
   const [previewOpen, setPreviewOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [eventNavigation, setEventNavigation] = useState(null);
+  const eventMapRef = useRef(null);
+  const openEventMap = event => {
+    setEventNavigation({...calendarMapNavigation(event), token:crypto.randomUUID()});
+  };
+  useEffect(() => {
+    if (!eventNavigation) return;
+    const frame = requestAnimationFrame(() => eventMapRef.current?.scrollIntoView({block:'start', behavior:window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth'}));
+    return () => cancelAnimationFrame(frame);
+  }, [eventNavigation]);
   const recalculate = async ({ request, snapshot }) => {
     const next = await postJson("/api/readings", request);
     // Another person's chart is local to this Horoscope view, not the member profile or forecast.
@@ -78,10 +89,10 @@ function Horoscope({ onForecast, session }) {
       <div hidden={previewOpen && !stellarForecast}>
       <FreeHoroscopeContent data={data} belowMetaContent={<>
         <BirthDataEditor initialForm={chartForm} meta={result.meta} onSearchLocations={searchBirthLocations} onRecalculate={recalculate} />
-        <button type="button" className="mb-3 rounded border border-gold/30 px-4 py-2 text-sm text-gold" onClick={()=>calendarNotes.openCalendar()} disabled={!session?.user_id}>
+        <button type="button" className="mb-3 rounded border border-gold/30 px-4 py-2 text-sm text-gold" onClick={()=>calendarNotes.openCalendar(openEventMap)} disabled={!session?.user_id}>
           {stellarForecast ? "天体イベントカレンダー・メモ" : session?.user_id ? "保存済みメモ（閲覧・削除）" : "🔒 カレンダー・メモ"}
         </button>
-        <Horoscope3DMap key={`map-${revision}`} data={data} birthForm={chartForm} />
+        <div ref={eventMapRef} className="scroll-mt-24"><Horoscope3DMap key={`map-${revision}`} data={data} birthForm={chartForm} eventNavigation={eventNavigation} /></div>
       </>} />
       </div>
     </div>

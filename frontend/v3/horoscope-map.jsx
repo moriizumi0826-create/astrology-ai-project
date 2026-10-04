@@ -5225,7 +5225,7 @@ function GlassPanel({ children, className = "", variant = "default" }) {
   );
 }
 
-function Horoscope3DMap({ data, birthForm = null }) {
+function Horoscope3DMap({ data, birthForm = null, eventNavigation = null }) {
   const readingDate = dateKey(data?.reading_date) || currentLocalDate();
   const [selectedDate, setSelectedDate] = useState(readingDate);
   useEffect(() => setSelectedDate(readingDate), [readingDate]);
@@ -5257,6 +5257,7 @@ function Horoscope3DMap({ data, birthForm = null }) {
     <div className="mb-5">
       <TransitNatalSunMap
         birthForm={birthForm}
+        eventNavigation={eventNavigation}
         day={mapDay}
         forecast={mapForecast}
         availableDays={availableMapDays}

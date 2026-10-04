@@ -1273,7 +1273,7 @@ export function DashboardV2CountdownCard({ data, onSelectAspect = () => {}, cale
                           <h4 className="mt-2 font-notoSerif text-base font-black text-[#f3f3f0]">{item.title || typeMeta.label}</h4>
                           <p className="mt-2 text-[11px] leading-6 text-[#c7c6cc]">{item.note || "この天体イベントが、あなたのテーマに変化をもたらしやすい時期です。"}</p>
                           <GoogleCalendarButton event={item} />
-                          {onOpenEventMap && <button type="button" className="mt-3 block rounded-lg border border-gold/40 px-3 py-2 text-xs text-gold hover:bg-gold/10" onClick={() => { onOpenEventMap(item); setSelectedCalendarDate(''); }}>この日時の3Dマップを見る</button>}
+                          {onOpenEventMap && <button type="button" className="mt-3 block rounded-lg border border-gold/40 px-3 py-2 text-xs text-gold hover:bg-gold/10" onClick={() => { onOpenEventMap(item); setSelectedCalendarDate(''); }}>この日時の3Dマップを見る・AIに聞く</button>}
                         </article>
                       );
                     })}

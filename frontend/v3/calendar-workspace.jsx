@@ -40,6 +40,7 @@ export function CalendarWorkspace({children}) {
   const [destination,setDestination]=useState('new');
   const drafts=useRef(new Map());
   const sequence=useRef(0);
+  const eventMapHandler=useRef(null);
   useEffect(()=>()=>{sequence.current++;},[]);
   async function reload(){
     if(!session?.user_id)return;
@@ -48,7 +49,8 @@ export function CalendarWorkspace({children}) {
     try{const result=await getJson('/api/calendar-notes');if(seq===sequence.current){setNotes(result.notes);setLoaded(true);}}
     catch(e){if(seq===sequence.current)setError(e.message);}
   }
-  async function openCalendar(){
+  async function openCalendar(onOpenEventMap=null){
+    eventMapHandler.current=typeof onOpenEventMap==='function' ? onOpenEventMap : null;
     setOpen(true);if(!loaded)reload();
     if(canWrite && !data && !loading){
       const seq=sequence.current;setLoading(true);setEventError('');
@@ -56,6 +58,12 @@ export function CalendarWorkspace({children}) {
       catch(e){if(seq===sequence.current)setEventError(e.message);}
       finally{if(seq===sequence.current)setLoading(false);}
     }
+  }
+  function openEventMap(event){
+    try {
+      eventMapHandler.current?.(event);
+      setEventError('');setOpen(false);
+    } catch(e) {setEventError(e.message);}
   }
   function edit(note){
     if(!canWrite)return;
@@ -94,8 +102,8 @@ export function CalendarWorkspace({children}) {
     {open && <Dialog label={canWrite?'天体イベントカレンダー':'保存済みメモ'} onClose={()=>setOpen(false)}>
       {!canWrite && <p className="mb-3 text-sm">有料期間終了後もメモの閲覧・削除は可能です。新規保存・編集と天体イベント情報は有料会員限定です。</p>}
       {loading && <p role="status">天体イベントを読み込み中…</p>}
-      {eventError && <p role="alert">{eventError}<button className="ml-3 underline" onClick={openCalendar}>再試行</button></p>}
-      <Suspense fallback={<p>カレンダーを読み込み中…</p>}><Calendar calendarOnly data={canWrite ? (data||{}) : {}} /></Suspense>
+      {eventError && <p role="alert">{eventError}<button className="ml-3 underline" onClick={()=>openCalendar(eventMapHandler.current)}>再試行</button></p>}
+      <Suspense fallback={<p>カレンダーを読み込み中…</p>}><Calendar calendarOnly data={canWrite ? (data||{}) : {}} onOpenEventMap={canWrite && eventMapHandler.current ? openEventMap : null} /></Suspense>
     </Dialog>}
     {draft && <Dialog editor label="カレンダーにメモを保存" onClose={closeDraft}>
       <form onSubmit={save} className="space-y-3">
