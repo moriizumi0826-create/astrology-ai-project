@@ -33,6 +33,60 @@ class MapAssistantPrototypeTests(unittest.TestCase):
                 self.assertEqual(response.json(),{"answer":answer,"mode":"fixed"})
             post.assert_not_called()
 
+    def test_split_usage_routes_local_owner_and_regular_members(self):
+        import httpx
+        upstream = httpx.Response(200, request=httpx.Request("POST", "https://api.openai.com/v1/responses"),
+            json={"output": [{"type": "message", "content": [{"type": "output_text", "text": "回答"}]}]})
+        for environment, entitlement, expected in [
+            ("local", "active", "test-project-key"),
+            ("production", "owner", "test-project-key"),
+            ("production", "invite", "regular-project-key"),
+            ("production", "active", "regular-project-key"),
+        ]:
+            with self.subTest(environment=environment, entitlement=entitlement):
+                self.app.state.v3_environment = environment
+                self.app.dependency_overrides[get_access_context] = lambda: AccessContext(
+                    user_id="member", entitlement=entitlement, valid_until=datetime.now(timezone.utc)+timedelta(days=1))
+                with patch.dict("os.environ", {"V3_MAP_ASSISTANT_SPLIT_USAGE": "true", "V3_MAP_ASSISTANT_ENABLED": "true",
+                        "OPENAI_API_KEY": "regular-project-key", "OPENAI_TEST_API_KEY": "test-project-key"}), \
+                        patch("backend.v3.map_assistant.quota", return_value={"remaining": 19}), \
+                        patch("backend.v3.map_assistant.httpx.post", return_value=upstream) as post:
+                    response = self.client.post("/api/v3/map-assistant", json={"question": "自由質問"})
+                    self.assertEqual(response.status_code, 200)
+                    self.assertEqual(post.call_args.kwargs["headers"]["Authorization"], f"Bearer {expected}")
+                    self.assertNotIn(expected, response.text)
+                    self.assertNotIn("usage_group", post.call_args.kwargs["json"]["input"])
+
+    def test_split_missing_or_shared_test_key_never_falls_back(self):
+        for test_key in ("", "regular-project-key"):
+            with self.subTest(test_key=test_key), patch.dict("os.environ", {
+                    "V3_MAP_ASSISTANT_SPLIT_USAGE": "true", "OPENAI_API_KEY": "regular-project-key", "OPENAI_TEST_API_KEY": test_key}), \
+                    patch("backend.v3.map_assistant.httpx.post") as post:
+                response = self.client.post("/api/v3/map-assistant", json={"question": "自由質問"})
+                self.assertEqual(response.status_code, 503)
+                post.assert_not_called()
+                self.assertNotIn("regular-project-key", response.text)
+                fixed = self.client.post("/api/v3/map-assistant", json={"question": next(iter(FAQ))})
+                self.assertEqual(fixed.json()["mode"], "fixed")
+
+    def test_split_cannot_be_selected_from_client_payload(self):
+        with patch.dict("os.environ", {"V3_MAP_ASSISTANT_SPLIT_USAGE": "true"}), patch("backend.v3.map_assistant.httpx.post") as post:
+            response = self.client.post("/api/v3/map-assistant", json={"question": "自由質問", "access_source": "owner"})
+            self.assertEqual(response.status_code, 422)
+            post.assert_not_called()
+
+    def test_invalid_test_key_does_not_retry_using_regular_key(self):
+        import httpx
+        upstream = httpx.Response(401, request=httpx.Request("POST", "https://api.openai.com/v1/responses"))
+        with patch.dict("os.environ", {"V3_MAP_ASSISTANT_SPLIT_USAGE": "true",
+                "OPENAI_TEST_API_KEY": "invalid-test-key", "OPENAI_API_KEY": "regular-project-key"}), \
+                patch("backend.v3.map_assistant.httpx.post", return_value=upstream) as post:
+            response = self.client.post("/api/v3/map-assistant", json={"question": "自由質問"})
+            self.assertEqual(response.status_code, 503)
+            post.assert_called_once()
+            self.assertEqual(post.call_args.kwargs["headers"]["Authorization"], "Bearer invalid-test-key")
+            self.assertEqual(self.client.get("/api/v3/map-assistant/usage").json()["remaining"], 20)
+
     def test_production_disabled_or_missing_key_fails_closed(self):
         self.app.state.v3_environment="production"
         for enabled,key in [("false","test-key"),("true","")]:

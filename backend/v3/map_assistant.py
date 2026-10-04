@@ -130,6 +130,24 @@ def map_assistant_usage(request: Request, access: AccessSnapshot = Depends(requi
     return quota(request, access.user_id)
 
 
+def _assistant_key(request: Request, access: AccessSnapshot) -> str:
+    """Separate owner/local usage only when explicitly enabled by the operator."""
+    split = os.getenv("V3_MAP_ASSISTANT_SPLIT_USAGE", "false").strip().lower()
+    if split not in ("true", "false"):
+        raise HTTPException(503, "AIの使用量分離設定を確認してください。")
+    if split == "false":
+        return os.getenv("OPENAI_API_KEY", "").strip()
+    local = request.app.state.v3_environment == "local"
+    # access_source is produced by the server's authorization dependency, not client input.
+    testing = local or access.access_source == "owner"
+    key = os.getenv("OPENAI_TEST_API_KEY" if testing else "OPENAI_API_KEY", "").strip()
+    if not key:
+        raise HTTPException(503, "テスト用AIキーが未設定です。" if testing else "AIガイドは現在利用できません。")
+    if testing and key == os.getenv("OPENAI_API_KEY", "").strip():
+        raise HTTPException(503, "テスト用と通常用には別のAIキーを設定してください。")
+    return key
+
+
 @router.post("/map-assistant")
 def map_assistant(payload: MapAssistantRequest, request: Request,
                   access: AccessSnapshot = Depends(require_paid_access)):
@@ -145,7 +163,7 @@ def map_assistant(payload: MapAssistantRequest, request: Request,
         raise HTTPException(503, "AIガイドは現在準備中です。固定質問をご利用ください。")
     check_request_limit(request, "map_assistant", user_id=access.user_id)
 
-    key = os.getenv("OPENAI_API_KEY", "").strip()
+    key = _assistant_key(request, access)
     if not key:
         if local:
             return {"answer": _demo_answer(question, payload.context), "mode": "demo"}
