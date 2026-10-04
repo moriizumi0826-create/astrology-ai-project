@@ -1,6 +1,7 @@
 import { postJson } from "./api.mjs";
 import { CalendarNotesDay, useCalendarNotes } from "./calendar-workspace.jsx";
 import { GoogleCalendarButton } from "./google-calendar-button.jsx";
+import { stellarEventInfo } from "./stellar-event-info.mjs";
 import React, { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { deviceTimezone } from "../src/device-time.mjs";
@@ -15,6 +16,7 @@ import {
   ChevronRight,
   ChevronUp,
   Moon,
+  Info,
   X,
 } from "lucide-react";
 
@@ -771,6 +773,17 @@ export function DashboardV2CountdownCard({ data, onSelectAspect = () => {}, cale
   useEffect(() => { if (calendarNotes && !calendarNotes.loaded) calendarNotes.reload(); }, []);
   const displayDate = dashboardDisplayDate(data);
   const [activeEventIndex, setActiveEventIndex] = useState(0);
+  const [eventInfoOpen, setEventInfoOpen] = useState(false);
+  const eventInfoButton = React.useRef(null);
+  const eventInfoDialog = React.useRef(null);
+  const eventInfoId = React.useId();
+  useEffect(() => {
+    if (!eventInfoOpen) return;
+    eventInfoDialog.current?.focus();
+    const close = event => { if (event.key === 'Escape') setEventInfoOpen(false); };
+    document.addEventListener('keydown', close);
+    return () => { document.removeEventListener('keydown', close); eventInfoButton.current?.focus(); };
+  }, [eventInfoOpen]);
 
   const [calendarFilter, setCalendarFilter] = useState("all");
   const [personalGenreFilter, setPersonalGenreFilter] = useState("all");
@@ -890,6 +903,7 @@ export function DashboardV2CountdownCard({ data, onSelectAspect = () => {}, cale
   const slide = sectionItems[sectionIndex] || {};
   const days = countdownDaysUntil(slide, displayDate);
   const remaining = countdownRemainingValue(slide, displayDate);
+  const eventInfo = stellarEventInfo(slide, remaining, isCompletedEvent);
   const hasEvent = eventCount > 0;
   const hasLinkedWeeklyAspect = false;
   const completedDaysAgo = stellarEventDaysAgo(slide, displayDate);
@@ -1028,6 +1042,11 @@ export function DashboardV2CountdownCard({ data, onSelectAspect = () => {}, cale
                 <p className="mt-1 text-xs text-[#c7c6cc]">{isCompletedEvent ? completedLabel : "...Coming soon"}</p>
               )}
             </div>
+            <div className="text-right">
+            {hasEvent && <div className="mb-1 flex items-center justify-end gap-1">
+              <span className="text-[10px] text-[#c7c6cc]">{eventInfo.label}</span>
+              <button ref={eventInfoButton} type="button" aria-label="カウントダウンの意味" aria-haspopup="dialog" aria-expanded={eventInfoOpen} aria-controls={eventInfoOpen ? eventInfoId : undefined} onClick={()=>setEventInfoOpen(true)} className="inline-flex h-7 w-7 items-center justify-center rounded-full text-[#c7c6cc] hover:bg-white/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#e9c349]"><Info size={15}/></button>
+            </div>}
             <p className={cx(
               "font-mono text-xl font-black leading-none",
               isCompletedEvent ? "text-[#77787d]" : "text-[#e9c349]"
@@ -1038,6 +1057,7 @@ export function DashboardV2CountdownCard({ data, onSelectAspect = () => {}, cale
                 </>
               ) : "-"}
             </p>
+            </div>
           </div>
         </div>
         <div className="mt-4 h-px bg-[#e9c349]/25" />
@@ -1055,6 +1075,15 @@ export function DashboardV2CountdownCard({ data, onSelectAspect = () => {}, cale
         </div>
       </div>
     </DashboardV2Card>}
+    {eventInfoOpen && !calendarOnly && createPortal(<div className="fixed inset-0 z-[6000] flex items-center justify-center bg-black/70 p-4" onClick={event=>{if(event.target===event.currentTarget)setEventInfoOpen(false);}}>
+      <section ref={eventInfoDialog} id={eventInfoId} role="dialog" aria-modal="true" aria-labelledby={`${eventInfoId}-title`} tabIndex={-1} className="w-full max-w-md rounded-2xl border border-[#e9c349]/30 bg-[#111827] p-5 text-[#f3f3f0] shadow-xl" onKeyDown={event=>{if(event.key==='Tab'){event.preventDefault();event.currentTarget.querySelector('button')?.focus();}}}>
+        <div className="mb-4 flex items-center justify-between gap-3"><h3 id={`${eventInfoId}-title`} className="font-bold">カウントダウンの意味</h3><button type="button" aria-label="補足を閉じる" onClick={()=>setEventInfoOpen(false)} className="inline-flex h-8 w-8 items-center justify-center rounded-full hover:bg-white/10"><X size={18}/></button></div>
+        <p className="mb-3 text-sm font-bold text-[#e9c349]">{title}</p>
+        <p className="text-sm leading-7">{eventInfo.description}</p>
+        {eventInfo.datetime && <p className="mt-4 text-xs leading-5 text-[#c7c6cc]">{eventInfo.datetime}</p>}
+        {!isCompletedEvent && <p className="mt-2 text-xs text-[#909096]">残り時間は概算です。</p>}
+      </section>
+    </div>,document.body)}
     <div className="col-span-full lg:row-start-3">
         <section
           className="flex w-full flex-col overflow-hidden rounded-[28px] border border-[#e9c349]/25 bg-[#111313] text-[#e2e2e2] shadow-[0_30px_100px_rgba(0,0,0,0.7)]"
