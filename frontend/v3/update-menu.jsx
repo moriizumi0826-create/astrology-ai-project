@@ -63,6 +63,11 @@ export function UpdateMenu({ versionState, onRefreshLatest, refreshingLatest = f
         {page === "history" ? <ol className="max-h-[50vh] space-y-4 overflow-y-auto px-3 pb-3 text-xs leading-6">
           <li>
             <time dateTime="2026-10-04" className="font-semibold text-slate-500">2026/10/04</time>
+            <p className="font-semibold">天体イベントから3Dマップを開けるようになりました</p>
+            <p className="text-slate-600">日別の天体イベントカレンダーから、イベント日時の3Dマップへ移動し、出生図とのアスペクトを確認できます。AIチャットにはイベントの案内と質問候補が表示され、候補を選んで質問できます。</p>
+          </li>
+          <li>
+            <time dateTime="2026-10-04" className="font-semibold text-slate-500">2026/10/04</time>
             <p className="font-semibold">Google連携を追加しました</p>
             <p className="text-slate-600">Googleアカウントでログイン・新規登録できるようになりました。天体イベントの詳細から、選んだイベントをGoogleカレンダーへ追加できます（Google側で確認・保存）。</p>
           </li>
