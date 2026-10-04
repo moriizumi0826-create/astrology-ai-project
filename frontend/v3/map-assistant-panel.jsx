@@ -1,13 +1,20 @@
 import React, { useEffect, useRef, useState } from "react";
 import { getJson, postJson } from "./api.mjs";
 import FAQ from "./map-assistant-faq.json";
+import { eventAssistantNotice, eventAssistantQuestions, mapAssistantHistory } from './calendar-map-navigation.mjs';
 import {useCalendarNotes} from './calendar-workspace.jsx';
 
 const SUGGESTED_QUESTIONS = Object.keys(FAQ);
 
-export function MapAssistantPanel({ id, context, getContext, onClose, canAsk = false, open = true }) {
+export function MapAssistantPanel({ id, context, getContext, onClose, canAsk = false, open = true, eventNotice = null, contextReady = true, contextError = '' }) {
   const calendarNotes=useCalendarNotes();
   const [messages, setMessages] = useState([]);
+  const noticedEvent = useRef(null);
+  useEffect(() => {
+    if (!eventNotice || noticedEvent.current === eventNotice.token) return;
+    noticedEvent.current = eventNotice.token;
+    setMessages(current=>[...current,{role:'assistant',content:eventAssistantNotice(eventNotice),eventNotice:true,eventToken:eventNotice.token}]);
+  }, [eventNotice]);
   const [draft, setDraft] = useState("");
   const [questionsOpen, setQuestionsOpen] = useState(true);
   const questionStripRef = useRef(null);
@@ -22,7 +29,8 @@ export function MapAssistantPanel({ id, context, getContext, onClose, canAsk = f
     const log = logRef.current, latest = latestMessageRef.current;
     if (!open || !log || !latest) return;
     // Scroll only the conversation, not the map or the surrounding page.
-    const top = pending ? log.scrollHeight : log.scrollTop + latest.getBoundingClientRect().top - log.getBoundingClientRect().top - 12;
+    // With a new event, keep its question strip visible even in a short mobile log.
+    const top = pending || messages.at(-1)?.eventNotice ? log.scrollHeight : log.scrollTop + latest.getBoundingClientRect().top - log.getBoundingClientRect().top - 12;
     log.scrollTo({ top, behavior: 'auto' });
   }, [messages, pending, open]);
   function scrollQuestions(direction) {
@@ -80,8 +88,8 @@ export function MapAssistantPanel({ id, context, getContext, onClose, canAsk = f
       setError("");
       return;
     }
-    if (!canAsk || !usage || (usage.unlimited !== true && usage.remaining<=0)) return;
-    const history = messages.slice(-6).map(({ role, content }) => ({ role, content: content.slice(0, 600) }));
+    if (!contextReady || !canAsk || !usage || (usage.unlimited !== true && usage.remaining<=0)) return;
+    const history = mapAssistantHistory(messages);
     setMessages((current) => [...current, { role: "user", content: question }]);
     setDraft("");
     setError("");
@@ -116,7 +124,16 @@ export function MapAssistantPanel({ id, context, getContext, onClose, canAsk = f
         {messages.map((message, index) => <div key={index} ref={index === messages.length - 1 ? latestMessageRef : null} className={message.role === "user" ? "ml-6 rounded-xl bg-gold/15 px-3 py-2 text-xs text-starlight" : "mr-6 rounded-xl bg-white/10 px-3 py-2 text-xs leading-relaxed text-mist"}>
           {message.demo && <span className="mb-1 block text-[10px] text-gold">デモ回答（AI未接続）</span>}
           <span className="whitespace-pre-wrap">{message.content}</span>
-          {message.role === "assistant" && calendarNotes?.canWrite && <button type="button" className="mt-2 block text-[10px] text-gold underline" onClick={()=>calendarNotes.edit({content:message.content,...(context?.date ? {note_date:context.date} : {})})}>カレンダーに保存</button>}
+          {message.eventNotice && eventNotice && message.eventToken === eventNotice.token && <div className="mt-3 min-w-0">
+            <p className="mb-1 text-[10px] text-gold">このイベントをAIに質問（1回消費）</p>
+            <div role="group" aria-label="このイベントの質問候補" className="flex flex-nowrap gap-2 overflow-x-auto overscroll-x-contain pb-1" style={{scrollbarWidth:'thin'}}>
+              {eventAssistantQuestions(eventNotice).map(question=><button key={question} type="button"
+                disabled={!canAsk || !contextReady || pending || !usage || (usage.unlimited !== true && usage.remaining <= 0)}
+                onClick={()=>ask(question)} className="min-h-11 shrink-0 whitespace-nowrap rounded-full border border-gold/30 px-3 py-2 text-[11px] text-gold hover:bg-gold/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold/50 disabled:cursor-not-allowed disabled:opacity-40">{question}</button>)}
+            </div>
+            <p className="mt-1 text-[10px] text-mist/65">横にスクロールして選択できます</p>
+          </div>}
+          {message.role === "assistant" && !message.eventNotice && calendarNotes?.canWrite && <button type="button" className="mt-2 block text-[10px] text-gold underline" onClick={()=>calendarNotes.edit({content:message.content,...(context?.date ? {note_date:context.date} : {})})}>カレンダーに保存</button>}
         </div>)}
         {pending && <p className="text-xs text-mist/60">回答を読み込み中…</p>}
       </div>
@@ -139,8 +156,9 @@ export function MapAssistantPanel({ id, context, getContext, onClose, canAsk = f
         <form onSubmit={(event) => { event.preventDefault(); ask(draft); }} className="flex gap-2">
           <label htmlFor={id + "-question"} className="sr-only">質問を自由に入力</label>
           <input id={id + "-question"} disabled={!canAsk || pending} value={draft} maxLength={500} onChange={(event) => setDraft(event.target.value)} placeholder={canAsk ? "質問を自由に入力" : "自由入力は有料・招待会員限定"} className="min-w-0 flex-1 rounded-lg border border-white/15 bg-[#0a1120] px-3 py-2 text-xs text-starlight outline-none placeholder:text-mist/50 focus:border-gold/50 disabled:opacity-50" />
-          <button type="submit" disabled={!canAsk || pending || !draft.trim() || (!Object.hasOwn(FAQ,draft.trim()) && (!usage || (usage.unlimited !== true && usage.remaining<=0)))} className="rounded-lg bg-gold/20 px-3 py-2 text-xs text-gold disabled:opacity-40">送信</button>
+          <button type="submit" disabled={!canAsk || pending || !draft.trim() || (!Object.hasOwn(FAQ,draft.trim()) && (!contextReady || !usage || (usage.unlimited !== true && usage.remaining<=0)))} className="rounded-lg bg-gold/20 px-3 py-2 text-xs text-gold disabled:opacity-40">送信</button>
         </form>
+        {canAsk && !contextReady && <p role="status" className="text-[10px] text-mist/65">{contextError ? 'イベント日時の配置を取得できませんでした。マップのエラー表示を確認してください。' : 'イベント日時の配置を読み込み中です。読み込み完了後に質問できます。'}</p>}
         {canAsk && <div className="text-[10px] text-mist/65" aria-live="polite">
           {usage ? usage.unlimited === true ? <p>AIへの質問：回数制限なし（ローカルテスト用）</p> : <><p>AIへの質問：本日あと{usage.remaining}回／{usage.limit}回（日本時間0時更新）</p>{usage.remaining===0 && <p>本日の質問枠がありません。固定質問は引き続き利用できます。</p>}</> : usageError ? <p>{usageError}<button type="button" className="ml-2 text-gold underline" onClick={refreshUsage}>再試行</button></p> : <p>残り回数を確認中…</p>}
         </div>}

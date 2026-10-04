@@ -40,6 +40,15 @@ class BirthContext(BaseModel):
     utc_offset: float | None = Field(default=None, ge=-14, le=14)
 
 
+class SelectedEventContext(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    title: str = Field(max_length=160)
+    type: str = Field(max_length=40)
+    date: CalendarDate
+    time: str = Field(pattern=r"^(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d)?$")
+    approximate: bool = False
+
+
 class MapContext(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -51,6 +60,7 @@ class MapContext(BaseModel):
     timezone: str = Field(default="", max_length=64)
     member_birth: BirthContext | None = None
     chart_birth: BirthContext | None = None
+    selected_event: SelectedEventContext | None = None
     aspects: list[tuple[PointId, PointId, Angle, Orb | None]] = Field(default_factory=list, max_length=24)
     aspects_total: int = Field(default=0, ge=0, le=10000)
     aspects_omitted: int = Field(default=0, ge=0, le=10000)
@@ -80,6 +90,7 @@ class MapAssistantRequest(BaseModel):
 INSTRUCTIONS = (
     "あなたはThe Celestial Atelierの3Dマップの操作と、表示データの占星術的な読み解きを案内するガイドです。日本語で簡潔に答えてください。"
     "screenは質問送信時のマップデータです。N:はネイタル、T:は現行天体。"
+    "selected_eventがある場合は、このマップを開いた天体イベントです。『この満月』等はそのイベントを指します。approximate=trueは時刻未提供の正午参考配置で、正確な発生時刻とは断定しないでください。イベント名だけから配置を補わず、現在のscreenの配置のみを根拠に解釈してください。"
     "aspects各行は[天体1,天体2,角度°,オーブ°]、positions各行は[天体,黄経°]です。"
     "planet_modeは表示天体(natal=内側のみ、transit=外側のみ、both=両方)。ライン端点の補足天体も含みます。"
     "housesは項目名付きの計算済み配置です。pointは天体、signは星座名、natal_houseは出生図基準、chart_time_houseは選択日時チャート基準、solar_houseはソーラーハウスです。"

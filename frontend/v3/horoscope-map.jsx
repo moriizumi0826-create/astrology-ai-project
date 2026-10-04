@@ -1972,7 +1972,7 @@ function transitSkyMapData(day, forecast, selectedNatalPlanet = "SUN") {
   };
 }
 
-function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayIndex = 0, onSelectDayIndex = null, onSelectDate = null, birthForm = null }) {
+function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayIndex = 0, onSelectDayIndex = null, onSelectDate = null, birthForm = null, eventNavigation = null }) {
   const { session } = useAccess();
   const policy = featurePolicy(session);
   const canShowAspectList = policy.aspectList;
@@ -1995,6 +1995,10 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
   const hasManualMapPositionRef = React.useRef(false);
   const [selectedNatalPlanet, setSelectedNatalPlanet] = useState("SUN");
   const [selectedTransitTime, setSelectedTransitTime] = useState(() => currentTenMinuteTime());
+  const [eventMapDate, setEventMapDate] = useState(null);
+  const [selectedEvent, setSelectedEvent] = useState(null);
+  const [eventHint, setEventHint] = useState(false);
+  const [eventPulse, setEventPulse] = useState(false);
   const [transitChart, setTransitChart] = useState(null);
   const [playbackTransitChart, setPlaybackTransitChart] = useState(null);
   const [transitChartLoading, setTransitChartLoading] = useState(false);
@@ -2079,7 +2083,27 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
     });
     return () => { active = false; };
   }, []);
-  const selectedDate = dateKey(day?.date);
+  const selectedDate = eventMapDate || dateKey(day?.date);
+  useEffect(() => {
+    if (!eventNavigation) { setSelectedEvent(null); setEventHint(false); setEventPulse(false); setEventMapDate(null); return; }
+    if (sceneStateRef.current?.playbackSequence) sceneStateRef.current.playbackSequence.active = false;
+    setIsTransitPlaybackActive(false);
+    setTransitPlaybackCursor(null);
+    setPlaybackTransitChart(null);
+    setEventMapDate(eventNavigation.date);
+    setSelectedTransitTime(eventNavigation.time);
+    setSelectedEvent(eventNavigation);
+    setMapPlanetDisplayMode('both');
+    setAspectLineMode('transitNatal');
+    setAspectInterpretationScope('transitNatal');
+    setAspectLineGroupSelection('transitNatal', 'all');
+    setAspectTooltip(null); setAspectLineFocus(null); setSelectedAspectLineHighlightKey('');
+    setIsMapAssistantOpen(false); setIsMapSettingsOpen(false); setIsAspectListPanelOpen(false); setIsMapControlsMenuOpen(false);
+    setEventHint(true); setEventPulse(true);
+    const timer = setTimeout(()=>setEventPulse(false),8000);
+    return ()=>clearTimeout(timer);
+  }, [eventNavigation]);
+  const clearEventContext = () => { setSelectedEvent(null); setEventHint(false); setEventPulse(false); };
   const [isTransitCalendarOpen, setIsTransitCalendarOpen] = useState(false);
   const selectedMapPlanetDisplayMode = MAP_PLANET_DISPLAY_MODE_OPTIONS.find((option) => option.key === mapPlanetDisplayMode)
     || MAP_PLANET_DISPLAY_MODE_OPTIONS[2];
@@ -2138,6 +2162,8 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
     }
   }, [isTransitCalendarOpen, selectedDate]);
   const commitTransitDate = (value) => {
+    clearEventContext();
+    setEventMapDate(null);
     setIsTransitPlaybackActive(false);
     setTransitPlaybackCursor(null);
     setPlaybackTransitChart(null);
@@ -2303,12 +2329,15 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
       </div>
     );
   };
-  const timeOptions = useMemo(() => tenMinuteTimeOptions(), []);
+  const timeOptions = useMemo(() => [...new Set([...tenMinuteTimeOptions(), selectedTransitTime])].sort(), [selectedTransitTime]);
+  const eventChartReady = !selectedEvent || (transitChart?.date === selectedDate && transitChart?.time === selectedTransitTime
+    && (!selectedEvent.utc_datetime || Date.parse(transitChart?.utc_datetime) === Date.parse(selectedEvent.utc_datetime))
+    && !transitChartLoading && !transitChartError);
   const dayWithTransitChart = useMemo(() => (
     transitChart && transitChart.date === selectedDate && transitChart.time === selectedTransitTime
-      ? { ...(day || {}), transit_chart: transitChart }
+      ? { ...(day || {}), ...(eventMapDate ? {date:selectedDate,all_aspects:[],allAspects:[]} : {}), transit_chart: transitChart }
       : day
-  ), [day, selectedDate, selectedTransitTime, transitChart]);
+  ), [day, selectedDate, selectedTransitTime, transitChart, eventMapDate]);
   const sceneSky = useMemo(() => transitSkyMapData(dayWithTransitChart, forecast, "SUN"), [dayWithTransitChart, forecast]);
   const sky = useMemo(() => transitSkyMapData(dayWithTransitChart, forecast, selectedNatalPlanet), [dayWithTransitChart, forecast, selectedNatalPlanet]);
   const tableDay = useMemo(() => (
@@ -2607,7 +2636,7 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
     if (!selectedDate) return;
     const formPayload = birthForm || getQueryReadingForm() || getStoredReadingForm();
     if (!formPayload) return;
-    const cacheKey = transitChartCacheKey(selectedDate, selectedTransitTime);
+    const cacheKey = transitChartCacheKey(selectedDate, selectedTransitTime) + (selectedEvent?.utc_datetime || '');
     const cachedChart = transitChartCacheRef.current.get(cacheKey);
     if (cachedChart) {
       setTransitChart(cachedChart);
@@ -2622,6 +2651,7 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
       ...formPayload,
       target_date: selectedDate,
       target_time: selectedTransitTime,
+      ...(selectedEvent?.utc_datetime ? {target_utc_datetime:selectedEvent.utc_datetime} : {}),
     })
       .then((payload) => {
         if (active) {
@@ -2642,7 +2672,7 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
     return () => {
       active = false;
     };
-  }, [selectedDate, selectedTransitTime, isTransitPlaybackActive, birthForm]);
+  }, [selectedDate, selectedTransitTime, isTransitPlaybackActive, birthForm, selectedEvent?.utc_datetime]);
 
   const preloadTransitChartsForDates = React.useCallback(async (targetTime, targetDates = null, onProgress = null) => {
     const dates = Array.isArray(targetDates) && targetDates.length
@@ -4238,6 +4268,7 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
     setTransitPlaybackCursor(null);
   };
   const toggleTransitPlayback = async () => {
+    clearEventContext();
     const permissionVersion = permissionVersionRef.current;
     if (isTransitPlaybackPreloading) return;
     if (isTransitPlaybackActive) {
@@ -4271,7 +4302,10 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
         ).filter(Boolean);
       const playbackStepDays = transitPlaybackStepDays;
       const playbackDates = samplePlaybackDates(remainingDates, playbackStepDays);
-      await preloadTransitChartsForDates(selectedTransitTime, playbackDates, (completed, total) => {
+      // Playback remains ten-minute based; only event navigation uses exact seconds.
+      const playbackTime = selectedTransitTime.slice(0,3) + String(Math.floor(Number(selectedTransitTime.slice(3,5))/10)*10).padStart(2,'0');
+      setSelectedTransitTime(playbackTime);
+      await preloadTransitChartsForDates(playbackTime, playbackDates, (completed, total) => {
         setTransitPlaybackPreloadProgress(total ? Math.round((completed / total) * 100) : 100);
       });
       if (permissionVersion !== permissionVersionRef.current) return;
@@ -4279,10 +4313,10 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
       const shouldPrecomputePlaybackCompound = canShowCompoundAspects && isCompoundAspectMode(aspectLineMode) && (isMobilePlayback || transitPlaybackRange === "month");
       const keyframes = playbackDates
         .map((targetDate) => {
-          const chart = transitChartCacheRef.current.get(transitChartCacheKey(targetDate, selectedTransitTime));
+          const chart = transitChartCacheRef.current.get(transitChartCacheKey(targetDate, playbackTime));
           return {
             date: targetDate,
-            time: selectedTransitTime,
+            time: playbackTime,
             chart,
             transitMap: chart ? chartTransitMap(chart) : null,
             houseCusps: chart ? chartHouseCusps(chart) : [],
@@ -4356,6 +4390,7 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
     setMapOffset(isFlatMapView ? { x: 0, y: 0 } : defaultMapOffset());
   };
   const resetMapSettings = () => {
+    clearEventContext();
     const state = sceneStateRef.current;
     if (state?.playbackSequence) state.playbackSequence.active = false;
     const nextOffset = defaultMapOffset();
@@ -4543,6 +4578,7 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
               <select
               value={displayedTransitDateTime.time || selectedTransitTime}
               onChange={(event) => {
+                clearEventContext();
                 setIsTransitPlaybackActive(false);
                 setTransitPlaybackCursor(null);
                 setPlaybackTransitChart(null);
@@ -4731,9 +4767,10 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
           <div className="absolute bottom-3 left-2 right-[152px] z-[100] flex h-[42px] items-center justify-start gap-1 [&>button]:min-w-0 [&>button]:gap-0 [&>button]:px-1 [&>button]:text-[9px] [&>button>svg]:hidden sm:left-4 sm:gap-2 sm:[&>button]:gap-1.5 sm:[&>button]:px-2.5 sm:[&>button]:text-[11px] sm:[&>button>svg]:block" aria-label="マップの詳細情報">
             <button type="button" disabled={!canShowAspectList} title={!canShowAspectList ? "有料版で利用できます" : undefined} onClick={() => {setIsAspectListPanelOpen(value => !value); setIsMapControlsMenuOpen(false); setIsMapSettingsOpen(false);}} aria-expanded={isAspectListPanelOpen} aria-controls={mapId + "-map-aspect-details"} className={cx(mapControlButtonClass,"border border-white/10 bg-[#101827]/90 shadow-lg backdrop-blur-xl",isAspectListPanelOpen && "text-gold")}><ChevronDown size={13} className={isAspectListPanelOpen ? "" : "rotate-180"} />アスペクト一覧</button>
             <button type="button" onClick={() => {setIsMapControlsMenuOpen(value => !value); setIsAspectListPanelOpen(false); setIsMapSettingsOpen(false);}} aria-expanded={isMapControlsMenuOpen} aria-controls={mapId + "-map-chart-details"} className={cx(mapControlButtonClass,"border border-white/10 bg-[#101827]/90 shadow-lg backdrop-blur-xl", !isMapFullscreen && "hidden sm:inline-flex",isMapControlsMenuOpen && "text-gold")}><ChevronDown size={13} className={isMapControlsMenuOpen ? "" : "rotate-180"} />天体データ</button>
-            <button type="button" onClick={() => { setIsMapAssistantOpen(value => !value); setIsAspectListPanelOpen(false); setIsMapControlsMenuOpen(false); setIsMapSettingsOpen(false); }} aria-expanded={isMapAssistantOpen} aria-controls={mapId + "-map-assistant"} className={cx(mapControlButtonClass, "border border-gold/30 bg-[#101827]/90 text-gold shadow-lg backdrop-blur-xl")}><Sparkles size={13} />AIに聞く</button>
+            <button type="button" onClick={() => { setEventHint(false); setEventPulse(false); setIsMapAssistantOpen(value => !value); setIsAspectListPanelOpen(false); setIsMapControlsMenuOpen(false); setIsMapSettingsOpen(false); }} aria-expanded={isMapAssistantOpen} aria-controls={mapId + "-map-assistant"} className={cx(mapControlButtonClass, "border border-gold/30 bg-[#101827]/90 text-gold shadow-lg backdrop-blur-xl", eventPulse && 'motion-safe:animate-pulse ring-2 ring-gold/60')}><Sparkles size={13} />AIに聞く</button>
           </div>
-          <MapAssistantPanel key={session?.user_id || 'anonymous'} open={isMapAssistantOpen} id={mapId + "-map-assistant"} canAsk={policy.mapAssistant} onClose={() => setIsMapAssistantOpen(false)} context={{ date: displayedTransitDateTime.date || "" }} getContext={() => {
+          {eventHint && <p className="pointer-events-none absolute bottom-14 left-3 z-[100] rounded-lg bg-[#101827]/95 px-2 py-1 text-[10px] text-gold" role="status">このイベントについて質問できます</p>}
+          <MapAssistantPanel key={session?.user_id || 'anonymous'} eventNotice={selectedEvent} contextReady={eventChartReady} contextError={selectedEvent ? transitChartError : ''} open={isMapAssistantOpen} id={mapId + "-map-assistant"} canAsk={policy.mapAssistant} onClose={() => setIsMapAssistantOpen(false)} context={{ date: displayedTransitDateTime.date || "" }} getContext={() => {
             const state = sceneStateRef.current;
             const sequence = state?.playbackSequence;
             const frame = sequence?.active ? sequence.keyframes?.[sequence.index] : null;
@@ -4744,6 +4781,7 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
               timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
               mode: selectedAspectDisplayMode.label || "",
               planetMode: mapPlanetDisplayMode,
+              selectedEvent,
               // Pass only real chart cusps, never the map's equal-house visual fallback.
               natalCusps: forecast?.natal_house_cusps ?? forecast?.natalHouseCusps ?? forecast?.house_cusps ?? forecast?.houseCusps,
               transitCusps: chart?.house_cusps ?? chart?.houseCusps,

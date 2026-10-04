@@ -1,10 +1,10 @@
 """Explicit V3 route adapters; never mount the legacy app or admin endpoints."""
-from datetime import timedelta
+from datetime import timedelta, datetime, timezone, time
 import sqlite3
 from zoneinfo import ZoneInfo
 from typing import Literal
 from fastapi import APIRouter, Depends, HTTPException, Request
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 from backend.app import main as legacy
 from backend.app.schemas import LocationSearchResponse, ReadingRequest, TransitChartRequest, TransitChartsRequest
 from backend.v3.access import AccessSnapshot, get_access_snapshot, require_paid_access
@@ -77,10 +77,42 @@ for path, endpoint in [
 ]:
     router.add_api_route(path, endpoint, methods=["GET"])
 
+class V3TransitChartRequest(TransitChartRequest):
+    # Keep the legacy and bulk endpoints on their existing ten-minute contract.
+    target_utc_datetime: datetime | None = None
+
+    @field_validator('target_time')
+    @classmethod
+    def validate_target_time_step(cls, value: time):
+        if value.microsecond or value.tzinfo:
+            raise ValueError('target_time must be a local time with second precision')
+        return value
+
+    @model_validator(mode='after')
+    def verify_event_instant(self):
+        if self.target_utc_datetime is not None:
+            if self.target_utc_datetime.tzinfo is None or self.target_utc_datetime.microsecond:
+                raise ValueError('target_utc_datetime must include a timezone and whole seconds')
+            local = self.target_utc_datetime.astimezone(ZoneInfo(self.display_timezone_name or 'Asia/Tokyo'))
+            if local.date() != self.target_date or local.time().replace(tzinfo=None) != self.target_time:
+                raise ValueError('event instant does not match target date/time')
+        return self
+
+
 @router.post("/transit-chart")
-def single_chart(payload: TransitChartRequest, request: Request):
+def single_chart(payload: V3TransitChartRequest, request: Request):
     check_request_limit(request, "single")
-    return legacy.create_transit_chart(payload)
+    instant = payload.target_utc_datetime
+    if instant:
+        local = instant.astimezone(ZoneInfo(payload.display_timezone_name or 'Asia/Tokyo'))
+        utc = instant.astimezone(timezone.utc)
+        chart = legacy.create_transit_chart(payload.model_copy(update={
+            'target_date':utc.date(), 'target_time':utc.time().replace(tzinfo=None), 'display_timezone_name':'UTC'}))
+        return {**chart, 'date':payload.target_date.isoformat(), 'time':payload.target_time.strftime('%H:%M:%S') if payload.target_time.second else payload.target_time.strftime('%H:%M'),
+                'display_timezone_name':payload.display_timezone_name, 'timezone_offset':local.utcoffset().total_seconds()/3600,
+                'time_adjustment':None}
+    chart = legacy.create_transit_chart(payload)
+    return {**chart, 'time':payload.target_time.strftime('%H:%M:%S') if payload.target_time.second else payload.target_time.strftime('%H:%M')}
 
 
 @router.post("/transit-charts")

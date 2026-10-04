@@ -1,5 +1,6 @@
 // Main paid views, loaded only after the V3 session gate.
 import { TransitNatalSunMap, Horoscope3DMap } from "./horoscope-map.jsx";
+import { calendarMapNavigation } from './calendar-map-navigation.mjs';
 import { getJson, postJson, requestJson, formatApiError, resolveApiBaseUrl, getQueryReadingForm, reloadCsvMasters } from "./api.mjs";
 import { useAccess } from "./access-context.jsx";
 import { AccountControls } from "./account-controls.jsx";
@@ -1205,6 +1206,18 @@ function UnifiedForecastView({
   );
   const [selectedUnifiedMonthlyDayIndex, setSelectedUnifiedMonthlyDayIndex] = useState(() => realtimeDayIndex(monthlyTransitDays));
   const [expandedForecastMapViews, setExpandedForecastMapViews] = useState({ monthly: false, annual: false });
+  const [eventNavigation, setEventNavigation] = useState(null);
+  const [eventNavigationError, setEventNavigationError] = useState('');
+  const eventMapRef = React.useRef(null);
+  const openEventMap = event => {
+    try { setEventNavigation({...calendarMapNavigation(event), token: crypto.randomUUID()}); setEventNavigationError(''); }
+    catch (error) { setEventNavigationError(error.message); }
+  };
+  useEffect(() => {
+    if (!eventNavigation || activeUnifiedView !== 'daily') return;
+    const frame = requestAnimationFrame(() => eventMapRef.current?.scrollIntoView({block:'start', behavior:window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth'}));
+    return () => cancelAnimationFrame(frame);
+  }, [eventNavigation, activeUnifiedView]);
   const [forecastYearSelectorOpen, setForecastYearSelectorOpen] = useState(false);
   const activeForecastYearButtonRef = React.useRef(null);
   const canSelectForecastYear = activeUnifiedView !== "daily";
@@ -1235,7 +1248,7 @@ function UnifiedForecastView({
       onSelectDayIndex: setSelectedAnnualDayIndex,
     };
   const mapDate = dateKey(mapConfig.day?.date);
-  const mapDayPending = Boolean(mapDate && (
+  const mapDayPending = Boolean(!(activeUnifiedView === 'daily' && eventNavigation) && mapDate && (
     detailLoadingKeys.has(`day:${mapDate}`) || !yearlyDayDetailLoaded(forecast, mapDate)
   ));
   const monthlyDetailPending = activeUnifiedView === "monthly" && (
@@ -1339,7 +1352,9 @@ function UnifiedForecastView({
           key={`daily-${dailyViewResetKey}`}
           data={dailyDetailData}
           onDisplayDateChange={onDailyDisplayDateChange}
+          onOpenEventMap={openEventMap}
         />
+        {eventNavigationError && <p role="alert" className="text-sm text-red-300">{eventNavigationError}</p>}
       </div>
       <div className={cx(activeUnifiedView === "monthly" ? "block" : "hidden")}>
         {monthlyDetailPending ? (
@@ -1378,7 +1393,7 @@ function UnifiedForecastView({
         </button>
       ) : null}
       {forecastMapIsExpanded ? (
-        <div id={forecastMapRegionId}>
+        <div id={forecastMapRegionId} ref={eventMapRef} className="scroll-mt-24">
           {mapDayPending ? (
             <ForecastLoadingPanel label={`${formatShortDate(mapDate)}の天体・アスペクトを読込中`} />
           ) : (
@@ -1388,6 +1403,7 @@ function UnifiedForecastView({
               availableDays={mapConfig.availableDays}
               selectedDayIndex={mapConfig.selectedDayIndex}
               onSelectDayIndex={mapConfig.onSelectDayIndex}
+              eventNavigation={activeUnifiedView === 'daily' ? eventNavigation : null}
             />
           )}
         </div>

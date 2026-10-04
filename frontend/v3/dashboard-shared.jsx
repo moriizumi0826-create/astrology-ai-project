@@ -765,7 +765,7 @@ function DashboardV2DailyThemeCard({ data, displayDate = "", onDateShift = () =>
   );
 }
 
-export function DashboardV2CountdownCard({ data, onSelectAspect = () => {}, calendarOnly = false }) {
+export function DashboardV2CountdownCard({ data, onSelectAspect = () => {}, calendarOnly = false, onOpenEventMap = null }) {
   const calendarNotes = useCalendarNotes();
   const calendarTitleId = React.useId();
   useEffect(() => { if (calendarNotes && !calendarNotes.loaded) calendarNotes.reload(); }, []);
@@ -1273,6 +1273,7 @@ export function DashboardV2CountdownCard({ data, onSelectAspect = () => {}, cale
                           <h4 className="mt-2 font-notoSerif text-base font-black text-[#f3f3f0]">{item.title || typeMeta.label}</h4>
                           <p className="mt-2 text-[11px] leading-6 text-[#c7c6cc]">{item.note || "この天体イベントが、あなたのテーマに変化をもたらしやすい時期です。"}</p>
                           <GoogleCalendarButton event={item} />
+                          {onOpenEventMap && <button type="button" className="mt-3 block rounded-lg border border-gold/40 px-3 py-2 text-xs text-gold hover:bg-gold/10" onClick={() => { onOpenEventMap(item); setSelectedCalendarDate(''); }}>この日時の3Dマップを見る</button>}
                         </article>
                       );
                     })}
@@ -2290,7 +2291,7 @@ export function DashboardV2HoroscopePage({ data, belowMetaContent = null }) {
   );
 }
 
-export function DashboardDailyDetailContentLayer({ data = dashboardData, className = "", onDisplayDateChange = null }) {
+export function DashboardDailyDetailContentLayer({ data = dashboardData, className = "", onDisplayDateChange = null, onOpenEventMap = null }) {
   if (data?.is_loading) {
     return (
       <DashboardV2Card className={className} bodyClassName="flex min-h-[220px] items-center justify-center p-8">
@@ -2303,6 +2304,7 @@ export function DashboardDailyDetailContentLayer({ data = dashboardData, classNa
       data={data}
       className={className}
       onDisplayDateChange={onDisplayDateChange}
+      onOpenEventMap={onOpenEventMap}
     />
   );
 }
@@ -2311,6 +2313,7 @@ function DashboardDailyDetailLayerBase({
   data = dashboardData,
   className = "",
   onDisplayDateChange = null,
+  onOpenEventMap = null,
 }) {
   const [activeDailyData, setActiveDailyData] = useState(data);
   const [selectedDailyDate, setSelectedDailyDate] = useState(() => currentLocalDate());
@@ -2442,6 +2445,7 @@ function DashboardDailyDetailLayerBase({
         />
         <DashboardV2CountdownCard
           data={activeDailyData}
+          onOpenEventMap={onOpenEventMap}
           onSelectAspect={(key) => setFocusedAspect(key ? { key, token: Date.now() } : null)}
         />
       </div>

@@ -20,7 +20,7 @@ export function compactBirth(form) {
     ...(round(form.timezone_offset) !== null ? {utc_offset: round(form.timezone_offset)} : {}),
   };
 }
-export function buildMapAssistantContext({date='',time='',timezone='',mode='',planet='',planetMode='both',aspects=[],natal=[],transits=[],natalCusps,transitCusps,memberForm,chartForm,isSelected=()=>false}) {
+export function buildMapAssistantContext({date='',time='',timezone='',mode='',planet='',planetMode='both',aspects=[],natal=[],transits=[],natalCusps,transitCusps,memberForm,chartForm,selectedEvent,isSelected=()=>false}) {
   const unique = new Map();
   for (const a of aspects) {
     const first = a.scope === 'transitTransit' ? point('T', a.transitPlanet) : point('N', a.natalPlanet);
@@ -53,6 +53,7 @@ export function buildMapAssistantContext({date='',time='',timezone='',mode='',pl
     }
   }
   return {date,time,timezone,aspect_mode:mode,selected_planet:planet,
+    ...(selectedEvent ? {selected_event:{title:selectedEvent.title,type:selectedEvent.type,date:selectedEvent.date,time:selectedEvent.time,approximate:selectedEvent.approximate}} : {}),
     selected_aspect: rows.filter(a=>a.selected).map(a=>a.row.slice(0,3).join(' ')).join(';').slice(0,160),
     aspects:rows.map(a=>a.row),aspects_total:unique.size,aspects_omitted:Math.max(0,unique.size-rows.length),
     patterns:[...new Set(rows.flatMap(a=>a.patterns))].slice(0,8).map(s=>s.slice(0,200)),
