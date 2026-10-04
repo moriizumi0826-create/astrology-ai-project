@@ -60,7 +60,18 @@ export function UpdateMenu({ versionState, onRefreshLatest, refreshingLatest = f
         <button type="button" onClick={() => setPage("main")} className="min-h-11 w-full rounded-lg px-3 text-left text-xs hover:bg-slate-100">キャンセル</button>
       </> : <>
         <h2 className="px-3 py-3 text-sm font-semibold">{page === "history" ? "更新履歴" : "お知らせ"}</h2>
-        <p className="px-3 pb-3 text-xs leading-6 text-slate-500">{page === "history" ? "更新履歴は準備中です。" : "お知らせは準備中です。"}</p>
+        {page === "history" ? <ol className="max-h-[50vh] space-y-4 overflow-y-auto px-3 pb-3 text-xs leading-6">
+          <li>
+            <time dateTime="2026-10-04" className="font-semibold text-slate-500">2026/10/04</time>
+            <p className="font-semibold">Google連携を追加しました</p>
+            <p className="text-slate-600">Googleアカウントでログイン・新規登録できるようになりました。天体イベントの詳細から、選んだイベントをGoogleカレンダーへ追加できます（Google側で確認・保存）。</p>
+          </li>
+          <li>
+            <time dateTime="2026-10-01" className="font-semibold text-slate-500">2026/10/01</time>
+            <p className="font-semibold">AIチャット機能を追加しました</p>
+            <p className="text-slate-600">3Dマップの「AIに聞く」から、使い方の確認や表示中のチャートについて質問できるようになりました。</p>
+          </li>
+        </ol> : <p className="px-3 pb-3 text-xs leading-6 text-slate-500">お知らせは準備中です。</p>}
         <button type="button" onClick={() => setPage("main")} className="min-h-11 w-full rounded-lg px-3 text-left text-xs hover:bg-slate-100">← 更新メニューに戻る</button>
       </>}
     </section>}
