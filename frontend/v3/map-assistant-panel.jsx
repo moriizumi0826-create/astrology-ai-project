@@ -108,7 +108,7 @@ export function MapAssistantPanel({ id, context, getContext, onClose, canAsk = f
   }
 
   return (
-    <section id={id} hidden={!open} style={open ? undefined : { display: "none" }} aria-label="3Dマップ AIガイド" className="absolute inset-x-3 bottom-14 z-[230] flex max-h-[min(75%,560px)] flex-col rounded-2xl border border-gold/30 bg-[#101827]/95 text-mist shadow-2xl backdrop-blur-xl sm:inset-x-auto sm:right-4 sm:w-[min(400px,calc(100%-2rem))]">
+    <section id={id} hidden={!open} style={open ? undefined : { display: "none" }} aria-label="3Dマップ AIガイド" className="absolute inset-x-3 bottom-14 z-[230] flex h-[calc(100%-8rem)] max-h-[calc(100%-8rem)] flex-col rounded-2xl border border-gold/30 bg-[#101827]/95 text-mist shadow-2xl backdrop-blur-xl sm:inset-x-auto sm:right-4 sm:h-auto sm:max-h-[min(75%,560px)] sm:w-[min(400px,calc(100%-2rem))] group-[:fullscreen]/v3-map:h-auto group-[:fullscreen]/v3-map:max-h-[min(75%,560px)]">
       <div className="flex shrink-0 items-center justify-between border-b border-white/10 px-4 py-3">
         <div><div className="flex items-center gap-1"><h3 className="text-sm font-semibold text-starlight">3Dマップ AIガイド</h3><button ref={infoButtonRef} type="button" aria-label="AIへ送られる情報" aria-expanded={infoOpen} aria-controls={id+'-info'} onClick={()=>setInfoOpen(value=>!value)} className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-full text-base text-gold hover:bg-white/10">ⓘ</button></div><p className="text-[10px] text-mist/65">固定質問はAIを使わずに回答します</p></div>
         <button type="button" onClick={onClose} aria-label="AIガイドを閉じる" className="rounded-lg px-2 py-1 text-lg hover:bg-white/10">×</button>

@@ -4559,7 +4559,7 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
       <div className="grid gap-4 lg:items-stretch">
         <div
           ref={frameRef}
-          className="relative min-h-[520px] overflow-hidden rounded-2xl border border-white/10 bg-[#101827] sm:min-h-[600px] lg:min-h-[700px] xl:min-h-[760px] [&:fullscreen]:h-screen [&:fullscreen]:min-h-screen [&:fullscreen]:rounded-none [&:fullscreen]:border-0"
+          className="group/v3-map relative min-h-[clamp(560px,82svh,720px)] overflow-hidden rounded-2xl border border-white/10 bg-[#101827] sm:min-h-[600px] lg:min-h-[700px] xl:min-h-[760px] [&:fullscreen]:h-screen [&:fullscreen]:min-h-screen [&:fullscreen]:rounded-none [&:fullscreen]:border-0"
           style={{
             backgroundImage: [
               "radial-gradient(circle at 18% 16%, rgba(139,211,255,0.18), transparent 30%)",

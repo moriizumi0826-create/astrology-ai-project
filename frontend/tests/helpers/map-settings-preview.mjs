@@ -14,7 +14,7 @@ const server = await createServer({ ...base, configFile: false,
       if (id === '\0map-preview.jsx') return entry;
       const path = id.replaceAll('\\', '/');
       if (path.endsWith('/v3/calendar-workspace.jsx')) return 'export const useCalendarNotes=()=>null;';
-      if (path.endsWith('/v3/api.mjs')) return `export const getJson=async()=>({}),postJson=async()=>({}),requestJson=async()=>({ok:true,data:{}}),formatApiError=()=>'',resolveApiBaseUrl=()=>'',getQueryReadingForm=()=>null;`;
+      if (path.endsWith('/v3/api.mjs')) return `export const getJson=async()=>({limit:20,remaining:20,reset_at:new Date(Date.now()+86400000).toISOString()}),postJson=async()=>({}),requestJson=async()=>({ok:true,data:{}}),formatApiError=()=>'',resolveApiBaseUrl=()=>'',getQueryReadingForm=()=>null;`;
     },
     configureServer(server) { server.middlewares.use('/settings-fixture', async (_req, res) => {
       res.setHeader('Content-Type', 'text/html');
