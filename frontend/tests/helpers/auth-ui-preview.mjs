@@ -17,6 +17,9 @@ const initializeCaptcha = async container => { await pause(1000); container.hidd
 const captchaTokenForRequest = () => 'preview';
 const resetCaptcha = () => {};
 const authMessage = () => 'メールアドレスまたはパスワードが違います。';
+const requireGoogleProvider = async () => {};
+const signInWithGoogle = async () => { if(scenario==='google-error')throw Error('provider disabled');document.querySelector('#status').textContent='Google認証への移動を確認（実際の認証・送信なし）'; };
+const googleLoginError = () => 'Googleログインは準備中です。メールアドレスでログインしてください。';
 const __APP_ENVIRONMENT__ = 'local';
 `;
 http.createServer((req,res) => {

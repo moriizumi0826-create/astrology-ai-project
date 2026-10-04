@@ -23,6 +23,9 @@ async function setup({ member = false, saved = true, failInit = false, now = "20
     getJson: async () => member ? { user_id: "test" } : {}, configureStorage() {}, getStoredReadingForm: () => saved ? ({ test: true }) : null,
     finishMemberLogin: async () => {}, initializeCaptcha: async () => {}, resetCaptcha() {}, captchaTokenForRequest: () => "captcha-test",
     authMessage: () => "入力・通信状態を確認してください。", __APP_ENVIRONMENT__: "local", location: { origin: "http://localhost", assign(url) { calls.push({ name: "navigate", url }); }, replace() {}, reload() {} } });
+  context.requireGoogleProvider = async () => {};
+  context.signInWithGoogle = async () => { calls.push({ name: "google" }); if (failure) throw failure; };
+  context.googleLoginError = () => "Googleログインを開始できませんでした。";
   vm.runInContext(script, context);
   assert.equal(el("#submit").disabled, true);
   resolveInit(); await new Promise(resolve => setImmediate(resolve));
@@ -74,4 +77,19 @@ test("campaign notice is signup-only and ends at November 1 JST", async () => {
   const ended = await setup({ now: "2026-11-01T00:00:00+09:00" });
   ended.mode("signup"); assert.equal(ended.el("#signup-campaign").hidden, true);
   assert.doesNotMatch(html, /先着25名/); assert.match(html, /メール認証/); assert.match(html, /一定の人数に達し次第終了/);
+});
+
+test("Google button shares busy lock and recovers after failure; hidden for reset", async () => {
+  const ui = await setup();
+  assert.equal(ui.el("#google-login-section").hidden, false);
+  ui.fail({ message: "provider disabled" });
+  await ui.el("#google-login").handlers.click();
+  assert.equal(ui.el("#google-login").disabled, false);
+  assert.match(ui.el("#error").textContent, /Google/);
+  ui.fail(null);
+  await ui.el("#google-login").handlers.click();
+  assert.equal(ui.calls.at(-1).name, "google");
+  assert.equal(ui.el("#submit").disabled, true);
+  const reset = await setup(); reset.mode("reset");
+  assert.equal(reset.el("#google-login-section").hidden, true);
 });

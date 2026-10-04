@@ -11,6 +11,11 @@
 <div id="loading" role="status"><div class="skeleton" aria-hidden="true"></div><p>ログイン状態を確認しています…</p><button id="retry" type="button" hidden>再読み込み</button></div>
 <div id="auth-content" hidden>
 <nav aria-label="認証操作"><button type="button" data-mode="login" aria-pressed="true">ログイン</button><button type="button" data-mode="signup" aria-pressed="false">新規登録</button></nav>
+<section id="google-login-section" aria-label="Googleアカウントで続ける">
+<button id="google-login" class="google-login" type="button" disabled><span aria-hidden="true" class="google-mark">G</span>Googleで続ける</button>
+<p class="hint">ログイン・新規登録に利用できます。</p>
+<p class="auth-divider"><span>またはメールアドレスで</span></p>
+</section>
 <form id="member-form">
 <div id="fields">
 <aside id="signup-campaign" class="campaign-notice" aria-label="新規登録キャンペーン" hidden>

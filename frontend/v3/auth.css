@@ -20,5 +20,8 @@ button:disabled{opacity:.55;cursor:wait}a:focus-visible,button:focus-visible,inp
 .return-link{text-align:center;font-size:13px;margin:20px 0}footer{justify-content:center}footer a{color:#b9bdc8}
 .campaign-notice{margin:0 0 20px;padding:14px 16px;border:1px solid #e9c34955;border-radius:10px;background:#e9c34909;font-size:13px}
 .campaign-notice strong{display:block;color:#ead17c;font-size:15px;line-height:1.6}.campaign-notice p{margin:8px 0 0;color:#d1d2d7}.campaign-notice .hint{font-size:12px;color:#b9bdc8}
+.google-login{display:flex;align-items:center;justify-content:center;gap:12px;width:100%;padding:12px;background:#fff;color:#1f2937;border:1px solid #d1d5db;font-size:15px;font-weight:600}
+.google-login:hover:not(:disabled){background:#eef2f7}.google-mark{font-family:Arial,sans-serif;font-size:20px;font-weight:700;color:#4285f4}
+#google-login-section>.hint{text-align:center}.auth-divider{display:flex;align-items:center;gap:12px;margin:18px 0;color:#b9bdc8;font-size:12px}.auth-divider:before,.auth-divider:after{content:"";height:1px;flex:1;background:#ffffff20}
 @media(max-width:540px){main{margin:24px auto}.auth-card{padding:20px 16px}.brand{margin-bottom:18px}h1{font-size:24px}}
 @media(max-width:380px){.captcha-space{min-height:160px}}

@@ -3,10 +3,11 @@ import { getJson } from "./api.mjs";
 import { configureStorage, getStoredReadingForm } from "./reading-storage.js";
 import { finishMemberLogin } from "./profile.mjs";
 import { captchaTokenForRequest, initializeCaptcha, resetCaptcha } from "./captcha.mjs";
+import { signInWithGoogle, googleLoginError, requireGoogleProvider } from "./google-login.mjs";
 
 const $ = selector => document.querySelector(selector);
 const form = $("#member-form"), button = $("#submit"), status = $("#status"), errorBox = $("#error");
-let mode = "login", client, busy = false, ready = false, sent = false, sentEmail = "";
+let mode = "login", client, authConfig, busy = false, ready = false, sent = false, sentEmail = "";
 const labels = { login: "ログイン", signup: "新規登録", reset: "再設定メールを送信" };
 configureStorage(null);
 const destination = () => getStoredReadingForm() ? "/index.html#horoscope" : "/auth-callback.html?mode=onboarding";
@@ -26,6 +27,7 @@ function setMode(next) {
   document.title = `${$("#heading").textContent} | The Celestial Atelier`;
   $("#description").textContent = { login: "アカウントにログインして、続きを楽しみましょう。", signup: "無料でアカウントを作成し、出生情報を保存できます。", reset: "登録したメールアドレスへ、再設定用のリンクを送ります。" }[next];
   $("nav").hidden = next === "reset";
+  $("#google-login-section").hidden = next === "reset";
   $("#fields").hidden = false; $("#email-sent").hidden = true;
   $("#password-row").hidden = next === "reset";
   $("#password").required = next !== "reset";
@@ -51,6 +53,7 @@ function showSent(email) {
   $("#heading").textContent = "メールをご確認ください";
   $("#description").textContent = "メール内のリンクから、手続きを続けてください。";
   $("#fields").hidden = true; $("nav").hidden = true;
+  $("#google-login-section").hidden = true;
   $("#email-sent").hidden = false; $("#sent-email").textContent = email;
   $("#sent-note").textContent = mode === "signup"
     ? "登録可能な場合は確認メールが届きます。登録済みの場合はログイン、またはパスワード再設定をご利用ください。"
@@ -61,6 +64,7 @@ function showSent(email) {
 async function initialize() {
   try {
     const config = await initializeAuth();
+    authConfig = config;
     if (__APP_ENVIRONMENT__ === "local" && config.mode === "local_test") { location.replace("/test-login.html"); return; }
     client = await authClient();
     let session;
@@ -96,6 +100,19 @@ async function initialize() {
 setMode("login");
 initialize();
 $("#retry").addEventListener("click", () => location.reload());
+$("#google-login").addEventListener("click", async () => {
+  if (!ready || busy || sent) return;
+  clearFeedback(); setBusy(true);
+  $("#google-login").textContent = "Googleへ移動しています…";
+  try {
+    await requireGoogleProvider(authConfig);
+    await signInWithGoogle(client, location.origin);
+  } catch (error) {
+    errorBox.textContent = googleLoginError(error);
+    $("#google-login").textContent = "Googleで続ける";
+    setBusy(false);
+  }
+});
 document.querySelectorAll("[data-mode]").forEach(item => item.addEventListener("click", () => { setMode(item.dataset.mode); $("#heading").focus(); }));
 $("#show-password").addEventListener("click", () => {
   const show = $("#password").type === "password";
