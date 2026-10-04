@@ -3,6 +3,8 @@ import "./tailwind.css";
 import { Menu } from "lucide-react";
 import { createRoot } from "react-dom/client";
 import { AccountControls } from "./account-controls.jsx";
+import { UpdateMenu } from "./update-menu.jsx";
+import { AppVersionProvider } from "./app-version-context.jsx";
 import { CalendarWorkspace, useCalendarNotes } from "./calendar-workspace.jsx";
 import { AccessContext } from "./access-context.jsx";
 import { BirthDataEditor } from "./birth-data-editor.jsx";
@@ -52,7 +54,10 @@ function Horoscope({ onForecast, session }) {
             <Menu size={15} />
           </button>
         </div>
-        <AccountControls session={session} />
+        <div className="flex shrink-0 items-center gap-2 sm:gap-3">
+          <AccountControls session={session} />
+          <UpdateMenu />
+        </div>
         <nav
           id="v3-workspace-nav"
           className={`order-last w-full items-center gap-5 overflow-x-auto border-t border-slate-200 pt-3 font-mono text-[10px] font-bold tracking-[0.1em] text-[#0A192F]/70 transition-all [scrollbar-width:none] sm:text-xs lg:gap-10 lg:tracking-[0.12em] ${menuOpen ? "flex max-h-20 opacity-100" : "hidden max-h-0 opacity-0"}`}
@@ -198,4 +203,4 @@ function App() {
 
 const root = import.meta.hot?.data.root || createRoot(document.getElementById("forecast-detail-root"));
 if (import.meta.hot) import.meta.hot.data.root = root;
-root.render(<App />);
+root.render(<AppVersionProvider><App /></AppVersionProvider>);

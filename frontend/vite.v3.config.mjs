@@ -2,10 +2,12 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { defineConfig, loadEnv } from "vite";
 import react from "@vitejs/plugin-react";
+import { randomUUID } from "node:crypto";
 
 const directory = path.dirname(fileURLToPath(import.meta.url));
 
 export default defineConfig(({ mode }) => {
+  const buildId = randomUUID();
   const rootEnv = loadEnv(mode, path.resolve(directory, ".."), "");
   const deployment = rootEnv.VITE_V3_ENVIRONMENT || "local";
   if (!["local", "preview", "production"].includes(deployment)) throw new Error("VITE_V3_ENVIRONMENT must be local, preview, or production");
@@ -27,6 +29,18 @@ export default defineConfig(({ mode }) => {
   root: path.join(directory, "v3"),
   base: "/",
   plugins: [react(), {
+    name: "v3-build-version",
+    generateBundle() {
+      this.emitFile({ type: "asset", fileName: "version.json", source: JSON.stringify({ buildId }) });
+    },
+    configureServer(server) {
+      server.middlewares.use("/version.json", (_req, res) => {
+        res.setHeader("Content-Type", "application/json");
+        res.setHeader("Cache-Control", "no-store");
+        res.end(JSON.stringify({ buildId }));
+      });
+    },
+  }, {
     name: "v3-loopback-only",
     configResolved(config) {
       if (config.server.host !== "127.0.0.1") {
@@ -35,6 +49,7 @@ export default defineConfig(({ mode }) => {
     },
   }],
   define: {
+    __APP_BUILD_ID__: JSON.stringify(buildId),
     __APP_API_BASE_URL__: JSON.stringify(apiBaseUrl),
     __APP_ENVIRONMENT__: JSON.stringify(deployment),
     __APP_TURNSTILE_SITE_KEY__: JSON.stringify(turnstileSiteKey),

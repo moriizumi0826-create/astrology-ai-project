@@ -3,6 +3,7 @@ import { TransitNatalSunMap, Horoscope3DMap } from "./horoscope-map.jsx";
 import { getJson, postJson, requestJson, formatApiError, resolveApiBaseUrl, getQueryReadingForm, reloadCsvMasters } from "./api.mjs";
 import { useAccess } from "./access-context.jsx";
 import { AccountControls } from "./account-controls.jsx";
+import { UpdateMenu } from "./update-menu.jsx";
 import { featurePolicy } from "./feature-policy.mjs";
 import React, { useEffect, useMemo, useState } from "react";
 
@@ -121,43 +122,6 @@ function versionFromPayload(payload) {
   return String(payload?.masterVersion || payload?.master_version || payload?.dataVersion || "").trim();
 }
 
-function forecastDetailAssetFromDocument(doc, baseHref) {
-  const script = Array.from(doc.querySelectorAll("script[src]")).find((item) => {
-    const src = item.getAttribute("src") || "";
-    return src.includes("forecastDetail") || src.includes("/src/forecast-detail.jsx");
-  });
-  if (!script) return "";
-  try {
-    return new URL(script.getAttribute("src") || "", baseHref).pathname;
-  } catch {
-    return script.getAttribute("src") || "";
-  }
-}
-
-async function fetchFrontendVersionState() {
-  if (typeof window === "undefined" || typeof document === "undefined") {
-    return { currentAppAsset: "", latestAppAsset: "", isAppOutdated: false };
-  }
-  const currentAppAsset = forecastDetailAssetFromDocument(document, window.location.href);
-  const latestUrl = new URL(window.location.href);
-  latestUrl.hash = "";
-  latestUrl.searchParams.set("_app_version_check", String(Date.now()));
-  const response = await fetch(latestUrl.toString(), {
-    cache: "no-store",
-    headers: { "Cache-Control": "no-cache" },
-  });
-  if (!response.ok) {
-    throw new Error(`Frontend version check failed: ${response.status}`);
-  }
-  const html = await response.text();
-  const latestDoc = new DOMParser().parseFromString(html, "text/html");
-  const latestAppAsset = forecastDetailAssetFromDocument(latestDoc, latestUrl.toString());
-  return {
-    currentAppAsset,
-    latestAppAsset,
-    isAppOutdated: Boolean(currentAppAsset && latestAppAsset && currentAppAsset !== latestAppAsset),
-  };
-}
 
 function forecastYear(forecast) {
   const fromCache = Number(forecast?.cache?.year);
@@ -1463,128 +1427,6 @@ function UnifiedForecastView({
   );
 }
 
-function VersionRefreshButton({ versionState, onRefreshLatest, refreshingLatest }) {
-  const [isTooltipVisible, setIsTooltipVisible] = useState(false);
-  const [isRefreshConfirmationVisible, setIsRefreshConfirmationVisible] = useState(false);
-  const tooltipTimerRef = React.useRef(null);
-  const isDataOutdated = Boolean(versionState?.isOutdated);
-  const isAppOutdated = Boolean(versionState?.isAppOutdated);
-  const canRefresh = isAppOutdated || isDataOutdated;
-  const isCheckingVersion = Boolean(versionState?.checking);
-  const refreshTooltip = refreshingLatest
-    ? "最新版を取得しています"
-    : isAppOutdated
-      ? "アプリ画面が更新されています。クリックすると最新版の画面を読み込みます"
-      : isDataOutdated
-      ? "鑑定データが更新されています。クリックすると最新版で再計算します"
-      : versionState?.error
-        ? "更新確認に失敗しました。再読み込み後に再確認してください"
-        : isCheckingVersion
-          ? "更新状況を確認しています"
-          : "最新版です";
-  const isRefreshLabelVisible = isRefreshConfirmationVisible || refreshingLatest;
-  const buttonLabel = refreshingLatest
-    ? "最新版を取得しています"
-    : isRefreshConfirmationVisible
-      ? "最新版への更新を開始"
-      : canRefresh
-        ? "更新があります。最新版に更新ボタンを表示"
-        : versionState?.error
-          ? "更新確認に失敗しました"
-          : isCheckingVersion
-            ? "ページの読み込み完了後に更新状況を確認します"
-            : "最新版です";
-
-  useEffect(() => {
-    return () => {
-      if (tooltipTimerRef.current) {
-        window.clearTimeout(tooltipTimerRef.current);
-      }
-    };
-  }, []);
-
-  useEffect(() => {
-    if (!canRefresh || refreshingLatest || isCheckingVersion) {
-      setIsRefreshConfirmationVisible(false);
-    }
-  }, [canRefresh, isCheckingVersion, refreshingLatest]);
-
-  const showTooltipTemporarily = () => {
-    setIsTooltipVisible(true);
-    if (tooltipTimerRef.current) {
-      window.clearTimeout(tooltipTimerRef.current);
-    }
-    tooltipTimerRef.current = window.setTimeout(() => {
-      setIsTooltipVisible(false);
-      tooltipTimerRef.current = null;
-    }, 3000);
-  };
-
-  const handleRefreshButtonClick = () => {
-    if (isCheckingVersion || refreshingLatest) return;
-    if (!canRefresh) {
-      showTooltipTemporarily();
-      return;
-    }
-    if (!isRefreshConfirmationVisible) {
-      setIsTooltipVisible(false);
-      setIsRefreshConfirmationVisible(true);
-      return;
-    }
-    setIsRefreshConfirmationVisible(false);
-    if (isAppOutdated) {
-      const refreshUrl = new URL(window.location.href);
-      refreshUrl.searchParams.set("_app_refresh", String(Date.now()));
-      window.location.replace(refreshUrl.toString());
-      return;
-    }
-    if (isDataOutdated && !refreshingLatest) {
-      onRefreshLatest();
-    }
-  };
-
-  return (
-    <div className="group relative shrink-0">
-      <div className={cx(
-        "pointer-events-none fixed right-3 top-[54px] z-50 w-[min(320px,calc(100vw-24px))] rounded-lg border border-[#D4AF37]/45 bg-[#fffdf7] px-3 py-2 text-[11px] leading-5 text-[#0A192F] opacity-0 shadow-[0_12px_28px_rgba(15,23,42,0.18)] transition sm:invisible sm:opacity-0",
-        isTooltipVisible && "opacity-100"
-      )}>
-        {refreshTooltip}
-      </div>
-      <button
-        type="button"
-        onClick={handleRefreshButtonClick}
-        disabled={isCheckingVersion || refreshingLatest}
-        className={cx(
-          "inline-flex h-9 items-center justify-center rounded-full border px-2.5 font-mono text-[10px] font-black tracking-[0.08em] shadow-sm transition-[background-color,border-color,color,width] duration-300 sm:h-10 sm:px-3 sm:text-xs",
-          canRefresh
-            ? "border-[#D4AF37]/70 bg-[#D4AF37] text-[#241a00] hover:bg-[#f2d56d]"
-            : "cursor-not-allowed border-slate-200 bg-slate-100 text-[#0A192F]/35",
-          (isCheckingVersion || refreshingLatest) && "cursor-wait"
-        )}
-        aria-label={buttonLabel}
-        aria-expanded={canRefresh ? isRefreshConfirmationVisible : undefined}
-      >
-        <RefreshCw size={14} className={cx(refreshingLatest && "animate-spin")} />
-        <span
-          className={cx(
-            "overflow-hidden whitespace-nowrap opacity-0 transition-[max-width,margin,opacity] duration-300",
-            isRefreshLabelVisible ? "ml-1.5 max-w-[8rem] opacity-100 sm:ml-2" : "ml-0 max-w-0"
-          )}
-          aria-hidden={!isRefreshLabelVisible}
-        >
-          {refreshingLatest ? "更新中" : "最新版に更新"}
-        </span>
-      </button>
-      <div className={cx(
-        "pointer-events-none absolute right-0 top-full z-50 mt-2 hidden w-[320px] rounded-lg border border-[#D4AF37]/45 bg-[#fffdf7] px-3 py-2 text-xs leading-5 text-[#0A192F] opacity-0 shadow-[0_12px_28px_rgba(15,23,42,0.18)] transition sm:block",
-        isTooltipVisible && "opacity-100"
-      )}>
-        {refreshTooltip}
-      </div>
-    </div>
-  );
-}
 
 function RetrogradeCalendarPanel({
   id,
@@ -1741,12 +1583,10 @@ function Header({
             </div>
           </div>
         </div>
-        <VersionRefreshButton
-          versionState={versionState}
-          onRefreshLatest={onRefreshLatest}
-          refreshingLatest={refreshingLatest}
-        />
-        <AccountControls session={session} />
+        <div className="flex shrink-0 items-center gap-2 sm:gap-3">
+          <AccountControls session={session} />
+          <UpdateMenu versionState={versionState} onRefreshLatest={onRefreshLatest} refreshingLatest={refreshingLatest} />
+        </div>
         <nav
           id="forecast-mobile-nav"
           className={cx(
@@ -2952,9 +2792,6 @@ function ForecastDetailPage({ onHoroscope }) {
     currentMasterVersion: "",
     savedMasterVersion: payloadMasterVersion(getStoredReadingResult({ allowStale: true }) || {}),
     isOutdated: false,
-    currentAppAsset: "",
-    latestAppAsset: "",
-    isAppOutdated: false,
     error: "",
   });
   useEffect(() => {
@@ -3205,28 +3042,18 @@ function ForecastDetailPage({ onHoroscope }) {
       return () => {};
     }
     let active = true;
-    Promise.allSettled([
-      getJson("/api/master-version"),
-      fetchFrontendVersionState(),
-    ])
-      .then(([masterResult, frontendResult]) => {
+    getJson("/api/master-version")
+      .then((masterPayload) => {
         if (!active) return;
-        const masterPayload = masterResult.status === "fulfilled" ? masterResult.value : null;
-        const frontendPayload = frontendResult.status === "fulfilled" ? frontendResult.value : {};
         const currentMasterVersion = versionFromPayload(masterPayload);
         const savedMasterVersion = payloadMasterVersion(readingPayload);
-        const error = masterResult.status === "rejected" && frontendResult.status === "rejected"
-          ? "更新確認に失敗しました。再読み込み後に再確認してください。"
-          : "";
+        if (!currentMasterVersion) throw new Error("鑑定データの更新情報を取得できません。");
         setVersionState({
           checking: false,
           currentMasterVersion,
           savedMasterVersion,
           isOutdated: Boolean(currentMasterVersion && currentMasterVersion !== savedMasterVersion),
-          currentAppAsset: frontendPayload.currentAppAsset || "",
-          latestAppAsset: frontendPayload.latestAppAsset || "",
-          isAppOutdated: Boolean(frontendPayload.isAppOutdated),
-          error,
+          error: "",
         });
       })
       .catch((error) => {
@@ -3355,9 +3182,6 @@ function ForecastDetailPage({ onHoroscope }) {
         currentMasterVersion: masterVersion,
         savedMasterVersion: masterVersion,
         isOutdated: false,
-        currentAppAsset: versionState.currentAppAsset || "",
-        latestAppAsset: versionState.latestAppAsset || "",
-        isAppOutdated: false,
         error: "",
       });
     } catch (error) {
