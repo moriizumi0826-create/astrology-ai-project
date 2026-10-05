@@ -17,8 +17,8 @@ export function ForecastPreview({ session, onHoroscope }) {
     <figure className="overflow-hidden rounded-xl border border-gold/25 bg-[#101827]">
       <figcaption className="border-b border-gold/20 px-4 py-3 text-xs leading-6 text-slate-300">サンプルの出生データによる表示例です。画像内のボタンやカレンダーは操作できません。</figcaption>
       <picture>
-        <source media="(max-width: 767px)" srcSet={mobilePreview} width="375" height="2118" />
-        <img src={desktopPreview} width="1351" height="1646" alt="有料版の日別画面。今日の星の流れ、時間帯ごとのデイリーパフォーマンスとアスペクト、天体イベントカレンダーの表示例。" className="block h-auto w-full" decoding="async" />
+        <source media="(max-width: 767px)" srcSet={mobilePreview} width="360" height="2187" />
+        <img src={desktopPreview} width="1336" height="1715" alt="有料版の日別画面。今日の星の流れ、デイリーパフォーマンス、Next Stellar Eventの補足と3Dマップ・AIへの導線、天体イベントカレンダーの表示例。" className="block h-auto w-full" decoding="async" />
       </picture>
     </figure>
     <div className="mt-6 rounded-xl border border-gold/25 bg-midnight/90 p-5 sm:p-7">
