@@ -980,7 +980,7 @@ export function DashboardV2CountdownCard({ data, onSelectAspect = () => {}, cale
     <>
     {!calendarOnly && <DashboardV2Card
       className={cx(
-        "h-[225px]",
+        hasEvent && onOpenEventMap ? "h-[270px]" : "h-[225px]",
         isCompletedEvent && "border-white/10 bg-[#111313]/75 opacity-70"
       )}
       bodyClassName="p-5"
@@ -1064,6 +1064,7 @@ export function DashboardV2CountdownCard({ data, onSelectAspect = () => {}, cale
         <p className="mt-2 h-[60px] overflow-hidden line-clamp-3 text-[11px] font-bold leading-5 text-[#e2e2e2]">
           {hasEvent ? (slide.note || "") : "過去3日〜今後30日以内に表示対象のステラーイベントはありません。"}
         </p>
+        {hasEvent && onOpenEventMap && <button type="button" onClick={()=>onOpenEventMap(slide)} className="mt-2 self-start shrink-0 rounded-lg border border-[#e9c349]/40 px-3 py-2 text-xs font-bold text-[#e9c349] transition hover:bg-[#e9c349]/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#e9c349]">3Dマップで見る・AIに聞く</button>}
         <div className={cx(
           "mt-3 h-1.5 overflow-hidden rounded-full",
           isCompletedEvent ? "bg-[#45474c]" : "bg-white/10"
