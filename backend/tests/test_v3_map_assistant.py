@@ -6,8 +6,20 @@ from unittest.mock import patch
 from backend.tests.test_v3_access import local_test_client
 from backend.v3.app import create_app
 from backend.v3.access import AccessContext, get_access_context
-from backend.v3.map_assistant import FAQ, MapContext, _model_screen
+from backend.v3.map_assistant import FAQ, INSTRUCTIONS, MapContext, _model_screen
 from datetime import datetime, timedelta, timezone
+
+
+def tool_then_answer(answer):
+    """Simulate the Responses API's required read, then final prose."""
+    import httpx
+    def respond(*args, **kwargs):
+        if kwargs['json']['tool_choice'] == 'required':
+            return httpx.Response(200, request=httpx.Request('POST', args[0]), json={'output': [
+                {'type': 'function_call', 'name': 'get_chart_placements', 'arguments': '{"points":[]}',
+                 'call_id': 'read-chart'}]})
+        return answer
+    return respond
 
 
 class MapAssistantPrototypeTests(unittest.TestCase):
@@ -16,6 +28,11 @@ class MapAssistantPrototypeTests(unittest.TestCase):
         self.app.dependency_overrides[get_access_context] = lambda: AccessContext(user_id="member", entitlement="owner")
         self.client = local_test_client(self.app)
         self.client.headers["origin"] = "http://127.0.0.1:5176"
+        # Never inherit real local keys or split-routing configuration in unit tests.
+        env = patch.dict("os.environ", {"OPENAI_API_KEY": "", "OPENAI_TEST_API_KEY": "",
+                                         "V3_MAP_ASSISTANT_SPLIT_USAGE": "false"})
+        env.start()
+        self.addCleanup(env.stop)
 
     def test_free_anonymous_and_expired_cannot_call_openai(self):
         for context, status in [(AccessContext(), 401), (AccessContext(user_id="free"), 403),
@@ -50,12 +67,12 @@ class MapAssistantPrototypeTests(unittest.TestCase):
                 with patch.dict("os.environ", {"V3_MAP_ASSISTANT_SPLIT_USAGE": "true", "V3_MAP_ASSISTANT_ENABLED": "true",
                         "OPENAI_API_KEY": "regular-project-key", "OPENAI_TEST_API_KEY": "test-project-key"}), \
                         patch("backend.v3.map_assistant.quota", return_value={"remaining": 19}), \
-                        patch("backend.v3.map_assistant.httpx.post", return_value=upstream) as post:
+                        patch("backend.v3.map_assistant.httpx.post", side_effect=tool_then_answer(upstream)) as post:
                     response = self.client.post("/api/v3/map-assistant", json={"question": "自由質問"})
                     self.assertEqual(response.status_code, 200)
                     self.assertEqual(post.call_args.kwargs["headers"]["Authorization"], f"Bearer {expected}")
                     self.assertNotIn(expected, response.text)
-                    self.assertNotIn("usage_group", post.call_args.kwargs["json"]["input"])
+                    self.assertNotIn("usage_group", json.dumps(post.call_args.kwargs["json"]["input"]))
 
     def test_split_missing_or_shared_test_key_never_falls_back(self):
         for test_key in ("", "regular-project-key"):
@@ -111,14 +128,15 @@ class MapAssistantPrototypeTests(unittest.TestCase):
         upstream=httpx.Response(200,request=httpx.Request("POST","https://api.openai.com/v1/responses"),json={"output":[{"type":"message","content":[{"type":"output_text","text":"回答"}]}]})
         for entitlement in ["owner","invite","active"]:
             self.app.dependency_overrides[get_access_context]=lambda: AccessContext(user_id="supabase:testproject:11111111-1111-1111-1111-111111111111",entitlement=entitlement,valid_until=datetime.now(timezone.utc)+timedelta(days=1))
-            with patch.dict("os.environ", {"V3_MAP_ASSISTANT_ENABLED":"true","OPENAI_API_KEY":"test-key"}), patch("backend.v3.map_assistant.httpx.post",return_value=upstream) as post:
+            with patch.dict("os.environ", {"V3_MAP_ASSISTANT_ENABLED":"true","OPENAI_API_KEY":"test-key"}), patch("backend.v3.map_assistant.httpx.post",side_effect=tool_then_answer(upstream)) as post:
                 response=self.client.post("/api/v3/map-assistant",json={"question":"質問"})
                 self.assertEqual(response.status_code,200)
-                post.assert_called_once()
+                self.assertEqual(post.call_count, 2)
 
     def test_without_key_returns_explicit_demo_answer(self):
-        with patch.dict("os.environ", {"OPENAI_API_KEY": ""}):
+        with patch.dict("os.environ", {"OPENAI_API_KEY": ""}), patch("backend.v3.map_assistant.httpx.post") as post:
             response = self.client.post("/api/v3/map-assistant", json={"question": "再生はどう使う？"})
+            post.assert_not_called()
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json()["mode"], "demo")
         self.assertIn("再生ボタン", response.json()["answer"])
@@ -131,7 +149,7 @@ class MapAssistantPrototypeTests(unittest.TestCase):
             def json(self):
                 return {"output": [{"type": "message", "content": [{"type": "output_text", "text": "天体を選んでください。"}]}]}
 
-        with patch.dict("os.environ", {"OPENAI_API_KEY": "test-key"}), patch("backend.v3.map_assistant.httpx.post", return_value=FakeResponse()) as post:
+        with patch.dict("os.environ", {"OPENAI_API_KEY": "test-key"}), patch("backend.v3.map_assistant.httpx.post", side_effect=tool_then_answer(FakeResponse())) as post:
             response = self.client.post("/api/v3/map-assistant", json={"question": "この地図の見方は？", "context": {"selected_planet": "現行太陽"}})
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json()['answer'], "天体を選んでください。")
@@ -150,18 +168,29 @@ class MapAssistantPrototypeTests(unittest.TestCase):
         screen = {"member_birth":{"date":"2000-01-01","time":"12:00","timezone":"Asia/Tokyo"},
                   "chart_birth":{"date":"1990-02-03"},
                   "aspects":[["T:SUN","N:MOON",90,0.24]], "aspects_total":25,"aspects_omitted":1,
+                  "background_transit_aspects":[["T:MARS","T:SATURN",180,0.5]],
+                  "background_transit_aspects_omitted":2,
                   "positions":[["T:SUN",120.5]],"planet_mode":"transit",
                   "houses":[["T:SUN",4,3,1,12]],"chart_natal_sun_sign":5}
         upstream = httpx.Response(200,request=httpx.Request("POST","https://api.openai.com/v1/responses"),
                                  json={"output":[{"type":"message","content":[{"type":"output_text","text":"回答"}]}]})
-        with patch.dict("os.environ",{"OPENAI_API_KEY":"test-key"}), patch("backend.v3.map_assistant.httpx.post",return_value=upstream) as post:
+        with patch.dict("os.environ",{"OPENAI_API_KEY":"test-key"}), patch("backend.v3.map_assistant.httpx.post",side_effect=tool_then_answer(upstream)) as post:
             response=self.client.post("/api/v3/map-assistant",json={"question":"表示中のアスペクトを説明して","context":screen})
         self.assertEqual(response.status_code,200)
-        forwarded=json.loads(post.call_args.kwargs['json']['input'])['screen']
-        expected = {**screen, 'houses': [{'point': 'T:SUN', 'sign': '獅子座',
-                                         'natal_house': 3, 'chart_time_house': 1, 'solar_house': 12}]}
+        forwarded=json.loads(post.call_args_list[0].kwargs['json']['input'][0]['content'])['screen']
+        expected = {key: value for key, value in screen.items() if key in ('member_birth', 'chart_birth', 'planet_mode')}
+        expected['available_points'] = ['T:SUN']
         self.assertEqual(forwarded,expected)
-        self.assertNotIn('tools',post.call_args.kwargs['json'])
+        self.assertEqual(len(post.call_args.kwargs['json']['tools']), 2)
+        result = json.loads(post.call_args.kwargs['json']['input'][-1]['output'])
+        self.assertEqual(result['placements'][0]['natal_house'], 3)
+        self.assertEqual(result['placements'][0]['chart_time_house'], 1)
+
+    def test_instructions_separate_display_from_interpretation_and_avoid_stock_disclaimers(self):
+        self.assertIn('表示設定は描画の選択であり解釈の制限ではありません', INSTRUCTIONS)
+        self.assertIn('非表示を不成立・不明と扱わない', INSTRUCTIONS)
+        self.assertIn('定型的な注意書きは原則付けず', INSTRUCTIONS)
+        self.assertIn('ハウス番号は対応する専用項目の値だけ', INSTRUCTIONS)
 
     def test_named_house_bases_preserve_unknowns_and_do_not_mutate_input(self):
         context = MapContext(houses=[('T:MARS', 4, None, 2, 12), ('N:SUN', 5, 6, None, None)])
@@ -184,7 +213,13 @@ class MapAssistantPrototypeTests(unittest.TestCase):
         for context in [
             {"aspects":[["T:SUN","N:MOON",90,1]]*25},
             {"positions":[["T:SUN",20]]*33},
+            {"query_positions":[["T:SUN",20]]*33},
+            {"query_positions":[["T:SUN",361]]},
+            {"query_houses":[["T:SUN",1,0,1,1]]},
             {"aspects":[["T:SUN","N:MOON",999,1]]},
+            {"background_transit_aspects":[["T:MARS","T:SATURN",180,1]]*46},
+            {"background_transit_aspects":[["N:MARS","T:SATURN",180,1]]},
+            {"background_transit_aspects":[["T:MARS","T:SATURN",999,1]]},
             {"member_birth":{"date":"2000-01-01","full_name":"not allowed"}},
             {"member_birth":{"date":"invalid"}},
             {"houses":[["T:SUN",12,1,1,1]]},

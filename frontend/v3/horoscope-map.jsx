@@ -4787,6 +4787,7 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
               transitCusps: chart?.house_cusps ?? chart?.houseCusps,
               planet: aspectTooltip ? `${aspectTooltip.type === "natal" ? "ネイタル" : "現行"}${planetLabel(aspectTooltip.planet)}` : "",
               aspects: state?.assistantAspects || [], natal: aspectLineSky.natalPoints,
+              backgroundTransitAspects: frame ? frame.aspectCache?.allAspects || [] : transitTransitSourceAspects,
               transits: frame?.chart?.transits || aspectLineSky.transits,
               memberForm, chartForm: birthForm || getStoredReadingForm(),
               isSelected: a => aspectMatchesLineHighlight(a, selectedAspectLineHighlightKey),

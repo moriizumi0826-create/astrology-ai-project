@@ -33,6 +33,43 @@ test('no lines remains empty; positions omit estimated values and round precisio
   assert.deepEqual(data.positions,[['N:SUN',123.46]]);
 });
 
+test('transit opposition remains available as background when only natal-transit lines are displayed',()=>{
+  const data=buildMapAssistantContext({mode:'出生図との関係',planetMode:'natal',
+    natal:[{planet:'SUN',longitude:155}],transits:[{planet:'MARS',longitude:125},{planet:'SATURN',longitude:305}],
+    aspects:[{natalPlanet:'SUN',transitPlanet:'MARS',angle:30,orb:0}],
+    backgroundTransitAspects:[
+      {scope:'transitTransit',transitPlanet:'MARS',transitPlanetB:'SATURN',angle:180,orb:0,description:'not sent'},
+      {scope:'transitTransit',transitPlanet:'SATURN',transitPlanetB:'MARS',angle:180,orb:0},
+    ]});
+  assert.deepEqual(data.aspects,[['N:SUN','T:MARS',30,0]]);
+  assert.equal(data.background_transit_aspects.length,1);
+  assert.equal(data.background_transit_aspects[0][2],180);
+  assert.deepEqual(data.positions.map(row=>row[0]),['N:SUN','T:MARS','T:SATURN']);
+  assert.equal(data.aspect_mode,'出生図との関係');
+  assert.equal(data.planet_mode,'natal');
+  assert.equal(JSON.stringify(data).includes('not sent'),false);
+});
+
+test('background excludes displayed duplicates, wrong scope and estimated or absent endpoints',()=>{
+  const opposition={scope:'transitTransit',transitPlanet:'MARS',transitPlanetB:'SATURN',angle:180,orb:0};
+  const data=buildMapAssistantContext({aspects:[opposition],
+    transits:[{planet:'MARS',longitude:125},{planet:'SATURN',longitude:305},{planet:'MOON',longitude:35,estimated:true}],
+    backgroundTransitAspects:[opposition,
+      {scope:'transitTransit',transitPlanet:'MARS',transitPlanetB:'MOON',angle:90},
+      {scope:'transitTransit',transitPlanet:'MARS',transitPlanetB:'VENUS',angle:60},
+      {scope:'transitNatal',natalPlanet:'SUN',transitPlanet:'MARS',angle:30}]});
+  assert.deepEqual(data.background_transit_aspects,[]);
+});
+
+test('background has its own bounded budget and does not consume displayed aspect slots',()=>{
+  const transits=Array.from({length:12},(_,i)=>({planet:`P${i}`,longitude:i*30}));
+  const backgroundTransitAspects=transits.flatMap((p,i)=>transits.slice(i+1).map(q=>({scope:'transitTransit',transitPlanet:p.planet,transitPlanetB:q.planet,angle:60,orb:i})));
+  const data=buildMapAssistantContext({transits,backgroundTransitAspects});
+  assert.equal(data.aspects.length,0);
+  assert.equal(data.background_transit_aspects.length,45);
+  assert.equal(data.background_transit_aspects_omitted,21);
+});
+
 test('Virgo solar chart puts Leo Mars in house12, separately from actual houses',()=>{
   const data=buildMapAssistantContext({planetMode:'transit',natal:[{planet:'SUN',longitude:155}],transits:[{planet:'MARS',longitude:125}],
     natalCusps:Array.from({length:12},(_,i)=>(90+i*30)%360),transitCusps:Array.from({length:12},(_,i)=>(120+i*30)%360)});
@@ -64,4 +101,17 @@ test('cusp wrapping and raw sign boundaries are not affected by rounded longitud
   assert.equal(assistantHouse(349.99,cusps),12);
   const data=buildMapAssistantContext({transits:[{planet:'MARS',longitude:149.99999}],natal:[{planet:'SUN',longitude:150}]});
   assert.deepEqual(data.houses.find(row=>row[0]==='T:MARS'),['T:MARS',4,null,null,12]);
+});
+
+test('tool snapshot retains hidden real points and full precision independently of 24 rendered lines',()=>{
+  const data=buildMapAssistantContext({planetMode:'natal',natal:[{planet:'SUN',longitude:155.123456}],
+    transits:[{planet:'MOON',longitude:197.987654},{planet:'VENUS',longitude:220},{planet:'MARS',longitude:120,estimated:true}],
+    natalCusps:Array.from({length:12},(_,i)=>i*30)});
+  assert.deepEqual(data.positions,[['N:SUN',155.12]]);
+  assert.deepEqual(data.query_positions.map(row=>row[0]),['N:SUN','T:MOON','T:VENUS']);
+  for (const [index, expected] of [155.123456,197.987654,220].entries()) {
+    assert.ok(Math.abs(data.query_positions[index][1]-expected)<1e-10);
+  }
+  assert.equal(data.query_houses.find(row=>row[0]==='T:MOON')[2],7);
+  assert.equal(data.query_positions.some(row=>row[0]==='T:MARS'),false);
 });

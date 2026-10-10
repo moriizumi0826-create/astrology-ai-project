@@ -1,4 +1,5 @@
 export const MAX_ASSISTANT_ASPECTS = 24;
+export const MAX_ASSISTANT_TRANSIT_ASPECTS = 45;
 const round = value => Number.isFinite(Number(value)) && value != null && value !== '' ? Math.round(Number(value) * 100) / 100 : null;
 const point = (layer, planet) => /^[A-Z_0-9]{1,24}$/.test(planet || '') ? `${layer}:${planet}` : null;
 const longitudeOf = value => value != null && value !== '' && Number.isFinite(Number(value)) ? ((Number(value)%360)+360)%360 : null;
@@ -20,7 +21,7 @@ export function compactBirth(form) {
     ...(round(form.timezone_offset) !== null ? {utc_offset: round(form.timezone_offset)} : {}),
   };
 }
-export function buildMapAssistantContext({date='',time='',timezone='',mode='',planet='',planetMode='both',aspects=[],natal=[],transits=[],natalCusps,transitCusps,memberForm,chartForm,selectedEvent,isSelected=()=>false}) {
+export function buildMapAssistantContext({date='',time='',timezone='',mode='',planet='',planetMode='both',aspects=[],backgroundTransitAspects=[],natal=[],transits=[],natalCusps,transitCusps,memberForm,chartForm,selectedEvent,isSelected=()=>false}) {
   const unique = new Map();
   for (const a of aspects) {
     const first = a.scope === 'transitTransit' ? point('T', a.transitPlanet) : point('N', a.natalPlanet);
@@ -33,16 +34,38 @@ export function buildMapAssistantContext({date='',time='',timezone='',mode='',pl
   }
   const ordered = [...unique.values()].sort((a,b)=>Number(Boolean(b.selected))-Number(Boolean(a.selected)) || (a.row[3]??999)-(b.row[3]??999));
   const rows = ordered.slice(0,MAX_ASSISTANT_ASPECTS);
-  const endpoints = new Set(rows.flatMap(a=>a.row.slice(0,2)));
+  // Keep calculated, non-displayed transit aspects separate from rendered lines.
+  const realTransitIds = new Set(transits.filter(item=>!item.estimated && longitudeOf(item.longitude)!==null).map(item=>point('T',item.planet||item.name)));
+  const displayedKeys = new Set(rows.map(a=>[...a.row.slice(0,2)].sort().join('/')+':'+a.row[2]));
+  const background = new Map();
+  for (const a of backgroundTransitAspects) {
+    if (a.scope!=='transitTransit') continue;
+    const first=point('T',a.transitPlanet), second=point('T',a.transitPlanetB), angle=round(a.angle);
+    if (!first || !second || first===second || angle===null || angle<0 || angle>180 || !realTransitIds.has(first) || !realTransitIds.has(second)) continue;
+    const key=[first,second].sort().join('/')+':'+angle;
+    if (!displayedKeys.has(key)) background.set(key,[first,second,angle,round(a.orb)]);
+  }
+  const backgroundRows=[...background.values()].sort((a,b)=>(a[3]??999)-(b[3]??999)).slice(0,MAX_ASSISTANT_TRANSIT_ASPECTS);
+  const endpoints = new Set([...rows.flatMap(a=>a.row.slice(0,2)),...backgroundRows.flatMap(row=>row.slice(0,2))]);
   const sun=natal.find(item=>(item.planet||item.name)==='SUN' && !item.estimated);
   const sunLongitude=longitudeOf(sun?.longitude);
   const sunSign=sunLongitude === null ? null : Math.floor(sunLongitude/30);
   const positions = [];
   const houses = [];
+  // Complete real snapshot for server-side tools, independent of rendered lines.
+  // Keep raw longitudes: rounding first can change an orb-boundary decision.
+  const queryPositions = [];
+  const queryHouses = [];
   for (const [layer,items] of [['N',natal],['T',transits]]) {
     for (const item of items) {
       const id = point(layer,item.planet || item.name);
       const longitude = longitudeOf(item.longitude);
+      if (id && longitude !== null && !item.estimated && !queryPositions.some(row=>row[0]===id)) {
+        const sign=Math.floor(longitude/30);
+        queryPositions.push([id,longitude]);
+        queryHouses.push([id,sign,assistantHouse(longitude,natalCusps),layer==='T' ? assistantHouse(longitude,transitCusps) : null,
+          layer==='T' && sunSign !== null ? (sign-sunSign+12)%12+1 : null]);
+      }
       const visible=planetMode==='both' || (layer==='N' ? planetMode==='natal' : planetMode==='transit');
       if (id && longitude !== null && !item.estimated && (visible || endpoints.has(id)) && !positions.some(row=>row[0]===id)) {
         positions.push([id,round(longitude)]);
@@ -56,7 +79,9 @@ export function buildMapAssistantContext({date='',time='',timezone='',mode='',pl
     ...(selectedEvent ? {selected_event:{title:selectedEvent.title,type:selectedEvent.type,date:selectedEvent.date,time:selectedEvent.time,approximate:selectedEvent.approximate}} : {}),
     selected_aspect: rows.filter(a=>a.selected).map(a=>a.row.slice(0,3).join(' ')).join(';').slice(0,160),
     aspects:rows.map(a=>a.row),aspects_total:unique.size,aspects_omitted:Math.max(0,unique.size-rows.length),
+    background_transit_aspects:backgroundRows,background_transit_aspects_omitted:Math.max(0,background.size-backgroundRows.length),
     patterns:[...new Set(rows.flatMap(a=>a.patterns))].slice(0,8).map(s=>s.slice(0,200)),
     positions:positions.slice(0,32),houses:houses.slice(0,32),planet_mode:planetMode,chart_natal_sun_sign:sunSign,
+    query_positions:queryPositions.slice(0,32),query_houses:queryHouses.slice(0,32),
     member_birth:compactBirth(memberForm),chart_birth:compactBirth(chartForm)};
 }
