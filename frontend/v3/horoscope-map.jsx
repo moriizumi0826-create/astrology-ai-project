@@ -4806,9 +4806,11 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
                     <button
                       key={value}
                       type="button"
+                      disabled={value === "composite" && !canShowCompoundAspects}
+                      title={value === "composite" && !canShowCompoundAspects ? "有料版で利用できます" : undefined}
                       onClick={() => setAspectInterpretationScope(value)}
                       className={cx(
-                        "h-7 rounded-md px-1 text-[8px] transition sm:text-[9px]",
+                        "h-7 rounded-md px-1 text-[8px] transition disabled:cursor-not-allowed disabled:opacity-40 sm:text-[9px]",
                         aspectInterpretationScope === value
                           ? "bg-gold/18 text-gold ring-1 ring-gold/35"
                           : "text-mist/65 hover:bg-white/10 hover:text-starlight"

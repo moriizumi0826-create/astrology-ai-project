@@ -29,7 +29,7 @@ function Horoscope({ onForecast, session }) {
   const [revision, setRevision] = useState(0);
   const [chartForm, setChartForm] = useState(() => getStoredReadingForm() || {});
   const [previewOpen, setPreviewOpen] = useState(false);
-  const [menuOpen, setMenuOpen] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(() => !stellarForecast);
   const [eventNavigation, setEventNavigation] = useState(null);
   const eventMapRef = useRef(null);
   const openEventMap = event => {
@@ -76,15 +76,15 @@ function Horoscope({ onForecast, session }) {
           <button
             type="button"
             className={`pb-2 transition sm:pb-3 ${previewOpen && !stellarForecast ? "border-b-2 border-[#D4AF37] text-[#0A192F]" : stellarForecast ? "hover:text-[#D4AF37]" : "text-[#0A192F]/45"}`}
-            onClick={() => { setMenuOpen(false); if (stellarForecast) onForecast(); else { setPreviewOpen(true); window.scrollTo({ top: 0, behavior: "instant" }); } }}
+            onClick={() => { if (stellarForecast) { setMenuOpen(false); onForecast(); } else { setPreviewOpen(true); window.scrollTo({ top: 0, behavior: "instant" }); } }}
           >
             星の見通し{!stellarForecast ? " 🔒" : ""}
           </button>
-          <button type="button" className={`pb-2 text-[#0A192F] sm:pb-3 ${!previewOpen || stellarForecast ? "border-b-2 border-[#D4AF37]" : ""}`} onClick={() => { setMenuOpen(false); setPreviewOpen(false); }}>Horoscope</button>
+          <button type="button" className={`pb-2 text-[#0A192F] sm:pb-3 ${!previewOpen || stellarForecast ? "border-b-2 border-[#D4AF37]" : ""}`} onClick={() => { if (stellarForecast) setMenuOpen(false); setPreviewOpen(false); }}>Horoscope</button>
         </nav>
       </div>
     </header>
-    <div className="pt-[56px] sm:pt-36" style={{ backgroundImage: `linear-gradient(#05070f66,#05070f99),url(${background})`, backgroundSize: "cover", backgroundAttachment: "fixed" }}>
+    <div className={menuOpen && !stellarForecast ? "pt-[108px] sm:pt-40" : "pt-[56px] sm:pt-36"} style={{ backgroundImage: `linear-gradient(#05070f66,#05070f99),url(${background})`, backgroundSize: "cover", backgroundAttachment: "fixed" }}>
       {previewOpen && !stellarForecast && <ForecastPreview session={session} onHoroscope={() => setPreviewOpen(false)} />}
       <div hidden={previewOpen && !stellarForecast}>
       <FreeHoroscopeContent data={data} belowMetaContent={<>

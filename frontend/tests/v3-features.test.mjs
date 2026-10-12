@@ -8,19 +8,25 @@ import { preloadTransitCharts } from "../src/transit-chart-preload.mjs";
 const now = Date.parse("2026-09-14T00:00:00Z");
 const paid = { state: "paid", valid_until: "2026-09-15T00:00:00Z", capabilities: {aspect_list:true, compound_aspects:true, stellar_forecast:true, playback_policy:"paid_existing"} };
 test("only verified, unexpired capabilities enable paid features", () => {
-  assert.deepEqual(featurePolicy(paid, now), {aspectList:true, compoundAspects:true, stellarForecast:true, freePlayback:false});
+  assert.deepEqual(featurePolicy(paid, now), {mapAssistant:true, aspectList:true, compoundAspects:true, stellarForecast:true, freePlayback:false});
   for (const session of [null, {...paid,state:"anonymous"}, {...paid,state:"free"}, {...paid,state:"checking"}, {...paid,state:"unavailable"}, {...paid,valid_until:null}, {...paid,valid_until:"2026-09-14T00:00:00Z"}, {...paid,capabilities:{}}]) {
-    assert.deepEqual(featurePolicy(session,now), {aspectList:false,compoundAspects:false,stellarForecast:false,freePlayback:true});
+    assert.deepEqual(featurePolicy(session,now), {mapAssistant:session?.state==='paid' && Date.parse(session.valid_until)>now,aspectList:session?.capabilities?.aspect_list===true,compoundAspects:false,stellarForecast:false,freePlayback:true});
   }
 });
 test("owner grant enables paid capabilities without an expiry", () => {
   const owner = {...paid, valid_until: null, access_source: "owner"};
-  assert.deepEqual(featurePolicy(owner, now), {aspectList:true, compoundAspects:true, stellarForecast:true, freePlayback:false});
+  assert.deepEqual(featurePolicy(owner, now), {mapAssistant:true,aspectList:true, compoundAspects:true, stellarForecast:true, freePlayback:false});
   assert.equal(featurePolicy({...owner, state: "free"}, now).stellarForecast, false);
 });
 test("invite grant enables paid capabilities without an expiry", () => {
   const invited = {...paid, valid_until: null, access_source: "invite"};
-  assert.deepEqual(featurePolicy(invited, now), {aspectList:true, compoundAspects:true, stellarForecast:true, freePlayback:false});
+  assert.deepEqual(featurePolicy(invited, now), {mapAssistant:true,aspectList:true, compoundAspects:true, stellarForecast:true, freePlayback:false});
+});
+test("anonymous and free accounts can use ordinary aspect lists without unlocking paid features", () => {
+  for (const state of ['anonymous','free']) {
+    assert.deepEqual(featurePolicy({state,capabilities:{aspect_list:true}},now),
+      {mapAssistant:false,aspectList:true,compoundAspects:false,stellarForecast:false,freePlayback:true});
+  }
 });
 test("free mode locks only compound presets, leaving all ordinary presets usable", () => {
   const free = featurePolicy(null,now);

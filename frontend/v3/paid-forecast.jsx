@@ -1648,6 +1648,8 @@ function formatHeaderCalendarDate(value) {
 }
 
 function OraclePanel({ stats, forecast }) {
+  // Keep supplementary panels for later authoring, but omit them from the live page.
+  const showAnnualSupplements = false;
   const [analysisMode, setAnalysisMode] = useState("summary");
   const [openTransitAspectKeys, setOpenTransitAspectKeys] = useState(() => new Set());
   const themeItems = themeItemsFromForecast(forecast);
@@ -1741,7 +1743,7 @@ function OraclePanel({ stats, forecast }) {
               >
                 拡大と発展
               </button>
-              <button
+              {showAnnualSupplements && <button
                 type="button"
                 onClick={() => setAnalysisMode("themeSupplement")}
                 className={cx(
@@ -1750,7 +1752,7 @@ function OraclePanel({ stats, forecast }) {
                 )}
               >
                 補足
-              </button>
+              </button>}
             </div>
             <div className="flex shrink-0 flex-col border-l border-white/10 pl-1">
               <button
@@ -1763,7 +1765,7 @@ function OraclePanel({ stats, forecast }) {
               >
                 成長課題
               </button>
-              <button
+              {showAnnualSupplements && <button
                 type="button"
                 onClick={() => setAnalysisMode("lessonSupplement")}
                 className={cx(
@@ -1772,7 +1774,7 @@ function OraclePanel({ stats, forecast }) {
                 )}
               >
                 補足
-              </button>
+              </button>}
             </div>
             {[
               ["general", "全般"],

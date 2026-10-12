@@ -20,7 +20,7 @@ class Capabilities(BaseModel):
     horoscope: bool = True
     single_chart_any_date: bool = True
     brief_report: bool = True
-    aspect_list: bool = False
+    aspect_list: bool = True
     compound_aspects: bool = False
     stellar_forecast: bool = False
     playback_policy: Literal["today_plus_minus_30", "paid_existing"] = "today_plus_minus_30"
@@ -66,7 +66,7 @@ def evaluate_access(context: AccessContext, now: datetime) -> AccessSnapshot:
         valid_until=valid_until,
         access_source=access_source,
         capabilities=Capabilities(
-            aspect_list=paid,
+            aspect_list=True,
             compound_aspects=paid,
             stellar_forecast=paid,
             playback_policy="paid_existing" if paid else "today_plus_minus_30",

@@ -37,7 +37,7 @@ class AccessContractTests(unittest.TestCase):
                 result = evaluate_access(context, self.now)
                 self.assertEqual(result.state, expected)
                 self.assertEqual(result.capabilities.stellar_forecast, expected == "paid")
-                self.assertEqual(result.capabilities.aspect_list, expected == "paid")
+                self.assertTrue(result.capabilities.aspect_list)
                 self.assertEqual(result.capabilities.compound_aspects, expected == "paid")
                 self.assertTrue(result.capabilities.single_chart_any_date)
                 if context.entitlement == "owner":
