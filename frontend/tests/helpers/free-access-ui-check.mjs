@@ -28,6 +28,7 @@ try {
       await page.getByRole('button',{name:'アスペクト一覧',exact:true}).click();
       const list=page.locator('section[aria-label="アスペクト一覧"]');
       await list.waitFor({state:'visible'});
+      assert.equal(await list.getByText('影響度',{exact:true}).count(),0);
       assert.equal(await list.getByRole('button',{name:'複合アスペクト',exact:true}).isDisabled(),plan==='free');
       for(const name of ['ネイタル同士','出生図との関係','現行天体同士']) {
         const button=list.getByRole('button',{name,exact:true});

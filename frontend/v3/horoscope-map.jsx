@@ -4845,14 +4845,7 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
                     ))}
                   </div>
                 ) : null}
-<div className="grid max-h-[360px] grid-cols-[24px_1fr] gap-2 overflow-y-auto pr-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-                  <div className="flex self-stretch flex-col gap-0">
-                    <p className="shrink-0 text-center text-[7px] leading-none text-mist/65">影響度</p>
-                    <div className="relative flex min-h-0 flex-1 flex-col items-center justify-between rounded-full bg-gradient-to-b from-[#ff5c68] via-gold/45 to-white/10 py-0 text-[7px] leading-none text-gold shadow-[0_0_14px_rgba(255,92,104,0.22)]">
-                      <span className="writing-mode-vertical-rl [writing-mode:vertical-rl] text-[#ffb4ab]">高</span>
-                      <span className="writing-mode-vertical-rl [writing-mode:vertical-rl] text-mist/55">低</span>
-                    </div>
-                  </div>
+<div className="max-h-[360px] overflow-y-auto pr-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                   <div className="grid gap-1.5">
                     {aspectInterpretationItems.length ? aspectInterpretationItems.map((aspect) => {
                       const isOpen = openAspectInterpretationKeys.has(aspect.key);
