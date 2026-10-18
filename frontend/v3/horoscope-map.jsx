@@ -10,6 +10,7 @@ import { customPlaybackDates, samplePlaybackDates } from "../src/transit-playbac
 import { MapAssistantPanel } from "./map-assistant-panel.jsx";
 import { buildMapAssistantContext } from "./map-assistant-context.mjs";
 import { MapAspectDescription } from "./map-aspect-description.jsx";
+import { isRetrograde, retrogradeSuffix, playbackMotion, drawRetrogradeMarker } from "./retrograde.mjs";
 
 import { deviceTimezone } from "../src/device-time.mjs";
 
@@ -1218,6 +1219,7 @@ function interpolatedTransitChart(fromFrame, toFrame, progress, dateValue, timeV
     const targetLongitude = toTransits.get(item.planet);
     return {
       ...item,
+      retrograde: playbackMotion(fromChart, toChart, item.planet, progress),
       longitude: startLongitude === undefined || targetLongitude === undefined
         ? item.longitude
         : interpolateLongitude(startLongitude, targetLongitude, progress),
@@ -1312,6 +1314,10 @@ function setTransitVisualsFromCharts(state, fromFrame, toFrame, progress) {
     const position = longitudePosition(longitude, transitPlanetRadius, visual.baseY);
     visual.objects.forEach((object) => object.position.copy(position));
     visual.longitude = longitude;
+    if (visual.symbolSprite && visual.symbolTextures) {
+      visual.symbolSprite.material.map = playbackMotion(fromChart, toChart, planet, progress)
+        ? visual.symbolTextures.retrograde : visual.symbolTextures.direct;
+    }
     state.transitPositions.set(planet, position.clone());
   });
   const fromCusps = fromFrame?.houseCusps || chartHouseCusps(fromChart);
@@ -1459,7 +1465,7 @@ function compactDateLabel(value) {
   return value ? String(value).replaceAll("-", "/") : "--";
 }
 
-function planetSymbolTexture(symbol, colorValue) {
+function planetSymbolTexture(symbol, colorValue, retrograde = false) {
   const size = 180;
   const canvas = document.createElement("canvas");
   canvas.width = size;
@@ -1476,12 +1482,13 @@ function planetSymbolTexture(symbol, colorValue) {
   ctx.strokeText(symbol, size / 2, size / 2 + (symbol.length > 1 ? 4 : 8));
   ctx.fillStyle = "rgba(255,255,255,0.92)";
   ctx.fillText(symbol, size / 2, size / 2 + (symbol.length > 1 ? 4 : 8));
+  if (retrograde) drawRetrogradeMarker(ctx);
   const texture = new THREE.CanvasTexture(canvas);
   texture.colorSpace = THREE.SRGBColorSpace;
   return texture;
 }
 
-function planetSymbolOutlineTexture(symbol, colorValue) {
+function planetSymbolOutlineTexture(symbol, colorValue, retrograde = false) {
   const size = 180;
   const canvas = document.createElement("canvas");
   canvas.width = size;
@@ -1496,9 +1503,19 @@ function planetSymbolOutlineTexture(symbol, colorValue) {
   ctx.lineWidth = symbol.length > 1 ? 2.5 : 3.5;
   ctx.strokeStyle = colorValue;
   ctx.strokeText(symbol, size / 2, size / 2 + (symbol.length > 1 ? 4 : 8));
+  if (retrograde) drawRetrogradeMarker(ctx);
   const texture = new THREE.CanvasTexture(canvas);
   texture.colorSpace = THREE.SRGBColorSpace;
   return texture;
+}
+
+function prepareTransitMotionSymbol(sprite, item, visual, textures) {
+  const direct = sprite.material.map;
+  const retrograde = planetSymbolTexture(PLANET_SYMBOLS[item.planet] || item.label, item.color, true);
+  textures.push(retrograde);
+  visual.symbolSprite = sprite;
+  visual.symbolTextures = { direct, retrograde };
+  sprite.material.map = isRetrograde(item) ? retrograde : direct;
 }
 
 function planetGlowTexture(colorValue) {
@@ -1827,9 +1844,24 @@ function ChartPositionCompact({ item, houseCusps, className = "" }) {
   );
 }
 
+function RetrogradeBadge({ item }) {
+  return isRetrograde(item) ? <span className="ml-0.5 text-[8px] font-bold text-orange-300" title="逆行中" aria-label="逆行中">R</span> : null;
+}
+
+function RetrogradeAspectTitle({ title }) {
+  return String(title || "").split("〔逆行〕").map((part, index) => <React.Fragment key={index}>
+    {index > 0 && <span title="逆行中" aria-label="逆行中" className="mx-0.5 inline-flex items-center rounded-full border border-orange-300/50 bg-orange-400/15 px-1.5 py-0.5 align-middle text-[8px] font-semibold leading-none tracking-normal text-orange-200">逆行</span>}
+    {part}
+  </React.Fragment>);
+}
+
+function transitHeadingLabel(planet, items) {
+  return planetLabel(planet) + retrogradeSuffix(items.find(item => item.planet === planet));
+}
+
 function collectNatalPoints(forecast) {
   const byPlanet = new Map();
-  const addPoint = (planetValue, longitudeValue, estimated = false) => {
+  const addPoint = (planetValue, longitudeValue, estimated = false, retrograde = false) => {
     const planet = normalizedPlanet(planetValue);
     const longitude = normalizeLongitude(longitudeValue);
     if (!NATAL_POINT_ORDER.includes(planet) || longitude === null || byPlanet.has(planet)) return;
@@ -1839,6 +1871,7 @@ function collectNatalPoints(forecast) {
       longitude,
       color: PLANET_COLORS[planet] || "#e2e2e2",
       estimated,
+      retrograde,
     });
   };
 
@@ -1847,7 +1880,7 @@ function collectNatalPoints(forecast) {
     : Array.isArray(forecast?.natalPoints)
       ? forecast.natalPoints
       : [];
-  directPoints.forEach((point) => addPoint(point?.planet || point?.name, point?.longitude));
+  directPoints.forEach((point) => addPoint(point?.planet || point?.name, point?.longitude, false, isRetrograde(point)));
 
   NATAL_POINT_ORDER.forEach((planet) => {
     if (!byPlanet.has(planet)) {
@@ -1880,7 +1913,7 @@ function transitSkyMapData(day, forecast, selectedNatalPlanet = "SUN") {
       label: planetLabel(planet),
       longitude,
       color: PLANET_COLORS[planet] || "#e2e2e2",
-      retrograde: Boolean(item?.retrograde),
+      retrograde: isRetrograde(item),
     });
   });
   TRANSIT_PLANET_ORDER.forEach((planet) => {
@@ -2493,10 +2526,10 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
             aspect.angle
           ) || aspect.description || descriptionLookup.get(descriptionKey) || aspectInterpretationFallback(aspect),
           title: scope === "transitTransit"
-            ? `現行${planetLabel(aspect.transitPlanet)} × 現行${planetLabel(aspect.transitPlanetB)}　${aspect.angle}°`
+            ? `現行${transitHeadingLabel(aspect.transitPlanet, aspectLineSky.transits)} × 現行${transitHeadingLabel(aspect.transitPlanetB, aspectLineSky.transits)}　${aspect.angle}°`
             : scope === "natalNatal"
               ? `ネイタル${planetLabel(aspect.natalPlanet)} × ネイタル${planetLabel(aspect.natalPlanetB)}　${aspect.angle}°`
-              : `ネイタル${planetLabel(aspect.natalPlanet)} × 現行${planetLabel(aspect.transitPlanet)}　${aspect.angle}°`,
+              : `ネイタル${planetLabel(aspect.natalPlanet)} × 現行${transitHeadingLabel(aspect.transitPlanet, aspectLineSky.transits)}　${aspect.angle}°`,
           scopeLabel: scope === "transitTransit" ? "現行天体同士" : scope === "natalNatal" ? "ネイタル天体同士" : "出生図との関係",
         };
       })
@@ -3087,8 +3120,8 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
       }
 
       const symbol = PLANET_SYMBOLS[point.planet] || planetLabel(point.planet);
-      const symbolTexture = planetSymbolTexture(symbol, point.color);
-      const flatSymbolTexture = planetSymbolOutlineTexture(symbol, point.color);
+      const symbolTexture = planetSymbolTexture(symbol, point.color, isRetrograde(point));
+      const flatSymbolTexture = planetSymbolOutlineTexture(symbol, point.color, isRetrograde(point));
       textures.push(symbolTexture);
       textures.push(flatSymbolTexture);
       const symbolSprite = new THREE.Sprite(
@@ -3149,6 +3182,7 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
         symbolSprite.renderOrder = 7;
         symbolSprite.userData.tooltip = item.label;
         symbolSprite.userData.transitPlanet = item.planet;
+        prepareTransitMotionSymbol(symbolSprite, item, transitVisual, textures);
         hoverTargets.push(symbolSprite);
         symbolBillboards.push({ sprite: symbolSprite, target: anchor, offset: 0, baseScale: symbolScale });
         transitLayerObjects.push({
@@ -3230,6 +3264,7 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
       symbolSprite.renderOrder = 7;
       symbolSprite.userData.tooltip = item.label;
       symbolSprite.userData.transitPlanet = item.planet;
+      prepareTransitMotionSymbol(symbolSprite, item, transitVisual, textures);
       hoverTargets.push(symbolSprite);
       symbolBillboards.push({ sprite: symbolSprite, target: mesh, offset: radius + 0.035, baseScale: symbolScale });
       transitLayerObjects.push({
@@ -4080,7 +4115,7 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
           ...aspect,
           planet: aspect.transitPlanet,
           label: `${planetLabel(aspect.transitPlanet)} ${aspect.angle}°`,
-          transitLabel: transit ? transit.label : planetLabel(aspect.transitPlanet),
+          transitLabel: transitHeadingLabel(aspect.transitPlanet, aspectLineSky.transits),
           natalLabel: natal ? natal.label : planetLabel(aspect.natalPlanet),
           usesSelectedNatalLabel: natal?.planet === aspectTooltip.planet,
           liveAngle: transit && natal ? circularAngleDistance(transit.longitude, natal.longitude) : null,
@@ -4104,21 +4139,21 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
           return {
             ...aspect,
             planet: aspect.transitPlanet,
-            transitLabel: transit ? transit.label : planetLabel(aspect.transitPlanet),
-            transitBLabel: transitB ? transitB.label : planetLabel(aspect.transitPlanetB),
+            transitLabel: transitHeadingLabel(aspect.transitPlanet, aspectLineSky.transits),
+            transitBLabel: transitHeadingLabel(aspect.transitPlanetB, aspectLineSky.transits),
             liveAngle: transit && transitB ? circularAngleDistance(transit.longitude, transitB.longitude) : null,
             description: aspect.description || aspectInterpretationFallback(aspect),
-            title: `現行${transit ? transit.label : planetLabel(aspect.transitPlanet)} × 現行${transitB ? transitB.label : planetLabel(aspect.transitPlanetB)}`,
+            title: `現行${transitHeadingLabel(aspect.transitPlanet, aspectLineSky.transits)} × 現行${transitHeadingLabel(aspect.transitPlanetB, aspectLineSky.transits)}`,
           };
         }
         return {
           ...aspect,
           planet: aspect.transitPlanet,
           natalLabel: natal ? planetLabel(natal.planet) : planetLabel(aspect.natalPlanet),
-          transitLabel: transit ? transit.label : planetLabel(aspect.transitPlanet),
+          transitLabel: transitHeadingLabel(aspect.transitPlanet, aspectLineSky.transits),
           liveAngle: transit && natal ? circularAngleDistance(transit.longitude, natal.longitude) : null,
           description: aspect.description || aspectInterpretationFallback(aspect),
-          title: `ネイタル${natal ? planetLabel(natal.planet) : planetLabel(aspect.natalPlanet)} × 現行${transit ? transit.label : planetLabel(aspect.transitPlanet)}`,
+          title: `ネイタル${natal ? planetLabel(natal.planet) : planetLabel(aspect.natalPlanet)} × 現行${transitHeadingLabel(aspect.transitPlanet, aspectLineSky.transits)}`,
         };
       })
     : [];
@@ -4511,7 +4546,7 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
                   )}
                 >
                   <span className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: item.color, opacity: isFocusedTransitRow || transitLayerActive ? 1 : 0.18 }} />
-                  <span className="min-w-0 truncate text-left">{item.label}</span>
+                  <span className="min-w-0 truncate text-left">{item.label}<RetrogradeBadge item={item} /></span>
                   <ChartPositionCompact item={item} houseCusps={tableSky.transitHouseCusps} className="min-w-0 text-[8px]" />
                 </div>
               );
@@ -4543,7 +4578,7 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
                   )}
                 >
                   <span className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: item.color, opacity: shouldHighlightNatalRow || natalLayerActive ? 1 : 0.18 }} />
-                  <span className="min-w-0 truncate text-left">{planetLabel(item.planet)}</span>
+                  <span className="min-w-0 truncate text-left">{planetLabel(item.planet)}<RetrogradeBadge item={item} /></span>
                   <ChartPositionCompact item={item} houseCusps={sky.natalHouseCusps} className="min-w-0 text-[8px]" />
                 </div>
               );
@@ -4571,6 +4606,7 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
           }}
         >
           <div ref={mountRef} className="absolute inset-0" aria-label="現行天体とネイタル天体の3Dマップ" />
+          <span className="pointer-events-none absolute bottom-14 right-3 z-10 text-[9px] text-orange-300/80">R＝逆行</span>
 
           <div className="pointer-events-none absolute inset-x-2 top-3 z-[100] flex flex-nowrap items-start justify-between gap-1 sm:inset-x-4 sm:top-4 sm:gap-2">
             <div className="pointer-events-auto relative flex h-10 shrink-0 items-center gap-1 rounded-xl border border-white/10 bg-[#101827]/90 px-1 sm:gap-1.5 sm:px-2 shadow-lg backdrop-blur-xl">
@@ -4869,7 +4905,7 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
                           >
                             <span className="mt-1 h-2.5 w-1.5 shrink-0 rounded-full" style={{ backgroundColor: aspect.color }} />
                             <span className="min-w-0 flex-1">
-                              <span className="block truncate text-[10px] text-starlight sm:text-[11px]">{aspect.title}</span>
+                              <span className="block truncate text-[10px] text-starlight sm:text-[11px]"><RetrogradeAspectTitle title={aspect.title} /></span>
                               <span className="mt-0.5 block text-[8px] leading-4 text-mist/60">
                                 {aspect.detailText || `実角度 ${Number.isFinite(aspect.liveAngle) ? aspect.liveAngle.toFixed(1) : "-"}°`}
                                 {!aspect.detailText && Number.isFinite(aspect.orb) ? ` / オーブ ${aspect.orb.toFixed(2)}°` : ""}
@@ -4961,7 +4997,7 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
                               opacity: isFocusedTransitRow || transitLayerActive ? 1 : 0.18,
                             }}
                           />
-                          <span className="min-w-0 truncate text-left">{item.label}</span>
+                          <span className="min-w-0 truncate text-left">{item.label}<RetrogradeBadge item={item} /></span>
                           <ChartPositionColumns
                             item={item}
                             houseCusps={tableSky.transitHouseCusps}
@@ -5041,7 +5077,7 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
                               opacity: shouldHighlightNatalRow || natalLayerActive ? 1 : 0.18,
                             }}
                           />
-                          <span className="min-w-0 truncate text-left">{planetLabel(item.planet)}</span>
+                          <span className="min-w-0 truncate text-left">{planetLabel(item.planet)}<RetrogradeBadge item={item} /></span>
                           <ChartPositionColumns
                             item={item}
                             houseCusps={sky.natalHouseCusps}
@@ -5143,7 +5179,7 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
                         <span className="mt-1 h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: aspect.color }} />
                         <span className="min-w-0 flex-1">
                           <span className="block font-mono text-[10px] font-bold uppercase tracking-[0.12em] text-starlight sm:text-[11px]">
-                            {aspect.title || `${aspect.usesSelectedNatalLabel ? aspect.natalLabel : `ネイタル${aspect.natalLabel || sky.selectedNatal.label}`} × 現行${aspect.transitLabel || planetLabel(aspect.planet)}`}
+                            <RetrogradeAspectTitle title={aspect.title || `${aspect.usesSelectedNatalLabel ? aspect.natalLabel : `ネイタル${aspect.natalLabel || sky.selectedNatal.label}`} × 現行${aspect.transitLabel || planetLabel(aspect.planet)}`} />
                           </span>
                           <span className="mt-1 block text-xs leading-5 text-mist sm:text-sm sm:leading-6">
                             {aspect.labels?.length ? aspect.labels.join(" × ") : aspect.detailText || `実角度 ${Number.isFinite(aspect.liveAngle) ? aspect.liveAngle.toFixed(1) : "-"}°`}

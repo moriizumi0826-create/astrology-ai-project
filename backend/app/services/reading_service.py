@@ -3273,6 +3273,7 @@ def _build_natal_aspect_points(birth_input: BirthInput) -> list[dict[str, Any]]:
             "planet": _normalize_planet(row[0]),
             "longitude": longitude,
             "house": _normalize_int(row[5]) or 1,
+            "retrograde": str(row[4] or "").strip().upper() in ("逆行", "R", "RETROGRADE"),
         })
 
     if not birth_input.birth_time_unknown:
