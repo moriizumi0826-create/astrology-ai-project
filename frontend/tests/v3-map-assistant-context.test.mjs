@@ -1,6 +1,23 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {buildMapAssistantContext, compactBirth, assistantHouse} from '../v3/map-assistant-context.mjs';
+import {playbackMotion} from '../v3/retrograde.mjs';
+
+test('motion snapshot distinguishes birth, selected-time and unknown flags even when hidden',()=>{
+  const data=buildMapAssistantContext({planetMode:'natal',
+    natal:[{planet:'MERCURY',longitude:155,retrograde:true},{planet:'ASC',longitude:10}],
+    transits:[{planet:'MERCURY',longitude:180,retrograde:false},{planet:'SATURN',longitude:330,retrograde:true},{planet:'MARS',longitude:90,retrograde:true,estimated:true}]});
+  assert.deepEqual(data.query_motion,[['N:MERCURY',true],['N:ASC',null],['T:MERCURY',false],['T:SATURN',true]]);
+  assert.deepEqual(buildMapAssistantContext({transits:[{planet:'MERCURY',longitude:150}]}).query_motion,[['T:MERCURY',null]]);
+});
+
+test('successive playback snapshots send the same motion flag as their frame',()=>{
+  const from={transits:[{planet:'MERCURY',longitude:155,retrograde:true}]},to={transits:[{planet:'MERCURY',longitude:156,retrograde:false}]};
+  for(const [progress,expected] of [[0,true],[1,false]]) {
+    const transits=[{...from.transits[0],retrograde:playbackMotion(from,to,'MERCURY',progress)}];
+    assert.deepEqual(buildMapAssistantContext({transits}).query_motion,[['T:MERCURY',expected]]);
+  }
+});
 test('only compact allowed birth fields are sent, with account/chart kept separate',()=>{
   const data=buildMapAssistantContext({memberForm:{birth_date:'2000-01-01',birth_time:'12:34:00',timezone_name:'Asia/Tokyo',timezone_offset:9,full_name:'secret',email:'secret',birthplace:'secret',latitude:35},chartForm:{birth_date:'1990-02-03'}});
   assert.deepEqual(data.member_birth,{date:'2000-01-01',time:'12:34',timezone:'Asia/Tokyo',utc_offset:9});

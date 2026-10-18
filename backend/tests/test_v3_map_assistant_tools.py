@@ -94,8 +94,15 @@ class ChartToolTests(unittest.TestCase):
     def test_named_houses_preserve_unknowns_and_hidden_points(self):
         result = run_chart_tool('get_chart_placements', {'points':['T:SUN']}, context())
         self.assertEqual(result['placements'][0], {'point':'T:SUN', 'longitude':197.0, 'sign':'天秤座',
-                         'natal_house':7, 'chart_time_house':None, 'solar_house':2})
+                         'natal_house':7, 'chart_time_house':None, 'solar_house':2, 'retrograde':None})
         self.assertTrue(result['complete'])
+
+    def test_motion_is_separate_by_point_and_missing_is_not_direct(self):
+        ctx=MapContext(query_positions=[('N:MERCURY',155),('T:MERCURY',180),('T:SATURN',330)],
+                       query_motion=[('N:MERCURY',True),('T:MERCURY',False)])
+        rows=run_chart_tool('get_chart_placements',{'points':[]},ctx)['placements']
+        self.assertEqual([(r['point'],r['retrograde']) for r in rows],
+                         [('N:MERCURY',True),('T:MERCURY',False),('T:SATURN',None)])
 
     def test_bad_arguments_and_arbitrary_function_names_are_rejected(self):
         for args in (None, [], {'points':[], 'orb':20}, query(angle=45), query(scope='execute')):
@@ -108,6 +115,22 @@ class ChartToolTests(unittest.TestCase):
 
 
 class ToolLoopTests(unittest.TestCase):
+    def test_motion_reaches_model_in_tool_output(self):
+        ctx=MapContext(date='2026-10-18',time='12:00',
+                       query_positions=[('N:MERCURY',155),('T:MERCURY',180)],
+                       query_motion=[('N:MERCURY',False),('T:MERCURY',True)])
+        with patch('backend.v3.map_assistant.httpx.post',side_effect=[
+                response([call('get_chart_placements',{'points':['N:MERCURY','T:MERCURY']})]),
+                response([message('現行の水星は逆行中です。')])]) as post:
+            answer=_request_answer(MapAssistantRequest(question='水星は逆行？',context=ctx),'水星は逆行？','fake-key')
+        self.assertIn('逆行',answer)
+        first,second=[entry.kwargs['json'] for entry in post.call_args_list]
+        self.assertNotIn('query_motion',json.loads(first['input'][0]['content'])['screen'])
+        result=json.loads(second['input'][-1]['output'])
+        self.assertEqual([row['retrograde'] for row in result['placements']],[False,True])
+        self.assertEqual(result['date'],'2026-10-18')
+        self.assertIn('true=逆行、false=順行、null=情報なし',second['instructions'])
+
     def test_queries_then_answers_and_retains_stateless_reasoning_and_history(self):
         payload = MapAssistantRequest(question='今回の新月とのアスペクトは？', context=context(),
                                       history=[{'role':'assistant','content':'出生太陽とスクエアです'}])

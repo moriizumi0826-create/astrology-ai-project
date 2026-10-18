@@ -1,13 +1,17 @@
-export function isRetrograde(item) {
-  if (!item || item.estimated) return false;
-  return item.retrograde === true || item.retrograde === 1 || ['true','1','r','retrograde','逆行'].includes(String(item.retrograde ?? '').trim().toLowerCase());
+export function retrogradeState(item) {
+  if (!item || item.estimated || item.retrograde == null) return null;
+  const value=String(item.retrograde).trim().toLowerCase();
+  if (['true','1','r','retrograde','逆行'].includes(value)) return true;
+  if (['false','0','d','direct','順行'].includes(value)) return false;
+  return null;
 }
+export const isRetrograde = item => retrogradeState(item) === true;
 export const retrogradeSuffix = item => isRetrograde(item) ? '〔逆行〕' : '';
 
 // Use the current keyframe's factual flag until the next keyframe is reached.
 export function playbackMotion(fromChart, toChart, planet, progress) {
   const chart = progress >= 1 ? toChart : fromChart;
-  return isRetrograde(chart?.transits?.find(item => item.planet === planet));
+  return retrogradeState(chart?.transits?.find(item => item.planet === planet));
 }
 
 export function drawRetrogradeMarker(ctx) {

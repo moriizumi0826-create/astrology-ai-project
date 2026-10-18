@@ -10,7 +10,7 @@ import { customPlaybackDates, samplePlaybackDates } from "../src/transit-playbac
 import { MapAssistantPanel } from "./map-assistant-panel.jsx";
 import { buildMapAssistantContext } from "./map-assistant-context.mjs";
 import { MapAspectDescription } from "./map-aspect-description.jsx";
-import { isRetrograde, retrogradeSuffix, playbackMotion, drawRetrogradeMarker } from "./retrograde.mjs";
+import { isRetrograde, retrogradeState, retrogradeSuffix, playbackMotion, drawRetrogradeMarker } from "./retrograde.mjs";
 
 import { deviceTimezone } from "../src/device-time.mjs";
 
@@ -1861,7 +1861,7 @@ function transitHeadingLabel(planet, items) {
 
 function collectNatalPoints(forecast) {
   const byPlanet = new Map();
-  const addPoint = (planetValue, longitudeValue, estimated = false, retrograde = false) => {
+  const addPoint = (planetValue, longitudeValue, estimated = false, retrograde = null) => {
     const planet = normalizedPlanet(planetValue);
     const longitude = normalizeLongitude(longitudeValue);
     if (!NATAL_POINT_ORDER.includes(planet) || longitude === null || byPlanet.has(planet)) return;
@@ -1880,7 +1880,7 @@ function collectNatalPoints(forecast) {
     : Array.isArray(forecast?.natalPoints)
       ? forecast.natalPoints
       : [];
-  directPoints.forEach((point) => addPoint(point?.planet || point?.name, point?.longitude, false, isRetrograde(point)));
+  directPoints.forEach((point) => addPoint(point?.planet || point?.name, point?.longitude, false, retrogradeState(point)));
 
   NATAL_POINT_ORDER.forEach((planet) => {
     if (!byPlanet.has(planet)) {
@@ -1913,7 +1913,7 @@ function transitSkyMapData(day, forecast, selectedNatalPlanet = "SUN") {
       label: planetLabel(planet),
       longitude,
       color: PLANET_COLORS[planet] || "#e2e2e2",
-      retrograde: isRetrograde(item),
+      retrograde: retrogradeState(item),
     });
   });
   TRANSIT_PLANET_ORDER.forEach((planet) => {

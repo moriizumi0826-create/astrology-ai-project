@@ -1,3 +1,4 @@
+import {retrogradeState} from './retrograde.mjs';
 export const MAX_ASSISTANT_ASPECTS = 24;
 export const MAX_ASSISTANT_TRANSIT_ASPECTS = 45;
 const round = value => Number.isFinite(Number(value)) && value != null && value !== '' ? Math.round(Number(value) * 100) / 100 : null;
@@ -56,6 +57,7 @@ export function buildMapAssistantContext({date='',time='',timezone='',mode='',pl
   // Keep raw longitudes: rounding first can change an orb-boundary decision.
   const queryPositions = [];
   const queryHouses = [];
+  const queryMotion = [];
   for (const [layer,items] of [['N',natal],['T',transits]]) {
     for (const item of items) {
       const id = point(layer,item.planet || item.name);
@@ -63,6 +65,7 @@ export function buildMapAssistantContext({date='',time='',timezone='',mode='',pl
       if (id && longitude !== null && !item.estimated && !queryPositions.some(row=>row[0]===id)) {
         const sign=Math.floor(longitude/30);
         queryPositions.push([id,longitude]);
+        queryMotion.push([id,retrogradeState(item)]);
         queryHouses.push([id,sign,assistantHouse(longitude,natalCusps),layer==='T' ? assistantHouse(longitude,transitCusps) : null,
           layer==='T' && sunSign !== null ? (sign-sunSign+12)%12+1 : null]);
       }
@@ -83,5 +86,6 @@ export function buildMapAssistantContext({date='',time='',timezone='',mode='',pl
     patterns:[...new Set(rows.flatMap(a=>a.patterns))].slice(0,8).map(s=>s.slice(0,200)),
     positions:positions.slice(0,32),houses:houses.slice(0,32),planet_mode:planetMode,chart_natal_sun_sign:sunSign,
     query_positions:queryPositions.slice(0,32),query_houses:queryHouses.slice(0,32),
+    query_motion:queryMotion.slice(0,32),
     member_birth:compactBirth(memberForm),chart_birth:compactBirth(chartForm)};
 }

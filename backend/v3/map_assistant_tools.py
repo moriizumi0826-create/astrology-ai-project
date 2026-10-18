@@ -37,7 +37,8 @@ _POINTS = {'type': 'array', 'items': {'type': 'string'}, 'maxItems': 32,
            'description': 'Exact point IDs, e.g. T:MOON or N:SUN. Empty means all available points.'}
 TOOLS = [
     _tool('get_chart_placements',
-          'Get calculated signs, longitudes and separately named house bases at the current chart time. '
+          'Get calculated signs, longitudes, retrograde motion and separately named house bases. '
+          'retrograde is true/false/null; N: is at birth and T: is at the selected chart time. '
           'Null means unavailable; never substitute another house basis.', {'points': _POINTS}),
     _tool('get_chart_aspects',
           'Calculate aspects from real positions at the current chart time, regardless of display filters. '
@@ -77,13 +78,15 @@ def run_chart_tool(name, arguments, context):
     metadata = _metadata(context)
     if name == 'get_chart_placements':
         rows = []
+        motion = dict(context.query_motion)
         for point, longitude in positions.items():
             if requested and point not in requested:
                 continue
             sign, natal_house, chart_house, solar_house = houses.get(
                 point, (int(longitude % 360 // 30), None, None, None))
             rows.append({'point': point, 'longitude': longitude, 'sign': SIGN_NAMES[sign],
-                         'natal_house': natal_house, 'chart_time_house': chart_house, 'solar_house': solar_house})
+                         'natal_house': natal_house, 'chart_time_house': chart_house, 'solar_house': solar_house,
+                         'retrograde': motion.get(point)})
         return {**metadata, 'placements': rows, 'missing_points': sorted(missing),
                 'complete': context.query_positions is not None and not missing}
 

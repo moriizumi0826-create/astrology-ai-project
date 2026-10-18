@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {isRetrograde,retrogradeSuffix,playbackMotion,drawRetrogradeMarker} from '../v3/retrograde.mjs';
+import {isRetrograde,retrogradeState,retrogradeSuffix,playbackMotion,drawRetrogradeMarker} from '../v3/retrograde.mjs';
 test('retrograde flags are explicit and never inferred for estimated positions',()=>{
   for(const retrograde of [true,1,'1','true','R','逆行']) assert.equal(isRetrograde({retrograde}),true);
   for(const retrograde of [false,0,'false','0',undefined,null]) assert.equal(isRetrograde({retrograde}),false);
@@ -14,7 +14,12 @@ test('playback uses the current frame motion until the next frame is reached',()
   assert.equal(playbackMotion(from,to,'MERCURY',0.99),true);
   assert.equal(playbackMotion(from,to,'MERCURY',1),false);
   assert.equal(playbackMotion(to,from,'MERCURY',1),true);
-  assert.equal(playbackMotion(from,to,'VENUS',0),false);
+  assert.equal(playbackMotion(from,to,'VENUS',0),null);
+});
+test('missing, invalid and estimated flags remain unknown rather than direct',()=>{
+  for(const item of [null,{}, {retrograde:null},{retrograde:'unknown'},{retrograde:true,estimated:true}]) assert.equal(retrogradeState(item),null);
+  assert.equal(retrogradeState({retrograde:false}),false);
+  assert.equal(retrogradeState({retrograde:true}),true);
 });
 test('map marker is a small orange R in the upper-right of the symbol canvas',()=>{
   const calls=[],ctx={strokeText:(...args)=>calls.push(args),fillText:(...args)=>calls.push(args)};

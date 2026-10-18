@@ -10,7 +10,7 @@ from uuid import uuid4
 
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, Request
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, StrictBool
 
 from backend.v3.rate_limit import check_request_limit
 from backend.v3.access import AccessSnapshot, require_paid_access
@@ -76,6 +76,7 @@ class MapContext(BaseModel):
     # All real points, not the display-filtered/rounded context sent by older clients.
     query_positions: list[tuple[PointId, Longitude]] | None = Field(default=None, max_length=32)
     query_houses: list[tuple[PointId, Sign, House | None, House | None, House | None]] | None = Field(default=None, max_length=32)
+    query_motion: list[tuple[PointId, StrictBool | None]] = Field(default_factory=list, max_length=32)
     patterns: list[Annotated[str, Field(max_length=200)]] = Field(default_factory=list, max_length=8)
 
 
@@ -103,6 +104,8 @@ INSTRUCTIONS = (
     "ツールで取得していない配置を推測で成立すると認めないでください。"
     "planet_modeは表示天体(natal=内側のみ、transit=外側のみ、both=両方)。ツールの取得対象を表示設定で限定しません。"
     "get_chart_placementsは項目名付きの計算済み配置です。pointは天体、signは星座名、natal_houseは出生図基準、chart_time_houseは選択日時チャート基準、solar_houseはソーラーハウスです。"
+    "get_chart_placementsのretrogradeはtrue=逆行、false=順行、null=情報なしです。N:は表示チャートの出生時、T:は選択日時（再生中は現在フレーム）の状態で、現在の実日付や本人以外の出生図と混同しないでください。"
+    "逆行や運気を解釈する際はget_chart_placementsで逆行状態も確認し、関連する場合に読み解きへ含めてください。nullを順行と決めつけず、星座・ハウス・会話履歴から逆行を推測しないでください。逆行期間や留の日時はこのフラグだけでは分かりません。"
     "N/Tは天体位置の出所であり、ハウスの基準とは別です。Tの現行天体にもnatal_houseがあります。"
     "ハウス番号は対応する専用項目の値だけを引用してください。nullまたは未提供の項目は不明で、別基準の値・太陽星座・会話履歴から補ってはいけません。"
     "例:natal_house=null,chart_time_house=2,solar_house=12なら、出生図基準は不明、選択日時基準は2、ソーラー基準は12です。出生図基準が2や12とは言えません。"
@@ -229,7 +232,7 @@ def _model_summary(context):
     screen = _model_screen(context)
     for field in ('aspects', 'aspects_total', 'aspects_omitted', 'background_transit_aspects',
                   'background_transit_aspects_omitted', 'positions', 'houses', 'query_positions',
-                  'query_houses', 'patterns', 'chart_natal_sun_sign', 'selected_aspect'):
+                  'query_houses', 'query_motion', 'patterns', 'chart_natal_sun_sign', 'selected_aspect'):
         screen.pop(field, None)
     positions = context.query_positions if context.query_positions is not None else context.positions
     screen['available_points'] = list(dict(positions))
