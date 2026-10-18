@@ -3469,6 +3469,7 @@ def _retrograde_calendar_rows(
     current_dt: datetime | date | None = None,
     planet: str | None = None,
     event_type: str | None = None,
+    *, include_past: bool = False,
 ) -> list[dict[str, Any]]:
     _ensure_calendar_indexes()
     target_date = current_dt.date() if isinstance(current_dt, datetime) else current_dt
@@ -3482,7 +3483,7 @@ def _retrograde_calendar_rows(
     )
     from backend.app.services.display_time import local_calendar_row
     rows = [local_calendar_row(row) for _, row in indexed_rows]
-    return [row for row in rows if (event_date := _parse_transit_calendar_date(row.get("Event_Date"))) and event_date >= target_date]
+    return [row for row in rows if (event_date := _parse_transit_calendar_date(row.get("Event_Date"))) and (include_past or event_date >= target_date)]
 
 
 def _next_motion_change_from_calendar(
@@ -3625,8 +3626,8 @@ def _dashboard_planet_motion(
         return []
 
 
-def _dashboard_retrograde_calendar(current_dt: datetime | date | None) -> list[dict[str, Any]]:
-    rows = _retrograde_calendar_rows(current_dt)
+def _dashboard_retrograde_calendar(current_dt: datetime | date | None, *, include_past: bool = False) -> list[dict[str, Any]]:
+    rows = _retrograde_calendar_rows(current_dt, include_past=include_past)
     calendar: list[dict[str, Any]] = []
     for row in rows:
         event_type = str(row.get("Event_Type") or "").strip().upper()
@@ -4871,7 +4872,7 @@ def build_dashboard_data_from_interpretations(
                 else []
             ),
             "planetMotion": _dashboard_planet_motion(birth_input, current_dt),
-            "retrogradeCalendar": _dashboard_retrograde_calendar(current_dt),
+            "retrogradeCalendar": _dashboard_retrograde_calendar(current_dt, include_past=True),
             "weekly_aspects": [],
             "premium": {"title": "Premium AI Preview", "description": "", "placeholder": "", "preview": ""},
             "aspect_interpretations": [],
@@ -5036,7 +5037,7 @@ def build_dashboard_data_from_interpretations(
         },
         "dailyPerformance": daily_performance,
         "planetMotion": _dashboard_planet_motion(birth_input, current_dt),
-        "retrogradeCalendar": _dashboard_retrograde_calendar(current_dt),
+        "retrogradeCalendar": _dashboard_retrograde_calendar(current_dt, include_past=True),
         "weekly_aspects": weekly_aspects,
         "premium": {
             "title": "Premium AI Preview",

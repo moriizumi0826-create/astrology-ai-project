@@ -1849,7 +1849,7 @@ function DashboardV2DailyFlowCard({ data, displayDate = "" }) {
   const selectedX = Number.isInteger(effectiveSelectedPerformanceIndex)
     ? pad + (effectiveSelectedPerformanceIndex / Math.max(1, chartPerformance.length - 1)) * (width - pad * 2)
     : null;
-  const hoveredTooltipLeft = hoveredX === null ? 0 : `${(hoveredX / width) * 100}%`;
+  const hoveredTooltipPosition = hoveredX !== null && hoveredX >= width / 2 ? { left: 8 } : { right: 8 };
   const performanceIndexFromPointer = (event) => {
     const bounds = event.currentTarget.getBoundingClientRect();
     const svgX = ((event.clientX - bounds.left) / bounds.width) * width;
@@ -1860,7 +1860,9 @@ function DashboardV2DailyFlowCard({ data, displayDate = "" }) {
     setHoveredPerformanceIndex(performanceIndexFromPointer(event));
   };
   const handlePerformanceClick = (event) => {
-    setSelectedPerformanceIndex(performanceIndexFromPointer(event));
+    const index = performanceIndexFromPointer(event);
+    setSelectedPerformanceIndex(index);
+    setHoveredPerformanceIndex(index);
   };
   const handleTransitAspectClick = (event, block, detail, score) => {
     event.preventDefault();
@@ -1905,8 +1907,10 @@ function DashboardV2DailyFlowCard({ data, displayDate = "" }) {
         <div className="relative">
           {hoveredPerformance ? (
             <div
-              className="pointer-events-none absolute top-2 z-20 min-w-[156px] -translate-x-1/2 rounded-xl border border-white/10 bg-[#0d0e0f]/95 px-3 py-2 font-mono text-[10px] font-bold text-[#e2e2e2] shadow-[0_18px_50px_rgba(0,0,0,0.42)]"
-              style={{ left: hoveredTooltipLeft }}
+              role="tooltip"
+              aria-label="時間帯のスコア"
+              className="pointer-events-none absolute top-2 z-20 w-[156px] max-w-[calc(50%-12px)] rounded-xl border border-white/10 bg-[#0d0e0f]/95 px-3 py-2 font-mono text-[10px] font-bold text-[#e2e2e2] shadow-[0_18px_50px_rgba(0,0,0,0.42)]"
+              style={hoveredTooltipPosition}
             >
               <p className="mb-1 text-[#e9c349]">{dailyPerformanceTimeLabel(hoveredPerformance, hoveredPerformanceIndex, chartDate)}</p>
               <div className="grid gap-1">

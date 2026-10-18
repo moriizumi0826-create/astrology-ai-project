@@ -16,6 +16,17 @@ from backend.v3.deployment import require_allowed_origin
 router = APIRouter(prefix="/api/v3")
 
 
+@router.get("/retrograde-calendar")
+def retrograde_calendar(display_timezone_name: str | None = None,
+                        access: AccessSnapshot = Depends(require_paid_access)):
+    from backend.app.services.display_time import display_scope
+    try:
+        with display_scope(display_timezone_name):
+            return {"events": legacy.reading_service._dashboard_retrograde_calendar(None, include_past=True)}
+    except ValueError as exc:
+        raise HTTPException(422, detail=str(exc)) from exc
+
+
 class AspectDetailRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
     transit_planet: str = Field(pattern=r"^[A-Z_]{1,24}$")
