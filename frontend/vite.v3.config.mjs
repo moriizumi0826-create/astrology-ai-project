@@ -31,6 +31,14 @@ export default defineConfig(({ mode }) => {
   root: path.join(directory, "v3"),
   base: "/",
   plugins: [react(), {
+    name: "v3-anonymous-visits",
+    transformIndexHtml: {
+      order: "pre",
+      handler() {
+        return [{ tag: "script", attrs: { type: "module", src: "/visits.mjs" }, injectTo: "head" }];
+      },
+    },
+  }, {
     name: "v3-retrograde-calendar-master",
     resolveId(id) { if (id === "virtual:v3-retrograde-calendar") return "\0v3-retrograde-calendar"; },
     load(id) {
