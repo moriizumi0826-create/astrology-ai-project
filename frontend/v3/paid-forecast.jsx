@@ -7,6 +7,8 @@ import { AccountControls } from "./account-controls.jsx";
 import { UpdateMenu } from "./update-menu.jsx";
 import { featurePolicy } from "./feature-policy.mjs";
 import { deviceTimezone } from "../src/device-time.mjs";
+import retrogradeCalendarMaster from "virtual:v3-retrograde-calendar";
+import { localRetrogradeCalendar } from "./retrograde-calendar-data.mjs";
 import React, { useEffect, useMemo, useState } from "react";
 
 import { Activity, BriefcaseBusiness, CalendarDays, ChevronDown, CircleDot, HandHeart, LockKeyhole, Maximize2, Menu, Minimize2, Minus, Move, Pause, Play, Plus, RefreshCw, Shield, SlidersHorizontal, Sparkles, WalletCards } from "lucide-react";
@@ -1451,7 +1453,6 @@ function RetrogradeCalendarPanel({
   sortedRetrogradeCalendar,
   retrogradeCalendarSort,
   setRetrogradeCalendarSort,
-  error = "",
   className = "",
 }) {
   return (
@@ -1486,7 +1487,6 @@ function RetrogradeCalendarPanel({
         </div>
       </div>
       <div className="grid max-h-[320px] gap-1 overflow-y-auto pr-1">
-        {error && <p role="alert" className="mb-2 text-[10px] text-rose-700">{error}</p>}
         {sortedRetrogradeCalendar.length ? sortedRetrogradeCalendar.map((item, index) => {
           const isRetrogradeStart = String(item.event_type || item.eventType || "").includes("RETROGRADE") || item.event_label === "逆行開始" || item.eventLabel === "逆行開始";
           return (
@@ -1526,42 +1526,11 @@ function Header({
   const [isMobileUnifiedMenuOpen, setIsMobileUnifiedMenuOpen] = useState(false);
   const [isRetrogradeCalendarOpen, setIsRetrogradeCalendarOpen] = useState(false);
   const [retrogradeCalendarSort, setRetrogradeCalendarSort] = useState("date");
-  const [completeRetrogradeCalendar, setCompleteRetrogradeCalendar] = useState(null);
-  const [retrogradeCalendarError, setRetrogradeCalendarError] = useState("");
-  useEffect(() => {
-    if (!isRetrogradeCalendarOpen || completeRetrogradeCalendar !== null) return;
-    let active = true;
-    setRetrogradeCalendarError("");
-    getJson(`/api/retrograde-calendar?display_timezone_name=${encodeURIComponent(deviceTimezone())}`)
-      .then(payload => {
-        if (!Array.isArray(payload?.events)) throw new Error("invalid calendar");
-        if (active) setCompleteRetrogradeCalendar(payload.events);
-      }).catch(() => {
-        if (active) setRetrogradeCalendarError("全期間の取得に失敗しました。カレンダーを開き直して再試行してください。");
-      });
-    return () => { active = false; };
-  }, [isRetrogradeCalendarOpen, completeRetrogradeCalendar]);
   const navItems = [
     { value: "unified", label: "星の見通し", requiresPremium: true },
     { value: "horoscope", label: "Horoscope", requiresPremium: false },
   ];
-  const retrogradeCalendar = useMemo(() => {
-    if (completeRetrogradeCalendar !== null) return completeRetrogradeCalendar;
-    const storedPayload = getStoredReadingResult() || {};
-    const payload = readingPayload || storedPayload;
-    const sourceDashboard = dashboardData || payload?.dashboard_data || payload?.dashboardData || {};
-    const sourceForecast = forecast || getForecast() || payload?.yearly_forecast || payload?.yearlyForecast || sourceDashboard?.yearly_forecast || sourceDashboard?.yearlyForecast || {};
-    const items =
-      sourceDashboard?.retrogradeCalendar ||
-      sourceDashboard?.retrograde_calendar ||
-      payload?.retrogradeCalendar ||
-      payload?.retrograde_calendar ||
-      sourceForecast?.retrogradeCalendar ||
-      sourceForecast?.retrograde_calendar ||
-      fallbackDashboardData?.retrogradeCalendar ||
-      [];
-    return Array.isArray(items) ? items : [];
-  }, [dashboardData, forecast, readingPayload, completeRetrogradeCalendar]);
+  const retrogradeCalendar = useMemo(() => localRetrogradeCalendar(retrogradeCalendarMaster, deviceTimezone()), []);
   const sortedRetrogradeCalendar = useMemo(() => {
     return [...retrogradeCalendar].sort((a, b) => {
       if (retrogradeCalendarSort === "planet") {
@@ -1613,7 +1582,6 @@ function Header({
                 sortedRetrogradeCalendar={sortedRetrogradeCalendar}
                 retrogradeCalendarSort={retrogradeCalendarSort}
                 setRetrogradeCalendarSort={setRetrogradeCalendarSort}
-                error={retrogradeCalendarError}
                 className="fixed left-3 right-3 top-[58px] sm:left-auto sm:right-8 sm:top-[88px] sm:w-[330px]"
               />
             </div>

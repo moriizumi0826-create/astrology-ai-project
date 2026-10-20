@@ -9,15 +9,16 @@ try {
   await page.goto('http://127.0.0.1:5198/retro-calendar-preview');
   const button=page.getByRole('button',{name:'逆行カレンダーを開く',exact:true});
   await button.click();const panel=page.locator('#forecast-retrograde-calendar');
-  await panel.getByText('水星',{exact:true}).waitFor();
-  assert.ok((await panel.innerText()).includes('2026/1/1'));
-  assert.ok((await panel.innerText()).includes('2030/12/1'));
+  await panel.getByText('水星',{exact:true}).first().waitFor();
+  assert.ok((await panel.innerText()).includes('2026/6/30'));
+  assert.ok((await panel.innerText()).includes('2031/4/18'));
+  assert.equal(await panel.getByText('逆行開始',{exact:true}).count()+await panel.getByText('順行開始',{exact:true}).count(),91);
   await panel.getByRole('button',{name:'天体別',exact:true}).click();
   await panel.getByRole('button',{name:'日付順',exact:true}).click();
   await button.click();await button.click();
-  await panel.getByText('水星',{exact:true}).waitFor();
-  assert.equal(await page.evaluate(()=>window.calendarLoads),1);
-  assert.deepEqual(errors,[]);console.log(`${width}px: stale future-only reading replaced with all events; sorting/reopen OK`);
+  await panel.getByText('水星',{exact:true}).first().waitFor();
+  assert.equal(await page.evaluate(()=>window.calendarLoads||0),0);
+  assert.deepEqual(errors,[]);console.log(`${width}px: 91 bundled master events including past dates, zero API calls, sorting/reopen OK`);
   await page.close();
  }
 }finally{await browser.close();}

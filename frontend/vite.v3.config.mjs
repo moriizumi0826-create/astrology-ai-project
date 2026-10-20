@@ -3,6 +3,8 @@ import { fileURLToPath } from "node:url";
 import { defineConfig, loadEnv } from "vite";
 import react from "@vitejs/plugin-react";
 import { randomUUID } from "node:crypto";
+import { readFileSync } from "node:fs";
+import { parseRetrogradeCalendar } from "./v3/retrograde-calendar-data.mjs";
 
 const directory = path.dirname(fileURLToPath(import.meta.url));
 
@@ -29,6 +31,15 @@ export default defineConfig(({ mode }) => {
   root: path.join(directory, "v3"),
   base: "/",
   plugins: [react(), {
+    name: "v3-retrograde-calendar-master",
+    resolveId(id) { if (id === "virtual:v3-retrograde-calendar") return "\0v3-retrograde-calendar"; },
+    load(id) {
+      if (id !== "\0v3-retrograde-calendar") return;
+      const source = path.resolve(directory, "../database/M_Retrograde_Calendar.generated.csv");
+      this.addWatchFile(source);
+      return `export default ${JSON.stringify(parseRetrogradeCalendar(readFileSync(source, "utf8")))};`;
+    },
+  }, {
     name: "v3-build-version",
     generateBundle() {
       this.emitFile({ type: "asset", fileName: "version.json", source: JSON.stringify({ buildId }) });

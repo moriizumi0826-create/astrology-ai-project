@@ -50,6 +50,7 @@ services:
     buildFilter:
       paths:
         - frontend/**
+        - database/M_Retrograde_Calendar.generated.csv
         - render-v3-production.yaml
     envVars:
       - key: VITE_V3_API_BASE_URL
