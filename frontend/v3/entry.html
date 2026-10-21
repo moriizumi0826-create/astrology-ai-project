@@ -3,7 +3,8 @@
   <head>
     <meta charset="utf-8" />
     <meta content="width=device-width, initial-scale=1.0" name="viewport" />
-    <title>The Celestial Atelier | V3</title>
+    <title>無料ホロスコープ作成・3D天体マップ｜The Celestial Atelier</title>
+    <meta name="description" content="生年月日・出生時刻・出生地からホロスコープを無料作成。3Dマップで天体配置やアスペクト、時間による変化を確認できます。有料プランでは天体イベントカレンダーやAIへの質問も利用できます。" />
     <link href="https://fonts.googleapis.com" rel="preconnect" />
     <link crossorigin href="https://fonts.gstatic.com" rel="preconnect" />
     <link
@@ -35,14 +36,16 @@
             <h1 class="reveal text-6xl md:text-8xl font-notoSerif text-primary leading-tight tracking-tight mb-8">
               A Sanctuary of Celestial Wisdom.
             </h1>
-            <p class="text-xs uppercase tracking-[0.2em] text-secondary font-bold mb-12">星の知恵が宿る聖域</p>
+            <p class="text-xs uppercase tracking-[0.2em] text-secondary font-bold mb-8">星の知恵が宿る聖域</p>
+            <p class="font-notoSansJP text-xl md:text-2xl text-primary leading-relaxed mb-4">あなたのホロスコープを、<br class="hidden lg:block" />動かせる3Dマップで。</p>
+            <p class="font-notoSansJP text-sm md:text-base text-on-surface-variant leading-loose max-w-lg mb-8">生まれたときと今の天体配置を重ね、星同士の関係や時間による変化を直感的に確認できます。</p>
             <div class="flex flex-col gap-8 items-start">
               <p id="environment-note" class="text-on-surface-variant font-notoSansJP text-lg leading-relaxed max-w-md" hidden></p>
               <a
                 class="bg-primary text-on-primary px-10 py-5 text-sm uppercase tracking-widest hover:bg-primary-dim transition-all duration-500 font-notoSansJP"
                 href="#entry"
               >
-                あなたの設計図を見つける
+                無料でホロスコープを作成
               </a>
             </div>
           </div>
@@ -56,22 +59,40 @@
         </div>
       </section>
 
-      <section class="py-24 md:py-32 bg-surface-container-low px-6 md:px-12">
+      <section class="py-24 md:py-32 bg-surface-container-low px-6 md:px-12 scroll-mt-28" id="results" aria-labelledby="features-heading">
         <div class="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-16 md:gap-24 items-center">
-          <div class="order-2 md:order-1">
+          <figure class="order-2 md:order-1 min-w-0">
             <img
-              class="w-full aspect-[3/4] object-cover"
-              alt="Star chart"
-              src="https://lh3.googleusercontent.com/aida-public/AB6AXuDRQYqUynl738bKL66wb2UC3B3wnD7XTBgKtDY4lLB2Em4AjCVT9t7tR2wZ-UhFrUqKf8n1k38XIqrssNWV0vgvB3tIr7eCO_xFqiToVRnbsXkJHcbV1Gzw0MhhLv6stWIHQykclKWOB_rvYWAh3R2jOLu6B1NBhhuUJjTRlFguM-n7b40R4Dbg3fV8zv0cp0i8tGRQjbdnDY-WYpzDTEgnpdcAb-1K-vCUh52JUpKP-mbVOctdqLV62J57XGbjalx9ZjZIeano2kmt"
+              class="w-full h-auto rounded-2xl shadow-[0px_20px_40px_rgba(46,52,45,0.12)]"
+              alt="出生図と現行天体を重ね、アスペクトラインを表示した実際の3Dホロスコープマップ"
+              src="/assets/landing-3d-map.jpg"
+              width="1265" height="762" loading="lazy" decoding="async"
             />
-          </div>
+            <figcaption class="mt-4 font-notoSansJP text-xs text-on-surface-variant leading-relaxed">3Dマップの表示例。サンプルの天体データを使用しています。</figcaption>
+          </figure>
           <div class="order-1 md:order-2 flex flex-col gap-8">
             <div class="flex flex-col gap-2">
               <label id="environment-label" class="text-[10px] uppercase tracking-[0.3em] text-secondary font-bold" hidden></label>
             </div>
-            <h2 class="text-4xl md:text-5xl font-notoSerif text-primary leading-snug">
-              Astrology as an Artisanal Interface.
+            <p class="text-[10px] uppercase tracking-[0.2em] text-secondary font-bold">Astrology as an Artisanal Interface.</p>
+            <h2 id="features-heading" class="text-2xl md:text-3xl font-notoSansJP text-primary leading-relaxed text-balance">
+              星の動きを、見て、動かして、読み解く。
             </h2>
+            <dl class="font-notoSansJP grid gap-6">
+              <div>
+                <dt class="text-base font-medium text-primary">3Dマップで、天体の関係を見る</dt>
+                <dd class="mt-2 text-sm text-on-surface-variant leading-loose">マップを回転・拡大しながら、生まれたときと現在の天体配置や、星同士を結ぶアスペクトを確認できます。</dd>
+              </div>
+              <div>
+                <dt class="text-base font-medium text-primary">時間を動かして、変化をたどる</dt>
+                <dd class="mt-2 text-sm text-on-surface-variant leading-loose">日時を選んで配置を切り替えたり、連続再生で天体の動きやアスペクトの移り変わりを見たりできます。</dd>
+              </div>
+              <div>
+                <dt class="text-base font-medium text-primary">気になるイベントを、AIに質問<span class="inline-block ml-2 align-middle text-[10px] text-secondary border border-secondary/30 rounded-full px-2 py-0.5">有料プラン</span></dt>
+                <dd class="mt-2 text-sm text-on-surface-variant leading-loose">「星の見通し」の天体イベントカレンダーで気になるイベントを選び、その日時の3DマップからAIに質問できます。</dd>
+              </div>
+            </dl>
+            <p class="font-notoSansJP text-xs text-on-surface-variant leading-loose">ホロスコープ作成と3Dマップは無料で利用できます。「星の見通し」とAIへの質問は有料プランの機能です。</p>
           </div>
         </div>
       </section>
