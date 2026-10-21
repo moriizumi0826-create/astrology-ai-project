@@ -21,8 +21,21 @@ export function calendarMapNavigation(event, timezone = Intl.DateTimeFormat().re
   }
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date || '') || !/^(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d)?$/.test(time || '') || !Number.isFinite(Date.parse(date+'T'+time+'Z'))) throw new Error('イベントの日時を確認できません。');
   if (new Date(date+'T00:00:00Z').toISOString().slice(0,10) !== date) throw new Error('イベントの日時を確認できません。');
+  const planet = event?.transit_planet || event?.planet;
+  const house = Number(event?.house);
   return {date,time,timezone,utc_datetime,approximate:!raw,
+    ...(/^[A-Z_0-9]{1,24}$/.test(planet || '') ? {planet} : {}),
+    ...(event?.event_type === 'natal_house_ingress' && Number.isInteger(house) && house >= 1 && house <= 12
+      ? {house_basis:'natal',target_house:house} : {}),
     title:String(event?.title || '天体イベント').slice(0,160),type:String(event?.event_type || '').slice(0,40)};
+}
+export function compactSelectedEvent(event, date = '', time = '') {
+  const fullTime = value => value?.length === 5 ? value + ':00' : value;
+  if (!event || (date && event.date !== date) || (time && fullTime(event.time) !== fullTime(time))) return undefined;
+  return {title:event.title,type:event.type,date:event.date,time:event.time,approximate:event.approximate,
+    ...(event.planet ? {planet:event.planet} : {}),
+    ...(event.type === 'natal_house_ingress' && event.house_basis === 'natal' && Number.isInteger(event.target_house) && event.target_house >= 1 && event.target_house <= 12
+      ? {house_basis:'natal',target_house:event.target_house} : {})};
 }
 export function eventAssistantNotice(event) {
   return `「${event.title}」の${event.date} ${event.time}（${event.timezone}）の配置を表示します。${event.approximate ? '時刻が未提供のため、正午の参考配置です。' : ''}出生図との関係について、ここから質問できます。`;

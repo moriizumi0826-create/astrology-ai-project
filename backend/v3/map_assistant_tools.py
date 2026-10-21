@@ -59,8 +59,9 @@ def _snapshot(context):
 
 
 def _metadata(context):
+    event = context.active_selected_event
     return {'date': context.date, 'time': context.time, 'timezone': context.timezone,
-            'selected_event': context.selected_event.model_dump(mode='json') if context.selected_event else None,
+            'selected_event': event.model_dump(mode='json', exclude_none=True) if event else None,
             'source': 'current_chart_snapshot', 'chart_subject': 'chart_birth, not necessarily member_birth'}
 
 

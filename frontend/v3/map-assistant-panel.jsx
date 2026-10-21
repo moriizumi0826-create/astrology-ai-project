@@ -79,7 +79,7 @@ export function MapAssistantPanel({ id, context, getContext, onClose, canAsk = f
     return () => { document.removeEventListener('pointerdown', outside); document.removeEventListener('keydown', escape, true); };
   }, [infoOpen]);
 
-  async function ask(rawQuestion) {
+  async function ask(rawQuestion, questionOrigin = 'free_text') {
     const question = rawQuestion.trim();
     if (!question || pending) return;
     if (Object.hasOwn(FAQ, question)) {
@@ -95,7 +95,9 @@ export function MapAssistantPanel({ id, context, getContext, onClose, canAsk = f
     setError("");
     setPending(true);
     try {
-      const result = await postJson("/api/map-assistant", { question, context: getContext ? getContext() : context, history });
+      const currentContext = getContext ? getContext() : context;
+      const question_origin = questionOrigin === 'event_suggestion' && currentContext?.selected_event ? 'event_suggestion' : 'free_text';
+      const result = await postJson("/api/map-assistant", { question, context: currentContext, history, question_origin });
       ++usageRequest.current;
       if(result.usage){setUsage(result.usage);setUsageError('');}else{refreshUsage();}
       setMessages((current) => [...current, { role: "assistant", content: result.answer, demo: result.mode === "demo" }]);
@@ -129,7 +131,7 @@ export function MapAssistantPanel({ id, context, getContext, onClose, canAsk = f
             <div role="group" aria-label="このイベントの質問候補" className="flex flex-nowrap gap-2 overflow-x-auto overscroll-x-contain pb-1" style={{scrollbarWidth:'thin'}}>
               {eventAssistantQuestions(eventNotice).map(question=><button key={question} type="button"
                 disabled={!canAsk || !contextReady || pending || !usage || (usage.unlimited !== true && usage.remaining <= 0)}
-                onClick={()=>ask(question)} className="min-h-11 shrink-0 whitespace-nowrap rounded-full border border-gold/30 px-3 py-2 text-[11px] text-gold hover:bg-gold/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold/50 disabled:cursor-not-allowed disabled:opacity-40">{question}</button>)}
+                onClick={()=>ask(question, 'event_suggestion')} className="min-h-11 shrink-0 whitespace-nowrap rounded-full border border-gold/30 px-3 py-2 text-[11px] text-gold hover:bg-gold/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold/50 disabled:cursor-not-allowed disabled:opacity-40">{question}</button>)}
             </div>
             <p className="mt-1 text-[10px] text-mist/65">横にスクロールして選択できます</p>
           </div>}

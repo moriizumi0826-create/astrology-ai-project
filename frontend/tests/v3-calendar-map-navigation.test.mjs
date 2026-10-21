@@ -43,3 +43,27 @@ test('lunations and motion transitions name the actual event',()=>{
   assert.match(eventAssistantQuestions({type:'retrograde_start'})[0],/この逆行/);
   assert.match(eventAssistantQuestions({type:'direct_start'})[0],/この順行/);
 });
+
+test('house ingress retains its target separately from actual placements near the cusp',()=>{
+  const selectedEvent=calendarMapNavigation({title:'月がネイタル第12ハウスへ移動',event_type:'natal_house_ingress',
+    event_datetime:'2026-10-21T12:00:00+09:00',planet:'MOON',house:12,note:'do not send'},'Asia/Tokyo');
+  const data=buildMapAssistantContext({date:selectedEvent.date,time:'12:00:00',selectedEvent,
+    natal:[{planet:'SUN',longitude:165}],transits:[{planet:'MOON',longitude:329.9}],natalCusps:Array.from({length:12},(_,i)=>i*30)});
+  assert.equal(data.selected_event.planet,'MOON');
+  assert.equal(data.selected_event.house_basis,'natal');
+  assert.equal(data.selected_event.target_house,12);
+  assert.equal(data.query_houses.find(row=>row[0]==='T:MOON')[2],11);
+  assert.equal(JSON.stringify(data).includes('do not send'),false);
+  for(const changed of [{date:'2026-10-22',time:'12:00'},{date:selectedEvent.date,time:'12:10'}]){
+    assert.equal(buildMapAssistantContext({...changed,selectedEvent}).selected_event,undefined);
+  }
+});
+
+test('invalid house targets are not inferred from the event title or another basis',()=>{
+  for(const house of [0,13,'bad',undefined]){
+    const event=calendarMapNavigation({title:'月が12ハウスへ移動',event_type:'natal_house_ingress',event_date:'2026-10-21',house},'Asia/Tokyo');
+    assert.equal(event.target_house,undefined);
+  }
+  const event=calendarMapNavigation({event_type:'sign_ingress',event_date:'2026-10-21',solar_house:12},'Asia/Tokyo');
+  assert.equal(event.house_basis,undefined);assert.equal(event.target_house,undefined);
+});

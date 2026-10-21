@@ -1,4 +1,5 @@
 import {retrogradeState} from './retrograde.mjs';
+import {compactSelectedEvent} from './calendar-map-navigation.mjs';
 export const MAX_ASSISTANT_ASPECTS = 24;
 export const MAX_ASSISTANT_TRANSIT_ASPECTS = 45;
 const round = value => Number.isFinite(Number(value)) && value != null && value !== '' ? Math.round(Number(value) * 100) / 100 : null;
@@ -78,8 +79,9 @@ export function buildMapAssistantContext({date='',time='',timezone='',mode='',pl
       }
     }
   }
+  const eventContext = compactSelectedEvent(selectedEvent, date, time);
   return {date,time,timezone,aspect_mode:mode,selected_planet:planet,
-    ...(selectedEvent ? {selected_event:{title:selectedEvent.title,type:selectedEvent.type,date:selectedEvent.date,time:selectedEvent.time,approximate:selectedEvent.approximate}} : {}),
+    ...(eventContext ? {selected_event:eventContext} : {}),
     selected_aspect: rows.filter(a=>a.selected).map(a=>a.row.slice(0,3).join(' ')).join(';').slice(0,160),
     aspects:rows.map(a=>a.row),aspects_total:unique.size,aspects_omitted:Math.max(0,unique.size-rows.length),
     background_transit_aspects:backgroundRows,background_transit_aspects_omitted:Math.max(0,background.size-backgroundRows.length),
