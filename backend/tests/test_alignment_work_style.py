@@ -64,8 +64,11 @@ class WorkStyleTests(unittest.TestCase):
         result=work_style_scores(data,self.chart)
         self.assertEqual(result['coverage'],0)
         self.assertEqual(result['mode'],'explore')
-        self.assertEqual(result['basis'],'chart_only')
-        self.assertTrue(all(p['answerScore'] is None and p['basis']=='chart_only' for p in result['profiles']))
+        self.assertEqual(result['basis'],'separate_profiles')
+        self.assertTrue(all(p['answerScore'] is None and p['value'] is None and p['basis']=='unanswered' for p in result['profiles']))
+        self.assertIsNone(result['comparison']['level'])
+        self.assertEqual(result['comparison']['comparedDimensions'],0)
+        self.assertEqual(result['answerType']['style'],'探索中')
         self.assertEqual(len(result['careers']),4)
         self.assertEqual(result,work_style_scores(copy.deepcopy(data),copy.deepcopy(self.chart)))
 
@@ -97,9 +100,26 @@ class WorkStyleTests(unittest.TestCase):
         for _ in range(300):
             data={q['id']:[rng.choice(q['options'])[0]] for q in BANK['questions']}
             result=work_style_scores(data,self.chart)
-            self.assertTrue(0<=result['total']<=100)
-            self.assertTrue(all(0<=p['value']<=100 for p in result['profiles']))
+            self.assertTrue(result['total'] is None or 0<=result['total']<=99)
+            self.assertTrue(all(p['value'] is None or 0<=p['value']<=100 for p in result['profiles']))
             self.assertEqual(result,work_style_scores(data,self.chart))
+
+    def test_answer_and_chart_profiles_are_independent_and_ordered(self):
+        high=answers('unknown'); high['creation_1']=['4']; high['creation_2']=['1']; high['creation_3']=['4']
+        low=copy.deepcopy(high); low['creation_1']=['1']; low['creation_2']=['4']; low['creation_3']=['1']
+        a=work_style_scores(high,self.chart); b=work_style_scores(low,self.chart)
+        self.assertEqual([p['id'] for p in a['profiles']],[d['id'] for d in BANK['dimensions']])
+        self.assertEqual([p['chartScore'] for p in a['profiles']],[p['chartScore'] for p in b['profiles']])
+        self.assertEqual(a['chartType'],b['chartType'])
+        self.assertEqual([(j['id'],j['score']) for j in a['careers']],[(j['id'],j['score']) for j in b['careers']])
+        creation=next(p for p in a['profiles'] if p['id']=='creation')
+        self.assertEqual(creation['value'],100)
+        self.assertEqual(creation['answerScore'],100)
+        changed_chart=copy.deepcopy(self.chart)
+        for p in changed_chart['planets']: p['house']=1
+        c=work_style_scores(high,changed_chart)
+        self.assertEqual([p['answerScore'] for p in a['profiles']],[p['answerScore'] for p in c['profiles']])
+        self.assertEqual(a['answerType'],c['answerType'])
 
     def test_optional_ai_keeps_the_same_scores_and_job_examples(self):
         payload=AnalysisRequest(question_version=VERSION,answers=answers(),birth=self.birth,

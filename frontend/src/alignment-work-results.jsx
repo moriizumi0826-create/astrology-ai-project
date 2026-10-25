@@ -4,16 +4,28 @@ import { ResultCard } from './alignment-results.jsx';
 import { ChartFacts } from './alignment-panels.jsx';
 import { QUESTIONS, answerText } from './alignment-work-style.mjs';
 
+function ProfileCard({ side, type, profiles }) {
+  const isAnswer=side==='answer';
+  const title=isAnswer?'自分の選択による結果':'出生図から見た資質';
+  const field=isAnswer?'answerScore':'chartScore';
+  return <section className={`al-profile-side al-profile-${side}`} aria-label={title}>
+    <header className="al-profile-head"><span className="al-profile-source">{isAnswer?'あなたの回答':'出生図'}</span><p>{title}</p><h3>{type.label}</h3><span className="al-type-style">{type.style}</span></header>
+    <div className="al-compare-metrics">{profiles.map(p=><div key={p.id} className="al-score-metric"><div><span>{p.label}</span><strong>{p[field]===null?'未確認':<>{p[field]}<small> / 100</small></>}</strong></div><div className="al-score-track" role={p[field]===null?undefined:'meter'} aria-label={`${title}：${p.label}`} aria-valuenow={p[field]??undefined} aria-valuemin={0} aria-valuemax={100}><span style={{width:`${p[field]??0}%`}}/></div></div>)}</div>
+  </section>;
+}
+
 export function WorkStyleResults({ scores, sections, answers, chart, busy, error, onDeepen, onRevise, onEditAnswers, onEditBirth, aiConnected, headingRef, revisions }) {
   const byId=id=>sections.find(s=>s.id===id);
+  if(!scores.comparison) return <section><h2 id="al-step-title" ref={headingRef} tabIndex={-1}>結果を更新する</h2><button type="button" className="al-primary" disabled={busy} onClick={onEditBirth}>最新の結果を見る</button></section>;
+  const comparison=scores.comparison;
   return <div className="al-results">
-    <div className="al-results-heading"><p className="al-eyebrow">YOUR WORK STYLE</p><h2 ref={headingRef} tabIndex={-1} id="al-step-title">{scores.typeLabel}</h2><p>{scores.tagline}</p></div>
-    <section className="al-score-hero" aria-label="働き方の結果">
-      <div className="al-score-top"><div className="al-score-dial" style={{'--score':`${scores.total}%`}}><div><span>{scores.scoreLabel}</span><strong>{scores.total}<small>/ 100</small></strong></div></div><div className="al-score-heading"><span className="al-source-label">{scores.mode==='explore'?'まず試す方向を探しているあなたへ':'あなたが望む稼ぎ方'}</span><h3>{scores.wishLabel}</h3><p>大切にしたいのは、{scores.condition}。</p></div></div>
-      <div className="al-work-profile" aria-label="7つの持ち味">{scores.profiles.map(p=><div key={p.id} className="al-score-metric"><div><span>{p.label}{p.basis==='chart_only'&&<small>出生図からの候補</small>}</span><strong>{p.value}<small> / 100</small></strong></div><div className="al-score-track" role="meter" aria-label={p.label} aria-valuenow={p.value} aria-valuemin={0} aria-valuemax={100}><span style={{width:`${p.value}%`}} /></div></div>)}</div>
-      <details className="al-score-method"><summary>スコアの見方</summary><p>{scores.formula}</p><p>{scores.note}</p><p>24問のうち、21問を7項目の採点に使います。残り3問は望む稼ぎ方・大切な条件・進め方です。「わからない」は減点せず、回答がある設問だけで算出します。</p><p>出生図だけの項目は、回答から確認できた持ち味と区別しています。総合は望む稼ぎ方に関係する項目の加重平均です。</p><table className="al-table"><caption>回答と出生図の内訳</caption><thead><tr><th>項目</th><th>回答</th><th>出生図</th></tr></thead><tbody>{scores.profiles.map(p=><tr key={p.id}><td>{p.label}</td><td>{p.answerScore??'未確認'}</td><td>{p.chartScore}</td></tr>)}</tbody></table><p>採点ルール：{scores.version}</p></details>
+    <div className="al-results-heading"><p className="al-eyebrow">TWO VIEWS OF YOUR POTENTIAL</p><h2 ref={headingRef} tabIndex={-1} id="al-step-title">あなたの選択と、出生図の資質を見比べる。</h2></div>
+    <section className="al-match-hero" aria-label="回答と出生図の一致度">
+      <div className="al-match-dial" style={{'--match-score':`${comparison.level===null?0:comparison.level/comparison.maxLevel*100}%`}} role={comparison.level===null?undefined:'meter'} aria-label="一致度" aria-valuenow={comparison.level??undefined} aria-valuemin={0} aria-valuemax={99}><div><span>一致度</span><strong>{comparison.level===null?'—':<><small>Lv.</small>{comparison.level}</>}</strong></div></div>
+      <div className="al-match-context"><h3>{scores.wishLabel}</h3><p>大切にしたいのは、{scores.condition}。</p>{comparison.comparedDimensions<7&&<p className="al-small">比較できた項目：{comparison.comparedDimensions} / 7</p>}</div>
     </section>
-    <section className="al-careers" aria-labelledby="careers-title"><div className="al-section-heading"><p className="al-source-label">こんな役割で生かせそう</p><h3 id="careers-title">向いていそうな仕事の例</h3></div><div className="al-career-grid">{scores.careers.map((job,i)=><article className="al-career-card" key={job.id}><div className="al-career-meta"><span>0{i+1}</span><span>持ち味との重なり <strong>{job.score}</strong></span></div><h4>{job.title}</h4><p>{job.description}</p><div className="al-career-reason">{job.reason}</div></article>)}</div></section>
+    <div className="al-profile-comparison"><ProfileCard side="answer" type={scores.answerType} profiles={scores.profiles}/><ProfileCard side="chart" type={scores.chartType} profiles={scores.profiles}/></div>
+    <section className="al-careers" aria-labelledby="careers-title"><div className="al-section-heading"><p className="al-source-label">出生図から見た、こんな役割で生かせそう</p><h3 id="careers-title">向いていそうな仕事の例</h3></div><div className="al-career-grid">{scores.careers.map((job,i)=><article className="al-career-card" key={job.id}><div className="al-career-meta"><span>0{i+1}</span><span>出生図との重なり <strong>{job.score}</strong></span></div><h4>{job.title}</h4><p>{job.description}</p><div className="al-career-reason">{job.reason}</div></article>)}</div></section>
     <section className="al-one-step"><span className="al-source-label">まず、ひとつ試すなら</span><p>{byId('action').body[0]}</p><p className="al-small">{scores.styleHint}</p></section>
     {aiConnected&&<section className="al-ai-takeaway"><span className="al-source-label">あなたのことばから、見立てを更新</span><p>{byId('overlap').body[0]}</p></section>}
     {error&&<p className="al-error" role="alert">{error}</p>}

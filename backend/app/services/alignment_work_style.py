@@ -2,6 +2,7 @@
 import json
 from backend.app.settings import PROJECT_ROOT
 from backend.app.services.alignment_scoring import calculate_scores, rounded, WISH_LABELS
+from backend.app.services.alignment_comparison import classify_profile, compare_profiles
 
 BANK = json.loads((PROJECT_ROOT / 'database/alignment_work_style_v3.json').read_text(encoding='utf-8'))
 VERSION = BANK['version']
@@ -16,13 +17,6 @@ HOUSE_POINTS = {
     'clients': (65,60,85,75,65,85,100,85,70,75,80,75),
     'shared': (50,90,75,75,45,85,85,100,65,85,75,65),
     'network': (65,55,85,65,80,60,90,75,85,85,100,60),
-}
-WISH_DIMENSIONS = {
-    'expertise': dict(resources=.6,daily=.25,role=.15),
-    'product': dict(creation=.6,resources=.25,daily=.15),
-    'cooperate': dict(clients=.4,network=.4,shared=.2),
-    'assets': dict(shared=.7,resources=.3),
-    'freedom': dict(creation=.35,resources=.35,daily=.3),
 }
 # Role examples, not employment selection or a claim that qualifications are held.
 JOBS = [
@@ -63,48 +57,51 @@ def work_style_scores(answers, chart):
         known_count += len(values)
         natal = rounded(sum(HOUSE_POINTS[key][c['house']-1]*c['weight'] for c in signals)/sum(c['weight'] for c in signals))
         self_score = rounded(sum(values)/len(values)) if values else None
-        total = rounded(self_score*.7+natal*.3) if self_score is not None else natal
         profiles.append(dict(id=key,label=dimension['label'],verb=dimension['verb'],description=dimension['description'],
-            value=total,answerScore=self_score,chartScore=natal,known=len(values),totalQuestions=len(questions),
+            value=self_score,answerScore=self_score,chartScore=natal,known=len(values),totalQuestions=len(questions),
             preferenceScore=rounded(sum(preference)/len(preference)) if preference else None,
             experienceScore=rounded(sum(experience)/len(experience)) if experience else None,
-            basis='answers_and_chart' if values else 'chart_only',
+            basis='answer_only' if values else 'unanswered',
             answerIds=[q['id'] for q in questions],chartSignals=[{**c,'value':HOUSE_POINTS[key][c['house']-1]} for c in signals]))
-    ranked = sorted(profiles,key=lambda d:d['value'],reverse=True)
+    # Keep both columns in the same canonical order. Rank only to name each side.
+    ranked = profiles
     profile_map = {d['id']:d for d in profiles}
     careers=[]
     for job_id,title,weights,description,step in JOBS:
-        score=rounded(sum(profile_map[key]['value']*weight for key,weight in weights.items()))
-        strongest=sorted(weights,key=lambda key:profile_map[key]['value']*weights[key],reverse=True)[:2]
+        score=rounded(sum(profile_map[key]['chartScore']*weight for key,weight in weights.items()))
+        available={key:weight for key,weight in weights.items() if profile_map[key]['answerScore'] is not None}
+        answer_score=rounded(sum(profile_map[key]['answerScore']*weight for key,weight in available.items())/sum(available.values())) if available else None
+        strongest=sorted(weights,key=lambda key:profile_map[key]['chartScore']*weights[key],reverse=True)[:2]
         careers.append(dict(id=job_id,title=title,score=score,description=description,step=step,
+            answerScore=answer_score,chartScore=score,
             reason='・'.join(DIMENSIONS[key]['label'] for key in strongest)+'を使う役割。',dimensions=list(weights)))
     careers.sort(key=lambda j:j['score'],reverse=True)
     wish=answers['wish'][0]
-    weights=WISH_DIMENSIONS.get(wish)
-    total=rounded(sum(profile_map[key]['value']*weight for key,weight in weights.items())) if weights else ranked[0]['value']
-    top, second = ranked[:2]
-    short_labels=dict(resources='探究',daily='改善',role='推進',creation='創作',clients='対話',shared='管理',network='協働')
-    type_label=f"{short_labels[top['id']]} × {short_labels[second['id']]}タイプ" if known_count>=6 else 'これから持ち味を探すタイプ'
+    comparison=compare_profiles(profiles)
+    answer_type=classify_profile(profiles,'answerScore')
+    chart_type=classify_profile(profiles,'chartScore')
+    known_profiles=[p for p in profiles if p['answerScore'] is not None]
+    top=max(known_profiles,key=lambda p:p['answerScore']) if known_profiles else max(profiles,key=lambda p:p['chartScore'])
     priority=answers['priority'][0]
     conditions=dict(autonomy='裁量や時間を自分で調整できる形',stability='担当範囲と見通しが明確な形',growth='学びと改善を重ねられる形',people='信頼できる相手と関われる形',impact='誰にどう役立ったかが見える形',unknown='負担や手応えを確かめられる小さな形')
     target=WISH_LABELS.get(wish,'まず試す方向を探す')
-    relevant_known=sum(profile_map[key]['known'] for key in weights) if weights else known_count
-    score_label=('望む稼ぎ方との重なり' if weights else '持ち味の候補スコア') if relevant_known else '出生図からの候補スコア'
-    return dict(version=VERSION,total=total,scoreLabel=score_label,
-        label='あなたの回答と出生図から見えた、働き方のヒント',typeLabel=type_label,
-        tagline=top['description'],wishLabel=target,wishId=wish,mode='selected' if weights else 'explore',
-        basis='answers_and_chart' if known_count else 'chart_only',coverage=rounded(known_count/21*100),
+    return dict(version=VERSION,scoringVersion='separate-profiles-1',total=comparison['level'],scoreLabel='回答と出生図の一致度',
+        comparison=comparison,answerType=answer_type,chartType=chart_type,
+        label='回答と出生図を、別々の点数で比較',typeLabel=answer_type['label'],
+        tagline=top['description'],wishLabel=target,wishId=wish,mode='selected' if wish!='unknown' else 'explore',
+        basis='separate_profiles',coverage=rounded(known_count/21*100),
         profiles=ranked,careers=careers[:4],candidates=[],metrics=[],components=signals,
         condition=conditions[priority],nextStep=careers[0]['step'],unavailableReason=None,
         styleHint=dict(prepare='考える時間を取り、資料や成果物で渡す進め方。',dialogue='相手と話しながら組み立てる進め方。',both='準備と対話を組み合わせる進め方。',unknown='一人で進める形と対話する形を、小さく比べてみる。')[answers['style'][0]],
-        formula='7項目は選択回答70％＋出生図の対応30％。回答が未確認の項目は、出生図だけの候補として表示します。',
-        note='独自の目安で、能力・採用可能性・収入や投資成果の判定ではありません。仕事は職種名より役割の例として見てください。')
+        formula='一致度Lv＝99×（1−比較できた項目の平均点差÷100）。左右の採点は混ぜません。',
+        note='一致度は回答と出生図の近さで、資質の活用度や成功率の測定ではありません。未確認の回答は比較から除きます。仕事例は出生図側の点数で並べています。')
 
 
 def immediate_result(answers, chart):
     scores=work_style_scores(answers,chart)
-    top=scores['profiles'][0]
-    unknown='未回答・未経験の項目は、出生図だけの候補として表示しています。' if scores['coverage']<100 else '続けやすさや需要は、小さく試した経験から確かめていきます。'
+    available=[p for p in scores['profiles'] if p['answerScore'] is not None]
+    top=max(available,key=lambda p:p['answerScore']) if available else scores['profiles'][0]
+    unknown='未確認の回答は出生図の点数で埋めず、一致度の比較から除いています。' if scores['coverage']<100 else '続けやすさや需要は、小さく試した経験から確かめていきます。'
     sections=[]
     for key,text in [('overlap',scores['tagline']),('tension',f"{scores['condition']}で、その持ち味が生きるか試してみる。"),('action',scores['nextStep']),('unknown',unknown)]:
         sections.append(dict(id=key,title=key,body=[text],evidence=[CATALOG[q][0]+'：'+CATALOG[q][1][answers[q][0]] for q in top['answerIds']],

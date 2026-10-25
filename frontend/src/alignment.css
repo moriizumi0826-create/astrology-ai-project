@@ -131,6 +131,49 @@ body.alignment-page { margin: 0; background: radial-gradient(ellipse at 80% 10%,
 
 /* Results use a reading hierarchy and local editing, separate from the questionnaire. */
 .al-layout.is-summary { display: block; }
+.al-match-hero { display: flex; align-items: center; justify-content: center; gap: 34px; padding: 28px; border: 1px solid #deddd1; background: #fffef9; border-radius: 16px; margin-bottom: 26px; }
+.al-match-dial { flex: 0 0 174px; height: 174px; border-radius: 50%; padding: 9px; background: conic-gradient(#ef6b91 0%,#f2a24f calc(var(--match-score)*.17),#e4cb50 calc(var(--match-score)*.33),#61bd8b calc(var(--match-score)*.5),#4ebacc calc(var(--match-score)*.67),#7189db calc(var(--match-score)*.83),#b878d7 var(--match-score),#e9e8db 0); }
+.al-match-dial > div { background: #fffef9; border-radius: 50%; height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+.al-match-dial span { font-size: 11px; color: #7b795d; }
+.al-match-dial strong { font: 58px/1.35 Georgia,serif; color: #4b6040; }
+.al-match-dial strong small { font: 17px Georgia,serif; margin-right: 4px; }
+.al-match-context { max-width: 530px; }
+.al-match-context h3 { font: 500 24px/1.6 'Noto Serif JP',serif; margin: 12px 0; }
+.al-match-context > p:last-child { font-size: 12px; line-height: 1.9; color: #757e6c; }
+.al-profile-comparison { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr); gap: 24px; }
+.al-profile-side { min-width: 0; padding: 27px; border-radius: 16px; border: 1px solid; }
+.al-profile-answer { background: #f2f6ed; border-color: #cbd8c0; color: #3c5131; }
+.al-profile-chart { background: #fbf6e9; border-color: #e0d1ad; color: #756033; }
+.al-profile-head { min-height: 144px; }
+.al-profile-source { display: inline-block; font-size: 10px; padding: 5px 10px; border-radius: 20px; background: #dfe9d5; color: #526b40; }
+.al-profile-chart .al-profile-source { background: #eee2c5; color: #856a32; }
+.al-profile-head > p { font-size: 12px; margin: 11px 0 5px; }
+.al-profile-head h3 { font: 500 23px/1.6 'Noto Serif JP',serif; margin: 0 0 9px; overflow-wrap: anywhere; }
+.al-type-style { font-size: 10px; opacity: .8; }
+.al-compare-metrics { display: grid; grid-template-columns: 1fr 1fr; gap: 24px 20px; margin-top: 18px; }
+.al-compare-metrics .al-score-metric { min-height: 47px; }
+.al-compare-metrics .al-score-metric > div:first-child { font-size: 11px; }
+.al-compare-metrics .al-score-metric small { font-size: 9px; }
+.al-profile-chart .al-score-metric strong { color: #856a32; }
+.al-profile-answer .al-score-track { background: #e0e8d8; }
+.al-profile-answer .al-score-track > span { background: #82976b; }
+.al-profile-chart .al-score-track { background: #eee4cd; }
+.al-profile-chart .al-score-track > span { background: #b69a5b; }
+@media(max-width:760px) {
+  .al-match-hero { flex-direction: column; gap: 15px; text-align: center; padding: 24px 18px; }
+  .al-match-dial { flex-basis: 154px; height: 154px; width: 154px; }
+  .al-match-dial strong { font-size: 52px; }
+  .al-match-context h3 { font-size: 20px; }
+  .al-profile-comparison { gap: 12px; }
+  .al-profile-side { padding: 18px 12px; }
+  .al-profile-head { min-height: 164px; }
+  .al-profile-head h3 { font-size: 18px; }
+  .al-profile-head > p { font-size: 10px; }
+  .al-compare-metrics { grid-template-columns: 1fr; gap: 17px; }
+  .al-compare-metrics .al-score-metric { min-height: 55px; }
+  .al-compare-metrics .al-score-metric > div:first-child { display: block; }
+  .al-compare-metrics .al-score-metric strong { display: block; margin-top: 4px; }
+}
 .al-work-quiz { display: block; max-width: 760px; margin: 0 auto; }
 .al-work-stages { grid-template-columns: repeat(3,1fr); }
 .al-work-profile { margin-top: 32px; display: grid; grid-template-columns: 1fr 1fr; gap: 22px 32px; }
