@@ -2,7 +2,7 @@
 import json
 from backend.app.settings import PROJECT_ROOT
 from backend.app.services.alignment_scoring import calculate_scores, rounded, WISH_LABELS
-from backend.app.services.alignment_comparison import classify_profile, compare_profiles
+from backend.app.services.alignment_comparison import classify_profile, compare_profiles, comparison_summary
 
 BANK = json.loads((PROJECT_ROOT / 'database/alignment_work_style_v3.json').read_text(encoding='utf-8'))
 VERSION = BANK['version']
@@ -78,6 +78,7 @@ def work_style_scores(answers, chart):
     careers.sort(key=lambda j:j['score'],reverse=True)
     wish=answers['wish'][0]
     comparison=compare_profiles(profiles)
+    comparison['summary']=comparison_summary(profiles)
     answer_type=classify_profile(profiles,'answerScore')
     chart_type=classify_profile(profiles,'chartScore')
     known_profiles=[p for p in profiles if p['answerScore'] is not None]

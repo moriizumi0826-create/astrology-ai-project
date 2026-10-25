@@ -1,8 +1,34 @@
 import unittest
-from backend.app.services.alignment_comparison import TYPE_NAMES, classify_profile, compare_profiles
+from backend.app.services.alignment_comparison import TYPE_NAMES, classify_profile, compare_profiles, comparison_summary
 
 
 class ComparisonTests(unittest.TestCase):
+    def test_summary_distinguishes_shared_high_scores_and_directional_gaps(self):
+        profiles=[dict(id='resources',label='専門性・探究',answerScore=85,chartScore=80),
+                  dict(id='creation',label='創作・発信',answerScore=95,chartScore=50)]
+        result=comparison_summary(profiles)
+        self.assertIn('専門性・探究',result['title'])
+        self.assertIn('創作・発信',result['title'])
+        self.assertIn('回答側が高め',result['title'])
+        profiles[1].update(answerScore=30,chartScore=90)
+        self.assertIn('出生図側が高め',comparison_summary(profiles)['title'])
+
+    def test_summary_does_not_call_low_matches_strengths_or_invent_gaps(self):
+        low=[dict(id='resources',label='専門性・探究',answerScore=20,chartScore=20)]
+        result=comparison_summary(low)
+        self.assertNotIn('強み',result['title'])
+        self.assertIn('全体的に近め',result['title'])
+        high=[dict(id='resources',label='専門性・探究',answerScore=90,chartScore=90)]
+        self.assertIn('が共通',comparison_summary(high)['title'])
+        self.assertNotIn('一方',comparison_summary(high)['detail'])
+        high[0]['answerScore']=None
+        self.assertIn('まだ比較できません',comparison_summary(high)['title'])
+
+    def test_summary_can_show_different_leading_dimensions(self):
+        profiles=[dict(id='resources',label='専門性・探究',answerScore=30,chartScore=90),
+                  dict(id='creation',label='創作・発信',answerScore=90,chartScore=30)]
+        self.assertEqual(comparison_summary(profiles)['title'],'回答では「創作・発信」、出生図では「専門性・探究」が高め。')
+
     def test_exact_matches_are_lv99_and_opposites_lv0(self):
         self.assertEqual(compare_profiles([dict(answerScore=70,chartScore=70)])['level'],99)
         self.assertEqual(compare_profiles([dict(answerScore=0,chartScore=100)])['level'],0)
