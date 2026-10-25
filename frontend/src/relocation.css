@@ -12,4 +12,8 @@ a:focus-visible { outline: 3px solid #f2d680; outline-offset: 5px; }
 .address { margin: 16px 0 32px; font-size: 13px; overflow-wrap: anywhere; }
 .address a { color: #d4c28b; text-underline-offset: 4px; }
 .note { margin-bottom: 0; font-size: 12px; }
+.trial { margin-top: 36px; padding-top: 26px; border-top: 1px solid #d4af3730; }
+.trial h2 { font-size: 17px; line-height: 1.8; font-weight: 500; margin: 12px 0; }
+.trial-link { display: inline-flex; align-items: center; gap: 18px; margin-top: 20px; padding: 12px 20px; border: 1px solid #d4af3760; border-radius: 8px; color: #e1d2a2; font-size: 13px; text-decoration: none; }
+.trial-link:hover { background: #d4af3715; }
 @media (max-width: 420px) { .wide-only { display: none; } .brand { margin-bottom: 36px; } }
