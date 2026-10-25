@@ -24,7 +24,7 @@ export default defineConfig(({ mode }) => {
       throw new Error("The production V3 build cannot use a preview API host");
     }
   }
-  const inputs = { app: path.join(directory, "v3/index.html"), entry: path.join(directory, "v3/entry.html"), login: path.join(directory, "v3/login.html"), callback: path.join(directory, "v3/auth-callback.html"), billing: path.join(directory, "v3/billing.html"), account: path.join(directory, "v3/account.html") };
+  const inputs = { app: path.join(directory, "v3/index.html"), entry: path.join(directory, "v3/entry.html"), alignment: path.join(directory, "v3/alignment.html"), login: path.join(directory, "v3/login.html"), callback: path.join(directory, "v3/auth-callback.html"), billing: path.join(directory, "v3/billing.html"), account: path.join(directory, "v3/account.html") };
   if (deployment === "local" && rootEnv.V3_INCLUDE_TEST_LOGIN !== "false") inputs.testLogin = path.join(directory, "v3/test-login.html");
   return {
   // Intentionally independent from legacy VITE_API_BASE_URL and entry pages.
@@ -78,7 +78,7 @@ export default defineConfig(({ mode }) => {
     port: 5176,
     strictPort: true,
     cors: false,
-    fs: { strict: true, allow: [directory] },
+    fs: { strict: true, allow: [directory, path.resolve(directory, '../database/alignment_work_style_v3.json')] },
     proxy: { "/api/v3": { target: rootEnv.V3_LOCAL_API_PROXY_TARGET || "http://127.0.0.1:8103", changeOrigin: true } },
   },
   resolve: { alias: [{ find: /^\.\/reading-storage\.js$/, replacement: path.join(directory, "v3", "reading-storage.js") }] },

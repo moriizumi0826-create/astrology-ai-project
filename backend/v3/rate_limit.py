@@ -12,6 +12,8 @@ from fastapi import HTTPException, Request
 # Sliding windows. A batch counts as one request, not one request per date.
 LIMITS = {
     "visit": ((60, 30),),
+    "alignment_calculation": ((60, 12), (3600, 120)),
+    "alignment_ai": ((60, 6), (3600, 12)),
     "location": ((60, 30),),
     "single": ((60, 60),),
     "month": ((60, 12),),
