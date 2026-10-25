@@ -114,15 +114,42 @@ class AlignmentAITests(unittest.TestCase):
             section.change = "revised"
             section.reason = "本人の補足で、分担する範囲を絞りました。"
             section.points[0].fact_ids = ["house:2", "revision:0"]
-        chart = {"planets": [], "houses": [dict(number=2, sign="牡牛座", degree=1, ruler="金星")], "aspects": [], "house_system": "Placidus", "ruler_system": "traditional"}
+        chart = {"planets": [dict(name="金星", sign="乙女座", degree=1, house=6, motion="順行")], "houses": [dict(number=2, sign="牡牛座", degree=1, ruler="金星")], "aspects": [], "house_system": "Placidus", "ruler_system": "traditional"}
         with patch.object(ai, "structured_response", return_value=generated):
             result = ai.generate_report(payload, chart)
         self.assertTrue(result["aiConnected"])
-        self.assertEqual(result["scores"]["version"], "alignment-match-1")
-        self.assertIsNone(result["scores"]["total"])
+        self.assertEqual(result["scores"]["version"], "alignment-match-2")
+        self.assertIsInstance(result["scores"]["total"], int)
         self.assertIn("分担", result["sections"][0]["changeReason"])
         self.assertIn("牡牛座", result["sections"][0]["chartNotes"][0])
         self.assertTrue(result["sections"][0]["original"])
+
+    def test_every_wish_produces_scores_through_analysis_api(self):
+        app = FastAPI()
+        app.include_router(routes.router)
+        client = TestClient(app)
+        for wish in ai.CATALOG['wish'][1]:
+            selected = answers()
+            selected['wish'] = [wish]
+            selected['interest'] = ['unknown']
+            selected['experience'] = ['unknown']
+            payload = dict(answers=selected, birth=dict(birth_date='1984-08-26', birth_time='19:20',
+                birthplace='埼玉県', latitude=35.85694, longitude=139.64889, timezone_name='Asia/Tokyo'), conversation=[])
+            with patch.object(routes, 'reserve'), patch.object(routes, '_slots'), patch.object(ai, 'structured_response', return_value=report()):
+                response = client.post('/api/alignment/analysis', json=payload)
+            self.assertEqual(response.status_code, 200, response.text)
+            result = response.json()
+            self.assertIsInstance(result['scores']['total'], int)
+            self.assertEqual(result['scores']['basis'], 'chart_only')
+            self.assertEqual(len(result['sections']), 4)
+
+    def test_broken_chart_fails_before_generating_ai_report(self):
+        payload = SimpleNamespace(answers=answers())
+        with patch.object(ai, 'structured_response') as generate:
+            with self.assertRaises(HTTPException) as caught:
+                ai.generate_report(payload, {})
+            self.assertEqual(caught.exception.status_code, 503)
+            generate.assert_not_called()
 
 
 if __name__ == '__main__':

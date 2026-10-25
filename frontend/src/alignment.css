@@ -152,6 +152,10 @@ body.alignment-page { margin: 0; background: radial-gradient(ellipse at 80% 10%,
 .al-score-method p, .al-score-method li { overflow-wrap: anywhere; }
 .al-score-method ul { padding-left: 18px; }
 .al-score-unavailable { color: #7c7051; font-size: 12px; line-height: 1.8; }
+.al-score-candidates { margin: 0 0 26px; border-top: 1px solid #e0e5d8; }
+.al-score-candidates > div { display: flex; justify-content: space-between; align-items: center; gap: 18px; padding: 13px 0; border-bottom: 1px solid #e0e5d8; font-size: 13px; line-height: 1.7; }
+.al-score-candidates strong { white-space: nowrap; color: #526c41; font-weight: 500; }
+.al-score-candidates small { font-size: 10px; }
 .al-one-step { padding: 25px 30px; background: #e9eee2; border-radius: 12px; margin-top: 20px; }
 .al-one-step p { font-size: 16px; line-height: 1.9; margin: 10px 0 0; overflow-wrap: anywhere; }
 .al-quick-revision { margin-top: 20px; }

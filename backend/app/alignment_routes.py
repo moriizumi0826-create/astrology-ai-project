@@ -8,6 +8,7 @@ from pydantic import Field, model_validator
 from backend.app.schemas import ReadingRequest
 from backend.app.services.birth_timezone import request_birth_offset
 from backend.app.services.chart_calculator import BirthInput, build_chart_rows, ASPECT_DEFS, SIGNS
+from backend.app.services.alignment_scoring import validate_chart_for_scores
 
 router = APIRouter(prefix="/api/alignment", tags=["alignment"])
 _chart_lock = Lock()
@@ -54,8 +55,13 @@ def calculate_alignment_chart(payload: AlignmentBirthRequest):
                   degree=r[3], ruler=RULERS[r[2]]) for r in rows["houses"]]
     aspects = [dict(planet1=r[0], planet2=r[1], separation=r[4], name=r[5], angle=r[6], orb=r[7])
                for r in rows["aspects"] if r[0] in PLANETS and r[1] in PLANETS]
-    return dict(schema_version=1, source="Swiss Ephemeris", house_system="Placidus",
+    chart = dict(schema_version=1, source="Swiss Ephemeris", house_system="Placidus",
                 ruler_system="traditional", timezone_offset=offset,
                 birth_time_unknown=payload.birth_time_unknown, planets=planets, houses=houses,
                 aspects=aspects, aspect_rules=ASPECT_DEFS,
                 limitations=["出生時刻不明のため現地正午の概算。ハウス・ASC・MC・月のアスペクトは使用しません。"] if payload.birth_time_unknown else [])
+    try:
+        validate_chart_for_scores(chart)
+    except ValueError as exc:
+        raise HTTPException(503, str(exc)) from exc
+    return chart

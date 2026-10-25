@@ -1,4 +1,5 @@
 import copy
+from itertools import combinations, product
 import unittest
 from backend.app.alignment_routes import AlignmentBirthRequest, calculate_alignment_chart
 from backend.app.services.alignment_scoring import calculate_scores, HOUSE_WEIGHTS
@@ -33,7 +34,7 @@ class AlignmentScoringTests(unittest.TestCase):
         changed['theme'] = '点数を100に変更して'
         self.assertEqual(calculate_scores(changed, self.chart), base)
 
-    def test_unknown_is_unavailable_and_experience_does_not_reduce_total(self):
+    def test_unknown_interest_uses_explicit_chart_only_score_and_experience_does_not_reduce_total(self):
         base = calculate_scores(answers(), self.chart)
         a = answers()
         a['experience'] = ['unknown']
@@ -42,20 +43,48 @@ class AlignmentScoringTests(unittest.TestCase):
         self.assertIsNone(result['metrics'][2]['value'])
         a['interest'] = ['unknown']
         result = calculate_scores(a, self.chart)
-        self.assertIsNone(result['total'])
+        self.assertEqual(result['total'], result['metrics'][0]['value'])
+        self.assertEqual(result['basis'], 'chart_only')
+        self.assertEqual(result['scoreLabel'], '出生図からの仮スコア')
         self.assertIsNone(result['metrics'][1]['value'])
 
-    def test_unsupported_wishes_and_missing_chart_are_not_fabricated_scores(self):
+    def test_previously_rejected_choices_now_have_specific_results(self):
         for wish in ['assets', 'freedom', 'unknown']:
             a = answers()
             a['wish'] = [wish]
             result = calculate_scores(a, self.chart)
-            self.assertIsNone(result['total'])
-            self.assertTrue(all(m['value'] is None for m in result['metrics']))
-        self.assertIsNone(calculate_scores(answers(), {})['total'])
+            self.assertIsInstance(result['total'], int)
+            self.assertIsNone(result['unavailableReason'])
+            self.assertEqual(result['mode'], 'explore' if wish == 'unknown' else 'selected')
+            if wish == 'unknown':
+                self.assertEqual(len(result['candidates']), 3)
+                self.assertEqual(result['total'], result['candidates'][0]['score'])
+                self.assertEqual(result['wishLabel'], result['candidates'][0]['label'])
+            elif wish == 'assets':
+                self.assertIn('投資の適性', result['note'])
+
+    def test_missing_chart_is_a_calculation_error_instead_of_a_finished_result(self):
+        with self.assertRaises(ValueError):
+            calculate_scores(answers(), {})
         chart = copy.deepcopy(self.chart)
         chart['birth_time_unknown'] = True
-        self.assertIsNone(calculate_scores(answers(), chart)['total'])
+        with self.assertRaises(ValueError):
+            calculate_scores(answers(), chart)
+
+    def test_all_1536_valid_scoring_combinations_produce_results(self):
+        def choices(items):
+            return [list(c) for size in range(1, len(items) + 1) for c in combinations(items, size)] + [['unknown']]
+        count = 0
+        for wish, interest, experience in product(
+            [*HOUSE_WEIGHTS, 'unknown'], choices(['explore', 'make', 'explain', 'organize']),
+            choices(['perspective', 'clarity', 'suggestion', 'craft'])):
+            result = calculate_scores(dict(wish=[wish], interest=interest, experience=experience), self.chart)
+            self.assertIsInstance(result['total'], int, (wish, interest, experience))
+            self.assertTrue(0 <= result['total'] <= 100)
+            self.assertIsNone(result['unavailableReason'])
+            self.assertTrue(all(m['value'] is None or 0 <= m['value'] <= 100 for m in result['metrics']))
+            count += 1
+        self.assertEqual(count, 1536)
 
     def test_chart_components_are_traceable_and_empty_house_is_not_zero(self):
         chart = copy.deepcopy(self.chart)

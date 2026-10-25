@@ -49,6 +49,12 @@ class AlignmentTests(unittest.TestCase):
         self.assertNotIn('private details', response.text)
         self.assertNotIn('planets', response.json())
 
+    def test_incomplete_chart_is_caught_before_extra_questions(self):
+        with patch('backend.app.alignment_routes.build_chart_rows', return_value=dict(planets=[], houses=[], aspects=[])):
+            response = self.client.post('/api/alignment/chart', json=self.payload())
+        self.assertEqual(response.status_code, 503)
+        self.assertIn('入力は残っています', response.json()['detail'])
+
 
 if __name__ == '__main__':
     unittest.main()
