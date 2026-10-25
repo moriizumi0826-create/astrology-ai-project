@@ -1,8 +1,9 @@
 import { QUESTIONS, answerText, validateBirth } from './alignment-flow.mjs';
+import { PREFECTURES, prefectureLocation } from './alignment-prefectures.mjs';
 
 export const FORMAT = 'atelier-alignment-v2';
 export const STORAGE_KEY = 'atelier-alignment-v2';
-export const EMPTY_BIRTH = { date: '', time: '', place: '', unknownTime: false, latitude: '', longitude: '', timezone: 'Asia/Tokyo', fold: '' };
+export const EMPTY_BIRTH = { date: '', time: '', prefecture: '東京都' };
 export const SECTION_LABELS = { wish: 'あなたが望んでいること', experience: '回答から見えた経験・傾向', overlap: '重なりを探す手がかり', tension: '違い・条件を確かめたいところ', action: '小さく試すなら', unknown: 'まだ判断できないこと' };
 
 const has = (a, q, value) => Array.isArray(a[q]) && a[q].includes(value);
@@ -18,14 +19,14 @@ export function followups(answers) {
 }
 
 export function birthPayload(birth, today) {
-  const error = validateBirth(birth, today);
+  const location = prefectureLocation(birth.prefecture);
+  if (!location) throw new Error('出生地の都道府県を選んでください。');
+  const error = validateBirth({ ...birth, unknownTime: false, place: location.name }, today);
   if (error) throw new Error(error);
-  const lat = Number(birth.latitude), lon = Number(birth.longitude);
-  if (String(birth.latitude).trim() === '' || String(birth.longitude).trim() === '' || !Number.isFinite(lat) || !Number.isFinite(lon) || Math.abs(lat) > 90 || Math.abs(lon) > 180) throw new Error('出生地を検索して選ぶか、正しい緯度・経度を入力してください。');
-  if (!birth.timezone.trim()) throw new Error('出生地のタイムゾーンを入力してください。');
-  return { birth_date: birth.date, birth_time: birth.unknownTime ? null : birth.time, birth_time_unknown: birth.unknownTime,
-    birthplace: birth.place, latitude: lat, longitude: lon, timezone_name: birth.timezone,
-    birth_time_fold: birth.fold === '' ? null : Number(birth.fold) };
+  if (birth.unknownTime === true) throw new Error('この体験ではハウスを使うため、出生時刻が必要です。');
+  return { birth_date: birth.date, birth_time: birth.time, birth_time_unknown: false,
+    birthplace: `${location.name}（${location.capital}の代表座標で概算）`,
+    latitude: location.latitude, longitude: location.longitude, timezone_name: 'Asia/Tokyo' };
 }
 
 export function chartEvidence(chart) {
@@ -76,7 +77,7 @@ export function reflect(answers, chart, revisions = []) {
     const updates = revisions.filter(r => r.section === section.id);
     const last = updates.at(-1);
     return { ...section, title: SECTION_LABELS[section.id], original: section.body,
-      body: last && ['different', 'conditional'].includes(last.kind) ? ['元の仮説は保留し、本人の補足・訂正を優先して記録しています。文章の意味をAIが再解釈する処理は未接続です。'] : section.body,
+      body: last && ['different', 'conditional'].includes(last.kind) ? ['本人の補足を優先し、この項目の見立ては保留にしています。'] : section.body,
       update: last || null };
   });
   return sections;
@@ -94,7 +95,9 @@ export function restoreSession(raw) {
     supplements[q.id] = string(raw.supplements?.[q.id], 600);
   }
   const birth = { ...EMPTY_BIRTH };
-  for (const key of Object.keys(birth)) birth[key] = key === 'unknownTime' ? raw.birth?.[key] === true : string(raw.birth?.[key], 150);
+  birth.date = string(raw.birth?.date, 10);
+  birth.time = raw.birth?.unknownTime === true ? '' : string(raw.birth?.time, 5);
+  birth.prefecture = prefectureLocation(raw.birth?.prefecture)?.name || PREFECTURES.find(p => String(raw.birth?.place || '').startsWith(p.name))?.name || '東京都';
   const openAnswers = {};
   for (const q of followups(answers)) openAnswers[q.id] = string(raw.openAnswers?.[q.id]);
   const revisions = (Array.isArray(raw.revisions) ? raw.revisions : []).slice(0, 50).filter(r => r && Object.hasOwn(SECTION_LABELS, r.section) && ['agree', 'different', 'conditional', 'add'].includes(r.kind)).map((r, i) => ({ number: i + 1, section: r.section, kind: r.kind, note: string(r.note), at: string(r.at, 40) }));
@@ -105,7 +108,7 @@ export function restoreSession(raw) {
   const index = QUESTIONS.findIndex(q => !q.text && !answers[q.id]?.length);
   const phase = ['questions', 'birth', 'open', 'summary'].includes(raw.phase) ? raw.phase : 'questions';
   return { answers, supplements, birth, openAnswers, revisions, history, chart: null, birthSkipped: true,
-    phase: index < 0 ? phase : 'questions', index: index < 0 && Number.isInteger(raw.index) ? Math.max(0, Math.min(QUESTIONS.length - 1, raw.index)) : Math.max(0, index),
+    phase: index < 0 ? (['open', 'summary'].includes(phase) ? 'birth' : phase) : 'questions', index: index < 0 && Number.isInteger(raw.index) ? Math.max(0, Math.min(QUESTIONS.length - 1, raw.index)) : Math.max(0, index),
     openIndex: Number.isInteger(raw.openIndex) ? Math.max(0, Math.min(followups(answers).length - 1, raw.openIndex)) : 0,
     feedback: string(raw.feedback), feedbackSection: Object.hasOwn(SECTION_LABELS, raw.feedbackSection) ? raw.feedbackSection : 'tension',
     feedbackKind: ['agree', 'different', 'conditional', 'add'].includes(raw.feedbackKind) ? raw.feedbackKind : 'add' };

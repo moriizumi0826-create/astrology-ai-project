@@ -1,4 +1,5 @@
 .env
+.env.money-ai
 .pytest_cache/
 __pycache__/
 *.pyc

@@ -21,6 +21,8 @@ class AlignmentBirthRequest(ReadingRequest):
 
     @model_validator(mode="after")
     def supported_date(self):
+        if self.birth_time_unknown or self.birth_time is None:
+            raise ValueError("この体験ではハウスを使うため、出生時刻が必要です。")
         if not date(1900, 1, 1) <= self.birth_date <= date.today():
             raise ValueError("生年月日は1900年以降、今日以前を指定してください。")
         return self
@@ -41,7 +43,7 @@ def calculate_alignment_chart(payload: AlignmentBirthRequest):
     except ValueError as exc:
         raise HTTPException(422, str(exc)) from exc
     except RuntimeError as exc:
-        raise HTTPException(503, "出生図計算を利用できません。回答のみで続けるか、後でもう一度お試しください。") from exc
+        raise HTTPException(503, "出生図計算を利用できません。後でもう一度お試しください。") from exc
     except Exception as exc:
         # Do not leak birth details or internal exceptions into a public response.
         raise HTTPException(422, "この出生条件では計算できませんでした。日時・座標を確認してください。高緯度ではハウス計算を利用できない場合があります。") from exc

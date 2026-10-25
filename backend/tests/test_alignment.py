@@ -31,14 +31,10 @@ class AlignmentTests(unittest.TestCase):
         self.assertTrue(all(a['orb'] >= 0 for a in chart['aspects']))
         self.assertNotIn('birthplace', chart)
 
-    def test_unknown_time_excludes_houses_and_moon_aspects_even_with_stale_time(self):
+    def test_unknown_time_is_rejected_even_with_stale_time(self):
         response = self.client.post('/api/alignment/chart', json=self.payload(birth_time_unknown=True))
-        self.assertEqual(response.status_code, 200, response.text)
-        chart = response.json()
-        self.assertEqual(chart['houses'], [])
-        self.assertTrue(all(p['house'] is None and p['approximate'] for p in chart['planets']))
-        self.assertTrue(all('月' not in (a['planet1'], a['planet2']) for a in chart['aspects']))
-        self.assertTrue(chart['limitations'])
+        self.assertEqual(response.status_code, 422, response.text)
+        self.assertNotIn('planets', response.json())
 
     def test_invalid_and_future_input_rejected(self):
         for changes in [dict(latitude=91), dict(birth_date='2999-01-01'), dict(timezone_name='invalid/zone'), dict(birth_time=None)]:

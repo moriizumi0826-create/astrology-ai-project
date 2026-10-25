@@ -1,15 +1,13 @@
 import React from 'react';
+import { PREFECTURES, prefectureLocation } from './alignment-prefectures.mjs';
 import { chartEvidence } from './alignment-session.mjs';
 
-export function BirthFields({ birth, today, updateBirth, country, setCountry, busy, locations, searchPlace }) {
+export function BirthFields({ birth, today, updateBirth }) {
+  const location = prefectureLocation(birth.prefecture);
   return <>
-    <div className="al-birth-grid"><label className="al-field">生年月日<input type="date" min="1900-01-01" max={today} value={birth.date} onChange={e => updateBirth({ date: e.target.value })} /></label><label className="al-field">出生時刻<input type="time" disabled={birth.unknownTime} value={birth.time} onChange={e => updateBirth({ time: e.target.value })} /></label></div>
-    <label className="al-check"><input type="checkbox" checked={birth.unknownTime} onChange={e => updateBirth({ unknownTime: e.target.checked })} />出生時刻はわからない</label>
-    <label className="al-field">出生地<input type="text" maxLength={100} autoComplete="off" placeholder="例：川口市" value={birth.place} onChange={e => updateBirth({ place: e.target.value, latitude: '', longitude: '' })} /></label>
-    <div className="al-tools"><label className="al-inline-field">検索範囲<select disabled={!!busy} value={country} onChange={e => { setCountry(e.target.value); updateBirth({}); }}><option value="JP">日本</option><option value="WORLD">世界</option></select></label><button type="button" className="al-secondary" disabled={!!busy} onClick={searchPlace}>{busy === 'search' ? '検索中…' : '出生地を検索'}</button></div>
-    {locations.length > 0 && <fieldset className="al-location-results"><legend>出生地の候補を選んでください</legend>{locations.map((p, i) => <button type="button" className="al-location" key={i} onClick={() => updateBirth({ place: p.display_name, latitude: String(p.latitude), longitude: String(p.longitude), timezone: p.timezone_name, fold: '' })}>{p.display_name}<small>{p.latitude}, {p.longitude}／{p.timezone_name}</small></button>)}</fieldset>}
-    <details className="al-details" open={Boolean(birth.latitude || birth.longitude)}><summary>座標・タイムゾーンを確認／直接入力</summary><div className="al-birth-grid"><label className="al-field">緯度<input type="number" step="any" min="-90" max="90" value={birth.latitude} onChange={e => updateBirth({ latitude: e.target.value })} /></label><label className="al-field">経度<input type="number" step="any" min="-180" max="180" value={birth.longitude} onChange={e => updateBirth({ longitude: e.target.value })} /></label></div><label className="al-field">タイムゾーン<input value={birth.timezone} maxLength={100} placeholder="例：Asia/Tokyo" onChange={e => updateBirth({ timezone: e.target.value })} /></label><label className="al-field">夏時間終了で同じ時刻が2回ある場合<select value={birth.fold} onChange={e => updateBirth({ fold: e.target.value })}><option value="">通常・未指定</option><option value="0">時計を戻す前（1回目）</option><option value="1">時計を戻した後（2回目）</option></select></label></details>
-    <p className="al-small">計算方式：Placidus／伝統的支配星。時刻不明は現地正午の概算とし、ハウス・ASC・MC・月のアスペクトを使いません。</p><p className="al-small">「出生図を計算して次へ」で日時・出生地・座標を計算APIへ送ります。回答や自由記述は送信しません。</p>
+    <div className="al-birth-grid"><label className="al-field">生年月日<input type="date" required min="1900-01-01" max={today} value={birth.date} onChange={e => updateBirth({ date: e.target.value })} /></label><label className="al-field">出生時刻（必須）<input type="time" required value={birth.time} onChange={e => updateBirth({ time: e.target.value })} /></label></div>
+    <label className="al-field">出生地（都道府県）<select aria-label="出生地（都道府県）" required value={birth.prefecture} onChange={e => updateBirth({ prefecture: e.target.value })}>{PREFECTURES.map(p => <option key={p.name} value={p.name}>{p.name}</option>)}</select></label>
+    <p className="al-small">出生地は{location?.capital}の代表座標で概算します。</p>
   </>;
 }
 

@@ -31,7 +31,6 @@ export default defineConfig(({ mode }) => {
     server: {
       proxy: {
         "/api/alignment": { target: "http://127.0.0.1:8104", changeOrigin: true },
-        "/api/location-search": { target: "http://127.0.0.1:8104", changeOrigin: true },
       },
       host: "0.0.0.0",
       port: 5173,

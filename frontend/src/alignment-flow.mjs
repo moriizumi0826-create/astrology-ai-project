@@ -48,7 +48,7 @@ export function validateBirth(birth, today) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(birth.date || '')) return '生年月日を入力してください。';
   const parsed = new Date(`${birth.date}T12:00:00Z`);
   if (!Number.isFinite(parsed.getTime()) || parsed.toISOString().slice(0, 10) !== birth.date || birth.date < '1900-01-01' || birth.date > today) return '生年月日を確認してください。';
-  if (!birth.unknownTime && !/^([01]\d|2[0-3]):[0-5]\d$/.test(birth.time || '')) return '出生時刻を入力するか、「出生時刻はわからない」を選んでください。';
+  if (birth.unknownTime || !/^([01]\d|2[0-3]):[0-5]\d$/.test(birth.time || '')) return 'この体験ではハウスを使うため、出生時刻を入力してください。';
   if (!String(birth.place || '').trim()) return '出生地を入力してください。';
   return '';
 }

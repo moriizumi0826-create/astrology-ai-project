@@ -25,10 +25,10 @@ test('unanswered is not treated as no; free text can be skipped', () => {
   assert.equal(answerText(QUESTIONS[0], {}), '未回答');
   assert.equal(answerText(QUESTIONS.at(-1), {}), '未記入');
 });
-test('birth validation permits unknown time but rejects impossible dates and missing place', () => {
+test('birth validation requires a known time and rejects impossible dates and missing place', () => {
   const valid = { date: '1984-08-26', time: '19:20', place: '川口市', unknownTime: false };
   assert.equal(validateBirth(valid, '2026-10-25'), '');
-  assert.equal(validateBirth({ ...valid, time: '', unknownTime: true }, '2026-10-25'), '');
+  assert.ok(validateBirth({ ...valid, time: '', unknownTime: true }, '2026-10-25'));
   for (const patch of [{ date: '2026-02-30' }, { date: '2027-01-01' }, { time: '' }, { place: '  ' }]) {
     assert.ok(validateBirth({ ...valid, ...patch }, '2026-10-25'));
   }
@@ -50,5 +50,5 @@ test('LP and relative build entry exist; no authentication or unsafe HTML render
   assert.match(config, /alignment: path\.resolve/);
   assert.doesNotMatch(app, /href="\/(?!\/)/);
   assert.doesNotMatch(app, /prepareSession|dangerouslySetInnerHTML/);
-  assert.match(app, /AIは未接続/);
+  assert.doesNotMatch(app, /テスト版|計算APIで確認|この端末に保存|ファイル保存|ファイルを読み込む|登録なしで試せます/);
 });

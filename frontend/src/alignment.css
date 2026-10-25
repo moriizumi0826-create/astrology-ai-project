@@ -128,3 +128,73 @@ body.alignment-page { margin: 0; background: radial-gradient(ellipse at 80% 10%,
   .al-feedback { padding: 18px; }
 }
 @media (max-width: 380px) { .al-birth-grid { grid-template-columns: 1fr; gap: 0; } .al-primary { width: 100%; } }
+
+/* Results use a reading hierarchy and local editing, separate from the questionnaire. */
+.al-layout.is-summary { display: block; }
+.al-card.is-summary { padding: 0; border: 0; box-shadow: none; background: none; }
+.al-results-heading { margin-bottom: 28px; }
+.al-results-heading h2 { font-size: clamp(24px, 3vw, 32px); margin-bottom: 12px; }
+.al-results-heading p { font-size: 14px; line-height: 1.9; color: #66705f; margin: 0; }
+.al-wish-summary { display: flex; align-items: center; justify-content: space-between; gap: 25px; padding: 28px 30px; background: #e9eee2; border: 1px solid #ccd7bf; border-radius: 10px; margin-bottom: 30px; }
+.al-wish-summary h3 { font: 500 23px/1.7 'Noto Serif JP', serif; margin: 8px 0; }
+.al-wish-summary p { font-size: 13px; line-height: 1.9; margin: 0; overflow-wrap: anywhere; white-space: pre-wrap; }
+.al-wish-summary strong { font-weight: 500; }
+.al-wish-summary button { flex-shrink: 0; border-color: #a3b393; }
+.al-source-label { font-size: 11px; font-weight: 600; letter-spacing: .04em; color: #5b6f4d; }
+.al-insight-grid { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr); gap: 24px; align-items: start; }
+.al-insight { background: #fffef9; border: 1px solid #d8dfce; border-radius: 10px; padding: 26px; min-width: 0; }
+.al-insight-tension { border-top: 4px solid #b79a65; padding-top: 23px; }
+.al-insight-overlap { border-top: 4px solid #718762; padding-top: 23px; }
+.al-insight-action { grid-column: 1 / -1; background: #f1f4ea; }
+.al-insight-header { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin-bottom: 21px; }
+.al-insight-header h3 { font: 500 19px/1.6 'Noto Serif JP', serif; margin: 0; }
+.al-insight-number { color: #7c876e; font: 15px Georgia, serif; }
+.al-result-badge { border-radius: 20px; padding: 4px 10px; color: #695a3c; background: #f0e8d7; font-size: 10px; }
+.al-insight-points, .al-next-steps { margin: 0; padding-left: 20px; font-size: 14px; line-height: 1.95; }
+.al-insight-points li, .al-next-steps li { padding-left: 3px; margin: 0 0 15px; overflow-wrap: anywhere; }
+.al-insight-points li:last-child, .al-next-steps li:last-child { margin-bottom: 0; }
+.al-insight-points li::marker { color: #8b9c79; }
+.al-next-steps { padding-left: 27px; }
+.al-next-steps li::marker { color: #526c41; font-weight: 600; }
+.al-chart-note { margin-top: 22px; border-left: 3px solid #c0cbb3; background: #f6f7f0; padding: 14px 17px; }
+.al-chart-note p { font-size: 13px; line-height: 1.95; margin: 8px 0 0; }
+.al-personal-note { padding: 15px 18px; margin-top: 18px; background: #eef1e7; border-radius: 5px; }
+.al-personal-note blockquote { font-size: 14px; line-height: 1.95; margin: 8px 0 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+.al-evidence { border-top: 1px solid #e0e5d8; padding-top: 14px; margin-top: 24px; }
+.al-evidence summary { font-size: 12px; color: #56674a; cursor: pointer; padding: 6px 0; }
+.al-evidence ul { font-size: 12px; line-height: 1.9; padding-left: 20px; color: #65705b; }
+.al-evidence li { margin-bottom: 9px; overflow-wrap: anywhere; }
+.al-insight-footer { border-top: 1px solid #e0e5d8; padding-top: 18px; margin-top: 14px; display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }
+.al-edit-result { background: #fffef9; border: 1px solid #bac8ab; color: #3d5531; padding: 11px 14px; border-radius: 5px; display: inline-flex; align-items: center; gap: 8px; font-size: 12px !important; min-height: 44px; }
+.al-edit-result:hover { background: #edf2e5; }
+.al-edit-result[aria-expanded="true"] { background: #e7efdb; border-color: #788d65; }
+.al-result-status { font-size: 11px; color: #4a6936; line-height: 1.8; }
+.al-inline-editor { padding-top: 22px; margin-top: 18px; border-top: 1px solid #bac8ab; }
+.al-inline-editor h4 { font-size: 14px; font-weight: 600; margin: 0 0 20px; }
+.al-feedback-kinds { border: 0; padding: 0; margin: 0; display: flex; flex-wrap: wrap; gap: 8px; }
+.al-feedback-kinds legend { font-size: 12px; margin-bottom: 12px; }
+.al-feedback-kinds label { display: flex; align-items: center; gap: 7px; border: 1px solid #cdd6c1; padding: 10px; border-radius: 5px; background: #fffef9; cursor: pointer; font-size: 12px; }
+.al-feedback-kinds label.is-selected { border-color: #6a8557; background: #edf2e5; }
+.al-feedback-kinds input { accent-color: #56753e; }
+.al-editor-actions { display: flex; align-items: center; justify-content: flex-end; gap: 16px; flex-wrap: wrap; margin-top: 22px; }
+.al-result-detail { background: #fffef9; border: 1px solid #d8dfce; border-radius: 8px; margin-top: 24px; padding: 0 26px; }
+.al-result-detail > summary { padding: 21px 0; font-size: 14px; color: #485f39; cursor: pointer; }
+.al-result-detail[open] { padding-bottom: 25px; }
+.al-detail-columns { display: grid; grid-template-columns: 1fr 1fr; gap: 35px; border-top: 1px solid #e0e5d8; padding-top: 22px; }
+.al-detail-columns h3, .al-result-limits h3 { font-size: 16px; font-weight: 500; }
+.al-result-limits { margin-top: 24px; border-top: 1px solid #e0e5d8; padding-top: 10px; }
+.al-result-limits ul, .al-revision-list { font-size: 13px; line-height: 1.95; padding-left: 20px; }
+.al-revision-list li { padding-bottom: 15px; border-bottom: 1px solid #e0e5d8; margin-bottom: 18px; }
+.al-revision-list span { color: #617052; font-size: 11px; }
+.al-revision-list p { white-space: pre-wrap; overflow-wrap: anywhere; }
+@media (max-width: 760px) {
+  .al-insight-grid, .al-detail-columns { grid-template-columns: 1fr; gap: 18px; }
+  .al-wish-summary { flex-direction: column; align-items: flex-start; padding: 22px; margin-bottom: 22px; }
+  .al-wish-summary h3 { font-size: 21px; }
+  .al-insight { padding: 21px; }
+  .al-insight-tension, .al-insight-overlap { padding-top: 18px; }
+  .al-insight-header h3 { font-size: 18px; }
+  .al-result-detail { padding: 0 21px; }
+  .al-results-heading p { font-size: 13px; }
+  .al-editor-actions .al-primary { width: 100%; }
+}
