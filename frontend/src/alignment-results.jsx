@@ -7,7 +7,7 @@ import { ChartFacts } from './alignment-panels.jsx';
 const REACTIONS = { add: '補足したい', conditional: '条件を加えたい', different: '違うと感じる' };
 const TITLES = { overlap: '重なっているところ', tension: '確かめたいところ', action: '次に試すこと' };
 
-function ResultCard({ section, number, onRevise, busy, compact = false }) {
+export function ResultCard({ section, number, onRevise, busy, compact = false }) {
   const [editing, setEditing] = useState(false);
   const [kind, setKind] = useState('add');
   const [note, setNote] = useState('');

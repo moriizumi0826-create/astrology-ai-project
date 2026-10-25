@@ -131,6 +131,23 @@ body.alignment-page { margin: 0; background: radial-gradient(ellipse at 80% 10%,
 
 /* Results use a reading hierarchy and local editing, separate from the questionnaire. */
 .al-layout.is-summary { display: block; }
+.al-work-quiz { display: block; max-width: 760px; margin: 0 auto; }
+.al-work-stages { grid-template-columns: repeat(3,1fr); }
+.al-work-profile { margin-top: 32px; display: grid; grid-template-columns: 1fr 1fr; gap: 22px 32px; }
+.al-work-profile small { font-size: 10px; color: #7d876f; margin-left: 7px; }
+.al-section-heading { margin: 36px 0 20px; }
+.al-section-heading h3 { font: 500 23px/1.7 'Noto Serif JP',serif; margin: 8px 0; }
+.al-career-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+.al-career-card { border: 1px solid #d8dfce; border-radius: 12px; padding: 25px; background: #fffef9; }
+.al-career-meta { display: flex; justify-content: space-between; align-items: center; gap: 12px; color: #78846b; font-size: 11px; }
+.al-career-meta strong { font: 24px Georgia,serif; color: #4c663d; margin-left: 6px; }
+.al-career-card h4 { font: 500 19px/1.7 'Noto Serif JP',serif; margin: 16px 0 10px; }
+.al-career-card p { font-size: 13px; line-height: 1.9; margin: 0; }
+.al-career-reason { font-size: 11px; line-height: 1.8; color: #647653; border-top: 1px solid #e3e8da; margin-top: 18px; padding-top: 13px; }
+.al-work-actions { margin-top: 25px; display: flex; align-items: center; gap: 20px; flex-wrap: wrap; }
+.al-ai-takeaway { border-left: 3px solid #a3b393; padding: 18px 22px; margin-top: 25px; }
+.al-ai-takeaway p { font-size: 15px; line-height: 1.9; }
+@media(max-width:760px) { .al-career-grid,.al-work-profile { grid-template-columns: 1fr; } .al-career-card { padding: 22px; } .al-work-actions .al-primary { width: 100%; } }
 .al-score-hero { background: #fffef9; border: 1px solid #d8dfce; border-radius: 18px; padding: 38px; }
 .al-score-top { display: flex; align-items: center; gap: 35px; }
 .al-score-dial { width: 180px; height: 180px; flex: 0 0 180px; border-radius: 50%; padding: 10px; background: conic-gradient(#70885e var(--score), #e9eddf 0); }

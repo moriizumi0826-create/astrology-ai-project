@@ -7,6 +7,7 @@ from pydantic import Field
 from backend.app.alignment_routes import AlignmentBirthRequest, calculate_alignment_chart
 from backend.app.services import alignment_ai_service as ai
 from backend.app.settings import settings
+from backend.app.services.alignment_work_style import VERSION as WORK_VERSION, immediate_result
 
 router = APIRouter(prefix="/api/alignment", tags=["alignment"])
 _lock = Lock()
@@ -17,7 +18,7 @@ _slots = BoundedSemaphore(3)
 
 class AnalysisRequest(ai.AnswersRequest):
     birth: AlignmentBirthRequest
-    conversation: list[ai.Conversation] = Field(max_length=3)
+    conversation: list[ai.Conversation] = Field(default_factory=list,max_length=3)
     revisions: list[ai.Revision] = Field(default_factory=list, max_length=10)
     previous: ai.GeneratedReport | None = None
 
@@ -65,3 +66,17 @@ def analysis(payload: AnalysisRequest, request: Request):
         return result
     finally:
         _slots.release()
+
+
+@router.post('/result')
+def instant_result(payload: AnalysisRequest):
+    if payload.question_version != WORK_VERSION:
+        raise HTTPException(422,'設問のバージョンを確認してください。')
+    chart=calculate_alignment_chart(payload.birth)
+    return immediate_result(payload.answers,chart)
+
+
+@router.post('/ready')
+def ready():
+    # Wakes an idle test instance while the user is answering, without an AI call.
+    return {'question_version':WORK_VERSION,'ready':True}
