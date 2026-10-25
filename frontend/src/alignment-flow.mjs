@@ -1,4 +1,4 @@
-// Temporary questionnaire for testing the interface, not an assessment instrument.
+// Versioned reflection questions. These are not a validated aptitude score.
 export const QUESTIONS = [
   { id: 'wish', label: '望む稼ぎ方', title: 'どんな稼ぎ方に、心が向きますか？', hint: '同じくらいの収入が得られるとしたら。いちばん近いものを選んでください。', options: [
     ['expertise', '自分の技能や専門性を、対価にする'], ['product', '商品やツールを作って、届ける'], ['cooperate', '人と組んだり、支援を受けたりする'], ['assets', '資産を運用し、その収益を得る'], ['freedom', '方法より、自由に使える時間を大切にしたい'], ['unknown', 'まだ、わからない'],
@@ -14,6 +14,12 @@ export const QUESTIONS = [
   ] },
   { id: 'value', label: '対価の受け取り方', title: '「価値を渡せた」と感じるのは、どんなとき？', hint: '複数選べます。正しい答えはありません。', multiple: true, options: [
     ['satisfaction', '相手が、納得や満足を伝えてくれたとき'], ['change', '相手の行動や状況に、実際の変化が出たとき'], ['quality', '自分として、十分に考えた内容を渡せたとき'], ['unknown', 'まだ、判断基準が決まっていない'],
+  ] },
+  { id: 'boundary', label: '関わる範囲', title: '渡したものが、相手の行動につながらなかったら？', hint: 'いちばん近いものを選んでください。条件は補足できます。', options: [
+    ['support', '追加で支え、変化につながるところまで関わりたい'], ['limit', 'できる範囲で助力し、最後の選択は相手に委ねたい'], ['deliver', '約束した内容を渡すところまでを、自分の役割にしたい'], ['unknown', 'まだ、わからない'],
+  ] },
+  { id: 'offer', label: '届ける準備', title: '作る・考える以外の工程は、どうしたいですか？', hint: '発信、販売、価格の説明、問い合わせ対応などを思い浮かべてください。', options: [
+    ['own', '自分で試しながら、ひと通り取り組みたい'], ['partner', '得意な人と分担したい'], ['avoid', 'できるだけ、作る・考えることに集中したい'], ['unknown', 'まだ、わからない'],
   ] },
   { id: 'theme', label: '大切にしたいこと', title: 'その活動を通じて、何を届けたいですか？', hint: '「自分の軸で生きること」など、ひと言でも。決まっていなければ、そのまま進めます。', text: true },
 ];

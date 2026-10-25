@@ -10,6 +10,7 @@ from starlette.middleware.gzip import GZipMiddleware
 from backend.app.schemas import LocationSearchResponse, ReadingRequest, TransitChartRequest, TransitChartsRequest
 from backend.app.services import aspect_interpretation_service, geocoding_service, reading_service, yearly_forecast_service, transit_ephemeris
 from backend.app.settings import settings
+from backend.app.alignment_routes import router as alignment_router
 
 
 @asynccontextmanager
@@ -20,6 +21,7 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="Celestial Atelier API", version="0.1.0", lifespan=lifespan)
+app.include_router(alignment_router)
 
 app.add_middleware(GZipMiddleware, minimum_size=1000)
 app.add_middleware(

@@ -42,13 +42,13 @@ test('corrections append immutable history and ignore empty notes', () => {
   assert.equal(second[1].number, 2);
   assert.equal(recordRevision(second, '  '), second);
 });
-test('LP entry and build entry exist; prototype does not call assessment or auth APIs', () => {
+test('LP and relative build entry exist; no authentication or unsafe HTML rendering', () => {
   const entry = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
   const config = readFileSync(new URL('../vite.config.mjs', import.meta.url), 'utf8');
   const app = readFileSync(new URL('../src/alignment.jsx', import.meta.url), 'utf8');
   assert.match(entry, /href="\.\/alignment\.html"/);
   assert.match(config, /alignment: path\.resolve/);
   assert.doesNotMatch(app, /href="\/(?!\/)/);
-  assert.doesNotMatch(app, /\bfetch\s*\(|postJson|prepareSession|localStorage|sessionStorage|dangerouslySetInnerHTML/);
-  assert.match(app, /出生図はまだ計算していません/);
+  assert.doesNotMatch(app, /prepareSession|dangerouslySetInnerHTML/);
+  assert.match(app, /AIは未接続/);
 });
