@@ -65,7 +65,7 @@ class AlignmentAITests(unittest.TestCase):
         facts = {"answer:wish": "商品", "house:2": "2ハウス：牡牛座"}
         valid = report()
         ai.validate_report(valid, facts)
-        for text, refs in [("金星が2ハウスにある", ["house:2"]), ("自分に合う方法", ["invented:aspect"])]:
+        for text, refs in [("金星が2ハウスにある", ["house:2"]), ("自分に合う方法", ["invented:aspect"]), ("あなたの金運は99点です", ["house:2"])]:
             bad = report()
             bad.sections[0].points[0].text = text
             bad.sections[0].points[0].fact_ids = refs
@@ -118,6 +118,8 @@ class AlignmentAITests(unittest.TestCase):
         with patch.object(ai, "structured_response", return_value=generated):
             result = ai.generate_report(payload, chart)
         self.assertTrue(result["aiConnected"])
+        self.assertEqual(result["scores"]["version"], "alignment-match-1")
+        self.assertIsNone(result["scores"]["total"])
         self.assertIn("分担", result["sections"][0]["changeReason"])
         self.assertIn("牡牛座", result["sections"][0]["chartNotes"][0])
         self.assertTrue(result["sections"][0]["original"])
