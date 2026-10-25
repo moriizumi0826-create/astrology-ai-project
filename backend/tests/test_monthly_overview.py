@@ -7,19 +7,20 @@ class MonthlyOverviewLoaderTestCase(unittest.TestCase):
     def test_monthly_overview_csvs_load_with_expected_rows(self):
         editorial = monthly_overview_service.load_monthly_overview_editorial()
 
-        self.assertEqual(len(editorial), 576)
+        self.assertEqual(len(editorial), 720)
         self.assertEqual(
             {
                 edition_id: sum(row["Edition_ID"] == edition_id for row in editorial)
-                for edition_id in ("2026_CANCER", "2026_LEO", "2026_VIRGO", "2026_LIBRA")
+                for edition_id in ("2026_CANCER", "2026_LEO", "2026_VIRGO", "2026_LIBRA", "2026_SCORPIO")
             },
-            {"2026_CANCER": 144, "2026_LEO": 144, "2026_VIRGO": 144, "2026_LIBRA": 144},
+            {"2026_CANCER": 144, "2026_LEO": 144, "2026_VIRGO": 144, "2026_LIBRA": 144, "2026_SCORPIO": 144},
         )
 
         for month_id, event_count, aspect_count, long_term_count in (
             ("2026_08", 840, 864, 277),
             ("2026_09", 840, 720, 276),
             ("2026_10", 372, 720, 240),
+            ("2026_11", 396, 432, 276),
         ):
             with self.subTest(month_id=month_id):
                 event_paragraphs = (
@@ -70,7 +71,7 @@ class MonthlyOverviewLoaderTestCase(unittest.TestCase):
         long_term = indexes["long_term_by_house"]
 
         self.assertEqual(indexes["month_id"], "2026-08")
-        self.assertEqual(len(editorial), 576)
+        self.assertEqual(len(editorial), 720)
         self.assertEqual(len(events), 840)
         self.assertEqual(len(aspects), 144)
         self.assertEqual(len(long_term), 25)
@@ -107,7 +108,7 @@ class MonthlyOverviewLoaderTestCase(unittest.TestCase):
         long_term = indexes["long_term_by_house"]
 
         self.assertEqual(indexes["month_id"], "2026-09")
-        self.assertEqual(len(editorial), 576)
+        self.assertEqual(len(editorial), 720)
         self.assertEqual(len(events), 840)
         self.assertEqual(len(aspects), 144)
         self.assertEqual(len(long_term), 24)
@@ -145,7 +146,7 @@ class MonthlyOverviewLoaderTestCase(unittest.TestCase):
         long_term = indexes["long_term_by_house"]
 
         self.assertEqual(indexes["month_id"], "2026-10")
-        self.assertEqual(len(editorial), 576)
+        self.assertEqual(len(editorial), 720)
         self.assertEqual(len(events), 372)
         self.assertEqual(len(aspects), 144)
         self.assertEqual(len(long_term), 24)
@@ -173,6 +174,59 @@ class MonthlyOverviewLoaderTestCase(unittest.TestCase):
         self.assertEqual(len(aspects[("2026-10", "1", "1")]), 5)
         self.assertEqual(len(long_term[("2026-10", "background", "1")]), 5)
         self.assertEqual(len(long_term[("2026-10", "resonance", "1")]), 15)
+
+    def test_november_indexes_cover_forward_and_retrograde_events(self):
+        indexes = monthly_overview_service.build_monthly_overview_indexes("2026_11")
+        self.assertEqual(indexes["month_id"], "2026-11")
+        self.assertEqual(len(indexes["editorial_by_house"]), 720)
+        self.assertEqual(len(indexes["event_by_condition"]), 396)
+        self.assertEqual(len(indexes["aspect_by_anchor"]), 144)
+        self.assertEqual(len(indexes["long_term_by_house"]), 24)
+        self.assertEqual(len(indexes["aspect_by_anchor"][("2026-11", "1", "1")]), 3)
+        self.assertEqual(len(indexes["long_term_by_house"][("2026-11", "background", "1")]), 5)
+        self.assertEqual(len(indexes["long_term_by_house"][("2026-11", "resonance", "1")]), 18)
+        for planet, sign in (("MERCURY", "SCORPIO"), ("VENUS", "LIBRA")):
+            for source, target in ((1, 2), (2, 1), (12, 1), (1, 12)):
+                with self.subTest(planet=planet, source=source, target=target):
+                    selected = monthly_overview_service.select_monthly_overview_event_paragraph(
+                        "2026_11",
+                        {
+                            "Planet": planet,
+                            "Event_Type": "natal_house_ingress",
+                            "Transit_Sign_From": sign,
+                            "Transit_Sign_To": sign,
+                            "Natal_House_From": source,
+                            "Natal_House_To": target,
+                        },
+                        calculated_event_dates={f"{planet}:natal_house_ingress:{target}": "2026-11-10"},
+                    )
+                    self.assertIsNotNone(selected)
+                    self.assertEqual(selected["Natal_House_From"], str(source))
+                    self.assertEqual(selected["Natal_House_To"], str(target))
+                    self.assertEqual(selected["Event_Date"], "2026-11-10")
+                    self.assertNotIn("{", selected["Paragraph_Template"])
+
+    def test_november_sign_ingresses_resolve_actual_calendar_dates(self):
+        for planet, before, after, expected_date in (
+            ("SUN", "SCORPIO", "SAGITTARIUS", "2026-11-22"),
+            ("MARS", "LEO", "VIRGO", "2026-11-26"),
+        ):
+            with self.subTest(planet=planet):
+                selected = monthly_overview_service.select_monthly_overview_event_paragraph(
+                    "2026_11",
+                    {
+                        "Planet": planet,
+                        "Event_Type": "sign_ingress",
+                        "Transit_Sign_From": before,
+                        "Transit_Sign_To": after,
+                        "Solar_House_From": 12,
+                        "Solar_House_To": 1,
+                        "Natal_House_At_Event": 1,
+                    },
+                )
+                self.assertIsNotNone(selected)
+                self.assertEqual(selected["Event_Date"], expected_date)
+                self.assertNotIn("{", selected["Paragraph_Template"])
 
     def test_august_editorial_selector_resolves_edition_and_exact_houses(self):
         selected = monthly_overview_service.select_monthly_overview_editorial(

@@ -122,9 +122,13 @@ class MonthlyOverviewIntegrationTestCase(unittest.TestCase):
                 "2026_10"
             )
         }
+        cls.november_aspect_templates = {
+            row["Template_ID"]: row
+            for row in monthly_overview_service.load_monthly_overview_aspect_clusters("2026_11")
+        }
 
     def test_three_birth_records_preserve_scores_and_select_distinct_editorials(self):
-        house_pairs = {"2026-08": set(), "2026-09": set(), "2026-10": set()}
+        house_pairs = {"2026-08": set(), "2026-09": set(), "2026-10": set(), "2026-11": set()}
         for forecast in self.forecasts:
             self.assertEqual(len(forecast["yearly_data"]), 365)
             self.assertTrue(any(day["all_aspects"] for day in forecast["yearly_data"]))
@@ -133,13 +137,14 @@ class MonthlyOverviewIntegrationTestCase(unittest.TestCase):
             )
             self.assertEqual(
                 set(forecast["monthly_overviews"]),
-                {"2026-08", "2026-09", "2026-10"},
+                {"2026-08", "2026-09", "2026-10", "2026-11"},
             )
 
             for month_id, month, day_count, edition_id in (
                 ("2026-08", 8, 31, "2026_LEO"),
                 ("2026-09", 9, 30, "2026_VIRGO"),
                 ("2026-10", 10, 31, "2026_LIBRA"),
+                ("2026-11", 11, 30, "2026_SCORPIO"),
             ):
                 overviews = forecast["monthly_overviews"][month_id]
                 self.assertEqual(len(overviews), day_count)
@@ -169,6 +174,7 @@ class MonthlyOverviewIntegrationTestCase(unittest.TestCase):
         self.assertEqual(len(house_pairs["2026-08"]), len(BIRTH_CASES))
         self.assertEqual(len(house_pairs["2026-09"]), len(BIRTH_CASES))
         self.assertEqual(len(house_pairs["2026-10"]), len(BIRTH_CASES))
+        self.assertEqual(len(house_pairs["2026-11"]), len(BIRTH_CASES))
 
     def test_sign_ingress_dates_match_calendar_and_daily_transit_boundaries(self):
         expected_ingresses = {
@@ -762,6 +768,106 @@ class MonthlyOverviewIntegrationTestCase(unittest.TestCase):
                         0.5,
                         f"{overview['as_of']}: {left_label} / {right_label}",
                     )
+
+    def test_november_composed_narratives_cover_all_dates_conditions_and_limits(self):
+        expected_ingresses = {
+            ("SUN", "SAGITTARIUS"): "2026-11-22",
+            ("MARS", "VIRGO"): "2026-11-26",
+        }
+        for forecast in self.forecasts:
+            november = forecast["monthly_overviews"]["2026-11"]
+            self.assertEqual(len(november), 30)
+            natal_sun = next(row for row in forecast["natal_points"] if row["planet"] == "SUN")
+            natal_sign = yearly_forecast_service._sign_id_from_longitude(natal_sun["longitude"])
+            daily_longitudes = {
+                day["date"]: {row["planet"]: row["longitude"] for row in day["transit_chart"]["transits"]}
+                for day in forecast["yearly_data"]
+            }
+            expected_natal = set()
+            for day_number in range(1, 31):
+                current = date(2026, 11, day_number)
+                previous = (current - timedelta(days=1)).isoformat()
+                for planet in ("SUN", "MERCURY", "VENUS", "MARS", "JUPITER"):
+                    before = get_house(daily_longitudes[previous][planet], forecast["natal_house_cusps"])
+                    after = get_house(daily_longitudes[current.isoformat()][planet], forecast["natal_house_cusps"])
+                    if before != after:
+                        sign = yearly_forecast_service._sign_id_from_longitude(daily_longitudes[current.isoformat()][planet])
+                        expected_natal.add((planet, sign, before, after, current.isoformat()))
+            self.assertEqual(
+                {(row["Planet"], row["Transit_Sign_To"], int(row["Natal_House_From"]), int(row["Natal_House_To"]), row["Event_Date"])
+                 for row in november[0]["event_paragraphs"] if row["Event_Type"] == "natal_house_ingress"},
+                expected_natal,
+            )
+            for day_number, overview in enumerate(november, start=1):
+                with self.subTest(birth=forecast["natal_house_cusps"], day=day_number):
+                    self.assertEqual(overview["as_of"], f"2026-11-{day_number:02d}")
+                    editorial = overview["editorial"]
+                    self.assertIsInstance(editorial, dict)
+                    self.assertEqual(editorial["Edition_ID"], "2026_SCORPIO")
+                    for column, minimum, maximum in (
+                        ("Title", 14, 28), ("Summary", 90, 150),
+                        ("Interpretation", 500, 900), ("Action", 120, 220),
+                    ):
+                        self.assertIn(len(editorial[column]), range(minimum, maximum + 1))
+                        self.assertFalse(EXACT_DATE_PATTERN.search(editorial[column]))
+
+                    event_rows = overview["event_paragraphs"]
+                    self.assertEqual(
+                        {(r["Planet"], r["Transit_Sign_To"]): r["Event_Date"]
+                         for r in event_rows if r["Event_Type"] == "sign_ingress"},
+                        expected_ingresses,
+                    )
+                    self.assertEqual(
+                        event_rows,
+                        sorted(event_rows, key=lambda r: (r["Event_Date"], int(r["Section_Order"]), -int(r["Priority"]), r["Template_ID"])),
+                    )
+                    for row in event_rows:
+                        self.assertIn(len(row["Paragraph_Template"]), range(90, 241))
+                        self.assertTrue(row["Event_Date"].startswith("2026-11-"))
+                        label = monthly_overview_service._format_event_date(date.fromisoformat(row["Event_Date"]), row["Date_Precision"])
+                        self.assertIn(label, row["Paragraph_Template"])
+
+                    expected_clusters = {
+                        cluster_id
+                        for cluster_id, start, end in (
+                            ("2026_11_SUN_MERCURY_RETROGRADE_CONJUNCTION", 3, 6),
+                            ("2026_11_SUN_MARS_JUPITER_SQUARE_NETWORK", 15, 20),
+                            ("2026_11_FULL_MOON_OUTER_NETWORK", 24, 26),
+                        )
+                        if start <= day_number <= end
+                    }
+                    cluster_rows = overview["aspect_clusters"]
+                    self.assertEqual({r["Cluster_ID"] for r in cluster_rows}, expected_clusters)
+                    self.assertEqual(len({r["Selection_Group"] for r in cluster_rows}), len(cluster_rows))
+                    for row in cluster_rows:
+                        self.assertLessEqual(row["Valid_From"][:10], overview["as_of"])
+                        self.assertGreaterEqual(row["Valid_To"][:10], overview["as_of"])
+                        self.assertIn(len(row["Title"]), range(14, 31))
+                        self.assertIn(len(self.november_aspect_templates[row["Template_ID"]]["Paragraph_Template"]), range(120, 261))
+                        primary, _secondary = monthly_overview_service._cluster_date_labels(row, "2026_11")
+                        self.assertIn(primary, row["Paragraph_Template"])
+                        _placements, anchors = yearly_forecast_service._monthly_overview_placements(
+                            date.fromisoformat(overview["as_of"]), forecast["natal_house_cusps"], natal_sign,
+                        )
+                        self.assertEqual((int(row["Anchor_Solar_House"]), int(row["Anchor_Natal_House"])), anchors[row["Anchor_Planet"]])
+
+                    backgrounds = overview["long_term_backgrounds"]
+                    self.assertLessEqual(len(backgrounds), 2)
+                    self.assertLessEqual(int(overview["resonance"] is not None), 1)
+                    long_term_rows = list(backgrounds)
+                    if overview["resonance"] is not None:
+                        long_term_rows.append(overview["resonance"])
+                    for row in long_term_rows:
+                        self.assertLessEqual(row["Valid_From"], overview["as_of"])
+                        self.assertGreaterEqual(row["Valid_To"], overview["as_of"])
+                        self.assertIn(len(row["Title"]), range(12, 29))
+                        self.assertIn(len(row["Interpretation"]), range(220, 421))
+                    texts = _narratives(overview)
+                    normalized = [_normalized_narrative(text) for text in texts]
+                    self.assertEqual(len(normalized), len(set(normalized)))
+                    self.assertFalse(any(TOKEN_PATTERN.search(text) for text in texts))
+                    self.assertFalse(any(marker in text for text in texts for marker in MOJIBAKE_MARKERS))
+                    self.assertFalse(any("頃頃" in text for text in texts))
 
     def test_long_term_limits_resonance_boundary_and_narrative_quality(self):
         for forecast in self.forecasts:
