@@ -1072,7 +1072,7 @@ class YearlyForecastTestCase(unittest.TestCase):
         self.assertTrue(forecast["monthly_mars_themes"][0]["monthly_interpretation"])
         self.assertEqual(
             set(forecast["monthly_overviews"]),
-            {"2026-08", "2026-09", "2026-10"},
+            {"2026-08", "2026-09", "2026-10", "2026-11"},
         )
         august_overviews = forecast["monthly_overviews"]["2026-08"]
         self.assertEqual(len(august_overviews), 31)

@@ -10,6 +10,12 @@ ROOT = Path(__file__).resolve().parents[1]
 TARGET_PLANETS = ("SUN", "MERCURY", "VENUS", "MARS", "JUPITER")
 SIGN_INGRESS_SECTION_ORDERS = (30, 35, 40, 50, 55)
 
+# Older monthly CSVs have protected, already-published identifiers. November
+# needs both directions because these planets station within the same sign.
+NATAL_DIRECTIONS_BY_MONTH = {
+    "2026-11": {("MERCURY", "SCORPIO"): (1, -1), ("VENUS", "LIBRA"): (1, -1)},
+}
+
 FIELDNAMES = [
     "Template_ID",
     "Month_ID",
@@ -144,8 +150,11 @@ def _make_natal_ingress_rows(
     month_id = _month_id(year, month)
     for planet in TARGET_PLANETS:
         for sign in segments[planet]:
-            for natal_to in range(1, 13):
-                natal_from = previous_house(natal_to)
+            directions = NATAL_DIRECTIONS_BY_MONTH.get(month_id, {}).get((planet, sign), (1,))
+            for natal_to, direction in (
+                (house, direction) for direction in directions for house in range(1, 13)
+            ):
+                natal_from = previous_house(natal_to) if direction == 1 else natal_to % 12 + 1
                 rows.append(
                     {
                         "Template_ID": (
