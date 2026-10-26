@@ -17,61 +17,46 @@
     />
   </head>
   <body class="entry-page bg-surface text-on-surface selection:bg-[#f7e382]">
-    <nav class="fixed top-0 left-0 w-full z-50 bg-[#fafaf5]/80 backdrop-blur-md flex justify-between items-center px-6 md:px-12 py-6">
-      <div class="text-2xl font-normal font-notoSerif text-primary">The Celestial Atelier</div>
-      <div class="flex items-center gap-5 md:gap-10 font-notoSerif tracking-wider text-sm">
-        <div class="hidden md:flex gap-10 items-center">
-          <a class="text-secondary border-b border-secondary pb-1" href="#home">Home</a>
-          <a class="text-primary hover:text-secondary transition-colors duration-500" href="#entry">Chart Entry</a>
-          <a class="text-primary hover:text-secondary transition-colors duration-500" href="#results">Readings</a>
-        </div>
-        <a id="member-link" class="text-primary hover:text-secondary transition-colors duration-500" href="/login.html">ログイン</a>
-      </div>
-    </nav>
+    <header class="entry-header">
+      <a class="entry-brand" href="#home">The Celestial Atelier</a>
+      <nav class="entry-menu" aria-label="メインメニュー">
+        <a href="#results">3Dマップ</a>
+        <a href="#entry"><span class="entry-menu-desktop-label">ホロスコープ作成</span><span class="entry-menu-mobile-label">ホロスコープ</span></a>
+        <a class="entry-menu-trial" href="/alignment.html">稼ぎ方タイプ診断 <span aria-hidden="true">↗</span></a>
+      </nav>
+      <a id="member-link" class="entry-member" href="/login.html">ログイン</a>
+    </header>
 
     <main class="pt-28">
-      <section class="px-6 md:px-12 mb-32 md:mb-40" id="home">
-        <div class="grid grid-cols-1 md:grid-cols-12 gap-12 items-end">
-          <div class="md:col-span-7 lg:col-span-6 pb-12">
-            <h1 class="reveal text-6xl md:text-8xl font-notoSerif text-primary leading-tight tracking-tight mb-8">
-              A Sanctuary of Celestial Wisdom.
-            </h1>
-            <p class="text-xs uppercase tracking-[0.2em] text-secondary font-bold mb-8">星の知恵が宿る聖域</p>
-            <p class="font-notoSansJP text-xl md:text-2xl text-primary leading-relaxed mb-4">あなたのホロスコープを、<br class="hidden lg:block" />動かせる3Dマップで。</p>
-            <p class="font-notoSansJP text-sm md:text-base text-on-surface-variant leading-loose max-w-lg mb-8">生まれたときと今の天体配置を重ね、星同士の関係や時間による変化を直感的に確認できます。</p>
-            <div class="flex flex-col gap-8 items-start">
-              <p id="environment-note" class="text-on-surface-variant font-notoSansJP text-lg leading-relaxed max-w-md" hidden></p>
-              <a
-                class="bg-primary text-on-primary px-10 py-5 text-sm uppercase tracking-widest hover:bg-primary-dim transition-all duration-500 font-notoSansJP"
-                href="#entry"
-              >
-                無料でホロスコープを作成
-              </a>
-            </div>
-          </div>
-          <div class="md:col-span-5 lg:col-span-6 relative aspect-[4/5] md:aspect-square overflow-hidden bg-surface-container">
-            <img
-              class="w-full h-full object-cover grayscale-[20%] opacity-90 transition-transform duration-1000 hover:scale-105"
-              alt="Minimalist interior"
-              src="https://lh3.googleusercontent.com/aida-public/AB6AXuAdoJ0HnsOnBF-TlRyY2fW-CbaAB4CU6UlkuEklzmdnlMfaLrSiYS1KYTZIrHQzUFXAfo45uig35H3h3O9rucGbM_rciSVbEma-o0MBN2K5a3rFzwRZfBMxwPVDxrJBRmg7WlIMC-nBuhyXWc39OkAodrzrVT2Dz4POAdbJixR7VdioghlTGjij4C_7MLC6yGhdPsb6cPeFB7YZZRej2CujUPxhUx6jGYZCe-gWYT74FLMAH0OQZ0wSwimjrNjTTbGH8HZp7QBim6cC"
-            />
+      <section class="entry-hero entry-section" id="home" aria-labelledby="hero-heading">
+        <div class="entry-hero-copy">
+          <p class="entry-kicker">星を通して、自分を知る。</p>
+          <h1 id="hero-heading">あなたのホロスコープを、<br />動かせる3Dマップで。</h1>
+          <p class="entry-hero-description">生まれたときと今の天体配置を重ね、<br class="entry-desktop-break" />星同士の関係や時間による変化を直感的に。</p>
+          <p id="environment-note" class="text-on-surface-variant text-sm" hidden></p>
+          <div class="entry-hero-actions">
+            <a class="entry-hero-button" href="#entry">ホロスコープ作成</a>
+            <a class="entry-hero-button" href="/alignment.html">稼ぎ方タイプ診断</a>
           </div>
         </div>
+        <figure class="entry-hero-image">
+          <img alt="柔らかな光が差し込む部屋に置かれた望遠鏡" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAdoJ0HnsOnBF-TlRyY2fW-CbaAB4CU6UlkuEklzmdnlMfaLrSiYS1KYTZIrHQzUFXAfo45uig35H3h3O9rucGbM_rciSVbEma-o0MBN2K5a3rFzwRZfBMxwPVDxrJBRmg7WlIMC-nBuhyXWc39OkAodrzrVT2Dz4POAdbJixR7VdioghlTGjij4C_7MLC6yGhdPsb6cPeFB7YZZRej2CujUPxhUx6jGYZCe-gWYT74FLMAH0OQZ0wSwimjrNjTTbGH8HZp7QBim6cC" width="800" height="800" fetchpriority="high" />
+        </figure>
       </section>
 
-      <section class="px-6 md:px-12 pb-20 md:pb-28" id="self-exploration" aria-labelledby="self-exploration-heading">
-        <div class="max-w-7xl mx-auto border-y border-outline-variant/20 py-10 md:py-14 grid md:grid-cols-[1fr_auto] gap-8 items-center">
+      <section class="entry-section entry-exploration" id="self-exploration" aria-labelledby="self-exploration-heading">
+        <div class="entry-exploration-inner">
           <div>
             <p class="text-[10px] uppercase tracking-[0.2em] text-secondary font-bold mb-4">Find Your Work Style</p>
-            <h2 id="self-exploration-heading" class="font-notoSansJP text-2xl md:text-3xl text-primary leading-relaxed mb-4">あなたの持ち味、どんな仕事で生かせそう？</h2>
-            <p class="font-notoSansJP text-sm text-on-surface-variant leading-loose">24の問いと出生図から、働き方のヒントを見つける。<br />自分の選択と星から見える資質を、並べて見比べてみませんか。</p>
+            <h2 id="self-exploration-heading" class="font-notoSansJP text-2xl md:text-3xl text-primary leading-relaxed mb-4">あなたの稼ぎ方、星と一致してる？</h2>
+            <p class="font-notoSansJP text-sm text-on-surface-variant leading-loose">24の問いと出生図から、稼ぎ方の傾向を見つける。<br />自分の選択と星から見える資質を、並べて見比べてみませんか。</p>
           </div>
           <a href="/alignment.html" class="inline-flex items-center justify-center gap-6 border border-primary/30 text-primary px-8 py-4 text-sm font-notoSansJP hover:bg-surface-container-low transition-colors">試してみる <span aria-hidden="true">↗</span></a>
         </div>
       </section>
 
-      <section class="py-24 md:py-32 bg-surface-container-low px-6 md:px-12 scroll-mt-28" id="results" aria-labelledby="features-heading">
-        <div class="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-16 md:gap-24 items-center">
+      <section class="entry-section entry-features bg-surface-container-low" id="results" aria-labelledby="features-heading">
+        <div class="entry-features-grid">
           <figure class="order-2 md:order-1 min-w-0">
             <img
               class="w-full h-auto rounded-2xl shadow-[0px_20px_40px_rgba(46,52,45,0.12)]"
@@ -85,7 +70,7 @@
             <div class="flex flex-col gap-2">
               <label id="environment-label" class="text-[10px] uppercase tracking-[0.3em] text-secondary font-bold" hidden></label>
             </div>
-            <p class="text-[10px] uppercase tracking-[0.2em] text-secondary font-bold">Astrology as an Artisanal Interface.</p>
+            <p class="text-[10px] uppercase tracking-[0.2em] text-secondary font-bold">3D Horoscope Map</p>
             <h2 id="features-heading" class="text-2xl md:text-3xl font-notoSansJP text-primary leading-relaxed text-balance">
               星の動きを、見て、動かして、読み解く。
             </h2>
@@ -108,16 +93,16 @@
         </div>
       </section>
 
-      <section class="px-6 md:px-12 py-24 md:py-32" id="entry">
+      <section class="entry-section entry-chart" id="entry">
         <div class="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-12 lg:gap-20 items-start">
           <div class="lg:col-span-5">
             <p class="text-xs uppercase tracking-[0.3em] text-secondary font-bold mb-4">Chart Entry</p>
-            <h2 class="font-notoSerif text-4xl md:text-6xl text-primary leading-tight mb-8">
-              Enter the coordinates of your arrival.
+            <h2 class="entry-chart-heading">
+              ホロスコープを作成する
             </h2>
           </div>
 
-          <div class="lg:col-span-7 w-full bg-surface-container-lowest p-8 md:p-16 shadow-[0px_20px_40px_rgba(46,52,45,0.06)]">
+          <div class="entry-form-panel lg:col-span-7 w-full bg-surface-container-lowest shadow-[0px_20px_40px_rgba(46,52,45,0.06)]">
             <form class="space-y-10" id="reading-form">
               <div class="group relative">
                 <label class="flex items-baseline gap-2 mb-2">

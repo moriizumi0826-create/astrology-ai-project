@@ -1,0 +1,43 @@
+.entry-header {
+  position: fixed;
+  inset: 0 0 auto;
+  z-index: 50;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 28px;
+  padding: 20px 48px;
+  background: rgb(250 250 245 / 95%);
+  backdrop-filter: blur(16px);
+  border-bottom: 1px solid rgb(95 95 89 / 14%);
+  color: #424f40;
+}
+.entry-brand { font-family: "Noto Serif", serif; font-size: 23px; white-space: nowrap; }
+.entry-menu { display: flex; align-items: center; gap: 8px; font-family: "Noto Sans JP", sans-serif; font-size: 13px; }
+.entry-menu a { display: flex; align-items: center; justify-content: center; gap: 6px; min-height: 44px; padding: 10px 16px; border-radius: 6px; transition: background-color .2s; white-space: nowrap; }
+.entry-menu a:hover, .entry-member:hover { background: #eeefe6; }
+.entry-menu .entry-menu-trial { background: #e7ecdf; }
+.entry-menu .entry-menu-trial:hover { background: #dce4d2; }
+.entry-member { display: flex; align-items: center; min-height: 44px; padding: 8px; font-family: "Noto Sans JP", sans-serif; font-size: 12px; white-space: nowrap; border-radius: 6px; }
+.entry-header a:focus-visible { outline: 2px solid #677b54; outline-offset: 3px; }
+.entry-menu-mobile-label { display: none; }
+.entry-page main { padding-top: 132px; }
+.entry-page main section[id] { scroll-margin-top: 112px; }
+@media (max-width: 1023px) {
+  .entry-header { grid-template-columns: minmax(0, 1fr) auto; gap: 8px 16px; padding: 10px 20px 12px; }
+  .entry-brand { font-size: 21px; }
+  .entry-member { grid-column: 2; grid-row: 1; }
+  .entry-menu { grid-column: 1 / -1; grid-row: 2; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+  .entry-menu a { padding: 10px 4px; font-size: 12px; background: #f0f1e9; }
+  .entry-menu-trial span { display: none; }
+  .entry-menu-desktop-label { display: none; }
+  .entry-menu-mobile-label { display: inline; }
+  .entry-page main { padding-top: 152px; }
+  .entry-page main section[id] { scroll-margin-top: 136px; }
+}
+@media (max-width: 359px) {
+  .entry-header { padding-inline: 12px; }
+  .entry-brand { font-size: 19px; }
+  .entry-menu a { font-size: 11px; gap: 3px; }
+  .entry-menu .entry-menu-trial { font-size: 10px; }
+}

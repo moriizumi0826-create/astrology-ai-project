@@ -1,4 +1,6 @@
 import "./tailwind.css";
+import "./entry-navigation.css";
+import "./entry-layout.css";
 import { configureStorage } from "./reading-storage.js";
 import { prepareSession } from "./profile.mjs";
 if (__APP_ENVIRONMENT__ === "preview") {
