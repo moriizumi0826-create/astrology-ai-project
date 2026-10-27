@@ -1754,6 +1754,48 @@ function normalizeLongitude(value) {
   return Number.isFinite(longitude) ? ((longitude % 360) + 360) % 360 : null;
 }
 
+function normalizeHouseCusps(source) {
+  if (!Array.isArray(source)) return [];
+  const cusps = source
+    .map((item) => normalizeLongitude(typeof item === "object" ? item?.longitude ?? item?.cusp ?? item?.degree : item));
+  return cusps.length === 12 && cusps.every((longitude) => longitude !== null) ? cusps : [];
+}
+
+function cuspPosition(longitudeValue) {
+  const longitude = normalizeLongitude(longitudeValue);
+  if (longitude === null) return "—";
+  const totalMinutes = Math.round(longitude * 60) % (360 * 60);
+  const signIndex = Math.floor(totalMinutes / (30 * 60));
+  const minutesInSign = totalMinutes % (30 * 60);
+  const degrees = Math.floor(minutesInSign / 60);
+  const minutes = minutesInSign % 60;
+  return `${ZODIAC_SIGN_NAMES[signIndex]} ${ZODIAC_SIGNS[signIndex]} ${degrees}°${String(minutes).padStart(2, "0")}′`;
+}
+
+function HouseCuspsTable({ natalCusps, transitCusps }) {
+  if (!natalCusps.length && !transitCusps.length) {
+    return <p className="rounded-lg border border-white/10 bg-white/[0.025] px-3 py-4 text-xs text-mist/65">カスプ情報を取得できません。</p>;
+  }
+  return (
+    <div className="overflow-x-auto rounded-xl border border-white/10 bg-white/[0.025]">
+      <table className="w-full min-w-[300px] table-fixed text-left font-mono text-[10px]">
+        <thead className="border-b border-white/10 text-[9px] text-mist/55">
+          <tr><th scope="col" className="w-14 px-2 py-2">ハウス</th><th scope="col" className="px-2 py-2">ネイタル</th><th scope="col" className="px-2 py-2">現行</th></tr>
+        </thead>
+        <tbody>
+          {Array.from({ length: 12 }, (_, index) => (
+            <tr key={`house-cusp-${index + 1}`} className="border-b border-white/[0.06] last:border-0">
+              <th scope="row" className="px-2 py-1.5 font-semibold text-gold">{index + 1}室</th>
+              <td className="px-2 py-1.5 text-mist/85">{natalCusps[index] === undefined ? "—" : cuspPosition(natalCusps[index])}</td>
+              <td className="px-2 py-1.5 text-mist/85">{transitCusps[index] === undefined ? "—" : cuspPosition(transitCusps[index])}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
 function collectNatalHouseCusps(forecast) {
   const source = Array.isArray(forecast?.natal_house_cusps)
     ? forecast.natal_house_cusps
@@ -2379,6 +2421,12 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
       : dayWithTransitChart
   ), [day, dayWithTransitChart, playbackTransitChart]);
   const tableSky = useMemo(() => transitSkyMapData(tableDay, forecast, selectedNatalPlanet), [tableDay, forecast, selectedNatalPlanet]);
+  const tableNatalHouseCusps = useMemo(() => normalizeHouseCusps(
+    forecast?.natal_house_cusps ?? forecast?.natalHouseCusps ?? forecast?.house_cusps ?? forecast?.houseCusps
+  ), [forecast]);
+  const tableTransitHouseCusps = useMemo(() => normalizeHouseCusps(
+    tableDay?.transit_chart?.house_cusps ?? tableDay?.transitChart?.houseCusps
+  ), [tableDay]);
   const tableTransitNodeItems = useMemo(
     () => nodeTableItems(tableDay?.transit_chart?.transits || tableDay?.transitChart?.transits),
     [tableDay]
@@ -4502,10 +4550,11 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
 
   const MobileChartDisplayPanel = () => (
     <>
-      <div className="grid grid-cols-2 gap-1 rounded-xl border border-white/10 bg-white/[0.025] p-1 font-mono text-[9px] font-bold">
+      <div className="grid grid-cols-3 gap-1 rounded-xl border border-white/10 bg-white/[0.025] p-1 font-mono text-[9px] font-bold">
         {[
           ["transit", "現行天体"],
           ["natal", "ネイタル"],
+          ["cusps", "カスプ"],
         ].map(([value, label]) => (
           <button
             key={value}
@@ -4553,7 +4602,7 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
             })}
           </div>
         </div>
-      ) : (
+      ) : mobilePlanetTableTab === "natal" ? (
         <div className="rounded-xl border border-white/10 bg-white/[0.025] p-1.5">
           <div className="mb-2 flex items-center justify-between gap-2">
             <span className={cx("font-mono text-[9px] font-bold", natalLayerActive ? "text-gold" : "text-mist/55")}>ネイタル</span>
@@ -4585,6 +4634,8 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
             })}
           </div>
         </div>
+      ) : (
+        <HouseCuspsTable natalCusps={tableNatalHouseCusps} transitCusps={tableTransitHouseCusps} />
       )}
     </>
   );
@@ -5089,7 +5140,12 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
                   </div>
                 </>
               )}
-            </div></div></>}
+            </div>
+            <div className="rounded-xl border border-white/10 bg-[#121414]/70 p-2.5 sm:p-3">
+              <h3 className="mb-2 font-mono text-[9px] font-bold uppercase tracking-[0.16em] text-gold/80">ハウスカスプ</h3>
+              <HouseCuspsTable natalCusps={tableNatalHouseCusps} transitCusps={tableTransitHouseCusps} />
+            </div>
+            </div></>}
           </section>}
 
           {aspectTooltip ? (
