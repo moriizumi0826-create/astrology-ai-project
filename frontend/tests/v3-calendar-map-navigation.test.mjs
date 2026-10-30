@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {calendarMapNavigation,eventAssistantNotice,eventAssistantQuestions,mapAssistantHistory} from '../v3/calendar-map-navigation.mjs';
+import {calendarMapNavigation,eventAssistantNotice,eventAssistantQuestions,mapAssistantHistory,mapAssistantContextKey} from '../v3/calendar-map-navigation.mjs';
 import FAQ from '../v3/map-assistant-faq.json' with {type:'json'};
 import {buildMapAssistantContext} from '../v3/map-assistant-context.mjs';
 
@@ -66,4 +66,29 @@ test('invalid house targets are not inferred from the event title or another bas
   }
   const event=calendarMapNavigation({event_type:'sign_ingress',event_date:'2026-10-21',solar_house:12},'Asia/Tokyo');
   assert.equal(event.house_basis,undefined);assert.equal(event.target_house,undefined);
+});
+
+test('aspect event retains its exact pair and angle through navigation and AI context',()=>{
+  const selectedEvent=calendarMapNavigation({title:'火星×出生太陽180°',event_type:'transit_natal_aspect',
+    event_datetime:'2026-10-30T12:00:00+09:00',transit_planet:'MARS',natal_planet:'SUN',aspect_angle:180},'Asia/Tokyo');
+  const data=buildMapAssistantContext({date:selectedEvent.date,time:'12:00',selectedEvent});
+  assert.equal(data.selected_event.planet,'MARS');
+  assert.equal(data.selected_event.natal_planet,'SUN');
+  assert.equal(data.selected_event.aspect_angle,180);
+  assert.equal(mapAssistantContextKey(data),mapAssistantContextKey({...data,time:'12:00:00',planet_mode:'natal'}));
+});
+
+test('follow-up history stays with its event and chart, not another event or date',()=>{
+  const context={date:'2026-10-30',time:'12:00',query_positions:[['T:MARS',345],['N:SUN',165]],
+    selected_event:{type:'transit_natal_aspect',title:'火星×出生太陽180°',date:'2026-10-30',time:'12:00',planet:'MARS',natal_planet:'SUN',aspect_angle:180}};
+  const contextKey=mapAssistantContextKey(context);
+  const messages=[{role:'user',content:'このアスペクトは私にどう関係する？',contextKey},
+    {role:'assistant',content:'現行火星と出生太陽のオポジションです。',contextKey,aspect_references:[['T:MARS','N:SUN',180]]}];
+  assert.equal(mapAssistantHistory(messages,contextKey).length,2);
+  assert.deepEqual(mapAssistantHistory(messages,contextKey)[1].aspect_references,[['T:MARS','N:SUN',180]]);
+  for(const changed of [{...context,date:'2026-10-31'},
+    {...context,selected_event:{...context.selected_event,natal_planet:'MOON'}},
+    {...context,query_positions:[['T:MARS',345],['N:SUN',155]]}]){
+    assert.deepEqual(mapAssistantHistory(messages,mapAssistantContextKey(changed)),[]);
+  }
 });

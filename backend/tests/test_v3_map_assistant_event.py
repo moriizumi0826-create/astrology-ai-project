@@ -3,7 +3,7 @@ import unittest
 from unittest.mock import patch
 from pydantic import ValidationError
 from backend.v3.map_assistant import (MapAssistantRequest, MapContext, _request_answer,
-    _model_screen, _event_question, EVENT_INTERPRETATION_INSTRUCTIONS)
+    _model_screen, _event_question, _event_reference, _conversation_references, EVENT_INTERPRETATION_INSTRUCTIONS)
 from backend.v3.map_assistant_tools import run_chart_tool
 
 
@@ -47,9 +47,73 @@ class EventInterpretationTests(unittest.TestCase):
                 return {'output':[{'type':'message','content':[{'type':'output_text','text':'mock answer'}]}]}
             with patch('backend.v3.map_assistant._post_response',side_effect=respond):
                 self.assertEqual(_request_answer(request,request.question,'unused'),'mock answer')
-            self.assertEqual(EVENT_INTERPRETATION_INSTRUCTIONS in observed[0]['instructions'],origin=='event_suggestion')
+            self.assertIn(EVENT_INTERPRETATION_INSTRUCTIONS,observed[0]['instructions'])
             data=json.loads(observed[0]['input'][0]['content'])
             self.assertEqual(data['question_origin'],origin)
             self.assertEqual(data['screen']['selected_event']['target_house'],12)
             actual=json.loads(observed[1]['input'][-1]['output'])['placements'][0]
             self.assertEqual(actual['natal_house'],11)
+
+    def aspect_context(self):
+        return MapContext(date='2026-10-30',time='12:00',selected_event={
+            'title':'火星×ネイタル太陽180°','type':'transit_natal_aspect',
+            'date':'2026-10-30','time':'12:00','planet':'MARS','natal_planet':'SUN','aspect_angle':180},
+            query_positions=[('T:MARS',345),('N:SUN',165),('T:SUN',200)])
+
+    def test_followup_keeps_event_evidence_even_when_model_queries_another_scope(self):
+        context=self.aspect_context()
+        previous=[]
+        for origin,question in [('event_suggestion','このアスペクトは私にどう関係する？'),
+                                ('free_text','それだと仕事ではどう過ごすとよい？')]:
+            payload=MapAssistantRequest(question=question,question_origin=origin,context=context,history=previous)
+            calls=[]
+            def respond(body,key):
+                calls.append(body)
+                if len(calls)==1:
+                    return {'output':[{'type':'function_call','name':'get_chart_aspects','call_id':'other',
+                        'arguments':json.dumps({'scope':'transit_transit','points':['T:MARS','T:SUN'],'match':'all','angle':180})}]}
+                return {'output':[{'type':'message','content':[{'type':'output_text','text':'現行火星と出生太陽のオポジションです。'}]}]}
+            with patch('backend.v3.map_assistant._post_response',side_effect=respond):
+                references=[]
+                answer=_request_answer(payload,question,'unused',references)
+            data=json.loads(calls[0]['input'][0]['content'])
+            self.assertEqual(data['event_reference']['aspect_query']['points'],['T:MARS','N:SUN'])
+            check=data['event_reference']['aspect_check']
+            self.assertTrue(check['complete'])
+            self.assertEqual(check['aspects'][0]['angle'],180)
+            self.assertFalse(check['zero_matches_confirmed'])
+            self.assertTrue(json.loads(calls[1]['input'][-1]['output'])['zero_matches_confirmed'])
+            self.assertIn(EVENT_INTERPRETATION_INSTRUCTIONS,calls[0]['instructions'])
+            if previous:
+                self.assertEqual(data['recent_chat'],previous)
+                self.assertTrue(data['conversation_reference'][0]['confirmed'])
+            self.assertEqual(len(references),1)
+            self.assertEqual(set(references[0][:2]),{'T:MARS','N:SUN'})
+            self.assertEqual(references[0][2],180)
+            previous=[{'role':'user','content':question},{'role':'assistant','content':answer,'aspect_references':references}]
+
+    def test_event_reference_does_not_invent_missing_or_mismatching_aspect(self):
+        context=self.aspect_context()
+        context.query_positions=[('T:MARS',345),('N:SUN',100)]
+        check=_event_reference(context)['aspect_check']
+        self.assertTrue(check['zero_matches_confirmed'])
+        self.assertEqual(check['aspects'],[])
+        context.query_positions=[('T:MARS',345)]
+        check=_event_reference(context)['aspect_check']
+        self.assertFalse(check['complete'])
+        self.assertFalse(check['zero_matches_confirmed'])
+        context.date='2026-10-31'
+        self.assertIsNone(_event_reference(context))
+
+    def test_prior_supporting_aspect_is_reverified_even_without_an_event(self):
+        request=MapAssistantRequest(question='その配置ならどうするとよい？',
+            context={'query_positions':[['T:VENUS',225],['N:SUN',105]]},
+            history=[{'role':'assistant','content':'現行金星と出生太陽のトラインです。',
+                      'aspect_references':[['T:VENUS','N:SUN',120]]}])
+        result=_conversation_references(request)[0]
+        self.assertTrue(result['confirmed'])
+        self.assertTrue(result['complete'])
+        request.context.query_positions=[('T:VENUS',225),('N:SUN',140)]
+        self.assertFalse(_conversation_references(request)[0]['confirmed'])
+        request.context.query_positions=[('T:VENUS',225)]
+        self.assertFalse(_conversation_references(request)[0]['complete'])

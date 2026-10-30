@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { getJson, postJson } from "./api.mjs";
 import FAQ from "./map-assistant-faq.json";
-import { eventAssistantNotice, eventAssistantQuestions, mapAssistantHistory } from './calendar-map-navigation.mjs';
+import { eventAssistantNotice, eventAssistantQuestions, mapAssistantHistory, mapAssistantContextKey } from './calendar-map-navigation.mjs';
 import {useCalendarNotes} from './calendar-workspace.jsx';
 
 const SUGGESTED_QUESTIONS = Object.keys(FAQ);
@@ -89,18 +89,20 @@ export function MapAssistantPanel({ id, context, getContext, onClose, canAsk = f
       return;
     }
     if (!contextReady || !canAsk || !usage || (usage.unlimited !== true && usage.remaining<=0)) return;
-    const history = mapAssistantHistory(messages);
-    setMessages((current) => [...current, { role: "user", content: question }]);
     setDraft("");
     setError("");
     setPending(true);
     try {
       const currentContext = getContext ? getContext() : context;
+      const contextKey = mapAssistantContextKey(currentContext);
+      const history = mapAssistantHistory(messages, contextKey);
+      setMessages((current) => [...current, { role: "user", content: question, contextKey }]);
       const question_origin = questionOrigin === 'event_suggestion' && currentContext?.selected_event ? 'event_suggestion' : 'free_text';
       const result = await postJson("/api/map-assistant", { question, context: currentContext, history, question_origin });
       ++usageRequest.current;
       if(result.usage){setUsage(result.usage);setUsageError('');}else{refreshUsage();}
-      setMessages((current) => [...current, { role: "assistant", content: result.answer, demo: result.mode === "demo" }]);
+      setMessages((current) => [...current, { role: "assistant", content: result.answer, demo: result.mode === "demo", contextKey,
+        aspect_references: Array.isArray(result.aspect_references) ? result.aspect_references : [] }]);
     } catch (cause) {
       setError(cause.message || "回答を取得できませんでした。");
       await refreshUsage();

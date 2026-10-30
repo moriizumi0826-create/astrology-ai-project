@@ -23,8 +23,14 @@ export function calendarMapNavigation(event, timezone = Intl.DateTimeFormat().re
   if (new Date(date+'T00:00:00Z').toISOString().slice(0,10) !== date) throw new Error('イベントの日時を確認できません。');
   const planet = event?.transit_planet || event?.planet;
   const house = Number(event?.house);
+  const natalPlanet = event?.natal_planet;
+  const aspectAngle = event?.aspect_angle;
   return {date,time,timezone,utc_datetime,approximate:!raw,
     ...(/^[A-Z_0-9]{1,24}$/.test(planet || '') ? {planet} : {}),
+    ...(event?.event_type === 'transit_natal_aspect'
+      && /^[A-Z_0-9]{1,24}$/.test(natalPlanet || '') && aspectAngle != null && aspectAngle !== ''
+      && [0,60,90,120,150,180].includes(Number(aspectAngle))
+      ? {natal_planet:natalPlanet,aspect_angle:Number(aspectAngle)} : {}),
     ...(event?.event_type === 'natal_house_ingress' && Number.isInteger(house) && house >= 1 && house <= 12
       ? {house_basis:'natal',target_house:house} : {}),
     title:String(event?.title || '天体イベント').slice(0,160),type:String(event?.event_type || '').slice(0,40)};
@@ -34,6 +40,8 @@ export function compactSelectedEvent(event, date = '', time = '') {
   if (!event || (date && event.date !== date) || (time && fullTime(event.time) !== fullTime(time))) return undefined;
   return {title:event.title,type:event.type,date:event.date,time:event.time,approximate:event.approximate,
     ...(event.planet ? {planet:event.planet} : {}),
+    ...(event.type === 'transit_natal_aspect' && event.natal_planet && [0,60,90,120,150,180].includes(event.aspect_angle)
+      ? {natal_planet:event.natal_planet,aspect_angle:event.aspect_angle} : {}),
     ...(event.type === 'natal_house_ingress' && event.house_basis === 'natal' && Number.isInteger(event.target_house) && event.target_house >= 1 && event.target_house <= 12
       ? {house_basis:'natal',target_house:event.target_house} : {})};
 }
@@ -55,6 +63,15 @@ export function eventAssistantQuestions(event) {
   }
   return ['このイベントは私にどう関係する？', 'どんなテーマ・過ごし方を意識するとよい？', '表示中の配置で、その根拠を教えて'];
 }
-export function mapAssistantHistory(messages) {
-  return messages.filter(message=>!message.eventNotice).slice(-6).map(({role,content})=>({role,content:content.slice(0,600)}));
+export function mapAssistantContextKey(context) {
+  // Local conversation identity only; never send this copy of the snapshot to the API.
+  const time = context?.time?.length === 5 ? context.time + ':00' : context?.time;
+  return JSON.stringify([context?.date,time,context?.timezone,context?.chart_birth,
+    compactSelectedEvent(context?.selected_event,context?.date,context?.time),
+    context?.query_positions,context?.query_houses]);
+}
+export function mapAssistantHistory(messages, contextKey) {
+  return messages.filter(message=>!message.eventNotice && (contextKey === undefined || message.contextKey === contextKey))
+    .slice(-6).map(({role,content,aspect_references})=>({role,content:content.slice(0,600),
+      ...(role === 'assistant' && aspect_references?.length ? {aspect_references:aspect_references.slice(0,8)} : {})}));
 }
