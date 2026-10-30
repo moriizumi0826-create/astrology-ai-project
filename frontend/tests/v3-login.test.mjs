@@ -75,14 +75,14 @@ test('missing profile goes to registration from login or signed-in continuation'
   const member=await setup({member:true,saved:false});assert.equal(member.el('#continue').href,'/auth-callback.html?mode=onboarding');
   assert.equal(member.el('#continue').textContent,'出生データを入力して始める');
 });
-test("campaign notice is signup-only and ends at November 1 JST", async () => {
+test("campaign notice is signup-only and remains after the former deadline", async () => {
   const ui = await setup({ now: "2026-10-31T23:59:59+09:00" });
   assert.equal(ui.el("#signup-campaign").hidden, true);
   ui.mode("signup"); assert.equal(ui.el("#signup-campaign").hidden, false);
   ui.mode("reset"); assert.equal(ui.el("#signup-campaign").hidden, true);
   const ended = await setup({ now: "2026-11-01T00:00:00+09:00" });
-  ended.mode("signup"); assert.equal(ended.el("#signup-campaign").hidden, true);
-  assert.doesNotMatch(html, /先着25名/); assert.match(html, /メール認証/); assert.match(html, /一定の人数に達し次第終了/);
+  ended.mode("signup"); assert.equal(ended.el("#signup-campaign").hidden, false);
+  assert.doesNotMatch(html, /先着(?:25|50)名|10月末|2026年10月31日/); assert.match(html, /メール認証/); assert.match(html, /一定の人数に達し次第終了/);
 });
 
 test("Google button shares busy lock and recovers after failure; hidden for reset", async () => {

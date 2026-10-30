@@ -39,7 +39,7 @@ function setMode(next) {
   $("#show-password").setAttribute("aria-label", "パスワードを表示");
   $("#password").setAttribute("aria-describedby", next === "signup" ? "signup-note error" : "error");
   $("#signup-note").hidden = next !== "signup";
-  $("#signup-campaign").hidden = next !== "signup" || Date.now() >= Date.parse("2026-11-01T00:00:00+09:00");
+  $("#signup-campaign").hidden = next !== "signup";
   $("#forgot").hidden = next !== "login";
   $("#back-login").hidden = next !== "reset";
   button.hidden = false; $("#resend").hidden = true; $("#edit-email").hidden = true;
