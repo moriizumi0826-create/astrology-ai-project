@@ -22,6 +22,7 @@ export default defineConfig(({ mode }) => {
         input: {
           main: path.resolve(__dirname, "index.html"),
           alignment: path.resolve(__dirname, "alignment.html"),
+          career: path.resolve(__dirname, "career.html"),
           mainV2: path.resolve(__dirname, "index-v2.html"),
           forecastDetail: path.resolve(__dirname, "forecast-detail.html"),
           forecastDetailV2: path.resolve(__dirname, "forecast-detail-v2.html"),

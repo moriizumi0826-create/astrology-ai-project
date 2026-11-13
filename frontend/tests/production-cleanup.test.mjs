@@ -45,7 +45,7 @@ test("missing yearly data stays empty instead of generating demo scores", async 
   }
 });
 
-test("production build keeps existing main and V2 URLs but no developer pages", async () => {
+test("production build keeps the relocation URLs and linked trials, with no obsolete developer pages", async () => {
   const built = await build({
     root: fileURLToPath(root),
     configFile: fileURLToPath(new URL("vite.config.mjs", root)),
@@ -54,11 +54,15 @@ test("production build keeps existing main and V2 URLs but no developer pages", 
   });
   const output = (Array.isArray(built) ? built : [built]).flatMap((bundle) => bundle.output);
   assert.deepEqual(output.filter((item) => item.fileName.endsWith(".html")).map((item) => item.fileName).sort(), [
-    "forecast-detail-v2.html", "forecast-detail.html", "index-v2.html", "index.html",
+    "alignment.html", "career.html", "forecast-detail-v2.html", "forecast-detail.html", "index-v2.html", "index.html",
   ]);
+  const landing = output.find((item) => item.fileName === "index.html");
+  for (const path of ["alignment.html", "career.html"]) {
+    assert.ok(String(landing.source).includes(`href="./${path}"`), `${path} must remain linked from the landing page`);
+  }
   const modules = output.filter((item) => item.type === "chunk").flatMap((item) => Object.keys(item.modules));
-  for (const name of ["forecast-detail.jsx", "dashboard-shared.jsx", "monthly-overview-content.jsx", "planet-surface-textures.mjs", "transit-chart-preload.mjs"]) {
-    assert.ok(modules.some((id) => id.replaceAll("\\", "/").endsWith(`/src/${name}`)), `${name} must remain bundled`);
+  for (const name of ["alignment.jsx", "career.jsx"]) {
+    assert.ok(modules.some((id) => id.replaceAll("\\", "/").endsWith(`/src/${name}`)), `${name} must be bundled`);
   }
   assert.ok(!modules.some((id) => /annual-biorhythm-dev|snapshot-personal/.test(id)));
 });
