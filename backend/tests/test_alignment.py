@@ -1,3 +1,4 @@
+from datetime import datetime, timezone
 import unittest
 from unittest.mock import patch
 
@@ -35,6 +36,17 @@ class AlignmentTests(unittest.TestCase):
         response = self.client.post('/api/alignment/chart', json=self.payload(birth_time_unknown=True))
         self.assertEqual(response.status_code, 422, response.text)
         self.assertNotIn('planets', response.json())
+
+    def test_accepts_today_in_japan_when_utc_is_still_yesterday(self):
+        instant = datetime(2026, 11, 14, 19, 0, tzinfo=timezone.utc)
+        with patch('backend.app.alignment_routes.datetime') as clock:
+            clock.now.side_effect = instant.astimezone
+            today = self.client.post('/api/alignment/chart', json={**self.payload(), 'birth_date': '2026-11-15'})
+            tomorrow = self.client.post('/api/alignment/chart', json={**self.payload(), 'birth_date': '2026-11-16'})
+        self.assertEqual(today.status_code, 200, today.text)
+        self.assertEqual(len(today.json()['houses']), 12)
+        self.assertEqual(tomorrow.status_code, 422, tomorrow.text)
+        self.assertEqual(tomorrow.json()['detail'][0]['type'], 'alignment_birth_date')
 
     def test_invalid_and_future_input_rejected(self):
         for changes in [dict(latitude=91), dict(birth_date='2999-01-01'), dict(timezone_name='invalid/zone'), dict(birth_time=None)]:

@@ -1,9 +1,11 @@
 """Anonymous, calculation-only chart endpoint. No readings, LLM calls or storage."""
-from datetime import date
+from datetime import date, datetime
 from threading import Lock
+from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, HTTPException
 from pydantic import Field, model_validator
+from pydantic_core import PydanticCustomError
 
 from backend.app.schemas import ReadingRequest
 from backend.app.services.birth_timezone import request_birth_offset
@@ -12,6 +14,7 @@ from backend.app.services.alignment_scoring import validate_chart_for_scores
 
 router = APIRouter(prefix="/api/alignment", tags=["alignment"])
 _chart_lock = Lock()
+JAPAN_TIMEZONE = ZoneInfo("Asia/Tokyo")
 # Traditional rulers are explicit so a later interpreter cannot choose silently.
 RULERS = dict(zip(SIGNS, ["火星", "金星", "水星", "月", "太陽", "水星", "金星", "火星", "木星", "土星", "土星", "木星"]))
 PLANETS = {"太陽", "月", "水星", "金星", "火星", "木星", "土星", "天王星", "海王星", "冥王星"}
@@ -23,9 +26,9 @@ class AlignmentBirthRequest(ReadingRequest):
     @model_validator(mode="after")
     def supported_date(self):
         if self.birth_time_unknown or self.birth_time is None:
-            raise ValueError("この体験ではハウスを使うため、出生時刻が必要です。")
-        if not date(1900, 1, 1) <= self.birth_date <= date.today():
-            raise ValueError("生年月日は1900年以降、今日以前を指定してください。")
+            raise PydanticCustomError("alignment_birth_time", "この体験ではハウスを使うため、出生時刻が必要です。")
+        if not date(1900, 1, 1) <= self.birth_date <= datetime.now(JAPAN_TIMEZONE).date():
+            raise PydanticCustomError("alignment_birth_date", "生年月日は1900年以降、今日以前の日付を選んでください。")
         return self
 
 

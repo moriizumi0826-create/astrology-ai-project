@@ -11,8 +11,20 @@ export async function alignmentRequest(path, body) {
       ...(body ? { headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) } : {}),
     });
     const data = await response.json().catch(() => null);
-    if (!response.ok) throw new Error(typeof data?.detail === 'string' ? data.detail : '入力内容または計算APIの接続を確認してください。');
-    if (!data) throw new Error('計算APIから正しい応答がありません。接続先を確認してください。');
+    if (!response.ok) {
+      const detail = data?.detail;
+      if (typeof detail === 'string') throw new Error(detail);
+      if (response.status === 422) {
+        const birthError = Array.isArray(detail) && detail.find(issue =>
+          ['alignment_birth_date', 'alignment_birth_time'].includes(issue?.type) &&
+          typeof issue.msg === 'string');
+        throw new Error(birthError?.msg || (path === '/api/alignment/chart'
+          ? '生年月日・出生時刻・出生地を確認してください。'
+          : '入力内容を確認してください。'));
+      }
+      throw new Error('計算サーバーでエラーが発生しました。時間をおいてもう一度お試しください。');
+    }
+    if (!data) throw new Error('計算結果を受け取れませんでした。時間をおいてもう一度お試しください。');
     return data;
   } catch (error) {
     if (error.name === 'AbortError') throw new Error('通信がタイムアウトしました。入力は残っています。もう一度お試しください。');
