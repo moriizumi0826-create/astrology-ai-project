@@ -18,13 +18,25 @@ function Placement({ step }) {
 
 function Result({ result }) {
   const { birth, chart, reading } = result;
+  const { job, signature, workExamples, trainingSkill, task, role, outcome } = reading.profile;
   const heading = useRef(null);
   useEffect(() => { heading.current.focus(); }, [result]);
   return <article className="career-result" aria-labelledby="career-result-title">
     <header className="career-result-head">
-      <h2 id="career-result-title" ref={heading} tabIndex={-1}>あなたの出生図で、仕事の育て方を見る</h2>
+      <p className="career-profile-label">出生図から見たジョブ候補</p>
+      <h2 id="career-result-title" ref={heading} tabIndex={-1}>{job}</h2>
       <p>{birth.date.replace(/-/g, '/')} {birth.time} ・ {birth.prefecture}</p>
     </header>
+    <ol className="career-profile">
+      <li><h3>① 得意技</h3><strong>{signature}</strong><p>向いていそうな仕事は、{workExamples}。</p></li>
+      <li><h3>② 伸ばすスキル</h3><strong>{trainingSkill}</strong><p>{task}。</p></li>
+      <li><h3>③ 極めた先の役割</h3><strong>{role}</strong><p>示したい実績は、{outcome}。</p></li>
+    </ol>
+    <section className="career-example">
+      <h3>仕事に落とし込むなら</h3>
+      <p>{reading.example}</p>
+    </section>
+    <h3 className="career-basis-title">出生図で根拠を見る</h3>
     <div className="career-diagram">
       <CareerWheel chart={chart} reading={reading} />
       <ol className="career-steps">
@@ -40,21 +52,14 @@ function Result({ result }) {
       </ol>
     </div>
     <p className="career-method">トロピカル・プラシーダス方式／伝統的支配星／都道府県の代表座標で計算</p>
-    <div className="career-followup">
-      <section>
-        <h3>仕事に落とし込むなら</h3>
-        <p>①の持ち味を②の仕事で使う場面を一つ選び、③の役割につながる成果を記録します。</p>
-        <p>{reading.example}</p>
-      </section>
-      <section>
+    <section className="career-followup">
         <h3>配置のつながり</h3>
         <dl>{reading.connections.map(({ label, facts }) => <div key={label}>
           <dt>{label}</dt>
           {facts.length > 0 ? facts.map(fact => <dd key={fact}>{fact}</dd>) :
             <dd>支配星の共通・相互のハウスへの在室・支配星同士のアスペクトは、今回の読みでは見つかりませんでした。</dd>}
         </div>)}</dl>
-      </section>
-    </div>
+    </section>
   </article>;
 }
 
