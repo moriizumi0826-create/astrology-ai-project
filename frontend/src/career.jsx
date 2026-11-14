@@ -18,24 +18,35 @@ function Placement({ step }) {
 
 function Result({ result }) {
   const { birth, chart, reading } = result;
-  const { job, signature, workExamples, trainingSkill, task, role, outcome } = reading.profile;
+  const { quest, trainingSkill, role, outcome } = reading.profile;
   const heading = useRef(null);
   useEffect(() => { heading.current.focus(); }, [result]);
   return <article className="career-result" aria-labelledby="career-result-title">
     <header className="career-result-head">
-      <p className="career-profile-label">出生図から見たジョブ候補</p>
-      <h2 id="career-result-title" ref={heading} tabIndex={-1}>{job}</h2>
+      <p className="career-profile-label">出生図から見た初期ジョブ</p>
+      <h2 id="career-result-title" ref={heading} tabIndex={-1}>{quest.job}</h2>
       <p>{birth.date.replace(/-/g, '/')} {birth.time} ・ {birth.prefecture}</p>
     </header>
     <ol className="career-profile">
-      <li><h3>① 得意技</h3><strong>{signature}</strong><p>向いていそうな仕事は、{workExamples}。</p></li>
-      <li><h3>② 伸ばすスキル</h3><strong>{trainingSkill}</strong><p>{task}。</p></li>
+      <li><h3>① 固有技</h3><strong>{quest.technique}</strong><p>{quest.signature}。</p></li>
+      <li><h3>② 伸ばすスキル</h3><strong>{trainingSkill}</strong></li>
       <li><h3>③ 極めた先の役割</h3><strong>{role}</strong><p>示したい実績は、{outcome}。</p></li>
     </ol>
-    <section className="career-example">
-      <h3>仕事に落とし込むなら</h3>
-      <p>{reading.example}</p>
-    </section>
+    <div className="career-quest-grid">
+      <section className="career-example career-quest">
+        <p className="career-quest-label">レベル上げクエスト</p>
+        <h3>{quest.title}</h3>
+        <p>{quest.mission}</p>
+        <p><strong>攻略のヒント</strong>　{quest.practice}。</p>
+        <p><strong>クリア条件</strong>　{quest.clear}。</p>
+      </section>
+      <section className="career-example">
+        <p className="career-quest-label">現実の仕事で試すなら</p>
+        <h3>{quest.workTitle}</h3>
+        <p>{quest.workAction}。</p>
+        <p><strong>成果の見方</strong>　{quest.measure}を記録して、工夫する前後で比べる。</p>
+      </section>
+    </div>
     <h3 className="career-basis-title">出生図で根拠を見る</h3>
     <div className="career-diagram">
       <CareerWheel chart={chart} reading={reading} />
