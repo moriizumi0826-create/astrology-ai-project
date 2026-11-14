@@ -42,11 +42,13 @@ test('corrections append immutable history and ignore empty notes', () => {
   assert.equal(second[1].number, 2);
   assert.equal(recordRevision(second, '  '), second);
 });
-test('LP and build include the public trial without authentication or stale prototype prose', () => {
+test('LP links the career trial and keeps the alignment build available', () => {
   const entry = readFileSync(new URL('../v3/entry.html', import.meta.url), 'utf8');
   const config = readFileSync(new URL('../vite.v3.config.mjs', import.meta.url), 'utf8');
   const app = readFileSync(new URL('../v3/alignment.jsx', import.meta.url), 'utf8');
-  assert.match(entry, /href="\/alignment\.html"/);
+  assert.doesNotMatch(entry, /href="\/alignment\.html"|稼ぎ方タイプ診断/);
+  assert.equal([...entry.matchAll(/href="\/career\.html"/g)].length, 3);
+  assert.match(config, /career: path\.join/);
   assert.match(config, /alignment: path\.join/);
   assert.match(app, /href="\/entry\.html"/);
   assert.doesNotMatch(app, /prepareSession|authSnapshot|dangerouslySetInnerHTML/);
