@@ -32,21 +32,18 @@ a { color: inherit; }
 .career-adventure {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1.65fr);
-  color: #f6f2fa;
-  background: #242035;
-  border-radius: 16px;
-  --adventure-border: #5a5069;
-  --adventure-muted: #d1c8de;
-  --adventure-accent: #dcc2fd;
+  background: #fffefb;
+  border: 1px solid #dcd7df;
+  border-radius: 12px;
+  --adventure-border: #dcd7df;
+  --adventure-muted: #425471;
+  --adventure-accent: #594773;
 }
 .career-result-head, .career-quest { min-width: 0; padding: clamp(21px, 4vw, 38px); }
 .career-result-head { border-right: 1px solid var(--adventure-border); }
 .career-result-head h2 { margin: 0 0 9px; font-size: clamp(2rem, 5vw, 3.35rem); line-height: 1.18; scroll-margin-top: 44px; }
-.career-adventure :focus-visible { outline-color: var(--adventure-accent); }
 .career-profile-label, .career-quest-label { margin: 0 0 8px; font-size: .85rem; font-weight: 700; }
 .career-adventure .career-profile-label, .career-adventure .career-quest-label { color: var(--adventure-accent); }
-.career-style { margin: 0; font-size: .9rem; color: var(--adventure-muted); }
-.career-style strong { margin-left: .4em; color: #fff; }
 .career-profile { display: grid; gap: 13px; border-top: 1px solid var(--adventure-border); margin: 19px 0 0; padding-top: 15px; }
 .career-profile dt, .career-quest-notes dt { color: var(--adventure-accent); font-weight: 700; font-size: .82rem; }
 .career-profile dd, .career-quest-notes dd { margin: 3px 0 0; line-height: 1.6; }
@@ -54,10 +51,11 @@ a { color: inherit; }
 .career-quest h3 { margin: 0; font-size: clamp(1.25rem, 3vw, 1.95rem); line-height: 1.4; }
 .career-mission { color: var(--adventure-muted); margin: 9px 0 0; line-height: 1.7; }
 .career-quest-notes { display: grid; gap: 10px; margin: 14px 0 0; font-size: .9rem; }
-.career-clear { margin-top: 2px; padding: 9px 12px; border-left: 2px solid var(--adventure-accent); background: #342c47; }
+.career-quest-notes dd p { margin: 3px 0 0; }
+.career-clear { margin-top: 2px; padding: 9px 12px; border-left: 2px solid var(--adventure-accent); background: #f3eff6; }
 .career-work {
   display: grid; grid-template-columns: minmax(0, 1.65fr) minmax(0, 1fr);
-  margin-top: 14px; border: 1px solid #d5cddb; border-radius: 12px; background: #f0ecf3;
+  margin-top: 14px; border-block: 1px solid #dcd7df;
 }
 .career-work > div { padding: 17px clamp(15px, 3vw, 25px); }
 .career-work > div + div { border-left: 1px solid #d5cddb; }

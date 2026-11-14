@@ -26,7 +26,6 @@ function Result({ result }) {
       <header className="career-result-head">
         <p className="career-profile-label">初期ジョブ</p>
         <h2 id="career-result-title" ref={heading} tabIndex={-1}>{quest.job}</h2>
-        <p className="career-style">戦い方 <strong>{quest.style}</strong></p>
         <dl className="career-profile">
           <div><dt>固有技</dt><dd><strong>{quest.technique}</strong><p>{quest.signature}。</p></dd></div>
           <div><dt>伸ばすスキル</dt><dd><strong>{trainingSkill}</strong></dd></div>
@@ -37,7 +36,7 @@ function Result({ result }) {
         <h3>{quest.title}</h3>
         <p className="career-mission">{quest.mission}</p>
         <dl className="career-quest-notes">
-          <div><dt>進め方</dt><dd>{quest.styleHint}。</dd></div>
+          <div><dt>進め方</dt><dd><strong>{quest.style}</strong><p>{quest.styleHint}。</p></dd></div>
           <div><dt>スキルの鍛え方</dt><dd>{quest.practice}。</dd></div>
           <div className="career-clear"><dt>クリア条件</dt><dd>{quest.clear}。</dd></div>
         </dl>
