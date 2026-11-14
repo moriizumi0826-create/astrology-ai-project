@@ -18,36 +18,59 @@ function Placement({ step }) {
 
 function Result({ result }) {
   const { birth, chart, reading } = result;
-  const { quest, trainingSkill, role, outcome } = reading.profile;
+  const { quest, trainingSkill, role, outcome, advancedRoles } = reading.profile;
   const heading = useRef(null);
   useEffect(() => { heading.current.focus(); }, [result]);
   return <article className="career-result" aria-labelledby="career-result-title">
-    <header className="career-result-head">
-      <p className="career-profile-label">出生図から見た初期ジョブ</p>
-      <h2 id="career-result-title" ref={heading} tabIndex={-1}>{quest.job}</h2>
-      <p>{birth.date.replace(/-/g, '/')} {birth.time} ・ {birth.prefecture}</p>
-    </header>
-    <ol className="career-profile">
-      <li><h3>① 固有技</h3><strong>{quest.technique}</strong><p>{quest.signature}。</p></li>
-      <li><h3>② 伸ばすスキル</h3><strong>{trainingSkill}</strong></li>
-      <li><h3>③ 極めた先の役割</h3><strong>{role}</strong><p>示したい実績は、{outcome}。</p></li>
-    </ol>
-    <div className="career-quest-grid">
-      <section className="career-example career-quest">
+    <div className="career-adventure">
+      <header className="career-result-head">
+        <p className="career-profile-label">初期ジョブ</p>
+        <h2 id="career-result-title" ref={heading} tabIndex={-1}>{quest.job}</h2>
+        <p className="career-style">戦い方 <strong>{quest.style}</strong></p>
+        <dl className="career-profile">
+          <div><dt>固有技</dt><dd><strong>{quest.technique}</strong><p>{quest.signature}。</p></dd></div>
+          <div><dt>伸ばすスキル</dt><dd><strong>{trainingSkill}</strong></dd></div>
+        </dl>
+      </header>
+      <section className="career-quest">
         <p className="career-quest-label">レベル上げクエスト</p>
         <h3>{quest.title}</h3>
-        <p>{quest.mission}</p>
-        <p><strong>攻略のヒント</strong>　{quest.practice}。</p>
-        <p><strong>クリア条件</strong>　{quest.clear}。</p>
+        <p className="career-mission">{quest.mission}</p>
+        <dl className="career-quest-notes">
+          <div><dt>進め方</dt><dd>{quest.styleHint}。</dd></div>
+          <div><dt>スキルの鍛え方</dt><dd>{quest.practice}。</dd></div>
+          <div className="career-clear"><dt>クリア条件</dt><dd>{quest.clear}。</dd></div>
+        </dl>
       </section>
-      <section className="career-example">
+    </div>
+    <section className="career-work" aria-label="現実の仕事で試すなら">
+      <div>
         <p className="career-quest-label">現実の仕事で試すなら</p>
         <h3>{quest.workTitle}</h3>
         <p>{quest.workAction}。</p>
         <p><strong>成果の見方</strong>　{quest.measure}を記録して、工夫する前後で比べる。</p>
-      </section>
-    </div>
-    <h3 className="career-basis-title">出生図で根拠を見る</h3>
+      </div>
+      <div>
+        <p className="career-quest-label">極めた先の役割</p>
+        <h3>{role}</h3>
+        <p>示したい実績は、{outcome}。</p>
+      </div>
+    </section>
+    {advancedRoles.length > 0 && <section className="career-advanced" aria-labelledby="career-advanced-title">
+      <h3 id="career-advanced-title">到達役割の候補</h3>
+      <div className="career-quest-grid">
+        {advancedRoles.map(candidate => <div className="career-example" key={candidate.name}>
+          <h4>{candidate.name}</h4>
+          <p><strong>{candidate.quest}</strong></p>
+          <p>{candidate.work}</p>
+          <p className="career-placement">{candidate.evidence.join('／')}</p>
+        </div>)}
+      </div>
+    </section>}
+    <header className="career-basis-head">
+      <h3>出生図で根拠を見る</h3>
+      <p>{birth.date.replace(/-/g, '/')} {birth.time} ・ {birth.prefecture}</p>
+    </header>
     <div className="career-diagram">
       <CareerWheel chart={chart} reading={reading} />
       <ol className="career-steps">

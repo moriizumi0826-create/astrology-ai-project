@@ -69,7 +69,7 @@ export function readCareer(chart) {
   const sixthSign = SIGNS.indexOf(sixth.cusp.sign);
   const [task] = WORK[sixthSign];
   const [, role, outcome] = WORK[SIGNS.indexOf(tenth.cusp.sign)];
-  const quest = careerQuest(second.ruler.house - 1, sixthSign);
+  const quest = careerQuest(second.ruler, SIGNS.indexOf(second.ruler.sign), sixthSign);
   const steps = [
     { ...second, result: RESOURCES[second.ruler.house - 1], detail: `${SIGN_STYLES[SIGNS.indexOf(second.ruler.sign)]}やり方を試す。` },
     { ...sixth, result: task, detail: `支配星の${sixth.ruler.name}がいる${sixth.ruler.house}ハウスも、練習の場を探す手がかり。` },
@@ -99,8 +99,41 @@ export function readCareer(chart) {
   const nearMc = chart.planets.map(planet => ({ ...planet, distance: angularDistance(planet.longitude, tenth.cusp.longitude) }))
     .filter(planet => planet.distance <= 3)
     .sort((a, b) => a.distance - b.distance);
+  const leadingSignals = [planets.get('太陽'), planets.get('土星')].filter(planet =>
+    planet && (planet.house === 10 || nearMc.some(near => near.name === planet.name)));
+  const authorityRulers = ['太陽', '土星'].includes(tenth.ruler.name);
+  const advancedRoles = [];
+  if (leadingSignals.length === 2 || (authorityRulers && leadingSignals.some(planet => planet.name !== tenth.ruler.name))) {
+    advancedRoles.push({
+      name: '王様',
+      quest: '三つの領地に、限られた予算を配分せよ',
+      work: '部門ごとの要望を聞き、組織全体で何を優先するかと、その判断基準を決める。',
+      evidence: [
+        ...(authorityRulers ? [`MCの支配星は${tenth.ruler.name}`] : []),
+        ...leadingSignals.map(planet => nearMc.some(near => near.name === planet.name)
+          ? `${planet.name}がMCの近く（3°以内）`
+          : `${planet.name}が10ハウスにある`),
+      ],
+    });
+  }
+  const localHouse = [4, 11].includes(tenth.ruler.house) ? tenth.ruler.house : null;
+  const localLinks = [4, 11].filter(number => {
+    const ruler = planets.get(houses.get(number)?.ruler);
+    return ruler && ruler.name !== tenth.ruler.name && ruler.house === 10;
+  });
+  if (localHouse || localLinks.length) {
+    advancedRoles.push({
+      name: '村長',
+      quest: '村の井戸を、全員が使えるようにせよ',
+      work: '利用者の困りごとを聞き、使う順番や当番を決めて、共同で回せる仕組みにする。',
+      evidence: [
+        ...(localHouse ? [`MCの支配星・${tenth.ruler.name}が${localHouse}ハウスにある`] : []),
+        ...localLinks.map(number => `${number}ハウスの支配星・${houses.get(number).ruler}が10ハウスにある`),
+      ],
+    });
+  }
   return {
     steps, connections, nearMc,
-    profile: { quest, trainingSkill: TRAINING_SKILLS[sixthSign], role, outcome },
+    profile: { quest, trainingSkill: TRAINING_SKILLS[sixthSign], role, outcome, advancedRoles },
   };
 }
