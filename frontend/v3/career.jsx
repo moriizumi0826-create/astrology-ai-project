@@ -121,7 +121,7 @@ function App() {
   return <main className="career-page">
     <a className="career-back" href="/entry.html">← The Celestial Atelier</a>
     <header className="career-intro">
-      <h1>向いている仕事を、どう極める？</h1>
+      <h1>向いてる仕事で何を極める？</h1>
       <p>出生図の2ハウス、6ハウス、10ハウス・MCから、稼ぐ持ち味とその育て方を探ります。</p>
     </header>
     <form className="career-form" onSubmit={submit} aria-busy={busy}>
