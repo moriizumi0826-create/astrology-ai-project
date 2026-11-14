@@ -1,8 +1,10 @@
+import { memberCopy } from "./member-copy.mjs";
 import { deleteJson, getJson } from "./api.mjs";
 import { authClient, authMessage, initializeAuth, isMemberMode } from "./auth-client.mjs";
 import { deleteMemberProfile } from "./profile.mjs";
 import { configureStorage } from "./reading-storage.js";
 
+document.querySelector("#billing-link").textContent = memberCopy("accountBilling");
 const status = document.querySelector("#status");
 const accountEmail = document.querySelector("#account-email");
 const errorBox = document.querySelector("#error");
@@ -48,7 +50,7 @@ async function load() {
     subscriptionNote.textContent = blockedBySubscription
       ? "契約または支払い処理が残っています。先に契約管理画面で状態を確認し、利用期間終了後にアカウントを削除してください。"
       : "削除を進められる契約状態です。安全確認のため、現在のパスワードで再認証します。";
-    document.querySelector("#billing-link").textContent = billing.customer ? "契約・支払い状態を確認する" : "有料プランを確認する";
+    document.querySelector("#billing-link").textContent = billing.customer ? "契約・支払い状態を確認する" : memberCopy("accountAction");
     syncDeleteButton();
     const { mountBirthEditor } = await import("./account-birth-editor.jsx");
     birthEditor = await mountBirthEditor(document.querySelector("#profile-editor"), {

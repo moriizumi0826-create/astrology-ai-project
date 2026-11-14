@@ -1,4 +1,5 @@
 // Main paid views, loaded only after the V3 session gate.
+import { memberCopy } from "./member-copy.mjs";
 import { TransitNatalSunMap, Horoscope3DMap } from "./horoscope-map.jsx";
 import { calendarMapNavigation } from './calendar-map-navigation.mjs';
 import { getJson, postJson, requestJson, formatApiError, resolveApiBaseUrl, getQueryReadingForm, reloadCsvMasters } from "./api.mjs";
@@ -2754,11 +2755,11 @@ function PremiumAccessDialog({ open, onClose }) {
           </span>
           <div>
             <p className="font-mono text-[10px] font-black uppercase tracking-[0.2em] text-[#9d7620]">Premium Reading</p>
-            <h2 id="premium-access-title" className="mt-2 font-serif text-2xl font-semibold sm:text-3xl">星の見通しは有料版限定です</h2>
+            <h2 id="premium-access-title" className="mt-2 font-serif text-2xl font-semibold sm:text-3xl">{memberCopy("forecastLockedTitle")}</h2>
             </div>
           </div>
         <p className="mt-6 text-sm leading-7 text-[#0A192F]/70">
-          無料版では、生年月日から導いた Horoscope をご覧いただけます。年間・月間の星の見通しは、有料版でご利用いただけます。
+          {memberCopy("forecastLockedBody")}
         </p>
         <button
           type="button"

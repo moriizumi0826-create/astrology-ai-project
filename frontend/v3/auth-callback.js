@@ -1,3 +1,4 @@
+import { memberCopy } from "./member-copy.mjs";
 import { authClient, authMessage } from "./auth-client.mjs";
 import { getJson } from "./api.mjs";
 import { configureStorage, getStoredReadingForm } from "./reading-storage.js";
@@ -23,13 +24,13 @@ let client;
   const session = await getJson("/api/v3/session");
   if (failedLink || !session.user_id) throw new Error(googleLogin ? "Googleログインを確認できませんでした。ログイン画面からもう一度お試しください。" : "確認リンクが無効または期限切れです。ログイン画面からメールを再送してください。");
   $("#status").textContent = recovery ? "新しいパスワードを設定してください（12文字以上）。"
-    : session.access_source === "invite" ? "メールを確認しました。招待特典で有料機能を利用できます。"
+    : session.access_source === "invite" ? memberCopy("inviteEmailConfirmed")
     : "メールを確認しました。会員登録は無料です。";
   $("#heading").textContent = recovery ? "パスワード再設定" : "メール確認完了";
   if (googleLogin) {
     $("#heading").textContent = "Googleログイン完了";
     document.title = "Googleログイン完了 | The Celestial Atelier";
-    $("#status").textContent = session.access_source === "invite" ? "招待特典で有料機能を利用できます。" : "Googleアカウントでログインしました。";
+    $("#status").textContent = session.access_source === "invite" ? memberCopy("inviteGoogleConfirmed") : "Googleアカウントでログインしました。";
   }
   $("#password-row").hidden = !recovery;
   $("#new-password").required = recovery;

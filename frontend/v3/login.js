@@ -1,3 +1,4 @@
+import { memberCopy } from "./member-copy.mjs";
 import { authClient, authMessage, initializeAuth } from "./auth-client.mjs";
 import { getJson } from "./api.mjs";
 import { configureStorage, getStoredReadingForm } from "./reading-storage.js";
@@ -97,6 +98,10 @@ async function initialize() {
     $(".feedback").append($("#retry"));
   }
 }
+$('#campaign-heading').textContent = memberCopy('campaignHeading');
+$('#campaign-body').textContent = memberCopy('campaignBody');
+$('#campaign-conditions').textContent = memberCopy('campaignConditions');
+$('#billing-link').textContent = memberCopy('accountBilling');
 setMode(mode);
 initialize();
 $("#retry").addEventListener("click", () => location.reload());

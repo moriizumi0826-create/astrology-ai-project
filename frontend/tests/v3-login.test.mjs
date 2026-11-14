@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import vm from "node:vm";
+import { memberCopy } from "../v3/member-copy.mjs";
 
 const script = fs.readFileSync(new URL("../v3/login.js", import.meta.url), "utf8").replace(/^import .*;\r?\n/gm, "");
 const html = fs.readFileSync(new URL("../v3/login.html", import.meta.url), "utf8");
@@ -18,7 +19,7 @@ async function setup({ member = false, saved = true, failInit = false, hash = ""
   const initial = new Promise(resolve => { resolveInit = resolve; });
   const auth = Object.fromEntries(["signInWithPassword", "signUp", "resetPasswordForEmail", "resend", "signOut"].map(name => [name, async args => { calls.push({ name, args }); return { error: failure }; }]));
   auth.getUser = async () => ({ data: { user: { email: "test@example.com" } } });
-  const context = vm.createContext({ Date: { now: () => Date.parse(now), parse: Date.parse }, document: { querySelector: el, querySelectorAll: selector => selector.includes("[data-mode]") ? modes : [...elements.values()] },
+  const context = vm.createContext({ memberCopy, Date: { now: () => Date.parse(now), parse: Date.parse }, document: { querySelector: el, querySelectorAll: selector => selector.includes("[data-mode]") ? modes : [...elements.values()] },
     initializeAuth: async () => { await initial; if (failInit) throw Error("offline"); return { mode: "supabase" }; }, authClient: async () => ({ auth }),
     getJson: async () => member ? { user_id: "test" } : {}, configureStorage() {}, getStoredReadingForm: () => saved ? ({ test: true }) : null,
     finishMemberLogin: async () => {}, initializeCaptcha: async () => {}, resetCaptcha() {}, captchaTokenForRequest: () => "captcha-test",
@@ -82,7 +83,8 @@ test("campaign notice is signup-only and remains after the former deadline", asy
   ui.mode("reset"); assert.equal(ui.el("#signup-campaign").hidden, true);
   const ended = await setup({ now: "2026-11-01T00:00:00+09:00" });
   ended.mode("signup"); assert.equal(ended.el("#signup-campaign").hidden, false);
-  assert.doesNotMatch(html, /先着(?:25|50)名|10月末|2026年10月31日/); assert.match(html, /メール認証/); assert.match(html, /一定の人数に達し次第終了/);
+  const copy = ["#campaign-heading", "#campaign-body", "#campaign-conditions"].map(id => ended.el(id).textContent).join(" ");
+  assert.doesNotMatch(copy, /先着(?:25|50)名|10月末|2026年10月31日/); assert.match(copy, /メール認証/); assert.match(copy, /一定の人数に達し次第終了/);
 });
 
 test("Google button shares busy lock and recovers after failure; hidden for reset", async () => {

@@ -1,3 +1,4 @@
+import { memberCopy, memberFaqAnswer } from "./member-copy.mjs";
 import React, { useEffect, useRef, useState } from "react";
 import { getJson, postJson } from "./api.mjs";
 import FAQ from "./map-assistant-faq.json";
@@ -83,7 +84,7 @@ export function MapAssistantPanel({ id, context, getContext, onClose, canAsk = f
     const question = rawQuestion.trim();
     if (!question || pending) return;
     if (Object.hasOwn(FAQ, question)) {
-      setMessages((current) => [...current, { role: "user", content: question }, { role: "assistant", content: FAQ[question] }]);
+      setMessages((current) => [...current, { role: "user", content: question }, { role: "assistant", content: memberFaqAnswer(FAQ[question]) }]);
       setDraft("");
       setError("");
       return;
@@ -159,14 +160,14 @@ export function MapAssistantPanel({ id, context, getContext, onClose, canAsk = f
         </div>
         <form onSubmit={(event) => { event.preventDefault(); ask(draft); }} className="flex gap-2">
           <label htmlFor={id + "-question"} className="sr-only">質問を自由に入力</label>
-          <input id={id + "-question"} disabled={!canAsk || pending} value={draft} maxLength={500} onChange={(event) => setDraft(event.target.value)} placeholder={canAsk ? "質問を自由に入力" : "自由入力は有料・招待会員限定"} className="min-w-0 flex-1 rounded-lg border border-white/15 bg-[#0a1120] px-3 py-2 text-xs text-starlight outline-none placeholder:text-mist/50 focus:border-gold/50 disabled:opacity-50" />
+          <input id={id + "-question"} disabled={!canAsk || pending} value={draft} maxLength={500} onChange={(event) => setDraft(event.target.value)} placeholder={canAsk ? "質問を自由に入力" : memberCopy("aiPlaceholder")} className="min-w-0 flex-1 rounded-lg border border-white/15 bg-[#0a1120] px-3 py-2 text-xs text-starlight outline-none placeholder:text-mist/50 focus:border-gold/50 disabled:opacity-50" />
           <button type="submit" disabled={!canAsk || pending || !draft.trim() || (!Object.hasOwn(FAQ,draft.trim()) && (!contextReady || !usage || (usage.unlimited !== true && usage.remaining<=0)))} className="rounded-lg bg-gold/20 px-3 py-2 text-xs text-gold disabled:opacity-40">送信</button>
         </form>
         {canAsk && !contextReady && <p role="status" className="text-[10px] text-mist/65">{contextError ? 'イベント日時の配置を取得できませんでした。マップのエラー表示を確認してください。' : 'イベント日時の配置を読み込み中です。読み込み完了後に質問できます。'}</p>}
         {canAsk && <div className="text-[10px] text-mist/65" aria-live="polite">
           {usage ? usage.unlimited === true ? <p>AIへの質問：回数制限なし（ローカルテスト用）</p> : <><p>AIへの質問：本日あと{usage.remaining}回／{usage.limit}回（日本時間0時更新）</p>{usage.remaining===0 && <p>本日の質問枠がありません。固定質問は引き続き利用できます。</p>}</> : usageError ? <p>{usageError}<button type="button" className="ml-2 text-gold underline" onClick={refreshUsage}>再試行</button></p> : <p>残り回数を確認中…</p>}
         </div>}
-        {!canAsk && <p className="text-[10px] text-mist/65">🔒 AIへの自由な質問は有料・招待会員限定です。固定質問は無料で利用できます。</p>}
+        {!canAsk && <p className="text-[10px] text-mist/65">{memberCopy("aiLocked")}</p>}
         {error && <p role="alert" className="text-xs text-red-300">{error}</p>}
       </div>
     </section>

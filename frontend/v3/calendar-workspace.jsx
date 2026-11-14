@@ -1,3 +1,4 @@
+import { memberCopy } from "./member-copy.mjs";
 import React, {createContext, lazy, Suspense, useContext, useEffect, useRef, useState} from 'react';
 import {createPortal} from 'react-dom';
 import {useAccess} from './access-context.jsx';
@@ -100,7 +101,7 @@ export function CalendarWorkspace({children}) {
   const value={notes,loaded,error,busy,canWrite,reload,edit,remove,openCalendar};
   return <Context.Provider value={value}>{children}
     {open && <Dialog label={canWrite?'天体イベントカレンダー':'保存済みメモ'} onClose={()=>setOpen(false)}>
-      {!canWrite && <p className="mb-3 text-sm">有料期間終了後もメモの閲覧・削除は可能です。新規保存・編集と天体イベント情報は有料会員限定です。</p>}
+      {!canWrite && <p className="mb-3 text-sm">{memberCopy("notesLocked")}</p>}
       {loading && <p role="status">天体イベントを読み込み中…</p>}
       {eventError && <p role="alert">{eventError}<button className="ml-3 underline" onClick={()=>openCalendar(eventMapHandler.current)}>再試行</button></p>}
       <Suspense fallback={<p>カレンダーを読み込み中…</p>}><Calendar calendarOnly data={canWrite ? (data||{}) : {}} onOpenEventMap={canWrite && eventMapHandler.current ? openEventMap : null} /></Suspense>
@@ -127,7 +128,7 @@ export function CalendarWorkspace({children}) {
         {error && <p role="alert">{error}</p>}
         <button type="submit" disabled={busy||!canWrite||!loaded||destination==='choose'||!draft.content.trim()||noteLength(draft.content)>1000||(!draft.id&&notes.length>=100)} className="rounded bg-gold/20 px-4 py-2 disabled:opacity-40">{busy?'保存中…':'アカウントに保存'}</button>
         {!draft.id&&notes.length>=100&&<p>100件に達しています。既存メモへの追記は可能です。</p>}
-        {!canWrite && <p>新規保存・編集には有料会員の利用資格が必要です。</p>}
+        {!canWrite && <p>{memberCopy("noteEditLocked")}</p>}
         {!loaded && <button type="button" onClick={reload}>メモを再読み込み</button>}
       </form>
     </Dialog>}

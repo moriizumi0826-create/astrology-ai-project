@@ -1,4 +1,5 @@
 // Extracted from main 877edb6; shared by Horoscope and paid daily views.
+import { memberCopy } from "./member-copy.mjs";
 import { getJson, postJson, requestJson, formatApiError, resolveApiBaseUrl, getQueryReadingForm } from "./api.mjs";
 import React, { useEffect, useMemo, useState } from "react";
 import { useAccess } from "./access-context.jsx";
@@ -4739,7 +4740,7 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
                       key={option.key}
                       type="button"
                       disabled={isLockedAspectMode(option.key, policy)}
-                      title={isLockedAspectMode(option.key, policy) ? "有料版で利用できます" : undefined}
+                      title={isLockedAspectMode(option.key, policy) ? memberCopy("featureLocked") : undefined}
                       onClick={() => selectAspectLineMode(option.key)}
                       className={cx(
                         "grid min-h-10 content-center rounded-lg border px-2 py-1 text-left transition disabled:cursor-not-allowed disabled:opacity-40",
@@ -4754,7 +4755,7 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
                         {option.label}
                       </span>
                       <span className="text-[8px] leading-3 text-mist/55">{option.description}</span>
-                      {isLockedAspectMode(option.key, policy) && <span className="text-[9px] leading-4 text-gold">有料版で利用できます</span>}
+                      {isLockedAspectMode(option.key, policy) && <span className="text-[9px] leading-4 text-gold">{memberCopy("featureLocked")}</span>}
                     </button>
                   ))}
                 </div>
@@ -4852,7 +4853,7 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
             </section>
           )}
           <div className="absolute bottom-3 left-2 right-[152px] z-[100] flex h-[42px] items-center justify-start gap-1 [&>button]:min-w-0 [&>button]:gap-0 [&>button]:px-1 [&>button]:text-[9px] [&>button>svg]:hidden sm:left-4 sm:gap-2 sm:[&>button]:gap-1.5 sm:[&>button]:px-2.5 sm:[&>button]:text-[11px] sm:[&>button>svg]:block" aria-label="マップの詳細情報">
-            <button type="button" disabled={!canShowAspectList} title={!canShowAspectList ? "有料版で利用できます" : undefined} onClick={() => {setIsAspectListPanelOpen(value => !value); setIsMapControlsMenuOpen(false); setIsMapSettingsOpen(false);}} aria-expanded={isAspectListPanelOpen} aria-controls={mapId + "-map-aspect-details"} className={cx(mapControlButtonClass,"border border-white/10 bg-[#101827]/90 shadow-lg backdrop-blur-xl",isAspectListPanelOpen && "text-gold")}><ChevronDown size={13} className={isAspectListPanelOpen ? "" : "rotate-180"} />アスペクト一覧</button>
+            <button type="button" disabled={!canShowAspectList} title={!canShowAspectList ? memberCopy("featureLocked") : undefined} onClick={() => {setIsAspectListPanelOpen(value => !value); setIsMapControlsMenuOpen(false); setIsMapSettingsOpen(false);}} aria-expanded={isAspectListPanelOpen} aria-controls={mapId + "-map-aspect-details"} className={cx(mapControlButtonClass,"border border-white/10 bg-[#101827]/90 shadow-lg backdrop-blur-xl",isAspectListPanelOpen && "text-gold")}><ChevronDown size={13} className={isAspectListPanelOpen ? "" : "rotate-180"} />アスペクト一覧</button>
             <button type="button" onClick={() => {setIsMapControlsMenuOpen(value => !value); setIsAspectListPanelOpen(false); setIsMapSettingsOpen(false);}} aria-expanded={isMapControlsMenuOpen} aria-controls={mapId + "-map-chart-details"} className={cx(mapControlButtonClass,"border border-white/10 bg-[#101827]/90 shadow-lg backdrop-blur-xl", !isMapFullscreen && "hidden sm:inline-flex",isMapControlsMenuOpen && "text-gold")}><ChevronDown size={13} className={isMapControlsMenuOpen ? "" : "rotate-180"} />天体データ</button>
             <button type="button" onClick={() => { setEventHint(false); setEventPulse(false); setIsMapAssistantOpen(value => !value); setIsAspectListPanelOpen(false); setIsMapControlsMenuOpen(false); setIsMapSettingsOpen(false); }} aria-expanded={isMapAssistantOpen} aria-controls={mapId + "-map-assistant"} className={cx(mapControlButtonClass, "border border-gold/30 bg-[#101827]/90 text-gold shadow-lg backdrop-blur-xl", eventPulse && 'motion-safe:animate-pulse ring-2 ring-gold/60')}><Sparkles size={13} />AIに聞く</button>
           </div>
@@ -4894,7 +4895,7 @@ function TransitNatalSunMap({ day, forecast, availableDays = [], selectedDayInde
                       key={value}
                       type="button"
                       disabled={value === "composite" && !canShowCompoundAspects}
-                      title={value === "composite" && !canShowCompoundAspects ? "有料版で利用できます" : undefined}
+                      title={value === "composite" && !canShowCompoundAspects ? memberCopy("featureLocked") : undefined}
                       onClick={() => setAspectInterpretationScope(value)}
                       className={cx(
                         "h-7 rounded-md px-1 text-[8px] transition disabled:cursor-not-allowed disabled:opacity-40 sm:text-[9px]",

@@ -7,6 +7,8 @@ from typing import Literal
 from fastapi import Depends, HTTPException, Request
 from pydantic import BaseModel
 
+from backend.v3.member_copy import member_copy
+
 
 @dataclass(frozen=True)
 class AccessContext:
@@ -109,6 +111,6 @@ def require_paid_access(access: AccessSnapshot = Depends(get_access_snapshot)) -
     if access.state != "paid":
         raise HTTPException(
             status_code=401 if access.state == "anonymous" else 403,
-            detail="この機能にはログインと有料利用資格が必要です。",
+            detail=member_copy("anonymousDenied" if access.state == "anonymous" else "memberDenied"),
         )
     return access

@@ -1,3 +1,4 @@
+import { memberCopy } from "./member-copy.mjs";
 import React, { useEffect, useRef, useState } from "react";
 import { postJson } from "./api.mjs";
 import { authClient, authMessage, isMemberMode } from "./auth-client.mjs";
@@ -58,7 +59,7 @@ export function AccountControls({ session }) {
         {signedIn ? <>
           {isMemberMode() && <>
             <a href="/account.html">アカウント管理</a>
-            <a href="/billing.html">{session.state === "paid" ? "契約管理" : "有料プラン"}</a>
+            <a href="/billing.html">{session.state === "paid" ? "契約管理" : memberCopy("accountMenu")}</a>
           </>}
           <button type="button" onClick={signOut} disabled={busy} className="rounded-lg px-3 py-3 text-left hover:bg-slate-100 disabled:opacity-50">{busy ? "処理中" : "ログアウト"}</button>
         </> : <a href="/login.html">ログイン・新規登録</a>}

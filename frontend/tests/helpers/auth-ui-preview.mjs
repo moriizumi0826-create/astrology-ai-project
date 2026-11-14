@@ -2,8 +2,12 @@
 // Run: node tests/helpers/auth-ui-preview.mjs
 import http from "node:http";
 import fs from "node:fs";
+import { memberCopy } from "../../v3/member-copy.mjs";
+const copy = Object.fromEntries(["campaignHeading", "campaignBody", "campaignConditions", "accountBilling"].map(key => [key, memberCopy(key)]));
 const root = new URL("../../v3/", import.meta.url);
 const mock = `
+const copy = ${JSON.stringify(copy)};
+const memberCopy = key => copy[key];
 const scenario = new URLSearchParams(location.search).get('scenario');
 const pause = ms => new Promise(resolve => setTimeout(resolve, ms));
 const initializeAuth = async () => { await pause(1200); if(scenario === 'offline') throw Error('offline'); return {mode:'supabase'}; };

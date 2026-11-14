@@ -19,9 +19,9 @@
 <form id="member-form">
 <div id="fields">
 <aside id="signup-campaign" class="campaign-notice" aria-label="新規登録キャンペーン" hidden>
-<strong>新規登録で、有料機能をずっと無料に</strong>
-<p>新規登録とメール認証を完了すると、招待会員として有料プランの機能を期限なく無料でご利用いただけます。</p>
-<p class="hint">カード登録不要・月額料金は発生しません。一定の人数に達し次第終了します。</p>
+<strong id="campaign-heading"></strong>
+<p id="campaign-body"></p>
+<p id="campaign-conditions" class="hint"></p>
 </aside>
 <label for="email">メールアドレス</label><input id="email" type="email" autocomplete="username" inputmode="email" autocapitalize="none" spellcheck="false" maxlength="254" required>
 <div id="password-row"><label for="password">パスワード</label><div class="password-input"><input id="password" type="password" autocomplete="current-password" maxlength="128" required><button id="show-password" type="button" aria-label="パスワードを表示" aria-pressed="false">表示</button></div><p id="signup-note" class="hint" hidden>12文字以上で設定してください。</p></div>
@@ -38,7 +38,7 @@
   <p>ログイン中のメールアドレス</p><strong id="account-email"></strong>
   <p><a id="continue" class="primary" href="/auth-callback.html?mode=onboarding">出生データを入力して始める</a></p>
   <p><a href="/account.html">アカウント・出生情報の管理</a></p>
-  <p><a href="/billing.html">有料プラン・契約管理</a></p>
+  <p><a id="billing-link" href="/billing.html"></a></p>
   <button id="signout" class="text-button" type="button">ログアウト</button>
 </section>
 <div class="feedback"><p id="error" role="alert"></p><p id="status" role="status"></p></div>
