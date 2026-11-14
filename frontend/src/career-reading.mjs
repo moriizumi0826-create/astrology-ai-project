@@ -70,8 +70,10 @@ export function readCareer(chart) {
   const [task] = WORK[sixthSign];
   const [, role, outcome] = WORK[SIGNS.indexOf(tenth.cusp.sign)];
   const quest = careerQuest(second.ruler, SIGNS.indexOf(second.ruler.sign), sixthSign);
+  const secondResource = second.ruler.house === 12 && second.ruler.name === '月'
+    ? quest.signature : RESOURCES[second.ruler.house - 1];
   const steps = [
-    { ...second, result: RESOURCES[second.ruler.house - 1], detail: `${SIGN_STYLES[SIGNS.indexOf(second.ruler.sign)]}やり方を試す。` },
+    { ...second, result: secondResource, detail: `${SIGN_STYLES[SIGNS.indexOf(second.ruler.sign)]}やり方を試す。` },
     { ...sixth, result: task, detail: `支配星の${sixth.ruler.name}がいる${sixth.ruler.house}ハウスも、練習の場を探す手がかり。` },
     { ...tenth, result: role, detail: `実績にするなら、${outcome}。` },
   ];
