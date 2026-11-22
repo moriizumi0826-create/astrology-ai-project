@@ -10,10 +10,11 @@ ROOT = Path(__file__).resolve().parents[1]
 TARGET_PLANETS = ("SUN", "MERCURY", "VENUS", "MARS", "JUPITER")
 SIGN_INGRESS_SECTION_ORDERS = (30, 35, 40, 50, 55)
 
-# Older monthly CSVs have protected, already-published identifiers. November
-# needs both directions because these planets station within the same sign.
+# Preserve published identifiers. These months need both directions because
+# the listed planets station within the same sign.
 NATAL_DIRECTIONS_BY_MONTH = {
     "2026-11": {("MERCURY", "SCORPIO"): (1, -1), ("VENUS", "LIBRA"): (1, -1)},
+    "2026-12": {("JUPITER", "LEO"): (1, -1)},
 }
 
 FIELDNAMES = [

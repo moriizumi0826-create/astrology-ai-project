@@ -1,4 +1,5 @@
 import unittest
+from collections import Counter
 
 from backend.app.services import monthly_overview_service
 
@@ -7,13 +8,16 @@ class MonthlyOverviewLoaderTestCase(unittest.TestCase):
     def test_monthly_overview_csvs_load_with_expected_rows(self):
         editorial = monthly_overview_service.load_monthly_overview_editorial()
 
-        self.assertEqual(len(editorial), 720)
         self.assertEqual(
+            Counter(row["Edition_ID"] for row in editorial),
             {
-                edition_id: sum(row["Edition_ID"] == edition_id for row in editorial)
-                for edition_id in ("2026_CANCER", "2026_LEO", "2026_VIRGO", "2026_LIBRA", "2026_SCORPIO")
+                "2026_CANCER": 144,
+                "2026_LEO": 144,
+                "2026_VIRGO": 144,
+                "2026_LIBRA": 144,
+                "2026_SCORPIO": 144,
+                "2026_SAGITTARIUS": 144,
             },
-            {"2026_CANCER": 144, "2026_LEO": 144, "2026_VIRGO": 144, "2026_LIBRA": 144, "2026_SCORPIO": 144},
         )
 
         for month_id, event_count, aspect_count, long_term_count in (
@@ -21,6 +25,7 @@ class MonthlyOverviewLoaderTestCase(unittest.TestCase):
             ("2026_09", 840, 720, 276),
             ("2026_10", 372, 720, 240),
             ("2026_11", 396, 432, 276),
+            ("2026_12", 696, 432, 240),
         ):
             with self.subTest(month_id=month_id):
                 event_paragraphs = (
@@ -71,7 +76,7 @@ class MonthlyOverviewLoaderTestCase(unittest.TestCase):
         long_term = indexes["long_term_by_house"]
 
         self.assertEqual(indexes["month_id"], "2026-08")
-        self.assertEqual(len(editorial), 720)
+        self.assertEqual(sum(edition == "2026_LEO" for edition, _, _ in editorial), 144)
         self.assertEqual(len(events), 840)
         self.assertEqual(len(aspects), 144)
         self.assertEqual(len(long_term), 25)
@@ -108,7 +113,7 @@ class MonthlyOverviewLoaderTestCase(unittest.TestCase):
         long_term = indexes["long_term_by_house"]
 
         self.assertEqual(indexes["month_id"], "2026-09")
-        self.assertEqual(len(editorial), 720)
+        self.assertEqual(sum(edition == "2026_VIRGO" for edition, _, _ in editorial), 144)
         self.assertEqual(len(events), 840)
         self.assertEqual(len(aspects), 144)
         self.assertEqual(len(long_term), 24)
@@ -146,7 +151,7 @@ class MonthlyOverviewLoaderTestCase(unittest.TestCase):
         long_term = indexes["long_term_by_house"]
 
         self.assertEqual(indexes["month_id"], "2026-10")
-        self.assertEqual(len(editorial), 720)
+        self.assertEqual(sum(edition == "2026_LIBRA" for edition, _, _ in editorial), 144)
         self.assertEqual(len(events), 372)
         self.assertEqual(len(aspects), 144)
         self.assertEqual(len(long_term), 24)
@@ -178,7 +183,8 @@ class MonthlyOverviewLoaderTestCase(unittest.TestCase):
     def test_november_indexes_cover_forward_and_retrograde_events(self):
         indexes = monthly_overview_service.build_monthly_overview_indexes("2026_11")
         self.assertEqual(indexes["month_id"], "2026-11")
-        self.assertEqual(len(indexes["editorial_by_house"]), 720)
+        november_editorials = indexes["editorial_by_house"]
+        self.assertEqual(sum(edition == "2026_SCORPIO" for edition, _, _ in november_editorials), 144)
         self.assertEqual(len(indexes["event_by_condition"]), 396)
         self.assertEqual(len(indexes["aspect_by_anchor"]), 144)
         self.assertEqual(len(indexes["long_term_by_house"]), 24)

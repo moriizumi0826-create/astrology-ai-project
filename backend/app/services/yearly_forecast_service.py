@@ -1763,6 +1763,12 @@ def build_annual_summaries(
 
 def _available_monthly_overview_ids(year: int) -> tuple[str, ...]:
     prefix = "M_Monthly_Overview_Event_Paragraphs_"
+    # Draft CSVs can exist before the editorial is ready for every birth chart.
+    completed_editorial_rows = Counter(
+        row["Edition_ID"]
+        for row in monthly_overview_service.load_monthly_overview_editorial(DATABASE_DIR)
+        if all(row[column].strip() for column in ("Title", "Summary", "Interpretation", "Action"))
+    )
     month_ids: list[str] = []
     for event_path in sorted(DATABASE_DIR.glob(f"{prefix}{year}_*.csv")):
         month_id = event_path.stem.removeprefix(prefix)
@@ -1772,7 +1778,12 @@ def _available_monthly_overview_ids(year: int) -> tuple[str, ...]:
         long_term_path = DATABASE_DIR / monthly_overview_service.LONG_TERM_BACKGROUND_FILENAME.format(
             month_id=month_id
         )
-        if aspect_path.exists() and long_term_path.exists():
+        if not (aspect_path.exists() and long_term_path.exists()):
+            continue
+        edition_id = monthly_overview_service.resolve_monthly_overview_edition_id(
+            month_id, DATABASE_DIR
+        )
+        if completed_editorial_rows[edition_id] == 144:
             month_ids.append(month_id)
     return tuple(month_ids)
 

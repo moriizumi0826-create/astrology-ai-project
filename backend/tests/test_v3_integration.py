@@ -88,6 +88,27 @@ class V3IntegrationTests(unittest.TestCase):
             {"2026_11_SUN_MARS_JUPITER_SQUARE_NETWORK"},
         )
 
+    def test_paid_december_detail_returns_completed_monthly_overviews(self):
+        client = local_test_client(create_preview_app("paid"))
+        response = client.post(
+            "/api/v3/yearly-forecast/detail?year=2026&scope=month&month=12",
+            json=FORM,
+        )
+        self.assertEqual(response.status_code, 200, response.text)
+        rows = response.json()["monthly_overviews"]["2026-12"]
+        self.assertEqual(len(rows), 31)
+        self.assertEqual(rows[0]["as_of"], "2026-12-01")
+        self.assertEqual(rows[-1]["as_of"], "2026-12-31")
+        for day, row in enumerate(rows, start=1):
+            self.assertEqual(row["editorial"]["Edition_ID"], "2026_SAGITTARIUS")
+            self.assertTrue(row["editorial"]["Title"])
+            self.assertTrue(row["event_paragraphs"])
+            self.assertTrue(row["long_term_backgrounds"])
+            self.assertLessEqual(len(row["long_term_backgrounds"]), 2)
+            self.assertEqual(len(row["aspect_clusters"]), int(day in {8, 9, 10, 23, 24, 25, 29, 30, 31}))
+            self.assertNotIn("{event_date}", str(row))
+            self.assertNotIn("{secondary_event_date}", str(row))
+
     def test_arbitrary_single_date_and_batch_match(self):
         request = {**FORM, "target_time": "12:00", "target_date": "2026-01-17"}
         single = self.client.post("/api/v3/transit-chart", json=request)

@@ -128,7 +128,14 @@ class MonthlyOverviewIntegrationTestCase(unittest.TestCase):
         }
 
     def test_three_birth_records_preserve_scores_and_select_distinct_editorials(self):
-        house_pairs = {"2026-08": set(), "2026-09": set(), "2026-10": set(), "2026-11": set()}
+        months = (
+            ("2026-08", 8, 31, "2026_LEO"),
+            ("2026-09", 9, 30, "2026_VIRGO"),
+            ("2026-10", 10, 31, "2026_LIBRA"),
+            ("2026-11", 11, 30, "2026_SCORPIO"),
+            ("2026-12", 12, 31, "2026_SAGITTARIUS"),
+        )
+        house_pairs = {month_id: set() for month_id, *_ in months}
         for forecast in self.forecasts:
             self.assertEqual(len(forecast["yearly_data"]), 365)
             self.assertTrue(any(day["all_aspects"] for day in forecast["yearly_data"]))
@@ -137,15 +144,10 @@ class MonthlyOverviewIntegrationTestCase(unittest.TestCase):
             )
             self.assertEqual(
                 set(forecast["monthly_overviews"]),
-                {"2026-08", "2026-09", "2026-10", "2026-11"},
+                set(house_pairs),
             )
 
-            for month_id, month, day_count, edition_id in (
-                ("2026-08", 8, 31, "2026_LEO"),
-                ("2026-09", 9, 30, "2026_VIRGO"),
-                ("2026-10", 10, 31, "2026_LIBRA"),
-                ("2026-11", 11, 30, "2026_SCORPIO"),
-            ):
+            for month_id, month, day_count, edition_id in months:
                 overviews = forecast["monthly_overviews"][month_id]
                 self.assertEqual(len(overviews), day_count)
                 self.assertEqual(
@@ -171,10 +173,9 @@ class MonthlyOverviewIntegrationTestCase(unittest.TestCase):
                 self.assertIn(natal_house, range(1, 13))
                 house_pairs[month_id].add((solar_house, natal_house))
 
-        self.assertEqual(len(house_pairs["2026-08"]), len(BIRTH_CASES))
-        self.assertEqual(len(house_pairs["2026-09"]), len(BIRTH_CASES))
-        self.assertEqual(len(house_pairs["2026-10"]), len(BIRTH_CASES))
-        self.assertEqual(len(house_pairs["2026-11"]), len(BIRTH_CASES))
+        for month_id, pairs in house_pairs.items():
+            with self.subTest(month=month_id):
+                self.assertEqual(len(pairs), len(BIRTH_CASES))
 
     def test_sign_ingress_dates_match_calendar_and_daily_transit_boundaries(self):
         expected_ingresses = {
